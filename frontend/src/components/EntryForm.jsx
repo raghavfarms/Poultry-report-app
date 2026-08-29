@@ -85,15 +85,15 @@ export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, 
 
     <div className="mt-2.5">
       {!assets.length && <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-sm text-amber-800">No active assets exist for this firm. An admin must add gensets or tractors under <b>Firms & Assets</b>.</div>}
-      {!!assets.length && <div className="w-[382px] max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="grid grid-cols-[110px_88px_48px_48px_56px] gap-1 border-b border-slate-200 bg-slate-100 px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-slate-500">
-          <span>Asset</span><span>Running hr</span><span>Refill</span><span>Avg</span><span>Is full</span>
+      {!!assets.length && <div className="w-[330px] max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="grid grid-cols-[110px_88px_48px_56px] gap-1 border-b border-slate-200 bg-slate-100 px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-slate-500">
+          <span>Asset</span><span>Running hr</span><span>Refill</span><span>Is full</span>
         </div>
       {assets.map((asset) => {
         const row = rows.find((item) => item.asset === asset._id) || emptyRow(asset);
         const serviceMinutes = row.serviceDone ? 0 : Number(baseService[asset._id]?.runningMinutes || 0) + Number(row.runningMinutes || 0);
         const serviceDue = serviceMinutes >= asset.serviceIntervalMinutes;
-        return <section key={asset._id} className="grid grid-cols-[110px_88px_48px_48px_56px] items-center gap-1 border-b border-slate-200 bg-slate-50/60 px-2 py-1.5 last:border-b-0">
+        return <section key={asset._id} className="grid grid-cols-[110px_88px_48px_56px] items-center gap-1 border-b border-slate-200 bg-slate-50/60 px-2 py-1.5 last:border-b-0">
           <div>
             <h3 className="break-words text-sm font-bold text-slate-900">{asset.label}</h3>
             <p className={`text-[9px] ${serviceDue ? 'font-bold text-red-600' : 'text-slate-500'}`}>Service {formatMinutes(serviceMinutes)} / {Math.round(asset.serviceIntervalMinutes / 60)}h</p>
@@ -102,7 +102,6 @@ export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, 
           <div className="contents">
             <CompactField label="Running"><TimeInput value={row.runningMinutes} onChange={(value) => updateRow(asset._id, { runningMinutes: value })} /></CompactField>
             <CompactField label="Refill (L)"><input aria-label={`${asset.label} refill diesel`} type="number" min="0" step="0.01" placeholder="L" className={compactInput} value={Number(row.refillLiters) === 0 ? '' : row.refillLiters} onChange={(e) => { const refillLiters = e.target.value; updateRow(asset._id, { refillLiters, isFull: Number(refillLiters) > 0 }); }} /></CompactField>
-            <CompactField label="Average"><div className="flex h-6 items-center px-1 text-xs text-slate-500">Auto</div></CompactField>
             <CompactField label="Is full"><label className="flex h-6 items-center gap-1.5 px-1"><input aria-label={`${asset.label} tank is full`} type="checkbox" checked={row.isFull} onChange={(e) => updateRow(asset._id, { isFull: e.target.checked })} className="h-3.5 w-3.5 shrink-0 accent-emerald-700" /><span className="text-xs">Full</span></label></CompactField>
           </div>
         </section>;
