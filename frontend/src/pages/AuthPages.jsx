@@ -4,8 +4,12 @@ import { api } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Alert, Field, inputClass, primaryButton } from '../components/Ui.jsx';
 
-function AuthShell({ title, subtitle, children }) {
-  return <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-800 to-lime-800 p-4"><section className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-8"><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Poultry Reporting System</p><h1 className="mt-3 text-2xl font-bold text-slate-900">{title}</h1><p className="mt-1 text-sm text-slate-500">{subtitle}</p><div className="mt-6">{children}</div></section></main>;
+function AuthShell({ title, subtitle, children, compact = ['Welcome back', 'Labour registration'].includes(title) }) {
+  const registrationClasses = title === 'Labour registration'
+    ? 'registration-card [&_.grid-cols-2]:grid-cols-1 sm:[&_.grid-cols-2]:grid-cols-2'
+    : '';
+  const cardSize = title === 'Welcome back' ? 'max-w-xs p-5' : compact ? 'max-w-sm p-5 sm:p-6' : 'max-w-md p-6 sm:p-8';
+  return <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-800 to-lime-800 p-4"><section className={`w-full rounded-3xl bg-white shadow-2xl ${cardSize} ${registrationClasses}`}><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Poultry Reporting System</p><h1 className={`${compact ? 'mt-2 text-xl' : 'mt-3 text-2xl'} font-bold text-slate-900`}>{title}</h1><p className="mt-1 text-sm text-slate-500">{subtitle}</p><div className={compact ? 'mt-5' : 'mt-6'}>{children}</div></section></main>;
 }
 
 function useAccountForm() {
@@ -42,4 +46,3 @@ export function SetupPage() {
   const submit = async (event) => { event.preventDefault(); setError(''); if (form.password !== form.confirm) return setError('Passwords do not match.'); setBusy(true); try { acceptSession(await api('/auth/setup-admin', { method: 'POST', body: JSON.stringify(form) })); } catch (err) { setError(err.message); } finally { setBusy(false); } };
   return <AuthShell title="One-time admin setup" subtitle="This creates Raghav and Sanjana firms. Assets remain empty until the admin adds them.">{allowed === false ? <><Alert type="success">Setup is already complete.</Alert><Link className={`${primaryButton} mt-4 w-full`} to="/login">Go to login</Link></> : <form onSubmit={submit} className="grid gap-4"><Alert>{error}</Alert><Field label="Admin name"><input required name="name" className={inputClass} value={form.name} onChange={update} /></Field><Field label="Admin email"><input required name="email" type="email" className={inputClass} value={form.email} onChange={update} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Password"><input required minLength="6" name="password" type="password" className={inputClass} value={form.password} onChange={update} /></Field><Field label="Confirm"><input required minLength="6" name="confirm" type="password" className={inputClass} value={form.confirm} onChange={update} /></Field></div><button disabled={busy || allowed === null} className={primaryButton}>{busy ? 'Setting up…' : 'Create admin & firms'}</button></form>}</AuthShell>;
 }
-
