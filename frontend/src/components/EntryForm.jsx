@@ -14,13 +14,13 @@ function TimeInput({ value, onChange, maxHours = 24, disabled = false }) {
     onChange(Math.min(maxHours * 60, total));
   };
   const compactClass = 'no-number-spinner h-6 min-w-0 w-full rounded border border-slate-300 bg-white px-1 text-center text-xs outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-100 disabled:bg-slate-100';
-  return <div className="grid grid-cols-[42px_42px] items-center gap-1"><input disabled={disabled} aria-label="Hours" placeholder="Hr" type="number" min="0" max={maxHours} value={hours || ''} onChange={(e) => change('hours', e.target.value)} className={compactClass} /><input disabled={disabled} aria-label="Minutes" placeholder="Mm" type="number" min="0" max="59" value={minutes || ''} onChange={(e) => change('minutes', e.target.value)} className={compactClass} /></div>;
+  return <div className="grid grid-cols-[42px_42px] items-center gap-1"><input disabled={disabled} aria-label="Hours" placeholder="Hr" type="number" min="0" max={maxHours} value={hours || ''} onChange={(e) => change('hours', e.target.value)} className={compactClass} /><input disabled={disabled} aria-label="Minutes" placeholder="Min" type="number" min="0" max="59" value={minutes || ''} onChange={(e) => change('minutes', e.target.value)} className={compactClass} /></div>;
 }
 
 const compactInput = 'no-number-spinner h-6 w-[42px] min-w-0 rounded border border-slate-300 bg-white px-1 text-center text-xs outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-100';
 
 function CompactField({ label, children, className = '' }) {
-  return <div className={`min-w-0 ${className}`}><p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:hidden">{label}</p>{children}</div>;
+  return <div className={`min-w-0 ${className}`}>{children}</div>;
 }
 
 export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, onCancel }) {
@@ -77,29 +77,29 @@ export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, 
   return <form onSubmit={submit} className="mx-auto w-full max-w-md rounded-lg border border-emerald-200 bg-white p-2 shadow-sm">
     <div className="mb-2 flex items-start justify-between gap-2"><div><p className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">Daily entry</p><h2 className="text-base font-bold text-slate-900">Diesel consumption</h2></div><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-8 !rounded-lg !px-3 !py-1 !text-xs`}>Close</button></div>
     <Alert>{error}</Alert>
-    <div className="mt-2.5 grid items-start gap-2 sm:grid-cols-[150px_170px_78px]">
+    <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_70px] items-start gap-2">
       <Field label="Firm"><select className={`${inputClass} !min-h-8 !rounded-md !px-2 !py-0.5`} value={firmId} onChange={(e) => setFirmId(e.target.value)}>{firms.map((firm) => <option key={firm._id} value={firm._id}>{firm.name}</option>)}</select></Field>
       <Field label="Entry date"><input required type="date" className={`${inputClass} cursor-pointer !min-h-8 !rounded-md !px-2 !py-0.5`} value={date} max={user.role === 'admin' ? undefined : today()} onClick={(e) => e.currentTarget.showPicker?.()} onChange={(e) => setDate(e.target.value)} /></Field>
-      <Field label="Diesel IN (L)"><input type="number" min="0" step="0.01" placeholder="L" className={`${inputClass} !min-h-8 !rounded-md !px-2 !py-0.5`} value={Number(dieselIn) === 0 ? '' : dieselIn} onChange={(e) => setDieselIn(e.target.value)} /></Field>
+      <Field label="Diesel IN"><input type="number" min="0" step="0.01" className={`${inputClass} !min-h-8 !rounded-md !px-2 !py-0.5`} value={Number(dieselIn) === 0 ? '' : dieselIn} onChange={(e) => setDieselIn(e.target.value)} /></Field>
     </div>
 
     <div className="mt-2.5">
       {!assets.length && <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-sm text-amber-800">No active assets exist for this firm. An admin must add gensets or tractors under <b>Firms & Assets</b>.</div>}
-      {!!assets.length && <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white sm:w-[382px]">
-        <div className="hidden grid-cols-[110px_88px_48px_48px_56px] gap-1 border-b border-slate-200 bg-slate-100 px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-slate-500 sm:grid">
+      {!!assets.length && <div className="w-[382px] max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="grid grid-cols-[110px_88px_48px_48px_56px] gap-1 border-b border-slate-200 bg-slate-100 px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-slate-500">
           <span>Asset</span><span>Running hr</span><span>Refill</span><span>Avg</span><span>Is full</span>
         </div>
       {assets.map((asset) => {
         const row = rows.find((item) => item.asset === asset._id) || emptyRow(asset);
         const serviceMinutes = row.serviceDone ? 0 : Number(baseService[asset._id]?.runningMinutes || 0) + Number(row.runningMinutes || 0);
         const serviceDue = serviceMinutes >= asset.serviceIntervalMinutes;
-        return <section key={asset._id} className="grid grid-cols-[70px_minmax(0,1fr)] gap-1.5 border-b border-slate-200 bg-slate-50/60 p-1.5 last:border-b-0 sm:grid-cols-[110px_88px_48px_48px_56px] sm:items-center sm:gap-1 sm:px-2">
-          <div className="self-stretch border-r border-slate-200 pr-2 sm:border-0 sm:pr-0">
+        return <section key={asset._id} className="grid grid-cols-[110px_88px_48px_48px_56px] items-center gap-1 border-b border-slate-200 bg-slate-50/60 px-2 py-1.5 last:border-b-0">
+          <div>
             <h3 className="break-words text-sm font-bold text-slate-900">{asset.label}</h3>
             <p className={`text-[9px] ${serviceDue ? 'font-bold text-red-600' : 'text-slate-500'}`}>Service {formatMinutes(serviceMinutes)} / {Math.round(asset.serviceIntervalMinutes / 60)}h</p>
             {row.serviceDone ? <button type="button" onClick={() => updateRow(asset._id, { serviceDone: false })} className="mt-0.5 text-left text-[9px] font-bold text-emerald-700">✓ Service marked done</button> : serviceDue ? <button type="button" onClick={() => updateRow(asset._id, { serviceDone: true })} className="mt-0.5 text-left text-[9px] font-black text-red-600 underline">Service due — mark done</button> : null}
           </div>
-          <div className="grid min-w-0 grid-cols-2 gap-2 sm:contents">
+          <div className="contents">
             <CompactField label="Running"><TimeInput value={row.runningMinutes} onChange={(value) => updateRow(asset._id, { runningMinutes: value })} /></CompactField>
             <CompactField label="Refill (L)"><input aria-label={`${asset.label} refill diesel`} type="number" min="0" step="0.01" placeholder="L" className={compactInput} value={Number(row.refillLiters) === 0 ? '' : row.refillLiters} onChange={(e) => { const refillLiters = e.target.value; updateRow(asset._id, { refillLiters, isFull: Number(refillLiters) > 0 }); }} /></CompactField>
             <CompactField label="Average"><div className="flex h-6 items-center px-1 text-xs text-slate-500">Auto</div></CompactField>

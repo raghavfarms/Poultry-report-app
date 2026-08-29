@@ -20,6 +20,7 @@ button { cursor: pointer; }
 .no-number-spinner::-webkit-inner-spin-button,
 .no-number-spinner::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
 .report-scroll { scrollbar-width: thin; scrollbar-color: #a8b5ab transparent; }
+.report-scroll:has(> .report-table) { overflow-x: scroll; scrollbar-gutter: stable; }
 .report-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1180px; font-size: 12px; }
 .report-table th, .report-table td { border-right: 1px solid #d7ded8; border-bottom: 1px solid #d7ded8; padding: 8px 7px; text-align: right; white-space: nowrap; }
 .report-table th:first-child, .report-table td:first-child { border-left: 1px solid #d7ded8; text-align: left; position: sticky; left: 0; z-index: 2; background: inherit; }
@@ -35,7 +36,7 @@ button { cursor: pointer; }
 .report-table thead tr:nth-child(2) th:nth-child(4n + 2),
 .report-table tbody td:nth-child(4n + 3),
 .report-table tfoot td:nth-child(4n + 3) { border-right: 2px solid #82978a; }
-.report-table .sticky-action { position: sticky; right: 0; z-index: 2; background: inherit; text-align: center; }
+.report-table .sticky-action { position: sticky; right: 0; z-index: 2; min-width: 68px; background: inherit; text-align: center; }
 @media print {
   aside, .no-print, button { display: none !important; }
   main { margin: 0 !important; padding: 0 !important; }
