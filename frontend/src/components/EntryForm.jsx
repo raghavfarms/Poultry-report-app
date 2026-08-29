@@ -4,7 +4,7 @@ import { formatMinutes, splitMinutes, today } from '../utils/date.js';
 import { Alert, Field, inputClass, primaryButton, secondaryButton, Spinner } from './Ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const emptyRow = (asset) => ({ asset: asset._id, runningMinutes: 0, refillLiters: 0, isFull: true, serviceDone: false });
+const emptyRow = (asset) => ({ asset: asset._id, runningMinutes: 0, refillLiters: 0, isFull: false, serviceDone: false });
 
 function TimeInput({ value, onChange, maxHours = 24, disabled = false }) {
   const { hours, minutes } = splitMinutes(value);
@@ -101,7 +101,7 @@ export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, 
           </div>
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:contents">
             <CompactField label="Running"><TimeInput value={row.runningMinutes} onChange={(value) => updateRow(asset._id, { runningMinutes: value })} /></CompactField>
-            <CompactField label="Refill (L)"><input aria-label={`${asset.label} refill diesel`} type="number" min="0" step="0.01" placeholder="L" className={compactInput} value={Number(row.refillLiters) === 0 ? '' : row.refillLiters} onChange={(e) => updateRow(asset._id, { refillLiters: e.target.value })} /></CompactField>
+            <CompactField label="Refill (L)"><input aria-label={`${asset.label} refill diesel`} type="number" min="0" step="0.01" placeholder="L" className={compactInput} value={Number(row.refillLiters) === 0 ? '' : row.refillLiters} onChange={(e) => { const refillLiters = e.target.value; updateRow(asset._id, { refillLiters, isFull: Number(refillLiters) > 0 }); }} /></CompactField>
             <CompactField label="Average"><div className="flex h-6 items-center px-1 text-xs text-slate-500">Auto</div></CompactField>
             <CompactField label="Is full"><label className="flex h-6 items-center gap-1.5 px-1"><input aria-label={`${asset.label} tank is full`} type="checkbox" checked={row.isFull} onChange={(e) => updateRow(asset._id, { isFull: e.target.checked })} className="h-3.5 w-3.5 shrink-0 accent-emerald-700" /><span className="text-xs">Full</span></label></CompactField>
           </div>
