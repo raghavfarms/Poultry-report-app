@@ -46,9 +46,36 @@ button { cursor: pointer; }
 .report-table tbody td:nth-last-child(2),
 .report-table tfoot td:nth-last-child(2) { border-right: 1px solid #d7ded8; }
 .report-table .sticky-action { position: sticky; right: 0; z-index: 2; min-width: 68px; border-left: 2px solid #526b5b; background: inherit; text-align: center; }
+.report-export-content.pdf-exporting { width: max-content; min-width: 100%; background: #fff; padding: 8px; }
+/* html2canvas 1.x cannot parse Tailwind 4's generated oklch() colors. Keep the
+   regular UI theme, but give the temporary PDF snapshot plain sRGB colors. */
+.report-export-content.pdf-exporting,
+.report-export-content.pdf-exporting * {
+  color: #17211b !important;
+  background-color: transparent !important;
+  border-color: #d7ded8 !important;
+  outline-color: #526b5b !important;
+  text-decoration-color: #526b5b !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.report-export-content.pdf-exporting section { background-color: #fff !important; }
+.report-export-content.pdf-exporting .report-table thead th { background-color: #e7eee9 !important; color: #294033 !important; }
+.report-export-content.pdf-exporting .report-table tbody tr { background-color: #fff !important; }
+.report-export-content.pdf-exporting .report-table tbody tr.missing { background-color: #fff6e9 !important; color: #7c6851 !important; }
+.report-export-content.pdf-exporting .report-table tfoot tr { background-color: #dce9df !important; color: #203c2b !important; }
+.report-export-content.pdf-exporting .no-print,
+.report-export-content.pdf-exporting button,
+.report-export-content.pdf-exporting .sticky-action { display: none !important; }
+.report-export-content.pdf-exporting .report-scroll { overflow: visible !important; }
+.report-export-content.pdf-exporting .report-table th:first-child,
+.report-export-content.pdf-exporting .report-table td:first-child { position: static; }
 @media print {
+  @page { size: landscape; margin: 8mm; }
   aside, .no-print, button { display: none !important; }
   main { margin: 0 !important; padding: 0 !important; }
   .report-scroll { overflow: visible !important; }
   .report-table { min-width: 100%; font-size: 8px; }
+  .report-table thead { display: table-header-group; }
+  .report-table tr { break-inside: avoid; }
 }
