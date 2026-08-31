@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+
   const acceptSession = ({ token, user: nextUser }) => {
     localStorage.setItem('poultry_token', token);
     localStorage.setItem('poultry_user', JSON.stringify(nextUser));

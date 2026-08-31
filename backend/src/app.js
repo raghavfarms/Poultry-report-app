@@ -12,11 +12,11 @@ const app = express();
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map((item) => item.trim());
 
 app.use(helmet());
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));   // credentials are cookies, authorization headers or TLS client certificates
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-reporting-api' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-reporting-api' }));   // check backend is running or not with logging 
 app.use('/api/auth', authRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);

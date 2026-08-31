@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { protect } from '../middleware/auth.js';
-import { getCurrentUser, getRegistrationFirms, getSetupStatus, login, register, setupAdmin } from '../controllers/auth.controller.js';
+import { getCurrentUser,
+ getRegistrationFirms,
+   getSetupStatus,
+     login,
+       register,
+         setupAdmin } 
+from '../controllers/auth.controller.js';
 
 const router = Router();
 
