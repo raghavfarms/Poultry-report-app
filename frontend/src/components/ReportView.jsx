@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { displayDate, formatMinutes, today } from '../utils/date.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -72,13 +73,32 @@ function reportTotals(report, assets) {
 
 export default function ReportView({ report, index, controls, onEdit, onServiceReset }) {
   const { user } = useAuth();
+  const scrollRef = useRef(null);
+  const drag = useRef({ active: false, startX: 0, scrollLeft: 0 });
+  const [dragging, setDragging] = useState(false);
   const isAdmin = user.role === 'admin';
   const assets = reportAssets(report);
   const nextDate = nextMissingDate(report);
   const totals = reportTotals(report, assets);
+  const startDrag = (event) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || event.target.closest('button, a, input, select, textarea')) return;
+    drag.current = { active: true, startX: event.clientX, scrollLeft: event.currentTarget.scrollLeft };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+  };
+  const moveDrag = (event) => {
+    if (!drag.current.active) return;
+    event.currentTarget.scrollLeft = drag.current.scrollLeft - (event.clientX - drag.current.startX);
+  };
+  const stopDrag = (event) => {
+    if (!drag.current.active) return;
+    drag.current.active = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragging(false);
+  };
   return <section className="space-y-1.5 sm:space-y-2">
     <div className="flex flex-wrap items-end justify-between gap-1.5 sm:gap-2"><div><p className="text-[8px] font-bold uppercase tracking-wider text-emerald-700 sm:text-[10px]">{index + 1}. Firm</p><h3 className="text-sm font-black uppercase tracking-[0.12em] text-slate-900 sm:text-lg">{report.firm.name}</h3></div>{controls}<p className="text-[10px] text-slate-500 sm:text-xs">{report.from} → {report.to}</p></div>
-    <div className="report-scroll w-full overflow-x-auto rounded-2xl shadow-sm"><table className="report-table"><thead><tr><th rowSpan="2">Date</th><th colSpan="2">Stock</th>{assets.map((asset) => <AssetHeader key={asset.id} asset={asset} service={currentService(report, asset.id)} onReset={() => onServiceReset(asset)} />)}<th colSpan="4">Daily summary</th><th rowSpan="2" className="sticky-action">Action</th></tr><tr><th>Opening</th><th>IN</th>{assets.map((asset) => <FragmentHeader key={asset.id} />)}<th>Light</th><th>Electricity</th><th>Diesel</th><th>Closing</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.date} className={row.missing ? 'missing' : ''}><td><b>{displayDate(row.date)}</b></td><td>{!row.missing || row.date === nextDate ? value(row.openingLiters) : '—'}</td><td>{row.missing ? '—' : value(row.dieselInLiters)}</td>{assets.map((asset) => { const item = row.assetEntries.find((entry) => String(entry.asset) === asset.id); return <AssetCells key={asset.id} item={item} referenceAverage={totals.assets.get(asset.id)?.averageLitersPerHour} />; })}<td>{formatMinutes(row.lightConsumptionMinutes)}</td><td>{formatMinutes(row.electricityConsumptionMinutes)}</td><td><b>{row.missing ? '—' : value(row.dieselConsumptionLiters)}</b></td><td><b>{!row.missing || row.date === nextDate ? value(row.closingLiters) : '—'}</b></td><td className="sticky-action">{(row.missing && row.date === nextDate) || (!row.missing && (isAdmin || row.date === today())) ? <button onClick={() => onEdit(row)} className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-emerald-800">{row.missing ? 'Add' : 'Edit'}</button> : '—'}</td></tr>)}</tbody><tfoot><tr><td><b>Total</b></td><td>{value(totals.openingLiters)}</td><td>{value(totals.dieselInLiters)}</td>{assets.map((asset) => <AssetTotalCells key={asset.id} totals={totals.assets.get(asset.id)} />)}<td>{formatMinutes(totals.lightConsumptionMinutes)}</td><td>{formatMinutes(totals.electricityConsumptionMinutes)}</td><td><b>{value(totals.dieselConsumptionLiters)}</b></td><td><b>{value(totals.closingLiters)}</b></td><td className="sticky-action">—</td></tr></tfoot></table></div>
+    <div ref={scrollRef} onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={stopDrag} onPointerCancel={stopDrag} className={`report-scroll drag-scroll w-full overflow-x-auto rounded-2xl shadow-sm ${dragging ? 'is-dragging' : ''}`}><table className="report-table"><thead><tr><th rowSpan="2">Date</th><th colSpan="2">Stock</th>{assets.map((asset) => <AssetHeader key={asset.id} asset={asset} service={currentService(report, asset.id)} onReset={() => onServiceReset(asset)} />)}<th colSpan="4">Daily summary</th><th rowSpan="2" className="sticky-action">Action</th></tr><tr><th>Opening</th><th>IN</th>{assets.map((asset) => <FragmentHeader key={asset.id} />)}<th>Light</th><th>Electricity</th><th>Diesel</th><th>Closing</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.date} className={row.missing ? 'missing' : ''}><td><b>{displayDate(row.date)}</b></td><td>{!row.missing || row.date === nextDate ? value(row.openingLiters) : '—'}</td><td>{row.missing ? '—' : value(row.dieselInLiters)}</td>{assets.map((asset) => { const item = row.assetEntries.find((entry) => String(entry.asset) === asset.id); return <AssetCells key={asset.id} item={item} referenceAverage={totals.assets.get(asset.id)?.averageLitersPerHour} />; })}<td>{formatMinutes(row.lightConsumptionMinutes)}</td><td>{formatMinutes(row.electricityConsumptionMinutes)}</td><td><b>{row.missing ? '—' : value(row.dieselConsumptionLiters)}</b></td><td><b>{!row.missing || row.date === nextDate ? value(row.closingLiters) : '—'}</b></td><td className="sticky-action">{(row.missing && row.date === nextDate) || (!row.missing && (isAdmin || row.date === today())) ? <button onClick={() => onEdit(row)} className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-emerald-800">{row.missing ? 'Add' : 'Edit'}</button> : '—'}</td></tr>)}</tbody><tfoot><tr><td><b>Total</b></td><td>{value(totals.openingLiters)}</td><td>{value(totals.dieselInLiters)}</td>{assets.map((asset) => <AssetTotalCells key={asset.id} totals={totals.assets.get(asset.id)} />)}<td>{formatMinutes(totals.lightConsumptionMinutes)}</td><td>{formatMinutes(totals.electricityConsumptionMinutes)}</td><td><b>{value(totals.dieselConsumptionLiters)}</b></td><td><b>{value(totals.closingLiters)}</b></td><td className="sticky-action">—</td></tr></tfoot></table></div>
   </section>;
 }
 
