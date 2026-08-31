@@ -23,6 +23,7 @@ export async function getFirmAssets(req, res) {
   res.json({ assets });
 }
 
+
 export async function createAsset(req, res) {
   if (!(await Firm.exists({ _id: req.params.firmId, active: true }))) throw notFoundError('Firm not found.');
   const asset = await Asset.create({ firm: req.params.firmId, ...payload(req.body) });
@@ -44,4 +45,10 @@ export async function deleteAsset(req, res) {
   const asset = await Asset.findByIdAndUpdate(req.params.assetId, { active: false }, { new: true });
   if (!asset) throw notFoundError('Asset not found.');
   res.json({ message: 'Asset removed. Historical reports are unchanged.', asset });
+}
+
+export async function restoreAsset(req,res){
+  const asset = await Asset.findByIdAndUpdate(req.params.assetId, {active : true }, {new :true });
+  if(!asset) throw notFoundError('Asset not found.');
+  res.json({message : 'Asset restored.', asset});
 }

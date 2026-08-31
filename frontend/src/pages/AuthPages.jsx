@@ -104,7 +104,7 @@ export function LoginPage() {
     setError('');
 
     try {
-       sessioconstn = await api('/auth/login', {
+      const session = await api('/auth/login', {
         method: 'POST',
         body: JSON.stringify(form),
       });

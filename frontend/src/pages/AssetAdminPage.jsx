@@ -10,7 +10,9 @@ export default function AssetAdminPage() {
   const [openingBalance, setOpeningBalance] = useState('');
   const [savingBalance, setSavingBalance] = useState(false);
   const firm = useMemo(() => firms.find((item) => item._id === firmId), [firms, firmId]);
+
   useEffect(() => { setOpeningBalance(firm?.dieselOpeningBalance ?? 0); }, [firm]);
+  
   useEffect(() => { api('/firms').then(({ firms }) => { setFirms(firms); if (firms[0]) setFirmId(firms[0]._id); }).catch((err) => setError(err.message)); }, []);
   const loadAssets = () => { if (!firmId) return; setLoading(true); api(`/assets/firm/${firmId}?includeInactive=true`).then((data) => setAssets(data.assets)).catch((err) => setError(err.message)).finally(() => setLoading(false)); };
   useEffect(loadAssets, [firmId, firms]);
