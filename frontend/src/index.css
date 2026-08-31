@@ -37,8 +37,8 @@ button { cursor: pointer; }
 .report-table thead tr:first-child th,
 .report-table thead tr:nth-child(2) th:nth-child(4n + 2),
 .report-table tbody td:nth-child(4n + 3),
-.report-table tfoot td:nth-child(4n + 3) { border-right: 2px solid #82978a; }
-.report-table .sticky-action { position: sticky; right: 0; z-index: 2; min-width: 68px; border-left: 1px solid #82978a; background: inherit; text-align: center; }
+.report-table tfoot td:nth-child(4n + 3) { border-right: 2px solid #526b5b; }
+.report-table .sticky-action { position: sticky; right: 0; z-index: 2; min-width: 68px; border-left: 2px solid #526b5b; background: inherit; text-align: center; }
 @media print {
   aside, .no-print, button { display: none !important; }
   main { margin: 0 !important; padding: 0 !important; }
