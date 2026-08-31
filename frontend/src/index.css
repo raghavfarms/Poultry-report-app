@@ -1,52 +1,179 @@
 @import "tailwindcss";
 
-:root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17211b; background: #f4f7f4; }
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, input, select, textarea { font: inherit; }
-button { cursor: pointer; }
-@media (min-width: 1024px) {
-  header.lg\:ml-72, main.lg\:ml-72 { margin-left: 16rem; }
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #17211b;
+  background: #f4f7f4;
 }
-.registration-card > div { margin-top: 1rem; }
-.registration-card form { gap: 0.625rem; }
-.registration-card form > label { gap: 0.25rem; }
-.registration-card input:not([type="checkbox"]) { min-height: 2.25rem; padding-top: 0.375rem; padding-bottom: 0.375rem; }
-.registration-card fieldset legend { margin-bottom: 0.375rem; }
-.registration-card fieldset > div { gap: 0.375rem; }
-.registration-card fieldset label { min-height: 2.5rem; }
-.registration-card form + p { margin-top: 0.75rem; }
-.no-number-spinner { appearance: textfield; -moz-appearance: textfield; }
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+@media (min-width: 1024px) {
+  header.lg\:ml-72,
+  main.lg\:ml-72 {
+    margin-left: 16rem;
+  }
+}
+.registration-card > div {
+  margin-top: 1rem;
+}
+.registration-card form {
+  gap: 0.625rem;
+}
+.registration-card form > label {
+  gap: 0.25rem;
+}
+.registration-card input:not([type="checkbox"]) {
+  min-height: 2.25rem;
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+.registration-card fieldset legend {
+  margin-bottom: 0.375rem;
+}
+.registration-card fieldset > div {
+  gap: 0.375rem;
+}
+.registration-card fieldset label {
+  min-height: 2.5rem;
+}
+.registration-card form + p {
+  margin-top: 0.75rem;
+}
+.no-number-spinner {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
 .no-number-spinner::-webkit-inner-spin-button,
-.no-number-spinner::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
-.report-scroll { scrollbar-width: thin; scrollbar-color: #a8b5ab transparent; }
-.report-scroll:has(> .report-table) { overflow-x: scroll; scrollbar-gutter: stable; }
-.report-scroll.drag-scroll { cursor: grab; }
-.report-scroll.drag-scroll.is-dragging { cursor: grabbing; user-select: none; }
-.report-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 1180px; font-size: 12px; }
-.report-table th, .report-table td { border-right: 1px solid #d7ded8; border-bottom: 1px solid #d7ded8; padding: 8px 7px; text-align: right; white-space: nowrap; }
-.report-table th:first-child, .report-table td:first-child { border-left: 1px solid #d7ded8; text-align: left; position: sticky; left: 0; z-index: 2; background: inherit; }
-.report-table thead th { background: #e7eee9; color: #294033; font-weight: 700; text-align: center; }
-.report-table thead tr:first-child th { border-top: 1px solid #d7ded8; }
-.report-table thead tr:first-child th:not([rowspan]) { border-bottom: 2px solid #526b5b; }
-.report-table tbody tr { background: #fff; }
-.report-table tbody tr.missing { background: #fff6e9; color: #7c6851; }
-.report-table tbody tr:hover { background: #f4f8f5; }
-.report-table tbody tr.missing:hover { background: #ffefd8; }
-.report-table tfoot tr { background: #dce9df; color: #203c2b; font-weight: 700; }
-.report-table tfoot td { border-top: 2px solid #94aa99; }
+.no-number-spinner::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+.report-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #a8b5ab transparent;
+}
+.report-scroll:has(> .report-table) {
+  overflow-x: scroll;
+  scrollbar-gutter: stable;
+}
+.report-scroll.drag-scroll {
+  cursor: grab;
+}
+.report-scroll.drag-scroll.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+.report-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1180px;
+  font-size: 12px;
+}
+.report-table th,
+.report-table td {
+  border-right: 1px solid #d7ded8;
+  border-bottom: 1px solid #d7ded8;
+  padding: 8px 7px;
+  text-align: right;
+  white-space: nowrap;
+}
+.report-table th:first-child,
+.report-table td:first-child {
+  border-left: 1px solid #d7ded8;
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+}
+.report-table thead th {
+  background: #e7eee9;
+  color: #294033;
+  font-weight: 700;
+  text-align: center;
+}
+.report-table thead tr:first-child th {
+  border-top: 1px solid #d7ded8;
+}
+.report-table thead tr:first-child th:not([rowspan]) {
+  border-bottom: 2px solid #526b5b;
+}
+.report-table tbody tr {
+  background: #fff;
+}
+.report-table tbody tr.missing {
+  background: #fff6e9;
+  color: #7c6851;
+}
+.report-table tbody tr:hover {
+  background: #f4f8f5;
+}
+.report-table tbody tr.missing:hover {
+  background: #ffefd8;
+}
+.report-table tfoot tr {
+  background: #dce9df;
+  color: #203c2b;
+  font-weight: 700;
+}
+.report-table tfoot td {
+  border-top: 2px solid #94aa99;
+}
 .report-table th:nth-last-child(2),
-.report-table td:nth-last-child(2) { min-width: 72px; padding-right: 12px; }
+.report-table td:nth-last-child(2) {
+  min-width: 72px;
+  padding-right: 12px;
+}
 .report-table thead tr:first-child th,
 .report-table thead tr:nth-child(2) th:nth-child(4n + 2),
 .report-table tbody td:nth-child(4n + 3),
-.report-table tfoot td:nth-child(4n + 3) { border-right: 2px solid #526b5b; }
+.report-table tfoot td:nth-child(4n + 3) {
+  border-right: 2px solid #526b5b;
+}
 .report-table thead tr:first-child th:nth-last-child(2),
 .report-table thead tr:nth-child(2) th:last-child,
 .report-table tbody td:nth-last-child(2),
-.report-table tfoot td:nth-last-child(2) { border-right: 1px solid #d7ded8; }
-.report-table .sticky-action { position: sticky; right: 0; z-index: 2; min-width: 68px; border-left: 2px solid #526b5b; background: inherit; text-align: center; }
-.report-export-content.pdf-exporting { width: max-content; min-width: 100%; background: #fff; padding: 8px; }
+.report-table tfoot td:nth-last-child(2) {
+  border-right: 1px solid #d7ded8;
+}
+.report-table .sticky-action {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  min-width: 68px;
+  border-left: 2px solid #526b5b;
+  background: inherit;
+  text-align: center;
+}
+.report-export-content.pdf-exporting {
+  width: max-content;
+  min-width: 100%;
+  background: #fff;
+  padding: 8px;
+}
 /* html2canvas 1.x cannot parse Tailwind 4's generated oklch() colors. Keep the
    regular UI theme, but give the temporary PDF snapshot plain sRGB colors. */
 .report-export-content.pdf-exporting,
@@ -59,23 +186,61 @@ button { cursor: pointer; }
   box-shadow: none !important;
   text-shadow: none !important;
 }
-.report-export-content.pdf-exporting section { background-color: #fff !important; }
-.report-export-content.pdf-exporting .report-table thead th { background-color: #e7eee9 !important; color: #294033 !important; }
-.report-export-content.pdf-exporting .report-table tbody tr { background-color: #fff !important; }
-.report-export-content.pdf-exporting .report-table tbody tr.missing { background-color: #fff6e9 !important; color: #7c6851 !important; }
-.report-export-content.pdf-exporting .report-table tfoot tr { background-color: #dce9df !important; color: #203c2b !important; }
+.report-export-content.pdf-exporting section {
+  background-color: #fff !important;
+}
+.report-export-content.pdf-exporting .report-table thead th {
+  background-color: #e7eee9 !important;
+  color: #294033 !important;
+}
+.report-export-content.pdf-exporting .report-table tbody tr {
+  background-color: #fff !important;
+}
+.report-export-content.pdf-exporting .report-table tbody tr.missing {
+  background-color: #fff6e9 !important;
+  color: #7c6851 !important;
+}
+.report-export-content.pdf-exporting .report-table tfoot tr {
+  background-color: #dce9df !important;
+  color: #203c2b !important;
+}
 .report-export-content.pdf-exporting .no-print,
 .report-export-content.pdf-exporting button,
-.report-export-content.pdf-exporting .sticky-action { display: none !important; }
-.report-export-content.pdf-exporting .report-scroll { overflow: visible !important; }
+.report-export-content.pdf-exporting .sticky-action {
+  display: none !important;
+}
+.report-export-content.pdf-exporting .report-scroll {
+  overflow: visible !important;
+}
 .report-export-content.pdf-exporting .report-table th:first-child,
-.report-export-content.pdf-exporting .report-table td:first-child { position: static; }
+.report-export-content.pdf-exporting .report-table td:first-child {
+  position: static;
+}
 @media print {
-  @page { size: landscape; margin: 8mm; }
-  aside, .no-print, button { display: none !important; }
-  main { margin: 0 !important; padding: 0 !important; }
-  .report-scroll { overflow: visible !important; }
-  .report-table { min-width: 100%; font-size: 8px; }
-  .report-table thead { display: table-header-group; }
-  .report-table tr { break-inside: avoid; }
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+  aside,
+  .no-print,
+  button {
+    display: none !important;
+  }
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .report-scroll {
+    overflow: visible !important;
+  }
+  .report-table {
+    min-width: 100%;
+    font-size: 8px;
+  }
+  .report-table thead {
+    display: table-header-group;
+  }
+  .report-table tr {
+    break-inside: avoid;
+  }
 }
