@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import Asset from '../models/Asset.js';
 import DieselEntry from '../models/DieselEntry.js';
 import Firm from '../models/Firm.js';
-import { calculateReport, calculateServiceBeforeDate } from '../services/report.service.js';
+import { calculateReport, calculateServiceBeforeDate, latestFullStatuses } from '../services/report.service.js';
 import { addDays, assertDate, todayUtc } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 
@@ -35,7 +35,7 @@ export async function getOpening(req, res) {
   const entries = await DieselEntry.find({ firm: firm._id, date: { $lte: req.query.date } }).sort({ date: 1 }).lean();
   const report = calculateReport({ firm, entries, from: req.query.date, to: req.query.date, includeMissing: true });
   const current = entries.find((entry) => entry.date === req.query.date) || null;
-  res.json({ openingLiters: report.rows[0].openingLiters, entry: current });
+  res.json({ openingLiters: report.rows[0].openingLiters, entry: current, previousFullStatuses: latestFullStatuses(entries, req.query.date) });
 }
 
 export async function getServiceStatus(req, res) {

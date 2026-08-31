@@ -4,7 +4,7 @@ import { formatMinutes, splitMinutes, today } from '../utils/date.js';
 import { Alert, Field, inputClass, primaryButton, secondaryButton, Spinner } from './Ui.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const emptyRow = (asset) => ({ asset: asset._id, runningMinutes: 0, refillLiters: 0, isFull: false, serviceDone: false });
+const emptyRow = (asset, isFull = true) => ({ asset: asset._id, runningMinutes: 0, refillLiters: 0, isFull, serviceDone: false });
 
 function TimeInput({ value, onChange, maxHours = 24, disabled = false }) {
   const { hours, minutes } = splitMinutes(value);
@@ -51,7 +51,7 @@ export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, 
         const current = openingData.entry;
         const old = new Map((current?.assetEntries || []).map((item) => [String(item.asset), item]));
         setOpening(openingData.openingLiters); setDieselIn(current?.dieselInLiters || 0); setNote(current?.note || '');
-        setRows(assets.map((asset) => old.has(String(asset._id)) ? { ...emptyRow(asset), ...old.get(String(asset._id)), asset: asset._id } : emptyRow(asset)));
+        setRows(assets.map((asset) => old.has(String(asset._id)) ? { ...emptyRow(asset), ...old.get(String(asset._id)), asset: asset._id } : emptyRow(asset, openingData.previousFullStatuses?.[asset._id] ?? true)));
         setBaseService(Object.fromEntries(serviceData.statuses.map((item) => [item.asset, item])));
       }).catch((err) => setError(err.message)).finally(() => active && setLoading(false));
     return () => { active = false; };
@@ -101,7 +101,7 @@ export default function EntryForm({ firms, initialFirmId, initialDate, onSaved, 
           </div>
           <div className="contents">
             <CompactField label="Running"><TimeInput value={row.runningMinutes} onChange={(value) => updateRow(asset._id, { runningMinutes: value })} /></CompactField>
-            <CompactField label="Refill (L)"><input aria-label={`${asset.label} refill diesel`} type="number" min="0" step="0.01" placeholder="L" className={compactInput} value={Number(row.refillLiters) === 0 ? '' : row.refillLiters} onChange={(e) => { const refillLiters = e.target.value; updateRow(asset._id, { refillLiters, isFull: Number(refillLiters) > 0 }); }} /></CompactField>
+            <CompactField label="Refill (L)"><input aria-label={`${asset.label} refill diesel`} type="number" min="0" step="0.01" placeholder="L" className={compactInput} value={Number(row.refillLiters) === 0 ? '' : row.refillLiters} onChange={(e) => updateRow(asset._id, { refillLiters: e.target.value })} /></CompactField>
             <CompactField label="Is full"><label className="flex h-6 items-center gap-1.5 px-1"><input aria-label={`${asset.label} tank is full`} type="checkbox" checked={row.isFull} onChange={(e) => updateRow(asset._id, { isFull: e.target.checked })} className="h-3.5 w-3.5 shrink-0 accent-emerald-700" /><span className="text-xs">Full</span></label></CompactField>
           </div>
         </section>;

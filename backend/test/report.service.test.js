@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateReport } from '../src/services/report.service.js';
+import { calculateReport, latestFullStatuses } from '../src/services/report.service.js';
 
 const firm = { _id: 'firm-1', name: 'Raghav', dieselOpeningBalance: 290 };
 const asset = {
@@ -30,6 +30,29 @@ test('full-to-full average accumulates hours until a refill closes the cycle', (
   assert.equal(report.rows[2].assetEntries[0].cycleMinutes, 660);
   assert.equal(report.rows[2].assetEntries[0].averageLitersPerHour, 9.09);
   assert.equal(report.rows[0].electricityConsumptionMinutes, 1410);
+});
+
+test('zero-refill full marks are shown without closing the consumption cycle', () => {
+  const entries = [
+    { date: '2026-08-20', dieselInLiters: 0, lightConsumptionMinutes: 0, assetEntries: [{ ...asset, runningMinutes: 60, refillLiters: 50, isFull: false }] },
+    { date: '2026-08-21', dieselInLiters: 0, lightConsumptionMinutes: 0, assetEntries: [{ ...asset, runningMinutes: 60, refillLiters: 0, isFull: true }] },
+    { date: '2026-08-22', dieselInLiters: 0, lightConsumptionMinutes: 0, assetEntries: [{ ...asset, runningMinutes: 60, refillLiters: 50, isFull: true }] },
+  ];
+  const report = calculateReport({ firm, entries, from: '2026-08-20', to: '2026-08-22' });
+
+  assert.equal(report.rows[1].assetEntries[0].isFull, true);
+  assert.equal(report.rows[1].assetEntries[0].averageLitersPerHour, null);
+  assert.equal(report.rows[2].assetEntries[0].averageLitersPerHour, 33.33);
+});
+
+test('full status carries forward from each asset latest previous entry', () => {
+  const secondAsset = { ...asset, asset: 'asset-2', label: '30 KVA' };
+  const entries = [
+    { date: '2026-08-20', assetEntries: [{ ...asset, isFull: true }, { ...secondAsset, isFull: true }] },
+    { date: '2026-08-21', assetEntries: [{ ...asset, isFull: false }] },
+  ];
+
+  assert.deepEqual(latestFullStatuses(entries, '2026-08-22'), { 'asset-1': false, 'asset-2': true });
 });
 
 test('service counter resets on service day', () => {

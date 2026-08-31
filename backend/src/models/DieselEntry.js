@@ -33,4 +33,3 @@ const dieselEntrySchema = new mongoose.Schema(
 dieselEntrySchema.index({ firm: 1, date: 1 }, { unique: true });
 
 export default mongoose.model('DieselEntry', dieselEntrySchema);
-

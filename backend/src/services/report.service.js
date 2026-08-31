@@ -6,6 +6,15 @@ export function totalRefill(entry) {
   return entry.assetEntries.reduce((sum, item) => sum + Number(item.refillLiters || 0), 0);
 }
 
+export function latestFullStatuses(entries, beforeDate) {
+  const statuses = {};
+  for (const entry of [...entries].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (entry.date >= beforeDate) break;
+    for (const item of entry.assetEntries || []) statuses[String(item.asset)] = Boolean(item.isFull);
+  }
+  return statuses;
+}
+
 export function calculateReport({ firm, entries, from, to, includeMissing = true }) {
   const ordered = [...entries].sort((a, b) => a.date.localeCompare(b.date));
   const cycle = new Map();
@@ -24,14 +33,15 @@ export function calculateReport({ firm, entries, from, to, includeMissing = true
 
     for (const item of [...entry.assetEntries].sort((a, b) => a.order - b.order)) {
       const assetId = String(item.asset);
+      const refillLiters = Number(item.refillLiters || 0);
       const cycleState = cycle.get(assetId) || { minutes: 0, liters: 0 };
       cycleState.minutes += Number(item.runningMinutes || 0);
-      cycleState.liters += Number(item.refillLiters || 0);
+      cycleState.liters += refillLiters;
 
       let averageLitersPerHour = null;
       let cycleMinutes = null;
       let cycleLiters = null;
-      const closesCycle = Boolean(item.isFull) && cycleState.liters > 0 && cycleState.minutes > 0;
+      const closesCycle = Boolean(item.isFull) && refillLiters > 0 && cycleState.minutes > 0;
       if (closesCycle) {
         cycleMinutes = cycleState.minutes;
         cycleLiters = cycleState.liters;
@@ -154,4 +164,3 @@ export function calculateServiceBeforeDate({ entries, assets, date }) {
     };
   });
 }
-
