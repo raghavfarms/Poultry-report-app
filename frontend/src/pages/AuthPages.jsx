@@ -45,6 +45,42 @@ function AuthShell({
   );
 }
 
+// show password toggle button for password input fields. The button is accessible and has a visible label for screen readers.
+function PasswordInput({ className = '', ...inputProps }) {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <div className="relative">
+      <input
+        {...inputProps}
+        type={showPassword ? 'text' : 'password'}
+        className={`${inputClass} !pr-11 ${className}`}
+      />
+      <button
+        type="button"
+        onClick={() => setShowPassword((visible) => !visible)}
+        aria-label={showPassword ? 'Hide password' : 'Show password'}
+        aria-pressed={showPassword}
+        title={showPassword ? 'Hide password' : 'Show password'}
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-emerald-700"
+      >
+        {showPassword ? (
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
+            <path d="M3 3l18 18" />
+            <path d="M10.6 10.7a2 2 0 002.7 2.7" />
+            <path d="M9.9 4.2A10.8 10.8 0 0112 4c5.5 0 9 5.5 9 5.5a15.7 15.7 0 01-2.1 2.7M6.6 6.6C4.3 8.1 3 10 3 10s3.5 5.5 9 5.5c1 0 2-.2 2.9-.5" />
+          </svg>
+        ) : (
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 fill-none stroke-current" strokeWidth="2">
+            <path d="M3 12s3.5-5.5 9-5.5 9 5.5 9 5.5-3.5 5.5-9 5.5S3 12 3 12z" />
+            <circle cx="12" cy="12" r="2.5" />
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
 // Registration and setup use the same four account fields.
 function useAccountForm() {
   const [form, setForm] = useState({
@@ -141,11 +177,9 @@ export function LoginPage() {
         </Field>
 
         <Field label="Password">
-          <input
+          <PasswordInput
             required
             name="password"
-            type="password"
-            className={inputClass}
             value={form.password}
             onChange={updateLoginField}
           />
@@ -276,24 +310,20 @@ export function RegisterPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Password">
-            <input
+            <PasswordInput
               required
               minLength="6"
               name="password"
-              type="password"
-              className={inputClass}
               value={form.password}
               onChange={updateForm}
             />
           </Field>
 
           <Field label="Confirm">
-            <input
+            <PasswordInput
               required
               minLength="6"
               name="confirm"
-              type="password"
-              className={inputClass}
               value={form.confirm}
               onChange={updateForm}
             />
@@ -436,24 +466,20 @@ export function SetupPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Password">
-              <input
+              <PasswordInput
                 required
                 minLength="6"
                 name="password"
-                type="password"
-                className={inputClass}
                 value={form.password}
                 onChange={updateForm}
               />
             </Field>
 
             <Field label="Confirm">
-              <input
+              <PasswordInput
                 required
                 minLength="6"
                 name="confirm"
-                type="password"
-                className={inputClass}
                 value={form.confirm}
                 onChange={updateForm}
               />
