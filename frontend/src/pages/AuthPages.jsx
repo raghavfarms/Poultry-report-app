@@ -1,48 +1,473 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
-import { useAuth } from '../context/AuthContext.jsx';
 import { Alert, Field, inputClass, primaryButton } from '../components/Ui.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 
-function AuthShell({ title, subtitle, children, compact = ['Welcome back', 'Labour registration'].includes(title) }) {
-  const registrationClasses = title === 'Labour registration'
-    ? 'registration-card [&_.grid-cols-2]:grid-cols-1 sm:[&_.grid-cols-2]:grid-cols-2'
-    : '';
-  const cardSize = title === 'Welcome back' ? 'max-w-xs p-5' : compact ? 'max-w-sm p-5 sm:p-6' : 'max-w-md p-6 sm:p-8';
-  return <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-800 to-lime-800 p-4"><section className={`w-full rounded-3xl bg-white shadow-2xl ${cardSize} ${registrationClasses}`}><p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">Poultry Reporting System</p><h1 className={`${compact ? 'mt-2 text-xl' : 'mt-3 text-2xl'} font-bold text-slate-900`}>{title}</h1><p className="mt-1 text-sm text-slate-500">{subtitle}</p><div className={compact ? 'mt-5' : 'mt-6'}>{children}</div></section></main>;
+//  AuthShell is a resuable react component that provides a shared layout used by the login, registration, and setup pages.
+function AuthShell({
+  title,
+  subtitle,
+  children,
+  compact = ['Welcome back', 'Labour registration'].includes(title),
+}) {
+  const registrationClasses =
+    title === 'Labour registration'
+      ? 'registration-card [&_.grid-cols-2]:grid-cols-1 sm:[&_.grid-cols-2]:grid-cols-2'
+      : '';
+
+  const cardSize =
+    title === 'Welcome back'
+      ? 'max-w-xs p-5'
+      : compact
+        ? 'max-w-sm p-5 sm:p-6'
+        : 'max-w-md p-6 sm:p-8';
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-800 to-lime-800 p-4">
+      <section
+        className={`w-full rounded-3xl bg-white shadow-2xl ${cardSize} ${registrationClasses}`}
+      >
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">
+          Poultry Reporting System
+        </p>
+
+        <h1
+          className={`${compact ? 'mt-2 text-xl' : 'mt-3 text-2xl'} font-bold text-slate-900`}
+        >
+          {title}
+        </h1>
+
+        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        <div className={compact ? 'mt-5' : 'mt-6'}>{children}</div>
+      </section>
+    </main>
+  );
 }
 
+// Registration and setup use the same four account fields.
 function useAccountForm() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
-  const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
-  return { form, setForm, update };
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirm: '',
+  });
+
+  function updateForm(event) {
+    const { name, value } = event.target;
+    setForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }));
+  }
+
+  return { form, updateForm };
 }
 
 export function LoginPage() {
   const { user, acceptSession } = useAuth();
-  const [form, setForm] = useState({ email: '', password: '' });
+
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+  });
   const [setupRequired, setSetupRequired] = useState(false);
-  const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  useEffect(() => { api('/auth/setup-status').then((data) => setSetupRequired(data.setupRequired)).catch(() => {}); }, []);
-  if (user) return <Navigate to="/" replace />;
-  const submit = async (event) => { event.preventDefault(); setBusy(true); setError(''); try { acceptSession(await api('/auth/login', { method: 'POST', body: JSON.stringify(form) })); } catch (err) { setError(err.message); } finally { setBusy(false); } };
-  return <AuthShell title="Welcome back" subtitle="Enter today’s farm data or review reports."><form onSubmit={submit} className="grid gap-4"><Alert>{error}</Alert><Field label="Email"><input required type="email" className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field><Field label="Password"><input required type="password" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field><button disabled={busy} className={primaryButton}>{busy ? 'Signing in…' : 'Sign in'}</button></form><div className="mt-5 space-y-2 text-center text-sm text-slate-600"><p>New labour? <Link className="font-semibold text-emerald-700" to="/register">Create an account</Link></p>{setupRequired && <p>First use? <Link className="font-semibold text-amber-700" to="/setup">Set up the admin</Link></p>}</div></AuthShell>;
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // An empty dependency array means this runs once when the page opens.
+  useEffect(() => {
+    async function checkSetupStatus() {
+      try {
+        const data = await api('/auth/setup-status');
+        setSetupRequired(data.setupRequired);
+      } catch {
+        // Login can still be displayed if the optional setup check fails.
+      }
+    }
+
+    checkSetupStatus();
+  }, []);
+
+  function updateLoginField(event) {
+    const { name, value } = event.target;
+    setForm((currentForm) => ({
+      ...currentForm,
+      [name]: value,
+    }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+
+    try {
+       sessioconstn = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(form),
+      });
+      acceptSession(session);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Logged-in users should not see an authentication form.
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <AuthShell
+      title="Welcome back"
+      subtitle="Enter today’s farm data or review reports."
+    >
+      <form onSubmit={handleSubmit} className="grid gap-4">
+        <Alert>{error}</Alert>
+
+        <Field label="Email">
+          <input
+            required
+            name="email"
+            type="email"
+            className={inputClass}
+            value={form.email}
+            onChange={updateLoginField}
+          />
+        </Field>
+
+        <Field label="Password">
+          <input
+            required
+            name="password"
+            type="password"
+            className={inputClass}
+            value={form.password}
+            onChange={updateLoginField}
+          />
+        </Field>
+
+        <button disabled={busy} className={primaryButton}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+
+      <div className="mt-5 space-y-2 text-center text-sm text-slate-600">
+        <p>
+          New labour?{' '}
+          <Link className="font-semibold text-emerald-700" to="/register">
+            Create an account
+          </Link>
+        </p>
+
+        {setupRequired && (
+          <p>
+            First use?{' '}
+            <Link className="font-semibold text-amber-700" to="/setup">
+              Set up the admin
+            </Link>
+          </p>
+        )}
+      </div>
+    </AuthShell>
+  );
 }
 
 export function RegisterPage() {
-  const { user, acceptSession } = useAuth(); const navigate = useNavigate();
-  const { form, update } = useAccountForm(); const [firms, setFirms] = useState([]); const [selected, setSelected] = useState([]); const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  useEffect(() => { api('/auth/registration-firms').then((data) => setFirms(data.firms)).catch((err) => setError(err.message)); }, []);
-  if (user) return <Navigate to="/" replace />;
-  const toggle = (id) => setSelected((values) => values.includes(id) ? values.filter((item) => item !== id) : [...values, id]);
-  const submit = async (event) => { event.preventDefault(); setError(''); if (form.password !== form.confirm) return setError('Passwords do not match.'); if (!selected.length) return setError('Select at least one firm.'); setBusy(true); try { acceptSession(await api('/auth/register', { method: 'POST', body: JSON.stringify({ ...form, firmIds: selected }) })); navigate('/'); } catch (err) { setError(err.message); } finally { setBusy(false); } };
-  return <AuthShell title="Labour registration" subtitle="Choose one firm or both firms."><form onSubmit={submit} className="grid gap-4"><Alert>{error}</Alert><Field label="Name"><input required name="name" className={inputClass} value={form.name} onChange={update} /></Field><Field label="Email"><input required name="email" type="email" className={inputClass} value={form.email} onChange={update} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Password"><input required minLength="6" name="password" type="password" className={inputClass} value={form.password} onChange={update} /></Field><Field label="Confirm"><input required minLength="6" name="confirm" type="password" className={inputClass} value={form.confirm} onChange={update} /></Field></div><fieldset><legend className="mb-2 text-sm font-medium text-slate-700">Firm(s)</legend><div className="grid gap-2">{firms.map((firm) => <label key={firm._id} className={`flex min-h-12 items-center gap-3 rounded-xl border px-4 ${selected.includes(firm._id) ? 'border-emerald-600 bg-emerald-50' : 'border-slate-300'}`}><input type="checkbox" checked={selected.includes(firm._id)} onChange={() => toggle(firm._id)} className="h-5 w-5 accent-emerald-700" /><span className="font-medium">{firm.name}</span></label>)}</div></fieldset><button disabled={busy || !firms.length} className={primaryButton}>{busy ? 'Creating…' : 'Create labour account'}</button></form><p className="mt-5 text-center text-sm"><Link className="font-semibold text-emerald-700" to="/login">Back to login</Link></p></AuthShell>;
+  const { user, acceptSession } = useAuth();
+  const navigate = useNavigate();
+  const { form, updateForm } = useAccountForm();
+
+  const [firms, setFirms] = useState([]);
+  const [selectedFirmIds, setSelectedFirmIds] = useState([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    async function loadRegistrationFirms() {
+      try {
+        const data = await api('/auth/registration-firms');
+        setFirms(data.firms);
+      } catch (requestError) {
+        setError(requestError.message);
+      }
+    }
+
+    loadRegistrationFirms();
+  }, []);
+
+  function toggleFirm(firmId) {
+    setSelectedFirmIds((currentIds) =>
+      currentIds.includes(firmId)
+        ? currentIds.filter((id) => id !== firmId)
+        : [...currentIds, firmId],
+    );
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+
+    if (form.password !== form.confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    if (selectedFirmIds.length === 0) {
+      setError('Select at least one firm.');
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const session = await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          firmIds: selectedFirmIds,
+        }),
+      });
+      acceptSession(session);
+      navigate('/');
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <AuthShell
+      title="Labour registration"
+      subtitle="Choose one firm or both firms."
+    >
+      <form onSubmit={handleSubmit} className="grid gap-4">
+        <Alert>{error}</Alert>
+
+        <Field label="Name">
+          <input
+            required
+            name="name"
+            className={inputClass}
+            value={form.name}
+            onChange={updateForm}
+          />
+        </Field>
+
+        <Field label="Email">
+          <input
+            required
+            name="email"
+            type="email"
+            className={inputClass}
+            value={form.email}
+            onChange={updateForm}
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Password">
+            <input
+              required
+              minLength="6"
+              name="password"
+              type="password"
+              className={inputClass}
+              value={form.password}
+              onChange={updateForm}
+            />
+          </Field>
+
+          <Field label="Confirm">
+            <input
+              required
+              minLength="6"
+              name="confirm"
+              type="password"
+              className={inputClass}
+              value={form.confirm}
+              onChange={updateForm}
+            />
+          </Field>
+        </div>
+
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium text-slate-700">
+            Firm(s)
+          </legend>
+
+          <div className="grid gap-2">
+            {firms.map((firm) => {
+              const isSelected = selectedFirmIds.includes(firm._id);
+
+              return (
+                <label
+                  key={firm._id}
+                  className={`flex min-h-12 items-center gap-3 rounded-xl border px-4 ${
+                    isSelected
+                      ? 'border-emerald-600 bg-emerald-50'
+                      : 'border-slate-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleFirm(firm._id)}
+                    className="h-5 w-5 accent-emerald-700"
+                  />
+                  <span className="font-medium">{firm.name}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <button
+          disabled={busy || firms.length === 0}
+          className={primaryButton}
+        >
+          {busy ? 'Creating…' : 'Create labour account'}
+        </button>
+      </form>
+
+      <p className="mt-5 text-center text-sm">
+        <Link className="font-semibold text-emerald-700" to="/login">
+          Back to login
+        </Link>
+      </p>
+    </AuthShell>
+  );
 }
 
 export function SetupPage() {
-  const { user, acceptSession } = useAuth(); const { form, update } = useAccountForm(); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [allowed, setAllowed] = useState(null);
-  useEffect(() => { api('/auth/setup-status').then((data) => setAllowed(data.setupRequired)).catch((err) => setError(err.message)); }, []);
-  if (user) return <Navigate to="/" replace />;
-  const submit = async (event) => { event.preventDefault(); setError(''); if (form.password !== form.confirm) return setError('Passwords do not match.'); setBusy(true); try { acceptSession(await api('/auth/setup-admin', { method: 'POST', body: JSON.stringify(form) })); } catch (err) { setError(err.message); } finally { setBusy(false); } };
-  return <AuthShell title="One-time admin setup" subtitle="This creates Raghav and Sanjana firms. Assets remain empty until the admin adds them.">{allowed === false ? <><Alert type="success">Setup is already complete.</Alert><Link className={`${primaryButton} mt-4 w-full`} to="/login">Go to login</Link></> : <form onSubmit={submit} className="grid gap-4"><Alert>{error}</Alert><Field label="Admin name"><input required name="name" className={inputClass} value={form.name} onChange={update} /></Field><Field label="Admin email"><input required name="email" type="email" className={inputClass} value={form.email} onChange={update} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Password"><input required minLength="6" name="password" type="password" className={inputClass} value={form.password} onChange={update} /></Field><Field label="Confirm"><input required minLength="6" name="confirm" type="password" className={inputClass} value={form.confirm} onChange={update} /></Field></div><button disabled={busy || allowed === null} className={primaryButton}>{busy ? 'Setting up…' : 'Create admin & firms'}</button></form>}</AuthShell>;
+  const { user, acceptSession } = useAuth();
+  const { form, updateForm } = useAccountForm();
+
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [setupAllowed, setSetupAllowed] = useState(null);
+
+  useEffect(() => {
+    async function checkSetupStatus() {
+      try {
+        const data = await api('/auth/setup-status');
+        setSetupAllowed(data.setupRequired);
+      } catch (requestError) {
+        setError(requestError.message);
+      }
+    }
+
+    checkSetupStatus();
+  }, []);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+
+    if (form.password !== form.confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const session = await api('/auth/setup-admin', {
+        method: 'POST',
+        body: JSON.stringify(form),
+      });
+      acceptSession(session);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <AuthShell
+      title="One-time admin setup"
+      subtitle="This creates Raghav and Sanjana firms. Assets remain empty until the admin adds them."
+    >
+      {setupAllowed === false ? (
+        <>
+          <Alert type="success">Setup is already complete.</Alert>
+          <Link className={`${primaryButton} mt-4 w-full`} to="/login">
+            Go to login
+          </Link>
+        </>
+      ) : (
+        <form onSubmit={handleSubmit} className="grid gap-4">
+          <Alert>{error}</Alert>
+
+          <Field label="Admin name">
+            <input
+              required
+              name="name"
+              className={inputClass}
+              value={form.name}
+              onChange={updateForm}  
+            />
+          </Field>
+
+          <Field label="Admin email">
+            <input
+              required
+              name="email"
+              type="email"
+              className={inputClass}
+              value={form.email}
+              onChange={updateForm}
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Password">
+              <input
+                required
+                minLength="6"
+                name="password"
+                type="password"
+                className={inputClass}
+                value={form.password}
+                onChange={updateForm}
+              />
+            </Field>
+
+            <Field label="Confirm">
+              <input
+                required
+                minLength="6"
+                name="confirm"
+                type="password"
+                className={inputClass}
+                value={form.confirm}
+                onChange={updateForm}
+              />
+            </Field>
+          </div>
+
+          <button
+            disabled={busy || setupAllowed === null}
+            className={primaryButton}
+          >
+            {busy ? 'Setting up…' : 'Create admin & firms'}
+          </button>
+        </form>
+      )}
+    </AuthShell>
+  );
 }

@@ -28,26 +28,42 @@ function isAverageOutlier(average, referenceAverage) {
   const current = Number(average);
   const reference = Number(referenceAverage);
   if (!Number.isFinite(current) || !Number.isFinite(reference) || reference <= 0) return false;
-  return Math.abs(current - reference) / reference > 0.10;
+  const percentageDifference = (Math.abs(current - reference) / reference) * 100;
+  return Math.round(percentageDifference) > 10;
+}
+
+function averageComparison(average, referenceAverage) {
+  if (!isAverageOutlier(average, referenceAverage)) return null;
+  const actual = Number(average);
+  const reference = Number(referenceAverage);
+  const difference = actual - reference;
+  const percentage = (Math.abs(difference) / reference) * 100;
+  const direction = difference > 0 ? 'Increase' : 'Decrease';
+  const sign = difference > 0 ? '+' : '-';
+
+  return `Actual: ${actual.toFixed(2)} L/h · ${direction}: ${sign}${Math.abs(difference).toFixed(2)} L/h (${sign}${Math.round(percentage)}%) · Reference: ${reference.toFixed(2)} L/h`;
 }
 
 function reportTotals(report, assets) {
   const rows = report.rows.filter((row) => !row.missing);
   return {
-    openingLiters: sum(rows, (row) => row.openingLiters),
+    openingLiters: report.summary.openingLiters,
     dieselInLiters: sum(rows, (row) => row.dieselInLiters),
     lightConsumptionMinutes: sum(rows, (row) => row.lightConsumptionMinutes),
     electricityConsumptionMinutes: sum(rows, (row) => row.electricityConsumptionMinutes),
     dieselConsumptionLiters: sum(rows, (row) => row.dieselConsumptionLiters),
-    closingLiters: sum(rows, (row) => row.closingLiters),
+    closingLiters: report.summary.closingLiters,
     assets: new Map(assets.map((asset) => {
       const entries = rows.flatMap((row) => row.assetEntries || []).filter((entry) => String(entry.asset) === asset.id);
       const runningMinutes = sum(entries, (entry) => entry.runningMinutes);
       const refillLiters = sum(entries, (entry) => entry.refillLiters);
+      const completedCycles = entries.filter((entry) => Number(entry.cycleMinutes) > 0 && Number(entry.cycleLiters) > 0);
+      const completedCycleMinutes = sum(completedCycles, (entry) => entry.cycleMinutes);
+      const completedCycleLiters = sum(completedCycles, (entry) => entry.cycleLiters);
       return [asset.id, {
         runningMinutes,
         refillLiters,
-        averageLitersPerHour: runningMinutes ? refillLiters / (runningMinutes / 60) : null,
+        averageLitersPerHour: completedCycleMinutes ? completedCycleLiters / (completedCycleMinutes / 60) : null,
         fullCount: entries.filter((entry) => entry.isFull).length,
       }];
     })),
@@ -69,5 +85,5 @@ export default function ReportView({ report, index, controls, onEdit, onServiceR
 function FragmentHeader() { return <><th>Running</th><th>Refill</th><th>Avg</th><th>Full</th></>; }
 const serviceTime = (minutes) => `${Math.floor(Number(minutes || 0) / 60)}:${String(Number(minutes || 0) % 60).padStart(2, '0')}`;
 function AssetHeader({ asset, service, onReset }) { const status = <>{serviceTime(service.runningMinutes)} / {serviceTime(asset.serviceIntervalMinutes)} · Last: {service.lastServiceDate || 'Never'}</>; return <th colSpan="4"><span className="block">{asset.label}</span>{service.due ? <button type="button" onClick={onReset} title="Mark service completed today" className="text-[9px] font-black text-red-600 underline">{status}<span className="block">SERVICE DUE · RESET</span></button> : <span className="block text-[9px] font-semibold text-slate-500">{status}</span>}</th>; }
-function AssetCells({ item, referenceAverage }) { const outlier = item && isAverageOutlier(item.averageLitersPerHour, referenceAverage); return <>{item ? <><td>{formatMinutes(item.runningMinutes)}</td><td>{value(item.refillLiters)}</td><td className={outlier ? 'bg-red-100 font-black text-red-700' : ''} title={outlier ? `More than 10% away from reference AVG ${value(referenceAverage)}` : undefined}>{value(item.averageLitersPerHour)}</td><td className="text-center">{item.isFull ? '✓' : '—'}</td></> : <><td>—</td><td>—</td><td>—</td><td>—</td></>}</>; }
+function AssetCells({ item, referenceAverage }) { const comparison = item ? averageComparison(item.averageLitersPerHour, referenceAverage) : null; return <>{item ? <><td>{formatMinutes(item.runningMinutes)}</td><td>{value(item.refillLiters)}</td><td className={comparison ? 'cursor-help bg-red-100 font-black text-red-700' : ''} title={comparison || undefined}>{value(item.averageLitersPerHour)}</td><td className="text-center">{item.isFull ? '✓' : '—'}</td></> : <><td>—</td><td>—</td><td>—</td><td>—</td></>}</>; }
 function AssetTotalCells({ totals }) { return <><td>{formatMinutes(totals.runningMinutes)}</td><td>{value(totals.refillLiters)}</td><td>{value(totals.averageLitersPerHour)}</td><td className="text-center">{totals.fullCount}</td></>; }
