@@ -251,13 +251,6 @@ export default function DieselReports({ compact = false, showHeading = true }) {
           No accessible firm was found.
         </div>
       )}
-      {!compact && (
-        <p className="text-xs text-slate-500">
-          Average is calculated from each asset’s full-to-full cycle. A
-          zero-refill “Full” mark does not close the cycle, so running hours
-          continue accumulating safely.
-        </p>
-      )}
     </div>
   );
 }

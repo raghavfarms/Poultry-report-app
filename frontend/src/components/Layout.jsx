@@ -46,7 +46,7 @@ function Sidebar({ open, close }) {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white p-4 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white p-4 pb-1 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="mb-5 flex items-center justify-between px-2">
           <div>
@@ -95,17 +95,28 @@ function Sidebar({ open, close }) {
             </>
           )}
         </nav>
-        <div className="mt-4 border-t border-slate-200 px-2 pt-4">
-          <p className="truncate text-sm font-semibold text-slate-800">
-            {user.name}
+        <div className="mt-2 border-t border-slate-200 px-2 pt-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 text-left">
+              <p className="truncate text-sm font-semibold text-slate-800">
+                {user.name}
+              </p>
+              {user.name?.trim().toLowerCase() !== user.role?.toLowerCase() && (
+                <p className="text-xs capitalize text-slate-500">{user.role}</p>
+              )}
+            </div>
+            <button
+              onClick={logout}
+              className="shrink-0 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              Logout
+            </button>
+          </div>
+          <p className="-mx-2 mt-2 border-t border-slate-100 px-2 pt-2 text-center text-[10px] font-light leading-relaxed text-slate-400">
+            &copy; {new Date().getFullYear()} Raghav Farms
+            <br />
+            Developed by Ishant Awasthi
           </p>
-          <p className="text-xs capitalize text-slate-500">{user.role}</p>
-          <button
-            onClick={logout}
-            className="mt-3 text-sm font-semibold text-red-600"
-          >
-            Log out
-          </button>
         </div>
       </aside>
     </>
@@ -121,7 +132,7 @@ export default function Layout() {
     };
   }, [open]);
   return (
-    <div className="min-h-screen bg-[#f4f7f4]">
+    <div className="flex min-h-screen flex-col bg-[#f4f7f4]">
       <Sidebar open={open} close={() => setOpen(false)} />
       <header className="sticky top-0 z-20 flex h-12 items-center border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:ml-72 lg:px-5">
         <button
@@ -139,7 +150,7 @@ export default function Layout() {
           Daily Farm Reporting
         </span>
       </header>
-      <main className="p-3 sm:p-4 lg:ml-72 lg:p-5">
+      <main className="flex-1 p-3 sm:p-4 lg:ml-72 lg:p-5">
         <Outlet />
       </main>
     </div>
