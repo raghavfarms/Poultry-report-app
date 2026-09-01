@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2pdf from "html2pdf.js";
-import { api } from "../api/client.js";
-import { addDays, today } from "../utils/date.js";
+import html2pdf from "html2pdf.js";  // convert dispayed report to PDF
+import { api } from "../api/client.js";  // send requests to backend API
+import { addDays, today } from "../utils/date.js";   //   create  default 7 days  date  range 
 import {
   Alert,
   inputClass,
@@ -9,36 +9,39 @@ import {
   secondaryButton,
   Spinner,
 } from "./Ui.jsx";
-import EntryForm from "./EntryForm.jsx";
-import ReportView from "./ReportView.jsx";
+import EntryForm from "./EntryForm.jsx";   // display and save the entry form 
+import ReportView from "./ReportView.jsx";  // display save entries ina report table 
 
-const openDatePicker = (event) => event.currentTarget.showPicker?.();
+const openDatePicker = (event) => event.currentTarget.showPicker?.();     //  when click date input field, open the date picker if supported by browser
 
-export default function DieselReports({ compact = false, showHeading = true }) {
-  const [firms, setFirms] = useState([]);
-  const [firmFilter, setFirmFilter] = useState("all");
+export default function DieselReports({ compact = false, showHeading = true }) {    // accept two optional props, compact -- small display version  and showHeading, to control the display of the component
+  const [firms, setFirms] = useState([]);  //  stores the firms the loggedin  user can acess
+  const [firmFilter, setFirmFilter] = useState("all"); // stores the currently selected firm filter 
   const [to, setTo] = useState(today());
-  const [from, setFrom] = useState(addDays(today(), -6));
-  const [reports, setReports] = useState([]);
+  const [from, setFrom] = useState(addDays(today(), -6));   //   create 7 day default day range 
+  const [reports, setReports] = useState([]);  //  stores report responses  returned by backend 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [form, setForm] = useState(null);
-  const [exporting, setExporting] = useState(false);
-  const reportsRef = useRef(null);
+  const [form, setForm] = useState(null);    // controls the add/edit entry form, null means no form is open
+  const [exporting, setExporting] = useState(false);   // track pdf creation is running 
+  const reportsRef = useRef(null);     // stores a reference to the report HTML that should expect 
 
-  useEffect(() => {
+  useEffect(() => {   //  Loading firms -- this run once when the component opens 
     api("/firms")
       .then(({ firms }) => setFirms(firms))
       .catch((err) => setError(err.message));
-  }, []);
-  const visibleFirms = useMemo(
+  }, []);  // []  means runs only once when the component is mounted
+
+
+  const visibleFirms = useMemo(  //  selecting visible firms based on the selected firm filter, if "all" is selected, all firms are visible, otherwise only the selected firm is visible
     () =>
       firmFilter === "all"
         ? firms
         : firms.filter((firm) => firm._id === firmFilter),
     [firms, firmFilter],
   );
-  const load = useCallback(async () => {
+
+  const load = useCallback(async () => {  // Loading reports --check whether firm is exist 
     if (!visibleFirms.length) {
       setReports([]);
       setLoading(false);
@@ -48,7 +51,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     setError("");
     try {
       setReports(
-        await Promise.all(
+        await Promise.all(       //   if both firms are visible , it sends 2 requests to the backend API to fetch reports for each firm in the visibleFirms array. The Promise.all method is used to wait for all the requests to complete before updating the reports state with the results.
           visibleFirms.map((firm) =>
             api(`/entries/report?firmId=${firm._id}&from=${from}&to=${to}`),
           ),
@@ -60,24 +63,30 @@ export default function DieselReports({ compact = false, showHeading = true }) {
       setLoading(false);
     }
   }, [visibleFirms, from, to]);
-  useEffect(() => {
-    load();
-  }, [load]);
 
-  const openNew = () =>
+  useEffect(() => {  //  automatically calling load()
+    load();
+  }, [load]); // this call load when firm finsh loading , firm filter changes , from date changes to date changes
+
+
+  const openNew = () => // open a new entry  -- when Add entry button is clicked , If a specififc firm selected,it use that firm ,if all  then acessible all firms
     setForm({
       firmId: firmFilter === "all" ? firms[0]?._id : firmFilter,
-      date: null,
+      date: null,  // tells entry form that is a new entry 
     });
-  const openEdit = (report, row) =>
+
+  const openEdit = (report, row) =>   //  opening an existing entry for editing -- when edit button is clicked, it opens the entry form with the selected firm and date pre-filled.
     setForm({ firmId: report.firm._id, date: row.date });
-  const saved = () => {
+  
+  const saved = () => {  // after saving the entry, it closes the form and reloads the reports to reflect the changes.
     setForm(null);
     load();
   };
-  const resetService = async (report, asset) => {
+
+
+  const resetService = async (report, asset) => {  // run when reset service button hit 
     if (
-      !window.confirm(
+      !window.confirm(  // it first ask for confirmation
         `Mark ${asset.label} service as completed today and reset its counter?`,
       )
     )
@@ -93,7 +102,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     }
   };
 
-  const exportPdf = async () => {
+  const exportPdf = async () => {   // exporting pdf 
     if (!reportsRef.current || exporting) return;
     setExporting(true);
     setError("");
@@ -118,14 +127,14 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     }
   };
 
-  const reportControls = (
+  const reportControls = (    //   conatins firm selector, date range selector, export pdf button, print button, and add entry button. It is displayed at the top of the report view.
     <div className="no-print grid w-full grid-cols-2 items-end gap-1.5 sm:flex sm:flex-wrap sm:gap-2 lg:w-auto">
       <label className="grid w-36 gap-0.5 text-[10px] font-bold text-slate-500 sm:w-40 sm:gap-1 sm:text-xs">
         Firm
         <select
           className={`${inputClass} !min-h-8 !rounded-lg !px-2 !py-0.5 !text-xs sm:!min-h-9 sm:!py-1`}
           value={firmFilter}
-          onChange={(e) => setFirmFilter(e.target.value)}
+          onChange={(e) => setFirmFilter(e.target.value)} // changing the selection updates FirmFilter ,which causes report to reload 
         >
           <option value="all">All firms</option>
           {firms.map((firm) => (
