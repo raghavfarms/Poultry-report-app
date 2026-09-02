@@ -27,38 +27,75 @@ function validateAccount(body) {
   return { name, email, password };
 }
 
-export async function getSetupStatus(req, res) {
-  const adminExists = Boolean(await User.exists({ role: 'admin' }));
-  res.json({ setupRequired: !adminExists });
+export async function getSetupStatus(req, res) { // check if admin user exists, if not, setup is required   //  req : incoming data from client (params,query,body,etc)   //  res : response to be sent back to client   //  next : function to pass control to the next middleware in the stack
+  const adminExists = Boolean(await User.exists({ role: 'admin' }));  // this function not use and data from req  , it just check if admin user exists in database or not  , if not then setup is required
+  res.json({ setupRequired: !adminExists });   //   send response to client with setupRequired true or false  redirect to create admin page if setupRequired is true
 }
 
-export async function getRegistrationFirms(req, res) {
-  const firms = await Firm.find({ active: true }).select('name code').sort({ name: 1 }).lean();
-  res.json({ firms });
+
+export async function getRegistrationFirms(req, res) {  // return only active firms
+  const firms = await Firm.find({ active: true }).select('name code').sort({ name: 1 }).lean(); // lean() return simple javascript object instead of mongoose document
+  res.json({ firms });  //  send response to client with active firms
 }
 
-export async function setupAdmin(req, res) {
+export async function setupAdmin(req, res) { // check whether admin exist or not , if admin found then return 409 conflict error  //  redirecting perform by react after reciving response 
   if (await User.exists({ role: 'admin' })) {
     return res.status(409).json({ message: 'Admin setup is already complete.' });
   }
-  const account = validateAccount(req.body);
-  const firms = await Promise.all([
-    Firm.findOneAndUpdate({ code: 'RAGHAV' }, { $setOnInsert: { name: 'Raghav', code: 'RAGHAV' } }, { upsert: true, new: true }),
-    Firm.findOneAndUpdate({ code: 'SANJANA' }, { $setOnInsert: { name: 'Sanjana', code: 'SANJANA' } }, { upsert: true, new: true }),
-  ]);
+
+
+  const account = validateAccount(req.body); // it contain data send by client in request body (name,email,password,confirmPassword)  // validateAccount function check for valid data and return object with name,email,password,confirmPassword  // if data is invalid then it throw error with message and status code 400 bad request
+  
+  // Promise.all() Run both firm queries concurrently and wait for both results.
+ const firms = await Promise.all([
+  // Find the Raghav firm.
+  // If it does not exist, create it using $setOnInsert.
+  Firm.findOneAndUpdate(    // mongoose query method 
+    { code: 'RAGHAV' },
+    {
+      $setOnInsert: {    // mongoose update operator 
+        name: 'Raghav',
+        code: 'RAGHAV'
+      }
+    },
+    {
+      upsert: true, // Create the document if no matching firm exists.
+      new: true     // Return the resulting document.
+    }
+  ),
+
+  // Find the Sanjana firm.
+  // If it does not exist, create it using $setOnInsert.
+  Firm.findOneAndUpdate(
+    { code: 'SANJANA' },
+    {
+      $setOnInsert: {
+        name: 'Sanjana',
+        code: 'SANJANA'
+      }
+    },
+    {
+      upsert: true, // Create the document if no matching firm exists.
+      new: true     // Return the resulting document.
+    }
+  )
+]);
+
+   // This code create a new admin user in MongoDB  and send login token and user data back to client in response
   const user = await User.create({
-    name: account.name,
-    email: account.email,
-    passwordHash: await bcrypt.hash(account.password, 12),
+    name: account.name,  // name entered in form by user 
+    email: account.email,  // email entered in form by user
+    passwordHash: await bcrypt.hash(account.password, 12),   
     role: 'admin',
-    firms: firms.map((firm) => firm._id),
+    firms: firms.map((firm) => firm._id),  // Take every firm from firms array and collect those for firm IDs and store in admin account 
   });
-  res.status(201).json({ token: signToken(user), user: publicUser(user) });
+  res.status(201).json({ token: signToken(user), user: publicUser(user) });  //  res.status(201) set status code to 201 created  //  res.json() send json response to client
 }
 
+
 export async function register(req, res) {
-  const account = validateAccount(req.body);
-  const firmIds = [...new Set((req.body.firmIds || []).map(String))];
+  const account = validateAccount(req.body);   // validateAccount function check for valid data and return object with name,email,password,confirmPassword  // if data is invalid then it throw error with message and status code 400 bad request
+  const firmIds = [...new Set((req.body.firmIds || []).map(String))]; //Get the selected firm IDs from the request(frontend ). If none were sent, use an empty array. Convert every ID into a string, remove duplicates, and return a clean array
   if (!firmIds.length) throw badRequest('Select at least one firm.');
   const firms = await Firm.find({ _id: { $in: firmIds }, active: true });
   if (firms.length !== firmIds.length) throw badRequest('One or more selected firms are invalid.');
