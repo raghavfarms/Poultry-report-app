@@ -180,12 +180,14 @@ button {
   font-weight: 700;
   border-top: 1px solid #d7ded8;
   border-bottom: 2px solid #526b5b;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  text-align: center;
+  vertical-align: middle;
 }
 .transport-report-table tbody td,
 .transport-report-table tfoot td {
   white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
 }
 .transport-report-table tbody tr {
   background: #fff;

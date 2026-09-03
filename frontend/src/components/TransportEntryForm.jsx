@@ -8,10 +8,16 @@ const empty = { vehicleId: "", from: "", destination: "", openingDate: today(), 
 const num = (value) => Number(value || 0);
 const openDatePicker = (event) => event.currentTarget.showPicker?.();
 
-export default function TransportEntryForm({ entryId, initialVehicleId, onSaved, onCancel }) {
+export default function TransportEntryForm({ entryId, initialVehicleId, initialDate, onSaved, onCancel }) {
   const { user } = useAuth();
   const completing = Boolean(entryId) && user.role !== "admin";
-  const [vehicles, setVehicles] = useState([]), [form, setForm] = useState({ ...empty, vehicleId: initialVehicleId || "" });
+  const [vehicles, setVehicles] = useState([]), [form, setForm] = useState({
+    ...empty,
+    vehicleId: initialVehicleId || "",
+    openingDate: initialDate || today(),
+    closingDate: initialDate || today(),
+    openingReading: "",
+  });
   const [loading, setLoading] = useState(true);
   const [cycle, setCycle] = useState({ lastFullReading: null, firstCycleReading: null, pendingFuelLiters: 0 });
   const [saving, setSaving] = useState(false), [error, setError] = useState("");
@@ -19,10 +25,25 @@ export default function TransportEntryForm({ entryId, initialVehicleId, onSaved,
   useEffect(() => {
     let active = true; setLoading(true);
     Promise.all([api("/transport-vehicles"), entryId ? api(`/transport-entries/${entryId}`) : Promise.resolve(null)])
-      .then(([vehicleData, entryData]) => { if (!active) return; setVehicles(vehicleData.vehicles); if (entryData?.entry) { const e = entryData.entry; setForm({ ...empty, ...e, vehicleId: e.vehicle }); } else setForm((current) => ({ ...current, vehicleId: current.vehicleId || vehicleData.vehicles[0]?._id || "" })); })
+      .then(([vehicleData, entryData]) => {
+        if (!active) return;
+        setVehicles(vehicleData.vehicles);
+        if (entryData?.entry) {
+          const e = entryData.entry;
+          setForm({ ...empty, ...e, vehicleId: e.vehicle });
+        } else {
+          setForm((current) => ({
+            ...current,
+            vehicleId: current.vehicleId || initialVehicleId || vehicleData.vehicles[0]?._id || "",
+            openingDate: initialDate || current.openingDate || today(),
+            closingDate: initialDate || current.closingDate || today(),
+            openingReading: current.openingReading || "",
+          }));
+        }
+      })
       .catch((e) => setError(e.message)).finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [entryId]);
+  }, [entryId, initialVehicleId, initialDate]);
   useEffect(() => {
     if (!form.vehicleId || !form.openingDate || !form.openingTime) { setCycle({ lastFullReading: null, firstCycleReading: null, pendingFuelLiters: 0 }); return; }
     const query = new URLSearchParams({ vehicleId: form.vehicleId, date: form.openingDate, time: form.openingTime, ...(entryId ? { entryId } : {}) });
@@ -54,6 +75,7 @@ export default function TransportEntryForm({ entryId, initialVehicleId, onSaved,
       {fields.map(([label, key, type]) => <Field key={key} label={label}><input required={!['from', 'destination', 'closingReading', 'fill1Liters', 'fill2Liters', 'note'].includes(key)} disabled={completing && key !== "closingReading"} type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined} onClick={type === "date" ? openDatePicker : undefined} className={`${inputClass} !min-h-8 !rounded-lg !px-2 !py-1 !text-xs ${type === "date" ? "cursor-pointer" : ""}`} value={form[key]} onChange={update(key)} /></Field>)}
       <Field label="Full-to-full average"><label className="flex min-h-8 items-center gap-2 rounded-lg bg-blue-50 px-2 text-xs font-bold"><input type="checkbox" checked={form.isFull} onChange={(event) => setForm({ ...form, isFull: event.target.checked })} className="accent-emerald-700" /> Tank filled full</label></Field>
     </div>}
-    {!!vehicles.length && <><div className="mt-2 grid grid-cols-4 gap-1.5 rounded-lg bg-emerald-50 p-2 text-[10px]"><span><b>KM run</b><br />{totals.kmRun == null ? "—" : totals.kmRun.toFixed(2)}</span><span><b>Total diesel</b><br />{totals.total.toFixed(2)} L</span><span><b>Consumed</b><br />{totals.complete ? `${totals.consumed.toFixed(2)} L` : "—"}</span><span><b>Full-cycle avg</b><br />{totals.average == null ? "—" : `${totals.average.toFixed(2)} km/L`}</span></div><div className="mt-2 flex justify-end gap-1.5"><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-8 !px-3 !py-1 !text-xs`}>Cancel</button><button disabled={saving} className={`${primaryButton} !min-h-8 !px-3 !py-1 !text-xs`}>{saving ? "Saving…" : totals.complete ? "Save closing" : "Save opening"}</button></div></>}
+    {!!vehicles.length && <><div className="mt-2 grid grid-cols-3 gap-1.5 rounded-lg bg-emerald-50 p-2 text-[10px] text-center"><span><b>KM run</b><br />{totals.kmRun == null ? "—" : totals.kmRun.toFixed(2)}</span><span><b>Consumed</b><br />{totals.total.toFixed(2)} L</span><span><b>Full-cycle avg</b><br />{totals.average == null ? "—" : `${totals.average.toFixed(2)} km/L`}</span></div><div className="mt-2 flex justify-end gap-1.5"><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-8 !px-3 !py-1 !text-xs`}>Cancel</button><button disabled={saving} className={`${primaryButton} !min-h-8 !px-3 !py-1 !text-xs`}>{saving ? "Saving…" : totals.complete ? "Save closing" : "Save opening"}</button></div></>}
   </form>;
 }
+
