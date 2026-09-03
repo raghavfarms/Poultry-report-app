@@ -246,6 +246,21 @@ button {
   background-color: #dce9df !important;
   color: #203c2b !important;
 }
+.report-export-content.pdf-exporting .transport-report-table thead th {
+  background-color: #e7eee9 !important;
+  color: #294033 !important;
+}
+.report-export-content.pdf-exporting .transport-report-table tbody tr {
+  background-color: #fff !important;
+}
+.report-export-content.pdf-exporting .transport-report-table tbody tr:first-child {
+  background-color: #fff6e9 !important;
+}
+.report-export-content.pdf-exporting .transport-report-table tfoot tr,
+.report-export-content.pdf-exporting .transport-report-table tfoot td {
+  background-color: #dce9df !important;
+  color: #203c2b !important;
+}
 .report-export-content.pdf-exporting .no-print,
 .report-export-content.pdf-exporting button,
 .report-export-content.pdf-exporting .sticky-action {
@@ -257,6 +272,10 @@ button {
 .report-export-content.pdf-exporting .report-table th:first-child,
 .report-export-content.pdf-exporting .report-table td:first-child {
   position: static;
+}
+.report-export-content.pdf-exporting .transport-report-table th,
+.report-export-content.pdf-exporting .transport-report-table td {
+  position: static !important;
 }
 @media print {
   @page {

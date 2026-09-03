@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import html2pdf from "html2pdf.js";
 import { api } from "../api/client.js";
 import { addDays, displayDate, today } from "../utils/date.js";
-import { Alert, inputClass, secondaryButton, Spinner } from "../components/Ui.jsx";
+import { Alert, inputClass, primaryButton, secondaryButton, Spinner } from "../components/Ui.jsx";
 import TransportEntryForm from "../components/TransportEntryForm.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -157,11 +157,31 @@ export default function TransportPage() {
   const load = useCallback(async () => { setLoading(true); setError(""); try { const data = await api(`/transport-entries/report${vehicleId === "all" ? "" : `?vehicleId=${vehicleId}`}`); setVehicles(data.vehicles); setRows(data.rows); } catch (error) { setError(error.message); } finally { setLoading(false); } }, [vehicleId]);
   useEffect(() => { load(); }, [load]);
   const shownVehicles = useMemo(() => vehicles.filter((vehicle) => vehicle.active && (vehicleId === "all" || vehicle._id === vehicleId)), [vehicles, vehicleId]);
-  const exportPdf = async () => { if (!reportRef.current) return; setExporting(true); try { await html2pdf().set({ filename: "transport-report.pdf", margin: 6, image: { type: "jpeg", quality: .98 }, html2canvas: { scale: 2 }, jsPDF: { unit: "mm", format: "a3", orientation: "landscape" } }).from(reportRef.current).save(); } catch (error) { setError(error.message); } finally { setExporting(false); } };
+  const exportPdf = async () => {
+    if (!reportRef.current || exporting) return;
+    setExporting(true);
+    setError("");
+    reportRef.current.classList.add("pdf-exporting");
+    try {
+      await html2pdf().set({
+        filename: "transport-report.pdf",
+        margin: 6,
+        image: { type: "jpeg", quality: .98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        jsPDF: { unit: "mm", format: "a3", orientation: "landscape" },
+        pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
+      }).from(reportRef.current).save();
+    } catch (error) {
+      setError(error.message || "Could not export the PDF.");
+    } finally {
+      reportRef.current?.classList.remove("pdf-exporting");
+      setExporting(false);
+    }
+  };
   return <div className="space-y-3">
     <div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Second reporting module</p><h1 className="mt-1 text-2xl font-black">Transport Report</h1></div><Alert>{error}</Alert>
-    <div className="no-print flex flex-wrap items-end gap-2"><label className="grid gap-1 text-xs font-bold text-slate-500">Vehicle<select className={`${inputClass} !min-h-9 sm:w-60`} value={vehicleId} onChange={(event) => setVehicleId(event.target.value)}><option value="all">All vehicles</option>{vehicles.filter((vehicle) => vehicle.active).map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.name} — {vehicle.number} — {vehicle.tankCapacity} L</option>)}</select></label><button onClick={exportPdf} disabled={exporting} className={secondaryButton}>{exporting ? "Exporting…" : "Export PDF"}</button><button onClick={() => window.print()} className={secondaryButton}>Print</button></div>
+    <div className="no-print flex flex-wrap items-end gap-2"><label className="grid gap-1 text-xs font-bold text-slate-500">Vehicle<select className={`${inputClass} !min-h-9 sm:w-60`} value={vehicleId} onChange={(event) => setVehicleId(event.target.value)}><option value="all">All vehicles</option>{vehicles.filter((vehicle) => vehicle.active).map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.name} — {vehicle.number} — {vehicle.tankCapacity} L</option>)}</select></label><button onClick={exportPdf} disabled={exporting} className={`${secondaryButton} !min-h-9 !w-28 !rounded-lg !px-3 !py-1`}>{exporting ? "Exporting…" : "Export PDF"}</button><button onClick={() => window.print()} className={`${secondaryButton} !min-h-9 !w-28 !rounded-lg !px-3 !py-1`}>Print</button><button onClick={() => { const vehicle = shownVehicles[0]; if (vehicle) setForm({ vehicleId: vehicle._id, initialDate: today() }); }} disabled={!shownVehicles.length} className={`${primaryButton} !min-h-9 !w-28 whitespace-nowrap !rounded-lg !px-3 !py-1`}>Add entry</button></div>
     {form && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-3" onMouseDown={() => setForm(null)}><div className="w-full max-w-sm" onMouseDown={(event) => event.stopPropagation()}><TransportEntryForm entryId={form.entryId} initialVehicleId={form.vehicleId} initialDate={form.initialDate} onCancel={() => setForm(null)} onSaved={() => { setForm(null); load(); }} /></div></div>}
-    {loading ? <Spinner label="Loading transport report…" /> : <div ref={reportRef} className="space-y-5">{shownVehicles.length ? shownVehicles.map((vehicle) => <VehicleTable key={vehicle._id} vehicle={vehicle} rows={rows.filter((row) => String(row.vehicle) === vehicle._id)} onEdit={(row) => setForm({ entryId: row._id })} onAdd={(id, nextDate) => setForm({ vehicleId: id, initialDate: nextDate })} />) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">An administrator must add a transport vehicle first.</div>}</div>}
+    {loading ? <Spinner label="Loading transport report…" /> : <div ref={reportRef} className="report-export-content space-y-5">{shownVehicles.length ? shownVehicles.map((vehicle) => <VehicleTable key={vehicle._id} vehicle={vehicle} rows={rows.filter((row) => String(row.vehicle) === vehicle._id)} onEdit={(row) => setForm({ entryId: row._id })} onAdd={(id, nextDate) => setForm({ vehicleId: id, initialDate: nextDate })} />) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">An administrator must add a transport vehicle first.</div>}</div>}
   </div>;
 }
