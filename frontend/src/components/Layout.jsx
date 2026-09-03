@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 
 export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
-  ["raw-material", "Raw Material", "▦"],
+  ["transport", "Transport Report", "🚚"],
   ["feed-production", "Feed Production", "◫"],
   ["bird-stock", "Bird Stock", "🐔"],
   ["egg-stock", "Egg Stock", "🥚"],
@@ -19,7 +19,7 @@ export const modules = [
 
 export const moduleIconStyles = {
   diesel: "bg-red-100 text-red-700",
-  "raw-material": "bg-sky-100 text-sky-700",
+  transport: "bg-sky-100 text-sky-700",
   "feed-production": "bg-amber-100 text-amber-700",
   "bird-stock": "bg-orange-100 text-orange-700",
   "egg-stock": "bg-yellow-100 text-yellow-700",
@@ -91,6 +91,9 @@ function Sidebar({ open, close }) {
               </p>
               <NavLink to="/admin/assets" className={linkClass}>
                 <span>⚙</span>Firms & Assets
+              </NavLink>
+              <NavLink to="/admin/transport" className={linkClass}>
+                <span>🚚</span>Transport Vehicles
               </NavLink>
             </>
           )}

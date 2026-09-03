@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import DieselReports from "../components/DieselReports.jsx";
+import TransportPage from "./TransportPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 
 export default function OverviewPage() {
@@ -21,12 +22,13 @@ export default function OverviewPage() {
     return (
       <div className="space-y-6">
         <DieselReports compact />
+        <TransportPage />
         <section>
           <h2 className="mb-4 text-xl font-black text-slate-900">
             Next report modules
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {modules.slice(1).map(([slug, label, icon]) => (
+            {modules.filter(([slug]) => !["diesel", "transport"].includes(slug)).map(([slug, label, icon]) => (
               <article
                 key={slug}
                 className="rounded-2xl border border-slate-200 bg-white p-5"
@@ -113,6 +115,8 @@ export default function OverviewPage() {
               >
                 {slug === "diesel" ? (
                   <DieselReports compact showHeading={false} />
+                ) : slug === "transport" ? (
+                  <TransportPage />
                 ) : (
                   <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
                     <h2 className="font-bold text-slate-800">{label}</h2>

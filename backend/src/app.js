@@ -6,6 +6,8 @@ import authRoutes from './routes/auth.routes.js';
 import firmRoutes from './routes/firms.routes.js';
 import assetRoutes from './routes/assets.routes.js';
 import entryRoutes from './routes/entries.routes.js';
+import transportVehicleRoutes from './routes/transportVehicles.routes.js';
+import transportEntryRoutes from './routes/transportEntries.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -21,8 +23,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/entries', entryRoutes);
+
+//  transport vehicles and transport entries are separate routes for managing transportation-related data in the application
+app.use('/api/transport-vehicles', transportVehicleRoutes);
+app.use('/api/transport-entries', transportEntryRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
 export default app;
-

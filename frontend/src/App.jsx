@@ -6,6 +6,8 @@ import OverviewPage from "./pages/OverviewPage.jsx";
 import DieselPage from "./pages/DieselPage.jsx";
 import ComingSoonPage from "./pages/ComingSoonPage.jsx";
 import AssetAdminPage from "./pages/AssetAdminPage.jsx";
+import TransportPage from "./pages/TransportPage.jsx";
+import TransportAdminPage from "./pages/TransportAdminPage.jsx";
 
 export default function App() {
   return (
@@ -22,12 +24,21 @@ export default function App() {
       >
         <Route index element={<OverviewPage />} />
         <Route path="reports/diesel" element={<DieselPage />} />
+        <Route path="reports/transport" element={<TransportPage />} />
         <Route path="reports/:slug" element={<ComingSoonPage />} />
         <Route
           path="admin/assets"
           element={
             <ProtectedRoute admin>
               <AssetAdminPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="admin/transport"
+          element={
+            <ProtectedRoute admin>
+              <TransportAdminPage />
             </ProtectedRoute>
           }
         />
