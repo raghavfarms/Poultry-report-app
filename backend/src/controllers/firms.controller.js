@@ -2,7 +2,7 @@ import Firm from '../models/Firm.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 
 export async function getFirms(req, res) {
-  const filter = req.user.role === 'admin' ? { active: true } : { _id: { $in: req.user.firms }, active: true };
+  const filter = ['admin', 'developer'].includes(req.user.role) ? { active: true } : { _id: { $in: req.user.firms }, active: true };
   const firms = await Firm.find(filter).sort({ name: 1 }).lean();
   res.json({ firms });
 }

@@ -28,8 +28,8 @@ function validateAccount(body) {
 }
 
 export async function getSetupStatus(req, res) { // check if admin user exists, if not, setup is required   //  req : incoming data from client (params,query,body,etc)   //  res : response to be sent back to client   //  next : function to pass control to the next middleware in the stack
-  const adminExists = Boolean(await User.exists({ role: 'admin' }));  // this function not use and data from req  , it just check if admin user exists in database or not  , if not then setup is required
-  res.json({ setupRequired: !adminExists });   //   send response to client with setupRequired true or false  redirect to create admin page if setupRequired is true
+  const privilegedUserExists = Boolean(await User.exists({ role: { $in: ['admin', 'developer'] } }));
+  res.json({ setupRequired: !privilegedUserExists });
 }
 
 
@@ -39,7 +39,7 @@ export async function getRegistrationFirms(req, res) {  // return only active fi
 }
 
 export async function setupAdmin(req, res) { // check whether admin exist or not , if admin found then return 409 conflict error  //  redirecting perform by react after reciving response 
-  if (await User.exists({ role: 'admin' })) {
+  if (await User.exists({ role: { $in: ['admin', 'developer'] } })) {
     return res.status(409).json({ message: 'Admin setup is already complete.' });
   }
 

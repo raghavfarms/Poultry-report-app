@@ -12,3 +12,6 @@ router.delete('/:assetId', adminOnly, deleteAsset);
 router.patch('/:assetId/restore',adminOnly,restoreAsset);
 
 export default router;
+
+
+

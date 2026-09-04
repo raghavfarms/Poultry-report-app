@@ -254,3 +254,5 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     </div>
   );
 }
+
+

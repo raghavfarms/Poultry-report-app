@@ -113,12 +113,12 @@ function VehicleTable({ vehicle, rows, onEdit, onAdd }) {
               <td className={`${cell} font-black text-emerald-700`}>{row.averageKmPerLiter == null ? "—" : show(row.averageKmPerLiter, " km/L")}</td>
               <td className={`${cell} no-print text-center sticky right-0 ${!row.complete ? "bg-[#fffbeb] group-hover:bg-amber-50" : "bg-white group-hover:bg-emerald-50"} border-l border-slate-200 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.04)]`}>
                 {!row.complete ? (
-                  user.role === "admin" || Date.now() - new Date(row.createdAt).getTime() <= 86400000 ? (
+                  ["admin", "developer"].includes(user.role) || Date.now() - new Date(row.createdAt).getTime() <= 86400000 ? (
                     <button onClick={() => onEdit(row)} className={actionAddButton}>Add</button>
                   ) : (
                     "—"
                   )
-                ) : user.role === "admin" ? (
+                ) : ["admin", "developer"].includes(user.role) ? (
                   <button onClick={() => onEdit(row)} className={actionEditButton}>Edit</button>
                 ) : (
                   "—"

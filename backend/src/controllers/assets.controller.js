@@ -18,7 +18,7 @@ function payload(body) {
 
 export async function getFirmAssets(req, res) {
   const filter = { firm: req.params.firmId };
-  if (!(req.user.role === 'admin' && req.query.includeInactive === 'true')) filter.active = true;
+  if (!(['admin', 'developer'].includes(req.user.role) && req.query.includeInactive === 'true')) filter.active = true;
   const assets = await Asset.find(filter).sort({ order: 1, label: 1 }).lean();
   res.json({ assets });
 }

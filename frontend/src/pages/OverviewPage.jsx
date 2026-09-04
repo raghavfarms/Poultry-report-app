@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import DieselReports from "../components/DieselReports.jsx";
 import TransportPage from "./TransportPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function OverviewPage() {
+  const { user } = useAuth();
   const [openReport, setOpenReport] = useState(null);
   const [desktop, setDesktop] = useState(
     () => window.matchMedia("(min-width: 1024px)").matches,
@@ -22,13 +24,14 @@ export default function OverviewPage() {
     return (
       <div className="space-y-6">
         <DieselReports compact />
-        <TransportPage />
-        <section>
-          <h2 className="mb-4 text-xl font-black text-slate-900">
-            Next report modules
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {modules.filter(([slug]) => !["diesel", "transport"].includes(slug)).map(([slug, label, icon]) => (
+        {user.role === "developer" && <TransportPage />}
+        {user.role === "developer" && (
+          <section>
+            <h2 className="mb-4 text-xl font-black text-slate-900">
+              Next report modules
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {modules.filter(([slug]) => !["diesel", "transport"].includes(slug)).map(([slug, label, icon]) => (
               <article
                 key={slug}
                 className="rounded-2xl border border-slate-200 bg-white p-5"
@@ -47,9 +50,10 @@ export default function OverviewPage() {
                   </div>
                 </div>
               </article>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     );
 
@@ -63,7 +67,7 @@ export default function OverviewPage() {
           Select a report to open or close it.
         </p>
       </div>
-      {modules.map(([slug, label, icon]) => {
+      {(user.role === "developer" ? modules : modules.filter(([slug]) => slug === "diesel")).map(([slug, label, icon]) => {
         const expanded = openReport === slug;
         const panelId = `report-panel-${slug}`;
         return (

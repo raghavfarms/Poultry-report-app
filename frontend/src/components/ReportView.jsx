@@ -141,7 +141,7 @@ export default function ReportView({
   const scrollRef = useRef(null);
   const drag = useRef({ active: false, startX: 0, scrollLeft: 0 });
   const [dragging, setDragging] = useState(false);
-  const isAdmin = user.role === "admin";
+  const isAdmin = ["admin", "developer"].includes(user.role);
   const assets = reportAssets(report);
   const nextDate = nextMissingDate(report);
   const totals = reportTotals(report, assets);

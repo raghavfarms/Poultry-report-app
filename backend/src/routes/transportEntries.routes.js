@@ -1,9 +1,10 @@
 import { Router } from 'express';
-import { protect } from '../middleware/auth.js';
+import { developerOnly, protect } from '../middleware/auth.js';
 import { getTransportEntry, getTransportOpening, getTransportReport, saveTransportEntry } from '../controllers/transportEntries.controller.js';
 
 const router = Router();
 router.use(protect);
+router.use(developerOnly);
 router.get('/report', getTransportReport);
 router.get('/opening', getTransportOpening);
 router.get('/:entryId', getTransportEntry);

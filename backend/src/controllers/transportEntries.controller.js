@@ -60,9 +60,9 @@ export async function saveTransportEntry(req, res) {
   const openingTime = String(req.body.openingTime || '');
   assertDate(openingDate, 'openingDate');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openingTime)) throw badRequest('Opening time is required.');
-  if (req.user.role !== 'admin' && openingDate > todayUtc()) return res.status(403).json({ message: 'Users cannot enter a future journey.' });
-  if (req.user.role !== 'admin' && existing?.closingReading != null) return res.status(403).json({ message: 'Only an administrator can edit a completed journey.' });
-  if (req.user.role !== 'admin' && existing && Date.now() - new Date(existing.createdAt).getTime() > 24 * 60 * 60 * 1000) return res.status(403).json({ message: 'The 24-hour completion period has expired.' });
+  if (!['admin', 'developer'].includes(req.user.role) && openingDate > todayUtc()) return res.status(403).json({ message: 'Users cannot enter a future journey.' });
+  if (!['admin', 'developer'].includes(req.user.role) && existing?.closingReading != null) return res.status(403).json({ message: 'Only an administrator can edit a completed journey.' });
+  if (!['admin', 'developer'].includes(req.user.role) && existing && Date.now() - new Date(existing.createdAt).getTime() > 24 * 60 * 60 * 1000) return res.status(403).json({ message: 'The 24-hour completion period has expired.' });
   const openingReading = number(req.body.openingReading, 'Opening reading');
   const closingReading = req.body.closingReading === '' || req.body.closingReading == null ? null : number(req.body.closingReading, 'Closing reading');
   if (closingReading != null && closingReading < openingReading) throw badRequest('Closing reading cannot be below opening reading.');
@@ -77,7 +77,7 @@ export async function saveTransportEntry(req, res) {
     openingDate, openingTime, openingReading, closingDate, closingReading,
     fill1Liters, fill2Liters, isFull, note: String(req.body.note || '').trim(), updatedBy: req.user._id,
   };
-  if (existing && req.user.role !== 'admin') {
+  if (existing && !['admin', 'developer'].includes(req.user.role)) {
     Object.assign(payload, {
       vehicle: existing.vehicle,
       vehicleName: existing.vehicleName,

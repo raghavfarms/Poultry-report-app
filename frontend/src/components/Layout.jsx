@@ -34,6 +34,9 @@ export const moduleIconStyles = {
 
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
+  const visibleModules = user.role === "developer"
+    ? modules
+    : modules.filter(([slug]) => slug === "diesel");
   const linkClass = ({ isActive }) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive ? "bg-emerald-800 font-semibold text-white" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"}`;
   return (
@@ -74,7 +77,7 @@ function Sidebar({ open, close }) {
           <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
             Report sections
           </p>
-          {modules.map(([slug, label, icon]) => (
+          {visibleModules.map(([slug, label, icon]) => (
             <NavLink key={slug} to={`/reports/${slug}`} className={linkClass}>
               <span
                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sm ${moduleIconStyles[slug]}`}
@@ -84,7 +87,7 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {user.role === "admin" && (
+          {["admin", "developer"].includes(user.role) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
@@ -92,9 +95,11 @@ function Sidebar({ open, close }) {
               <NavLink to="/admin/assets" className={linkClass}>
                 <span>⚙</span>Firms & Assets
               </NavLink>
-              <NavLink to="/admin/transport" className={linkClass}>
-                <span>🚚</span>Transport Vehicles
-              </NavLink>
+              {user.role === "developer" && (
+                <NavLink to="/admin/transport" className={linkClass}>
+                  <span>🚚</span>Transport Vehicles
+                </NavLink>
+              )}
             </>
           )}
         </nav>

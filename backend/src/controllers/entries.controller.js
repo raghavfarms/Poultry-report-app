@@ -67,7 +67,7 @@ export async function getOverview(req, res) {
   const to = req.query.to || todayUtc();
   const from = addDays(to, -(days - 1));
   assertDate(to, 'to');
-  const firmFilter = req.user.role === 'admin' ? { active: true } : { _id: { $in: req.user.firms }, active: true };
+  const firmFilter = ['admin', 'developer'].includes(req.user.role) ? { active: true } : { _id: { $in: req.user.firms }, active: true };
   const firms = await Firm.find(firmFilter).sort({ name: 1 }).lean();
   const reports = [];
   for (const firm of firms) {
@@ -100,10 +100,10 @@ export async function saveEntry(req, res) {
   assertDate(req.params.date);
   const firm = await loadFirm(req.params.firmId);
   const existing = await DieselEntry.findOne({ firm: firm._id, date: req.params.date }).lean();
-  if (req.user.role !== 'admin' && req.params.date > todayUtc()) {
+  if (!['admin', 'developer'].includes(req.user.role) && req.params.date > todayUtc()) {
     return res.status(403).json({ message: 'Labour cannot enter a future date.' });
   }
-  if (req.user.role !== 'admin') {
+  if (!['admin', 'developer'].includes(req.user.role)) {
     if (existing && req.params.date !== todayUtc()) {
       return res.status(403).json({ message: 'Users can edit only today’s saved entry.' });
     }

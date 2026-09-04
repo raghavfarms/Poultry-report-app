@@ -14,7 +14,7 @@ function vehiclePayload(body) {
 
 export async function getVehicles(req, res) {
   const filter = {};
-  if (!(req.user.role === 'admin' && req.query.includeInactive === 'true')) filter.active = true;
+  if (!(['admin', 'developer'].includes(req.user.role) && req.query.includeInactive === 'true')) filter.active = true;
   const vehicles = await TransportVehicle.find(filter).sort({ order: 1, name: 1 }).lean();
   res.json({ vehicles });
 }

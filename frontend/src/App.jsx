@@ -24,8 +24,14 @@ export default function App() {
       >
         <Route index element={<OverviewPage />} />
         <Route path="reports/diesel" element={<DieselPage />} />
-        <Route path="reports/transport" element={<TransportPage />} />
-        <Route path="reports/:slug" element={<ComingSoonPage />} />
+        <Route
+          path="reports/transport"
+          element={<ProtectedRoute developer><TransportPage /></ProtectedRoute>}
+        />
+        <Route
+          path="reports/:slug"
+          element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
+        />
         <Route
           path="admin/assets"
           element={
@@ -37,7 +43,7 @@ export default function App() {
         <Route
           path="admin/transport"
           element={
-            <ProtectedRoute admin>
+            <ProtectedRoute developer>
               <TransportAdminPage />
             </ProtectedRoute>
           }

@@ -249,7 +249,7 @@ export default function EntryForm({
             type="date"
             className={`${inputClass} cursor-pointer !min-h-8 !rounded-md !px-2 !py-0.5`}
             value={date}
-            max={user.role === "admin" ? undefined : today()}
+            max={["admin", "developer"].includes(user.role) ? undefined : today()}
             onClick={(e) => e.currentTarget.showPicker?.()}
             onChange={(e) => setDate(e.target.value)}
           />

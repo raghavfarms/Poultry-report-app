@@ -20,14 +20,21 @@ export async function protect(req, res, next) {
 }
 
 export function adminOnly(req, res, next) {
-  if (req.user?.role !== 'admin') {
+  if (!['admin', 'developer'].includes(req.user?.role)) {
     return res.status(403).json({ message: 'Admin access is required.' });
   }
   next();
 }
 
+export function developerOnly(req, res, next) {
+  if (req.user?.role !== 'developer') {
+    return res.status(403).json({ message: 'This report is still in development.' });
+  }
+  next();
+}
+
 export function canAccessFirm(user, firmId) {
-  return user.role === 'admin' || user.firms.some((id) => String(id) === String(firmId));
+  return ['admin', 'developer'].includes(user.role) || user.firms.some((id) => String(id) === String(firmId));
 }
 
 export function requireFirmAccess(req, res, next) {
@@ -37,4 +44,3 @@ export function requireFirmAccess(req, res, next) {
   }
   next();
 }
-

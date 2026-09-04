@@ -10,7 +10,7 @@ const openDatePicker = (event) => event.currentTarget.showPicker?.();
 
 export default function TransportEntryForm({ entryId, initialVehicleId, initialDate, onSaved, onCancel }) {
   const { user } = useAuth();
-  const completing = Boolean(entryId) && user.role !== "admin";
+  const completing = Boolean(entryId) && !["admin", "developer"].includes(user.role);
   const [vehicles, setVehicles] = useState([]), [form, setForm] = useState({
     ...empty,
     vehicleId: initialVehicleId || "",
@@ -78,4 +78,3 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
     {!!vehicles.length && <><div className="mt-2 grid grid-cols-3 gap-1.5 rounded-lg bg-emerald-50 p-2 text-[10px] text-center"><span><b>KM run</b><br />{totals.kmRun == null ? "—" : totals.kmRun.toFixed(2)}</span><span><b>Consumed</b><br />{totals.total.toFixed(2)} L</span><span><b>Full-cycle avg</b><br />{totals.average == null ? "—" : `${totals.average.toFixed(2)} km/L`}</span></div><div className="mt-2 flex justify-end gap-1.5"><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-8 !px-3 !py-1 !text-xs`}>Cancel</button><button disabled={saving} className={`${primaryButton} !min-h-8 !px-3 !py-1 !text-xs`}>{saving ? "Saving…" : totals.complete ? "Save closing" : "Save opening"}</button></div></>}
   </form>;
 }
-
