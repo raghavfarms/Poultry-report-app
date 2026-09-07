@@ -24,7 +24,7 @@ export default function OverviewPage() {
     return (
       <div className="space-y-6">
         <DieselReports compact />
-        {user.role === "developer" && <TransportPage />}
+        <TransportPage />
         {user.role === "developer" && (
           <section>
             <h2 className="mb-4 text-xl font-black text-slate-900">
@@ -67,7 +67,7 @@ export default function OverviewPage() {
           Select a report to open or close it.
         </p>
       </div>
-      {(user.role === "developer" ? modules : modules.filter(([slug]) => slug === "diesel")).map(([slug, label, icon]) => {
+      {(user.role === "developer" ? modules : modules.filter(([slug]) => ["diesel", "transport"].includes(slug))).map(([slug, label, icon]) => {
         const expanded = openReport === slug;
         const panelId = `report-panel-${slug}`;
         return (
@@ -92,9 +92,9 @@ export default function OverviewPage() {
                   {label}
                 </span>
                 <span
-                  className={`block text-[10px] font-bold uppercase tracking-wider ${slug === "diesel" ? "text-emerald-700" : "text-amber-600"}`}
+                  className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
                 >
-                  {slug === "diesel" ? "Available" : "Ready for next phase"}
+                  {["diesel", "transport"].includes(slug) ? "Available" : "Ready for next phase"}
                 </span>
               </span>
               <svg
