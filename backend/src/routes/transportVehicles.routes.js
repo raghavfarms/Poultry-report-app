@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { adminOnly, developerOnly, protect } from '../middleware/auth.js';
+import { adminOnly, protect } from '../middleware/auth.js';
 import { createVehicle, getVehicles, removeVehicle, restoreVehicle, updateVehicle } from '../controllers/transportVehicles.controller.js';
 
 const router = Router();
 router.use(protect);
-router.use(developerOnly);
 router.get('/', getVehicles);
 router.post('/', adminOnly, createVehicle);
 router.patch('/:vehicleId', adminOnly, updateVehicle);

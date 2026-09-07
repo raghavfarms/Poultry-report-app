@@ -168,11 +168,69 @@ button {
   background: inherit;
   text-align: center;
 }
+.transport-report-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  max-width: 100%;
+}
 .transport-report-table th,
 .transport-report-table td {
   border-color: #d7ded8;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 6px;
+}
+.transport-report-table .sticky-date {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+  background-color: #fff;
+  box-shadow: 1px 0 0 0 #cbd5e1;
+}
+.transport-report-table thead .sticky-date {
+  z-index: 20;
+  background-color: #dce9df;
+}
+.transport-report-table .sticky-action {
+  position: sticky;
+  right: 0;
+  z-index: 10;
+  background-color: #fff;
+  box-shadow: -1px 0 0 0 #526b5b;
+  border-left: 2px solid #526b5b;
+  text-align: center;
+}
+.transport-report-table thead .sticky-action {
+  z-index: 20;
+  background-color: #dce9df;
+}
+.transport-report-table tbody tr:hover .sticky-date,
+.transport-report-table tbody tr:hover .sticky-action {
+  background-color: #f4f8f5;
+}
+.transport-report-table tbody tr.bg-amber-50 .sticky-date,
+.transport-report-table tbody tr.bg-amber-50 .sticky-action {
+  background-color: #fffbeb;
+}
+.transport-report-table tbody tr.bg-\[\#fff6e9\] .sticky-date,
+.transport-report-table tbody tr.bg-\[\#fff6e9\] .sticky-action {
+  background-color: #fff6e9;
+}
+.transport-report-table tfoot .sticky-date,
+.transport-report-table tfoot .sticky-action {
+  background-color: #dce9df;
+}
+@media print {
+  .transport-report-table .sticky-date,
+  .transport-report-table .sticky-action {
+    position: static !important;
+    box-shadow: none !important;
+  }
+}
+.report-export-content.pdf-exporting .transport-report-table .sticky-date,
+.report-export-content.pdf-exporting .transport-report-table .sticky-action {
+  position: static !important;
+  box-shadow: none !important;
 }
 .transport-report-table thead th {
   background: #e7eee9;
@@ -200,15 +258,7 @@ button {
   color: #203c2b;
 }
 .transport-report-table tfoot td {
-  border-top: 2px solid #94aa99;
-}
-.transport-report-table tfoot td:last-child {
-  background: #dce9df;
-}
-.transport-report-table tfoot td:last-child button {
-  border: 1px solid #cbd5e1;
-  background: #fff;
-  color: #065f46;
+  border-top: 2px solid #526b5b;
 }
 .report-export-content.pdf-exporting {
   width: max-content;
@@ -293,6 +343,16 @@ button {
   }
   .report-scroll {
     overflow: visible !important;
+  }
+  .transport-report-table {
+    min-width: 100%;
+    font-size: 8px;
+  }
+  .transport-report-table thead {
+    display: table-header-group;
+  }
+  .transport-report-table tr {
+    break-inside: avoid;
   }
   .report-table {
     min-width: 100%;

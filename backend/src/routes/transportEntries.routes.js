@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { developerOnly, protect } from '../middleware/auth.js';
-import { getTransportEntry, getTransportOpening, getTransportReport, saveTransportEntry } from '../controllers/transportEntries.controller.js';
+import { protect } from '../middleware/auth.js';
+import { getTransportEntry, getTransportOpening, getTransportReport, saveTransportEntry, updateTransportStation } from '../controllers/transportEntries.controller.js';
 
 const router = Router();
 router.use(protect);
-router.use(developerOnly);
 router.get('/report', getTransportReport);
 router.get('/opening', getTransportOpening);
 router.get('/:entryId', getTransportEntry);
 router.post('/', saveTransportEntry);
 router.put('/:entryId', saveTransportEntry);
+router.patch('/:entryId/station', updateTransportStation);
 export default router;
