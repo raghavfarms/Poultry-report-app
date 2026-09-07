@@ -1,5 +1,6 @@
 import TransportEntry from '../models/TransportEntry.js';
 import TransportVehicle from '../models/TransportVehicle.js';
+import TransportStation from '../models/TransportStation.js';
 import { assertDate, todayUtc } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 import { calculateTransportRows } from '../services/transportReport.service.js';
@@ -12,11 +13,21 @@ const number = (value, label) => {
 };
 
 export async function getTransportReport(req, res) {
-  const [entries, vehicles] = await Promise.all([
+  const [entries, vehicles, stationDocs] = await Promise.all([
     TransportEntry.find(req.query.vehicleId ? { vehicle: req.query.vehicleId } : {}).sort({ openingDate: 1, openingTime: 1, createdAt: 1 }).lean(),
     TransportVehicle.find({}).sort({ order: 1, name: 1 }).lean(),
+    TransportStation.find({ active: true }).sort({ order: 1, name: 1 }).lean(),
   ]);
-  res.json({ vehicles, rows: calculateTransportRows(entries, vehicles).reverse() });
+  const vehicleStations = vehicles.flatMap((v) => v.stations || []);
+  const stations = [...new Set([...stationDocs.map((s) => s.name), ...vehicleStations].map((s) => String(s || '').trim().toUpperCase()).filter(Boolean))];
+  let rows = calculateTransportRows(entries, vehicles).reverse();
+  if (req.query.from) {
+    rows = rows.filter((r) => r.openingDate >= req.query.from);
+  }
+  if (req.query.to) {
+    rows = rows.filter((r) => r.openingDate <= req.query.to);
+  }
+  res.json({ vehicles, rows, stations });
 }
 
 export async function getTransportOpening(req, res) {
@@ -61,7 +72,14 @@ export async function saveTransportEntry(req, res) {
   assertDate(openingDate, 'openingDate');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openingTime)) throw badRequest('Opening time is required.');
   if (!['admin', 'developer'].includes(req.user.role) && openingDate > todayUtc()) return res.status(403).json({ message: 'Users cannot enter a future journey.' });
-  if (!['admin', 'developer'].includes(req.user.role) && existing?.closingReading != null) return res.status(403).json({ message: 'Only an administrator can edit a completed journey.' });
+  if (existing && !['admin', 'developer'].includes(req.user.role)) {
+    const entryTime = existing.createdAt
+      ? new Date(existing.createdAt).getTime()
+      : new Date(`${existing.openingDate}T${existing.openingTime || '00:00'}:00Z`).getTime();
+    if (Date.now() - entryTime > 24 * 60 * 60 * 1000) {
+      return res.status(403).json({ message: 'Entries cannot be changed after 24 hours. Only an administrator or developer can edit.' });
+    }
+  }
   const openingReading = number(req.body.openingReading, 'Opening reading');
   const closingReading = req.body.closingReading === '' || req.body.closingReading == null ? null : number(req.body.closingReading, 'Closing reading');
   if (closingReading != null && closingReading < openingReading) throw badRequest('Closing reading cannot be below opening reading.');
@@ -88,6 +106,7 @@ export async function saveTransportEntry(req, res) {
   const payload = {
     vehicle: vehicle._id, vehicleName: vehicle.name, vehicleNumber: vehicle.number,
     tankCapacity: vehicle.tankCapacity, from: String(req.body.from || '').trim(), destination: String(req.body.destination || '').trim(),
+    station: String(req.body.station || '').trim(),
     openingDate, openingTime, openingReading, closingDate, closingReading,
     openingFull, fill1Liters, fill2Liters, fill1Reading, fill2Reading, isFull, note: String(req.body.note || '').trim(), updatedBy: req.user._id,
   };
@@ -109,4 +128,22 @@ export async function saveTransportEntry(req, res) {
     ? await TransportEntry.findByIdAndUpdate(existing._id, payload, { new: true, runValidators: true })
     : await TransportEntry.create({ ...payload, createdBy: req.user._id });
   res.status(existing ? 200 : 201).json({ message: existing ? 'Transport entry updated.' : 'Transport entry saved.', entry });
+}
+
+export async function updateTransportStation(req, res) {
+  const station = String(req.body.station || '').trim();
+  const existing = await TransportEntry.findById(req.params.entryId);
+  if (!existing) throw notFoundError('Transport entry not found.');
+  if (!['admin', 'developer'].includes(req.user.role)) {
+    const entryTime = existing.createdAt
+      ? new Date(existing.createdAt).getTime()
+      : new Date(`${existing.openingDate}T${existing.openingTime || '00:00'}:00Z`).getTime();
+    if (Date.now() - entryTime > 24 * 60 * 60 * 1000) {
+      return res.status(403).json({ message: 'Station cannot be changed after 24 hours.' });
+    }
+  }
+  existing.station = station;
+  existing.updatedBy = req.user._id;
+  await existing.save();
+  res.json({ message: 'Station updated.', entry: existing });
 }

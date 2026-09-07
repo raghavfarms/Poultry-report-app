@@ -6,6 +6,7 @@ const transportEntrySchema = new mongoose.Schema(
     vehicleName: { type: String, required: true },
     vehicleNumber: { type: String, required: true },
     tankCapacity: { type: Number, required: true, min: 0 },
+    station: { type: String, trim: true, maxlength: 120, default: '' },
     from: { type: String, trim: true, maxlength: 120, default: '' },
     destination: { type: String, trim: true, maxlength: 120, default: '' },
     openingDate: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
