@@ -294,6 +294,16 @@ button {
   .report-scroll {
     overflow: visible !important;
   }
+  .transport-report-table {
+    min-width: 100%;
+    font-size: 8px;
+  }
+  .transport-report-table thead {
+    display: table-header-group;
+  }
+  .transport-report-table tr {
+    break-inside: avoid;
+  }
   .report-table {
     min-width: 100%;
     font-size: 8px;

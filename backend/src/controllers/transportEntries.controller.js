@@ -30,7 +30,7 @@ export async function getTransportOpening(req, res) {
   let pendingFuelLiters = 0;
   for (const entry of earlier) {
     if (entry.closingReading == null) continue;
-    if (firstCycleReading == null) firstCycleReading = Number(entry.openingReading);
+    if (firstCycleReading == null && entry.openingFull !== false) firstCycleReading = Number(entry.openingReading);
     pendingFuelLiters += Number(entry.fill1Liters || 0) + Number(entry.fill2Liters || 0);
     if (entry.isFull) {
       lastFullReading = Number(entry.closingReading);
@@ -62,20 +62,34 @@ export async function saveTransportEntry(req, res) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openingTime)) throw badRequest('Opening time is required.');
   if (!['admin', 'developer'].includes(req.user.role) && openingDate > todayUtc()) return res.status(403).json({ message: 'Users cannot enter a future journey.' });
   if (!['admin', 'developer'].includes(req.user.role) && existing?.closingReading != null) return res.status(403).json({ message: 'Only an administrator can edit a completed journey.' });
-  if (!['admin', 'developer'].includes(req.user.role) && existing && Date.now() - new Date(existing.createdAt).getTime() > 24 * 60 * 60 * 1000) return res.status(403).json({ message: 'The 24-hour completion period has expired.' });
   const openingReading = number(req.body.openingReading, 'Opening reading');
   const closingReading = req.body.closingReading === '' || req.body.closingReading == null ? null : number(req.body.closingReading, 'Closing reading');
   if (closingReading != null && closingReading < openingReading) throw badRequest('Closing reading cannot be below opening reading.');
-  const closingDate = closingReading == null ? '' : existing?.closingDate || todayUtc();
+  const closingDate = closingReading == null ? '' : String(req.body.closingDate || existing?.closingDate || todayUtc());
+  if (closingDate) {
+    assertDate(closingDate, 'closingDate');
+    if (closingDate < openingDate) throw badRequest('Closing date cannot be before opening date.');
+  }
   const fill1Liters = number(req.body.fill1Liters, 'Fill 1');
   const fill2Liters = number(req.body.fill2Liters, 'Fill 2');
+  const openingFull = existing?.openingFull ?? (req.body.openingFull !== false);
+  const fill1Reading = req.body.fill1Reading === '' || req.body.fill1Reading == null ? null : number(req.body.fill1Reading, 'Fill 1 reading');
+  const fill2Reading = req.body.fill2Reading === '' || req.body.fill2Reading == null ? null : number(req.body.fill2Reading, 'Fill 2 reading');
+  const effectiveOpening = existing && !['admin', 'developer'].includes(req.user.role) ? existing.openingReading : openingReading;
+  if (closingReading != null && closingReading < effectiveOpening) throw badRequest('Closing reading cannot be below opening reading.');
+  for (const reading of [fill1Reading, fill2Reading]) {
+    if (reading != null && (reading < effectiveOpening || (closingReading != null && reading > closingReading))) throw badRequest('Fuel readings must be within the journey readings.');
+  }
+  if (fill1Reading != null && fill2Reading != null && fill2Reading < fill1Reading) throw badRequest('Fill 2 reading cannot be before Fill 1 reading.');
   const isFull = Boolean(req.body.isFull);
+  const finalFillReading = fill2Liters > 0 ? fill2Reading : fill1Reading;
+  if (isFull && closingReading != null && finalFillReading != null && finalFillReading !== closingReading) throw badRequest('The final full-tank fill reading must match the closing reading.');
   if (isFull && fill1Liters + fill2Liters <= 0) throw badRequest('Refill litres are required when the tank is marked full.');
   const payload = {
     vehicle: vehicle._id, vehicleName: vehicle.name, vehicleNumber: vehicle.number,
     tankCapacity: vehicle.tankCapacity, from: String(req.body.from || '').trim(), destination: String(req.body.destination || '').trim(),
     openingDate, openingTime, openingReading, closingDate, closingReading,
-    fill1Liters, fill2Liters, isFull, note: String(req.body.note || '').trim(), updatedBy: req.user._id,
+    openingFull, fill1Liters, fill2Liters, fill1Reading, fill2Reading, isFull, note: String(req.body.note || '').trim(), updatedBy: req.user._id,
   };
   if (existing && !['admin', 'developer'].includes(req.user.role)) {
     Object.assign(payload, {
@@ -88,8 +102,6 @@ export async function saveTransportEntry(req, res) {
       openingDate: existing.openingDate,
       openingTime: existing.openingTime,
       openingReading: existing.openingReading,
-      fill1Liters: existing.fill1Liters,
-      fill2Liters: existing.fill2Liters,
       note: existing.note,
     });
   }

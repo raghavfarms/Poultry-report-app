@@ -5,12 +5,12 @@ export function calculateTransportRows(entries) {
 
   return entries.map((entry) => {
     const vehicleId = String(entry.vehicle);
-    if (!firstCycleReading.has(vehicleId)) firstCycleReading.set(vehicleId, Number(entry.openingReading));
+    if (!firstCycleReading.has(vehicleId) && entry.openingFull !== false) firstCycleReading.set(vehicleId, Number(entry.openingReading));
     const fill1Liters = Number(entry.fill1Liters || 0);
     const fill2Liters = Number(entry.fill2Liters || 0);
     const fuelFilled = fill1Liters + fill2Liters;
     const totalDiesel = fuelFilled;
-    const consumedLiters = fuelFilled;
+    let consumedLiters = null;
     const complete = entry.closingReading != null;
     const kmRun = complete ? Number(entry.closingReading) - Number(entry.openingReading) : null;
     const accumulatedFuel = Number(pendingFuel.get(vehicleId) || 0) + fuelFilled;
@@ -20,9 +20,12 @@ export function calculateTransportRows(entries) {
 
     if (complete && entry.isFull) {
       const startReading = lastFullReading.get(vehicleId) ?? firstCycleReading.get(vehicleId);
-      fullCycleDistanceKm = Number(entry.closingReading) - startReading;
-      cycleFuelLiters = accumulatedFuel;
-      averageKmPerLiter = cycleFuelLiters > 0 ? fullCycleDistanceKm / cycleFuelLiters : null;
+      if (startReading != null && Number(entry.closingReading) >= startReading) {
+        fullCycleDistanceKm = Number(entry.closingReading) - startReading;
+        cycleFuelLiters = accumulatedFuel;
+        consumedLiters = cycleFuelLiters;
+        averageKmPerLiter = cycleFuelLiters > 0 ? fullCycleDistanceKm / cycleFuelLiters : null;
+      }
       lastFullReading.set(vehicleId, Number(entry.closingReading));
       pendingFuel.set(vehicleId, 0);
     } else if (complete) {
