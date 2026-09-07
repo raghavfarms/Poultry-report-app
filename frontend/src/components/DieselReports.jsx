@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2pdf from "html2pdf.js";  // convert dispayed report to PDF
+import { exportReportToPdf } from "../utils/exportPdf.js";
 import { api } from "../api/client.js";  // send requests to backend API
 import { addDays, today } from "../utils/date.js";   //   create  default 7 days  date  range 
 import {
@@ -106,23 +106,16 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     if (!reportsRef.current || exporting) return;
     setExporting(true);
     setError("");
-    reportsRef.current.classList.add("pdf-exporting");
     try {
-      await html2pdf()
-        .set({
-          filename: `diesel-report-${from}-to-${to}.pdf`,
-          margin: 6,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-          jsPDF: { unit: "mm", format: "a3", orientation: "landscape" },
-          pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
-        })
-        .from(reportsRef.current)
-        .save();
+      await exportReportToPdf(reportsRef.current, {
+        filename: `diesel-report-${from}-to-${to}.pdf`,
+        margin: 6,
+        format: "a3",
+        orientation: "landscape",
+      });
     } catch (err) {
       setError(err.message || "Could not export the PDF.");
     } finally {
-      reportsRef.current?.classList.remove("pdf-exporting");
       setExporting(false);
     }
   };

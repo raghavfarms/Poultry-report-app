@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.2",
+    "html2canvas-pro": "^2.4.2",
     "html2pdf.js": "^0.14.0",
+    "jspdf": "^4.2.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.8.2",

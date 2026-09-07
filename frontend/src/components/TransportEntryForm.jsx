@@ -75,6 +75,12 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
     setSaving(true);
     try { const { entry } = await api(entryId ? `/transport-entries/${entryId}` : "/transport-entries", { method: entryId ? "PUT" : "POST", body: JSON.stringify(form) }); onSaved(entry); } catch (e) { setError(e.message); } finally { setSaving(false); }
   };
+  const remove = async () => {
+    if (!window.confirm("Permanently delete this transport entry?")) return;
+    setError("");
+    setSaving(true);
+    try { await api(`/transport-entries/${entryId}`, { method: "DELETE" }); onSaved(); } catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
 
   if (loading) return <div className="rounded-2xl bg-white"><Spinner label="Preparing transport entry…" /></div>;
   const fields = [

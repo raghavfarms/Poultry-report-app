@@ -1,29 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2pdf from "html2pdf.js";
+import { exportReportToPdf } from "../utils/exportPdf.js";
 import { api } from "../api/client.js";
 import { addDays, displayDate, today } from "../utils/date.js";
 import { Alert, inputClass, primaryButton, secondaryButton, Spinner } from "../components/Ui.jsx";
 import TransportEntryForm from "../components/TransportEntryForm.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
-const cell = "border border-slate-200 px-1.5 py-1 text-center align-middle text-[11px] xl:text-xs";
+const cell = "border border-slate-200 px-2 py-1.5 text-center align-middle text-xs";
 const divider = "!border-r-2 !border-r-emerald-800";
 const actionGreenButton = "rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-emerald-800 transition shadow-2xs min-h-[24px] touch-manipulation whitespace-nowrap";
 const actionEditButton = "rounded-md border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-900 hover:bg-slate-50 transition shadow-2xs min-h-[24px] touch-manipulation whitespace-nowrap";
 const sum = (rows, key) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
 const detailColumns = [
-  { label: "READING", width: `w-[68px] min-w-[68px] ${divider}` },
-  { label: "DATE", width: "w-[94px] min-w-[94px]" },
-  { label: "READING", width: `w-[68px] min-w-[68px] ${divider}` },
-  { label: "O/B", width: "w-10 min-w-[36px]" },
-  { label: "FILL 1", width: "w-12 min-w-[48px]" },
-  { label: "FILL 2", width: "w-12 min-w-[44px]" },
-  { label: "TOTAL FILL", width: "w-12 min-w-[48px]" },
-  { label: "clg", width: "w-10 min-w-[36px]" },
-  { label: "CONSUM", width: `w-12 min-w-[48px] ${divider}` },
-  { label: "K.M.", width: "w-12 min-w-[46px]" },
-  { label: "CYCLE K.M.", width: `w-14 min-w-[54px] ${divider}` },
-  { label: "KM/CON", width: `w-14 min-w-[52px] ${divider}` },
+  { label: "READING", width: `w-[76px] min-w-[76px] ${divider}` },
+  { label: "DATE", width: "w-[102px] min-w-[102px]" },
+  { label: "READING", width: `w-[76px] min-w-[76px] ${divider}` },
+  { label: "O/B", width: "w-12 min-w-[44px]" },
+  { label: "FILL 1", width: "w-14 min-w-[54px]" },
+  { label: "FILL 2", width: "w-14 min-w-[50px]" },
+  { label: "TOTAL FILL", width: "w-16 min-w-[58px]" },
+  { label: "clg", width: "w-12 min-w-[44px]" },
+  { label: "CONSUM", width: `w-16 min-w-[56px] ${divider}` },
+  { label: "K.M.", width: "w-14 min-w-[52px]" },
+  { label: "CYCLE K.M.", width: `w-16 min-w-[62px] ${divider}` },
+  { label: "KM/CON", width: `w-16 min-w-[60px] ${divider}` },
 ];
 
 function StationCell({ row, stations = [], onStationUpdate, canEdit = true }) {
@@ -47,7 +47,7 @@ function StationCell({ row, stations = [], onStationUpdate, canEdit = true }) {
   };
 
   return (
-    <td className={`${cell} w-20 min-w-[72px] p-0.5`}>
+    <td className={`${cell} w-24 min-w-[84px] p-0.5`}>
       <select
         value={row.station || ""}
         onChange={handleChange}
@@ -86,31 +86,31 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
   const header = cell + " bg-[#dce9df] font-bold whitespace-nowrap";
   const overallAvg = cycleFuel > 0 ? (cycleDistance / cycleFuel).toFixed(2) : "\u2014";
 
-  return <section className="break-inside-avoid space-y-2 w-fit max-w-full">
+  return <section className="break-inside-avoid space-y-2 w-full">
     <div className="flex items-baseline gap-2 px-1">
       <h3 className="font-black text-slate-900 text-base sm:text-lg">{vehicle.name}</h3>
       <span className="font-bold text-slate-700 text-xs sm:text-sm">{vehicle.number}</span>
     </div>
 
-    <div className="report-scroll w-fit max-w-full overflow-x-auto rounded-lg border border-slate-300 bg-white touch-pan-x overscroll-x-contain shadow-2xs">
-      <table className="transport-report-table border-separate border-spacing-0 text-[10.5px] xl:text-xs">
+    <div className="report-scroll w-full overflow-x-auto rounded-lg border border-slate-300 bg-white touch-pan-x overscroll-x-contain shadow-2xs">
+      <table className="transport-report-table border-separate border-spacing-0 text-xs">
         <thead>
           <tr>
-            <th rowSpan={2} className={`${header} sticky-date w-[94px] min-w-[94px] whitespace-nowrap`}>DATE</th>
-            <th className={`${header} ${divider} w-[68px] min-w-[68px]`}>OPENING</th>
+            <th rowSpan={2} className={`${header} sticky-date w-[102px] min-w-[102px] whitespace-nowrap`}>DATE</th>
+            <th className={`${header} ${divider} w-[76px] min-w-[76px]`}>OPENING</th>
             <th colSpan={2} className={`${header} ${divider}`}>CLOSING READING</th>
             <th colSpan={6} className={`${header} ${divider}`}>DIESEL TANK CAPACITY - {vehicle.tankCapacity} LT</th>
             <th colSpan={2} className={`${header} ${divider}`}>RUNNING</th>
             <th className={`${header} ${divider}`}>AVERAGE</th>
-            <th rowSpan={2} className={`${header} w-20 min-w-[72px]`}>STATION</th>
-            <th rowSpan={2} className={`${header} sticky-action no-print w-14 min-w-[54px] whitespace-nowrap !border-l-2 !border-l-emerald-800`}>Action</th>
+            <th rowSpan={2} className={`${header} w-24 min-w-[84px]`}>STATION</th>
+            <th rowSpan={2} className={`${header} sticky-action no-print w-16 min-w-[60px] whitespace-nowrap !border-l-2 !border-l-emerald-800`}>Action</th>
           </tr>
           <tr>{detailColumns.map((col, index) => <th key={index} className={`${header} ${col.width}`}>{col.label}</th>)}</tr>
         </thead>
         <tbody>
           {!unfinishedRow && <tr className="bg-[#fff6e9] no-print">
-            <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[94px] min-w-[94px]`}>{displayDate(nextDate)}</td>
-            <td className={`${cell} ${divider} w-[68px] min-w-[68px]`}>—</td>
+            <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[102px] min-w-[102px]`}>{displayDate(nextDate)}</td>
+            <td className={`${cell} ${divider} w-[76px] min-w-[76px]`}>—</td>
             <td className={cell}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
             <td className={cell}>—</td>
@@ -123,7 +123,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             <td className={`${cell} ${divider}`}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
             <td className={cell}>—</td>
-            <td className={`${cell} sticky-action no-print whitespace-nowrap w-14 min-w-[54px] !border-l-2 !border-l-emerald-800`}><button type="button" onClick={() => onAdd(vehicle._id, nextDate)} className={actionGreenButton}>Add</button></td>
+            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}><button type="button" onClick={() => onAdd(vehicle._id, nextDate)} className={actionGreenButton}>Add</button></td>
           </tr>}
           {sortedRows.map((row, index) => {
             const previous = sortedRows[index + 1];
@@ -139,10 +139,10 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             const canEdit = isStaff || isWithin24Hours;
 
             return <tr key={row._id} className={`group ${row.complete ? "hover:bg-emerald-50" : "bg-amber-50"}`}>
-              <td className={`${cell} sticky-date w-[94px] min-w-[94px] whitespace-nowrap font-medium`}>
+              <td className={`${cell} sticky-date w-[102px] min-w-[102px] whitespace-nowrap font-medium`}>
                 {displayDate(row.openingDate)}
               </td>
-              <td className={`${cell} ${divider} w-[68px] min-w-[68px]`}>{balance(row.openingReading)}</td>
+              <td className={`${cell} ${divider} w-[76px] min-w-[76px]`}>{balance(row.openingReading)}</td>
               <td className={cell + " whitespace-nowrap"}>{row.closingDate ? displayDate(row.closingDate) : "\u2014"}</td>
               <td className={`${cell} ${divider}`}>{balance(row.closingReading)}</td>
               <td className={cell}>{balance(openingFuel)}</td>
@@ -155,7 +155,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               <td className={`${cell} ${divider}`}>{balance(row.fullCycleDistanceKm)}</td>
               <td className={`${cell} ${divider} font-bold text-emerald-700`}>{balance(row.averageKmPerLiter)}</td>
               <StationCell row={row} stations={stations} onStationUpdate={onStationUpdate} canEdit={canEdit} />
-              <td className={`${cell} sticky-action no-print whitespace-nowrap w-14 min-w-[54px] !border-l-2 !border-l-emerald-800`}>
+              <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>
                 {canEdit ? (
                   <button
                     onClick={() => onEdit(row)}
@@ -172,8 +172,8 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
         </tbody>
         <tfoot className="font-bold bg-[#dce9df]">
           <tr>
-            <td className={`${cell} sticky-date`}>Total</td>
-            <td className={`${cell} ${divider} w-[68px] min-w-[68px]`}>—</td>
+            <td className={`${cell} sticky-date w-[102px] min-w-[102px]`}>Total</td>
+            <td className={`${cell} ${divider} w-[76px] min-w-[76px]`}>—</td>
             <td className={cell}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
             <td className={cell}>—</td>
@@ -186,7 +186,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             <td className={`${cell} ${divider}`}>{balance(cycles.length ? cycleDistance : null)}</td>
             <td className={`${cell} ${divider}`}>{balance(cycleFuel > 0 ? cycleDistance / cycleFuel : null)}</td>
             <td className={cell}>—</td>
-            <td className={`${cell} sticky-action no-print whitespace-nowrap w-14 min-w-[54px] !border-l-2 !border-l-emerald-800`}>—</td>
+            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>—</td>
           </tr>
         </tfoot>
       </table>
@@ -232,20 +232,16 @@ export default function TransportPage() {
     if (!reportRef.current || exporting) return;
     setExporting(true);
     setError("");
-    reportRef.current.classList.add("pdf-exporting");
     try {
-      await html2pdf().set({
+      await exportReportToPdf(reportRef.current, {
         filename: `transport-report-${from}-to-${to}.pdf`,
         margin: 6,
-        image: { type: "jpeg", quality: .98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-        jsPDF: { unit: "mm", format: "a3", orientation: "landscape" },
-        pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
-      }).from(reportRef.current).save();
+        format: "a3",
+        orientation: "landscape",
+      });
     } catch (error) {
       setError(error.message || "Could not export the PDF.");
     } finally {
-      reportRef.current?.classList.remove("pdf-exporting");
       setExporting(false);
     }
   };

@@ -171,14 +171,14 @@ button {
 .transport-report-table {
   border-collapse: separate;
   border-spacing: 0;
-  width: max-content;
-  max-width: 100%;
+  width: 100%;
+  min-width: 1000px;
 }
 .transport-report-table th,
 .transport-report-table td {
   border-color: #d7ded8;
   white-space: nowrap;
-  padding: 4px 6px;
+  padding: 6px 8px;
 }
 .transport-report-table .sticky-date {
   position: sticky;
