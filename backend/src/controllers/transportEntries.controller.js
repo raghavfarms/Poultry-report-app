@@ -147,3 +147,10 @@ export async function updateTransportStation(req, res) {
   await existing.save();
   res.json({ message: 'Station updated.', entry: existing });
 }
+
+export async function deleteTransportEntry(req, res) {
+  const existing = await TransportEntry.findById(req.params.entryId);
+  if (!existing) throw notFoundError('Transport entry not found.');
+  await TransportEntry.findByIdAndDelete(req.params.entryId);
+  res.json({ message: 'Transport entry deleted.' });
+}
