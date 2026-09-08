@@ -5,14 +5,14 @@ import { useAuth } from "../context/AuthContext.jsx";
 export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
-  ["feed-production", "Feed Production", "◫"],
+  ["attendance", "Attendance", "👤"],
   ["bird-stock", "Bird Stock", "🐔"],
   ["egg-stock", "Egg Stock", "🥚"],
   ["hatching-egg", "Hatching Egg Summary", "◉"],
   ["medicine", "Medicine Requirement", "✚"],
   ["packing", "Packing Material", "□"],
   ["vermicompost", "Vermicompost", "♻"],
-  ["attendance", "Attendance", "◌"],
+  ["feed-production", "Feed Production", "◫"],
   ["solar", "Solar Status", "☀"],
   ["vaccination", "Vaccination Status", "✓"],
 ];
