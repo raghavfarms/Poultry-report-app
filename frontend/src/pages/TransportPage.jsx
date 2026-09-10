@@ -11,6 +11,10 @@ const divider = "!border-r-2 !border-r-emerald-800";
 const actionGreenButton = "rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-emerald-800 transition shadow-2xs min-h-[24px] touch-manipulation whitespace-nowrap";
 const actionEditButton = "rounded-md border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-900 hover:bg-slate-50 transition shadow-2xs min-h-[24px] touch-manipulation whitespace-nowrap";
 const sum = (rows, key) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+const nextEntryDate = (progress, fallback) => {
+  if (progress?.hasUnfinishedEntry) return null;
+  return progress?.latestDate ? addDays(progress.latestDate, 1) : fallback || today();
+};
 const detailColumns = [
   { label: "READING", width: `w-[76px] min-w-[76px] ${divider}` },
   { label: "DATE", width: "w-[102px] min-w-[102px]" },
@@ -68,20 +72,34 @@ function StationCell({ row, stations = [], onStationUpdate, canEdit = true }) {
   );
 }
 
-function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUpdate, selectedDate }) {
+function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUpdate, from, to, nextDate }) {
   const { user } = useAuth();
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const nextExpiry = Math.min(...rows.map((row) => row.editExpiresAt).filter((expiry) => expiry != null && expiry > Date.now()));
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, nextExpiry - Date.now()), 2147483647));
+    return () => clearTimeout(timer);
+  }, [rows, now]);
   const sortedRows = useMemo(() => [...rows].sort((a, b) =>
     b.openingDate.localeCompare(a.openingDate) ||
     (b.openingTime || "").localeCompare(a.openingTime || "") ||
     (b.createdAt || "").localeCompare(a.createdAt || "")
   ), [rows]);
   const completedRows = sortedRows.filter((row) => row.complete);
-  const latest = completedRows[0];
-  const unfinishedRow = sortedRows.find((row) => !row.complete);
+  const displayRows = useMemo(() => {
+    const entries = sortedRows.filter((row) => (!from || row.openingDate >= from) && (!to || row.openingDate <= to));
+    const populatedDates = new Set(entries.map((row) => row.openingDate));
+    if (from && to && from <= to) {
+      for (let date = from; date <= to; date = addDays(date, 1)) {
+        if (!populatedDates.has(date)) entries.push({ openingDate: date, empty: true });
+      }
+    }
+    return entries.sort((a, b) => b.openingDate.localeCompare(a.openingDate));
+  }, [sortedRows, from, to]);
   const cycles = sortedRows.filter((row) => row.averageKmPerLiter != null);
   const cycleDistance = sum(cycles, "fullCycleDistanceKm");
   const cycleFuel = sum(cycles, "cycleFuelLiters");
-  const nextDate = selectedDate || (latest ? (latest.closingDate || addDays(latest.openingDate, 1)) : today());
   const balance = (value) => value == null ? "\u2014" : String(Number(Number(value).toFixed(2)));
   const header = cell + " bg-[#dce9df] font-bold whitespace-nowrap";
   const overallAvg = cycleFuel > 0 ? (cycleDistance / cycleFuel).toFixed(2) : "\u2014";
@@ -108,8 +126,9 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
           <tr>{detailColumns.map((col, index) => <th key={index} className={`${header} ${col.width}`}>{col.label}</th>)}</tr>
         </thead>
         <tbody>
-          {!unfinishedRow && <tr className="bg-[#fff6e9] no-print">
-            <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[102px] min-w-[102px]`}>{displayDate(nextDate)}</td>
+          {displayRows.map((row) => {
+            if (row.empty) return <tr key={`empty-${row.openingDate}`} className="bg-[#fff6e9]">
+            <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[102px] min-w-[102px]`}>{displayDate(row.openingDate)}</td>
             <td className={`${cell} ${divider} w-[76px] min-w-[76px]`}>—</td>
             <td className={cell}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
@@ -123,9 +142,9 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             <td className={`${cell} ${divider}`}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
             <td className={cell}>—</td>
-            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}><button type="button" onClick={() => onAdd(vehicle._id, nextDate)} className={actionGreenButton}>Add</button></td>
-          </tr>}
-          {sortedRows.map((row, index) => {
+            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>{row.openingDate === nextDate ? <button type="button" onClick={() => onAdd(vehicle._id, row.openingDate)} className={actionGreenButton}>Add</button> : "\u2014"}</td>
+          </tr>;
+            const index = sortedRows.indexOf(row);
             const previous = sortedRows[index + 1];
             const openingKnownFull = previous
               ? previous.complete && previous.isFull && Number(previous.closingReading) === Number(row.openingReading)
@@ -134,8 +153,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             const closingFuel = row.complete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
             const totalFuel = openingFuel == null ? null : openingFuel + Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
             const isStaff = ["admin", "developer"].includes(user?.role);
-            const entryTime = row.createdAt ? new Date(row.createdAt).getTime() : new Date(`${row.openingDate}T${row.openingTime || '00:00'}:00`).getTime();
-            const isWithin24Hours = (Date.now() - entryTime) < 24 * 60 * 60 * 1000;
+            const isWithin24Hours = row.editExpiresAt != null && Math.max(now, Date.now()) < row.editExpiresAt;
             const canEdit = isStaff || isWithin24Hours;
 
             return <tr key={row._id} className={`group ${row.complete ? "hover:bg-emerald-50" : "bg-amber-50"}`}>
@@ -197,6 +215,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
 export default function TransportPage() {
   const [vehicles, setVehicles] = useState([]), [vehicleId, setVehicleId] = useState("all");
   const [rows, setRows] = useState([]), [stations, setStations] = useState([]), [loading, setLoading] = useState(true);
+  const [entryProgress, setEntryProgress] = useState({});
   const [error, setError] = useState(""), [form, setForm] = useState(null), [exporting, setExporting] = useState(false);
   const [to, setTo] = useState(today());
   const [from, setFrom] = useState(addDays(today(), -6));
@@ -215,6 +234,7 @@ export default function TransportPage() {
       ]);
       setVehicles(reportData.vehicles);
       setRows(reportData.rows);
+      setEntryProgress(reportData.entryProgress || {});
       const combined = [...new Set([
         ...(reportData.stations || []),
         ...(stationData.stations || []),
@@ -320,9 +340,12 @@ export default function TransportPage() {
         <button
           onClick={() => {
             const vehicle = shownVehicles[0];
-            if (vehicle) setForm({ vehicleId: vehicle._id, initialDate: to || today() });
+            if (vehicle) {
+              const initialDate = nextEntryDate(entryProgress[vehicle._id], from);
+              if (initialDate) setForm({ vehicleId: vehicle._id, initialDate });
+            }
           }}
-          disabled={!shownVehicles.length}
+          disabled={loading || !shownVehicles.length || !nextEntryDate(entryProgress[shownVehicles[0]?._id], from)}
           style={{ fontSize: "10.5px" }}
           className="inline-flex items-center justify-center h-8 sm:h-8.5 w-[88px] sm:w-24 rounded-lg bg-emerald-800 hover:bg-emerald-900 px-1 py-1 font-bold text-white transition shadow-2xs whitespace-nowrap text-center disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -363,7 +386,9 @@ export default function TransportPage() {
             <VehicleTable
               key={vehicle._id}
               vehicle={vehicle}
-              selectedDate={to}
+              from={from}
+              to={to}
+              nextDate={nextEntryDate(entryProgress[vehicle._id], from)}
               rows={rows.filter((row) => String(row.vehicle) === vehicle._id)}
               stations={stations}
               onEdit={(row) => setForm({ entryId: row._id })}
