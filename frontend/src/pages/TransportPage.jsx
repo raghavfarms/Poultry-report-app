@@ -110,7 +110,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
       <span className="font-bold text-slate-700 text-xs sm:text-sm">{vehicle.number}</span>
     </div>
 
-    <div className="report-scroll w-full overflow-x-auto rounded-lg border border-slate-300 bg-white touch-pan-x overscroll-x-contain shadow-2xs">
+    <div className="report-scroll w-full overflow-x-auto rounded-lg border border-slate-300 bg-white touch-auto overscroll-x-contain shadow-2xs">
       <table className="transport-report-table border-separate border-spacing-0 text-xs">
         <thead>
           <tr>
