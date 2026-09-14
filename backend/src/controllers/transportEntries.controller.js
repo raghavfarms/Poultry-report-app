@@ -103,11 +103,18 @@ export async function saveTransportEntry(req, res) {
   const finalFillReading = fill2Liters > 0 ? fill2Reading : fill1Reading;
   if (isFull && closingReading != null && finalFillReading != null && finalFillReading !== closingReading) throw badRequest('The final full-tank fill reading must match the closing reading.');
   if (isFull && fill1Liters + fill2Liters <= 0) throw badRequest('Refill litres are required when the tank is marked full.');
+  const isNowComplete = closingReading != null;
+  let completedAt = existing?.completedAt || null;
+  if (isNowComplete && !completedAt) {
+    completedAt = new Date();
+  } else if (!isNowComplete) {
+    completedAt = null;
+  }
   const payload = {
     vehicle: vehicle._id, vehicleName: vehicle.name, vehicleNumber: vehicle.number,
     tankCapacity: vehicle.tankCapacity, from: String(req.body.from || '').trim(), destination: String(req.body.destination || '').trim(),
     station: String(req.body.station || '').trim(),
-    openingDate, openingTime, openingReading, closingDate, closingReading,
+    openingDate, openingTime, openingReading, closingDate, closingReading, completedAt,
     openingFull, fill1Liters, fill2Liters, fill1Reading, fill2Reading, isFull, note: String(req.body.note || '').trim(), updatedBy: req.user._id,
   };
   if (existing && !['admin', 'developer'].includes(req.user.role)) {
@@ -134,13 +141,8 @@ export async function updateTransportStation(req, res) {
   const station = String(req.body.station || '').trim();
   const existing = await TransportEntry.findById(req.params.entryId);
   if (!existing) throw notFoundError('Transport entry not found.');
-  if (!['admin', 'developer'].includes(req.user.role)) {
-    const entryTime = existing.createdAt
-      ? new Date(existing.createdAt).getTime()
-      : new Date(`${existing.openingDate}T${existing.openingTime || '00:00'}:00Z`).getTime();
-    if (Date.now() - entryTime > 24 * 60 * 60 * 1000) {
-      return res.status(403).json({ message: 'Station cannot be changed after 24 hours.' });
-    }
+  if (!canEditTransportEntry(existing, req.user.role)) {
+    return res.status(403).json({ message: 'Station cannot be changed after 24 hours.' });
   }
   existing.station = station;
   existing.updatedBy = req.user._id;

@@ -9,6 +9,7 @@ import entryRoutes from './routes/entries.routes.js';
 import transportVehicleRoutes from './routes/transportVehicles.routes.js';
 import transportEntryRoutes from './routes/transportEntries.routes.js';
 import transportStationRoutes from './routes/transportStations.routes.js';
+import attendanceRoutes from './attendance/routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -29,7 +30,9 @@ app.use('/api/entries', entryRoutes);
 app.use('/api/transport-vehicles', transportVehicleRoutes);
 app.use('/api/transport-entries', transportEntryRoutes);
 app.use('/api/transport-stations', transportStationRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
 export default app;
+

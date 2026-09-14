@@ -34,11 +34,17 @@ export const moduleIconStyles = {
 
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
-  const visibleModules = user.role === "developer"
-    ? modules
-    : modules.filter(([slug]) => ["diesel", "transport"].includes(slug));
+  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
+  const visibleModules =
+    user.role === "developer"
+      ? modules
+      : modules.filter(([slug]) => {
+          if (slug === "attendance") return hasAttendanceAccess;
+          return ["diesel", "transport"].includes(slug);
+        });
   const linkClass = ({ isActive }) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive ? "bg-emerald-800 font-semibold text-white" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"}`;
+
   return (
     <>
       {open && (
@@ -87,17 +93,24 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {["admin", "developer"].includes(user.role) && (
+          {hasAttendanceAccess && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
               </p>
-              <NavLink to="/admin/assets" className={linkClass}>
-                <span>⚙</span>Firms & Assets
+              {["admin", "developer"].includes(user.role) && (
+                <>
+                  <NavLink to="/admin/assets" className={linkClass}>
+                    <span>⚙</span>Firms & Assets
+                  </NavLink>
+                  <NavLink to="/admin/transport" className={linkClass}>
+                    <span>🚚</span>Transport Vehicles
+                  </NavLink>
+                </>
+              )}
+              <NavLink to="/admin/attendance" className={linkClass}>
+                <span>👤</span>Attendance Admin
               </NavLink>
-                <NavLink to="/admin/transport" className={linkClass}>
-                  <span>🚚</span>Transport Vehicles
-                </NavLink>
             </>
           )}
         </nav>

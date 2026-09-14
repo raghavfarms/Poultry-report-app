@@ -6,9 +6,9 @@ import { badRequest } from '../utils/http.js';
 
 const publicUser = (user) => ({
   id: String(user._id),
-  name: user.name,
-  email: user.email,
-  role: user.role,
+  name: user.name,   // name of user
+  email: user.email, // name of user email 
+  role: user.role,      // role of user (admin or labour )
   firms: user.firms.map((firm) => String(firm._id || firm)),
 });
 
@@ -28,8 +28,8 @@ function validateAccount(body) {
 }
 
 export async function getSetupStatus(req, res) { // check if admin user exists, if not, setup is required   //  req : incoming data from client (params,query,body,etc)   //  res : response to be sent back to client   //  next : function to pass control to the next middleware in the stack
-  const privilegedUserExists = Boolean(await User.exists({ role: { $in: ['admin', 'developer'] } }));
-  res.json({ setupRequired: !privilegedUserExists });
+  const adminExists = Boolean(await User.exists({ role: 'admin' }));  // this function not use and data from req  , it just check if admin user exists in database or not  , if not then setup is required
+  res.json({ setupRequired: !adminExists });   //   send response to client with setupRequired true or false  redirect to create admin page if setupRequired is true
 }
 
 
@@ -39,7 +39,7 @@ export async function getRegistrationFirms(req, res) {  // return only active fi
 }
 
 export async function setupAdmin(req, res) { // check whether admin exist or not , if admin found then return 409 conflict error  //  redirecting perform by react after reciving response 
-  if (await User.exists({ role: { $in: ['admin', 'developer'] } })) {
+  if (await User.exists({ role: 'admin' })) {
     return res.status(409).json({ message: 'Admin setup is already complete.' });
   }
 
@@ -99,11 +99,13 @@ export async function register(req, res) {
   if (!firmIds.length) throw badRequest('Select at least one firm.');
   const firms = await Firm.find({ _id: { $in: firmIds }, active: true });
   if (firms.length !== firmIds.length) throw badRequest('One or more selected firms are invalid.');
+  const allowedRoles = ['user', 'office', 'supervisor', 'security', 'farm_incharge'];
+  const role = allowedRoles.includes(req.body.role) ? req.body.role : 'user';
   const user = await User.create({
     name: account.name,
     email: account.email,
     passwordHash: await bcrypt.hash(account.password, 12),
-    role: 'labour',
+    role,
     firms: firmIds,
   });
   res.status(201).json({ token: signToken(user), user: publicUser(user) });
@@ -115,9 +117,17 @@ export async function login(req, res) {
   if (!user || !(await bcrypt.compare(String(req.body.password || ''), user.passwordHash))) {
     return res.status(401).json({ message: 'Email or password is incorrect.' });
   }
+  if (user.role === 'labour') {
+    user.role = 'office';
+    await user.save();
+  }
   res.json({ token: signToken(user), user: publicUser(user) });
 }
 
-export function getCurrentUser(req, res) {
+export async function getCurrentUser(req, res) {
+  if (req.user?.role === 'labour') {
+    await User.updateOne({ _id: req.user._id }, { $set: { role: 'office' } });
+    req.user.role = 'office';
+  }
   res.json({ user: publicUser(req.user) });
 }

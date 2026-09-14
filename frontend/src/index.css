@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "../index.html";
+@source "../src";
 
 :root {
   font-family:
@@ -324,8 +326,17 @@ button {
   position: static;
 }
 .report-export-content.pdf-exporting .transport-report-table th,
-.report-export-content.pdf-exporting .transport-report-table td {
+.report-export-content.pdf-exporting .transport-report-table td,
+.report-export-content.pdf-exporting .attendance-table th,
+.report-export-content.pdf-exporting .attendance-table td {
   position: static !important;
+}
+.report-export-content.pdf-exporting .attendance-table thead th {
+  background-color: #f1f5f9 !important;
+  color: #1e293b !important;
+}
+.report-export-content.pdf-exporting .attendance-table tbody tr {
+  background-color: #ffffff !important;
 }
 @media print {
   @page {

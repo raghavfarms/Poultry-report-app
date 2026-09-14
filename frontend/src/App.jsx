@@ -8,6 +8,19 @@ import ComingSoonPage from "./pages/ComingSoonPage.jsx";
 import AssetAdminPage from "./pages/AssetAdminPage.jsx";
 import TransportPage from "./pages/TransportPage.jsx";
 import TransportAdminPage from "./pages/TransportAdminPage.jsx";
+import AttendanceAdminPage from "./pages/AttendanceAdminPage.jsx";
+import AttendanceReportPage from "./attendance/pages/AttendanceReportPage.jsx";
+import FaceAttendancePage from "./attendance/pages/FaceAttendancePage.jsx";
+import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.jsx";
+import { useAuth } from "./context/AuthContext.jsx";
+
+function AttendancePageRoute() {
+  const { user } = useAuth();
+  if (["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role)) {
+    return <AttendanceReportPage />;
+  }
+  return <Navigate to="/" replace />;
+}
 
 export default function App() {
   return (
@@ -25,6 +38,14 @@ export default function App() {
         <Route index element={<OverviewPage />} />
         <Route path="reports/diesel" element={<DieselPage />} />
         <Route path="reports/transport" element={<TransportPage />} />
+        <Route
+          path="reports/attendance"
+          element={
+            <ProtectedRoute attendanceStaff>
+              <AttendancePageRoute />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="reports/:slug"
           element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
@@ -45,7 +66,31 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="admin/attendance"
+          element={
+            <ProtectedRoute attendanceStaff>
+              <AttendanceAdminPage />
+            </ProtectedRoute>
+          }
+        />
       </Route>
+      <Route
+        path="attendance/scan"
+        element={
+          <ProtectedRoute attendanceStaff>
+            <FaceAttendancePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="worker/attendance"
+        element={
+          <ProtectedRoute>
+            <WorkerAttendancePortal />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

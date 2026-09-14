@@ -1,0 +1,50 @@
+/* Attendance-only layouts; report matrices retain their own horizontal scroll. */
+.attendance-page { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.attendance-page :is(.grid, .flex) > * { min-width: 0; }
+.attendance-page :is(input, select, textarea) { max-width: 100%; }
+.attendance-page :is(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid #0891b2;
+  outline-offset: 3px;
+}
+.attendance-tabs { display: flex; gap: .25rem; max-width: 100%; overflow-x: auto; }
+.attendance-tabs > button { flex-shrink: 0; white-space: nowrap; min-height: 32px; }
+.attendance-table { width: 100%; border-collapse: collapse; }
+.attendance-table th { text-align: left; white-space: nowrap; }
+.attendance-table td { white-space: nowrap; }
+.attendance-dialog {
+  width: min(520px, calc(100vw - 1.5rem));
+  max-width: 520px;
+  max-height: calc(100dvh - 1.5rem);
+  overscroll-behavior: contain;
+}
+.attendance-dialog::backdrop { background: rgb(2 6 23 / .65); }
+.attendance-scanner { min-height: 100dvh; }
+.attendance-scanner > header { flex-wrap: wrap; gap: 0.75rem; }
+.attendance-scanner > footer { padding-bottom: max(.5rem, env(safe-area-inset-bottom)); }
+
+@media (max-width: 767px) {
+  .attendance-page :is(button, a[href], select, input:not([type=checkbox]):not([type=radio])) {
+    min-height: 32px;
+  }
+  .attendance-page :is(input, select, textarea) { font-size: 13px; }
+  .attendance-page label { font-size: 10px; }
+  .attendance-dialog { margin: auto; }
+}
+
+@media print {
+  .attendance-tabs { display: none !important; }
+  .attendance-month-matrix { display: block !important; overflow: visible !important; }
+  .attendance-page table { font-size: 9px; }
+  .attendance-page th, .attendance-page td { position: static !important; }
+}
+
+/* Ensure clicking anywhere in a date/month input shows the pointer cursor */
+input[type="date"],
+input[type="month"] {
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+

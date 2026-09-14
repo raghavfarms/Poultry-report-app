@@ -1,0 +1,1699 @@
+Poultry Reporting System
+Attendance & Workforce Management Module — Version 1
+1. Project Context
+This Attendance module must be developed inside the existing MERN Poultry Reporting System.
+Existing technology:
+Frontend:
+React + Vite
+
+Backend:
+Node.js + Express
+
+Database:
+MongoDB + Mongoose
+
+Authentication:
+JWT
+
+Existing Firms:
+1. Raghav
+2. Sanjana
+
+The Attendance module must use the existing:
+Firm collection
+User authentication
+Admin system
+Application layout
+Sidebar
+API architecture
+MongoDB connection
+
+The module must be isolated cleanly so an Attendance error does not break Diesel, Transport or other modules.
+
+2. V1 Main Business Goal
+Management should be able to answer these questions immediately:
+Who are our workers?
+
+Which firm does each worker belong to?
+
+Which shed/work location is each worker assigned to?
+
+Who came to work today?
+
+What time did each worker enter?
+
+Who is currently inside the farm?
+
+Which shed is each present worker assigned to?
+
+How many workers are currently present in each shed?
+
+What time did each worker leave?
+
+How many hours did each worker work?
+
+Who is absent/not reported?
+
+Was a worker transferred to another shed?
+
+Was a worker transferred to another firm?
+
+Where was a worker deployed historically?
+
+Has anyone manually corrected attendance?
+
+
+3. V1 Navigation
+Add Attendance as a module in the existing application.
+Poultry Reporting System
+
+Dashboard
+
+Reports
+├── Diesel
+├── Transport
+├── Attendance
+├── Future Modules
+└── ...
+
+Administration
+├── Diesel Assets
+├── Vehicles
+├── Attendance Administration
+└── ...
+
+Inside Attendance:
+Attendance
+
+├── Live Dashboard
+├── Face Attendance
+├── Daily Attendance
+├── Monthly Attendance
+└── Administration
+     ├── Workers
+     ├── Work Locations / Sheds
+     ├── Designations
+     ├── Supervisors
+     ├── Worker Deployment
+     ├── Worker Transfer
+     ├── Face Registration
+     └── Attendance Corrections
+
+
+4. Firm Integration
+Use the existing Firm documents:
+RAGHAV
+SANJANA
+
+Every Attendance entity that belongs to a firm should reference:
+firm: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Firm"
+}
+
+Do not duplicate firm information.
+Example:
+Raghav
+├── Sheds
+├── Workers
+├── Deployments
+└── Attendance
+
+Sanjana
+├── Sheds
+├── Workers
+├── Deployments
+└── Attendance
+
+
+5. Worker Master
+Create Worker Management under Attendance Administration.
+Admin can:
+Add Worker
+View Worker
+Edit Worker
+Search Worker
+Activate Worker
+Deactivate Worker
+View Attendance History
+View Deployment History
+Register/Re-register Face
+
+Do NOT permanently delete workers who already have attendance/history.
+
+6. Worker Fields — V1
+Worker should contain:
+Worker ID
+Full Name
+Father/Husband Name
+Gender
+Mobile Number
+Address
+Worker Photograph
+Date of Joining
+ Degisnation
+Active/Inactive
+Created By
+Created At
+Updated At
+ Addhar number 
+Bank details 
+
+
+
+7. Worker ID Generation
+System should automatically generate a unique Worker ID.
+Possible format:
+Raghav:
+RGF-0001
+RGF-0002
+
+Sanjana:
+SJF-0001
+SJF-0002
+
+Worker ID must be unique.
+Never reuse an old Worker ID.
+
+8. Designation Master
+Administration should contain Designation Management.
+Admin can:
+Add
+Edit
+Activate
+Deactivate
+
+Examples:
+Farm Manager
+Farm In-charge
+Supervisor
+Farm Worker
+Poultry Worker
+Feed Worker
+Driver
+Electrician
+Maintenance Worker
+Security Guard
+Housekeeping Worker
+Other
+
+Do not permanently delete a designation that is already referenced historically.
+
+9. Work Location / Shed Master
+Use one WorkLocation model instead of unnecessarily creating many separate collections.
+Fields:
+Name
+Firm
+Type
+Supervisor/In-charge — optional
+Active
+Remarks
+Order
+
+Types:
+SHED
+MISCELLANEOUS
+
+Example:
+Raghav
+├── Shed 1
+├── Shed 2
+├── Shed 3
+├── Shed 4
+├── Maintenance
+├── Feed Handling
+└── Farm General Work
+
+Sanjana maintains its own locations.
+
+10. Supervisor
+A supervisor should be a worker/user capable of supervising workers.
+A worker deployment should contain:
+Supervisor
+
+Management must be able to filter workers by supervisor.
+Do not unnecessarily duplicate supervisor personal information inside each worker.
+Reference the supervisor record.
+
+11. Worker Deployment
+A worker's current deployment defines:
+Worker
+↓
+Firm
+↓
+Work Location / Shed
+↓
+Designation
+↓
+Supervisor
+
+Create a WorkerDeployment collection.
+Recommended fields:
+worker
+firm
+workLocation
+designation
+supervisor
+allocationType
+effectiveFrom
+effectiveTo
+active
+reason
+createdBy
+createdAt
+
+Possible V1 allocation types:
+INITIAL
+PERMANENT
+SHED_TRANSFER
+FARM_TRANSFER
+CORRECTION
+
+
+12. Critical Deployment Rule
+Never simply overwrite historical deployment.
+WRONG:
+worker.shed = newShed
+
+if that destroys previous assignment history.
+CORRECT:
+Existing deployment:
+effectiveTo = transferDate
+
+Create new deployment:
+effectiveFrom = transferDate
+effectiveTo = null
+
+Example:
+Raj Kumar
+
+01 Sep → 07 Sep
+Raghav / Shed 1
+
+08 Sep → Present
+Raghav / Shed 3
+
+Both records remain permanently available.
+
+13. Current Deployment
+Create backend logic capable of answering:
+What is this worker's effective deployment
+at this particular date/time?
+
+This is extremely important.
+Attendance must use the deployment effective at the time the attendance event occurred.
+
+14. Shed Transfer
+Admin should be able to transfer:
+Raghav Shed 1
+        ↓
+Raghav Shed 3
+
+Transfer form:
+Worker
+Current Firm — readonly
+Current Work Location — readonly
+
+New Work Location
+Effective Date
+Reason
+Approved By
+Remarks
+
+Backend should:
+1. Validate worker
+2. Validate current deployment
+3. Validate destination
+4. Close previous deployment
+5. Create new deployment
+6. Keep history
+
+Use a MongoDB transaction where appropriate so a failure does not leave the worker with broken deployment history.
+
+15. Inter-Firm Transfer
+Admin can transfer:
+Raghav
+   ↓
+Worker
+   ↓
+Sanjana
+
+Form:
+Worker
+From Firm
+From Shed
+
+To Firm
+To Shed
+
+Effective Date
+Reason
+Approved By
+Remarks
+
+Previous attendance records must NOT change.
+
+16. Face Registration
+Face recognition is INCLUDED in V1.
+Authorized Admin/Operator should enrol a worker's face.
+Flow:
+Open Worker Profile
+       ↓
+Register Face
+       ↓
+Camera Permission
+       ↓
+Camera Opens
+       ↓
+Detect Face
+       ↓
+Capture / Process Face
+       ↓
+Create Face Descriptor / Embedding
+       ↓
+Associate With Worker
+       ↓
+Face Registered
+
+Worker should have face status:
+NOT_REGISTERED
+REGISTERED
+RE_REGISTRATION_REQUIRED
+
+
+17. Face Registration Validation
+System should reject registration when:
+No face detected
+Multiple faces detected
+Image quality is unusable
+Worker does not exist
+Worker is inactive
+
+Show understandable messages to operator.
+
+18. Face Recognition Architecture
+Keep the main application MERN.
+Recommended conceptual architecture:
+Phone/Browser Camera
+        ↓
+React
+        ↓
+Face detection / recognition layer
+        ↓
+Recognized Worker ID
+        ↓
+Express API
+        ↓
+Backend validation
+        ↓
+MongoDB Attendance
+
+React recognition alone must NOT be trusted to write attendance.
+Backend must validate every attendance request.
+
+19. Face Attendance Screen
+Create a dedicated mobile-first screen.
+Example:
+--------------------------------
+        FACE ATTENDANCE
+
+          [ CAMERA ]
+
+       Scanning Face...
+--------------------------------
+
+After recognition:
+Raj Kumar
+RGF-0031
+
+Raghav
+Shed 3
+
+✓ DUTY IN
+07:56 AM
+
+or:
+Raj Kumar
+
+✓ DUTY OUT
+05:08 PM
+
+
+20. Attendance V1 Events
+Only two normal biometric events are required:
+DUTY_IN
+DUTY_OUT
+
+Lunch IN/OUT is NOT required for V1.
+
+21. Duty IN Logic
+Flow:
+Worker arrives
+     ↓
+Scan Face
+     ↓
+Recognize Worker
+     ↓
+Backend receives Worker ID
+     ↓
+Validate Worker
+     ↓
+Worker Active?
+     ↓
+Find Effective Deployment
+     ↓
+Check Today's Attendance
+     ↓
+No active Duty IN?
+     ↓
+Create DUTY_IN transaction
+     ↓
+Store exact server timestamp
+     ↓
+Status = PRESENT
+     ↓
+Update dashboard
+
+
+22. Duty OUT Logic
+Worker finishes work
+     ↓
+Scan Face
+     ↓
+Recognize Worker
+     ↓
+Backend validates Worker
+     ↓
+Find open Duty IN
+     ↓
+Create DUTY_OUT
+     ↓
+Store exact timestamp
+     ↓
+Calculate worked duration
+     ↓
+Status = DUTY_COMPLETED
+
+
+23. Example Attendance
+Worker:
+Raj Kumar
+
+Firm:
+Raghav
+
+Shed:
+Shed 3
+
+DUTY IN:
+07:56 AM
+
+DUTY OUT:
+05:08 PM
+
+Worked:
+9 Hours 12 Minutes
+
+
+24. Server Timestamp
+Do not trust a timestamp manually sent by the browser for normal online attendance.
+For live online attendance:
+Backend/server creates timestamp
+
+Store timestamps consistently, preferably UTC internally.
+Display them in the farm/user timezone.
+
+25. Duplicate Scan Protection
+This is mandatory.
+Example:
+08:00:00 → DUTY IN ✅
+
+08:00:05 → Worker scanned again
+
+Do NOT convert the second scan immediately into OUT.
+Return:
+Attendance already marked.
+Duplicate scan detected.
+
+Use a configurable duplicate-scan protection window.
+
+26. IN/OUT State Protection
+Prevent impossible states.
+Do not allow:
+DUTY_OUT without DUTY_IN
+
+Do not allow:
+DUTY_IN
+DUTY_IN
+
+for the same active attendance session.
+Do not allow accidental:
+DUTY_OUT
+DUTY_OUT
+
+
+27. Face Not Recognized
+If no reliable worker match exists:
+FACE NOT RECOGNIZED
+
+No attendance should be written.
+Allow operator to retry.
+
+28. Attendance Transaction
+Attendance records should be immutable transactions where practical.
+Recommended structure:
+worker
+workerCodeSnapshot
+
+firm
+firmNameSnapshot
+
+workLocation
+workLocationNameSnapshot
+
+designation
+designationNameSnapshot
+
+supervisor
+
+eventType
+timestamp
+
+attendanceDate
+
+source
+createdAt
+
+Source:
+FACE
+MANUAL
+CORRECTION
+
+Snapshots are useful because future master changes should not corrupt historical reports.
+
+29. Attendance Session / Daily Summary
+In addition to immutable events, the backend may maintain/derive a daily summary:
+worker
+date
+firm
+workLocation
+dutyIn
+dutyOut
+workedMinutes
+status
+
+Avoid duplicating business logic across frontend and backend.
+The backend should be the source of truth.
+
+30. Working Hours
+V1:
+Worked Time =
+Duty OUT - Duty IN
+
+Store duration as minutes.
+Example:
+552 minutes
+
+Display as:
+9h 12m
+
+Lunch deduction comes later.
+
+31. Attendance Status
+V1 statuses:
+NOT_REPORTED
+PRESENT
+DUTY_COMPLETED
+ABSENT
+
+Meaning:
+NOT_REPORTED
+Active expected worker with no IN.
+
+PRESENT
+Duty IN exists and no Duty OUT.
+
+DUTY_COMPLETED
+Both IN and OUT exist.
+
+ABSENT
+Attendance finalized as absent.
+
+
+32. Live Attendance Dashboard
+Create today's dashboard.
+Main cards:
+Total Active Workers
+
+Present Inside
+
+Not Reported
+
+Duty Completed
+
+Absent
+
+Firm filter:
+All Firms
+Raghav
+Sanjana
+
+
+33. Firm Dashboard
+Example:
+RAGHAV
+
+Active Workers       60
+
+Present Inside       42
+
+Not Reported         12
+
+Duty Completed        6
+
+Sanjana should work identically.
+
+34. Live Shed-wise Manpower
+Critical V1 functionality.
+Example:
+RAGHAV
+
+Shed 1                  8
+Shed 2                 10
+Shed 3                 12
+Shed 4                  7
+Maintenance             2
+Miscellaneous           3
+
+--------------------------
+TOTAL PRESENT          42
+
+Only workers with:
+status = PRESENT
+
+should count as currently inside.
+
+35. Shed Worker List
+Click a location:
+Shed 3 — 12 Present
+
+Display:
+Photo
+Worker Name
+Worker ID
+Designation
+Supervisor
+IN Time
+Current Status
+
+
+36. Important Live Dashboard Rule
+Live manpower should use:
+Today's open attendance
++
+Attendance-time/current effective deployment
+
+Do not count inactive workers.
+Do not count completed Duty OUT workers as currently inside.
+
+37. Daily Attendance Report
+Columns:
+Date
+Worker ID
+Worker Name
+Firm
+Shed/Location
+Designation
+Supervisor
+Duty IN
+Duty OUT
+Worked Hours
+Status
+
+Filters:
+Date
+Firm
+Shed
+Designation
+Supervisor
+Status
+Worker Search
+
+
+38. Monthly Attendance Report
+Filters:
+Month
+Firm
+Shed
+Worker
+
+Columns:
+Worker ID
+Worker
+Present Days
+Absent Days
+Completed Days
+Total Worked Hours
+
+Detailed daily drill-down should be possible.
+
+39. Worker Attendance History
+Worker Profile:
+ATTENDANCE HISTORY
+
+08 Sep
+Raghav / Shed 3
+07:56 → 17:08
+9h 12m
+Completed
+
+07 Sep
+Raghav / Shed 3
+08:01 → 17:03
+9h 02m
+Completed
+
+
+40. Worker Deployment History
+Worker Profile:
+DEPLOYMENT HISTORY
+
+01 Aug → 15 Aug
+Raghav / Shed 1
+
+16 Aug → 31 Aug
+Raghav / Shed 3
+
+01 Sep → Present
+Sanjana / Shed 1
+
+
+41. Manual Attendance Correction
+Real farm operations require corrections.
+Only authorized Admin should have this permission.
+Examples:
+Worker forgot Duty OUT
+
+Face recognition failed
+
+Operator mistake
+
+Wrong attendance time
+
+Correction screen:
+Worker
+Date
+
+Original IN
+Original OUT
+
+Corrected IN
+Corrected OUT
+
+Reason — mandatory
+
+
+42. Attendance Audit Log
+Never silently replace attendance.
+Audit should save:
+Original Value
+New Value
+Reason
+Changed By
+Changed At
+
+Example:
+Original OUT:
+16:20
+
+Corrected OUT:
+17:10
+
+Reason:
+Worker forgot face scan during departure.
+
+Changed By:
+Admin
+
+
+43. Deployment Correction
+Wrong worker assignment must also have correction history.
+Store:
+Previous Firm
+Previous Shed
+
+Correct Firm
+Correct Shed
+
+Effective Date
+Reason
+Corrected By
+Corrected At
+
+
+44. Worker Active / Inactive
+Do not normally delete worker records.
+Admin can set:
+ACTIVE
+INACTIVE
+
+If inactive, optionally store:
+Leaving Date
+Reason
+Remarks
+
+Inactive workers:
+cannot normally mark attendance
+do not count in active manpower
+retain historical attendance
+
+
+45. Search
+Worker Administration should support:
+Worker Name
+Worker ID
+Mobile Number
+
+
+46. Pagination
+Never fetch every historical attendance row at once.
+Use server-side pagination.
+Example:
+Page size:
+25 / 50 / 100
+
+Apply to:
+Workers
+Daily report
+Monthly details
+Deployment history
+Audit history
+
+
+47. Roles
+Existing Admin
+Admin with both firms:
+Manage Raghav
+Manage Sanjana
+
+Manage workers
+Manage sheds
+Manage designations
+Manage deployment
+Register faces
+Perform transfers
+View reports
+Correct attendance
+View audit history
+
+
+48. Attendance Operator
+Create/extend appropriate operator permissions.
+Allowed:
+Open Face Attendance
+Scan Worker
+View successful recognition
+View scan result
+
+Not allowed:
+Edit Worker
+Delete Worker
+Change Firm
+Change Deployment
+Correct Attendance
+View sensitive administration
+
+
+49. Firm Authorization
+Backend security is mandatory.
+If a user only has permission for Raghav:
+They cannot access Sanjana data
+
+even if they manually modify:
+URL
+API request
+firmId
+workerId
+
+Authorization must be checked by Express middleware/controllers.
+
+50. Error Handling
+Expected frontend messages:
+Processing...
+
+Face recognized.
+
+Attendance marked successfully.
+
+Face not recognized.
+
+Face registration required.
+
+Worker inactive.
+
+No current deployment found.
+
+Attendance already marked.
+
+No active Duty IN found.
+
+Network error. Please retry.
+
+Unable to process attendance.
+
+Never expose raw MongoDB/Express stack traces to users.
+
+51. Mobile-first Scanner
+The Face Attendance page should prioritize Android/mobile browsers.
+Large controls.
+Minimal interface.
+No complex table beside camera.
+After successful attendance:
+Show success briefly
+↓
+Clear previous worker
+↓
+Automatically return to scan mode
+
+This allows many workers to mark attendance continuously.
+
+52. Camera Lifecycle
+Avoid:
+Opening multiple camera streams
+Leaving camera active after page closes
+Memory leaks
+Repeated face-recognition loops
+
+Stop/release media stream on component unmount.
+Prevent multiple simultaneous scan submissions.
+
+53. Backend Validation
+Frontend protection alone is insufficient.
+Backend should validate:
+Valid worker
+Active worker
+Authorized firm
+Active work location
+Valid deployment
+Valid attendance state
+Duplicate attendance
+Valid transfer
+Required correction reason
+Role permission
+
+
+54. MongoDB Indexes
+Indexes should be designed before production.
+Examples:
+Worker:
+{ workerCode: 1 } unique
+
+WorkerDeployment:
+{ worker: 1, effectiveFrom: -1 }
+
+Attendance:
+{ worker: 1, attendanceDate: 1 }
+
+Attendance:
+{ firm: 1, attendanceDate: 1 }
+
+Attendance:
+{ firm: 1, timestamp: -1 }
+
+WorkLocation:
+{ firm: 1, active: 1 }
+
+Exact indexes should follow final schema/query design.
+
+55. Database Uniqueness / Race Protection
+Important attendance rules should be protected at database/backend level where possible.
+Do not rely only on:
+"button disabled"
+
+Two simultaneous API requests should not accidentally create two Duty IN records.
+
+56. MongoDB Transactions
+Use transactions where multiple related writes must either all succeed or all fail.
+Especially consider for:
+Closing old deployment
++
+Creating new deployment
+
+or other multi-document critical updates.
+
+57. Do Not Store Huge Base64 Images in Worker Documents
+Avoid:
+worker.faceImage = massiveBase64String
+
+Store files/face assets appropriately and keep references/metadata in MongoDB.
+Keep normal MongoDB worker documents lightweight.
+
+58. Face Data Security
+Face templates/embeddings are sensitive data.
+V1 should at minimum:
+Restrict access
+Do not expose descriptors in normal Worker APIs
+Do not send all templates unnecessarily to regular users
+Protect face registration endpoints
+Prevent non-admin modification
+
+
+59. Existing Application Isolation
+Structure Attendance cleanly.
+Conceptually:
+backend/
+  attendance/
+    models/
+    controllers/
+    services/
+    routes/
+
+frontend/
+  attendance/
+    pages/
+    components/
+    services/
+
+Adapt this to the current application's established folder style.
+Do not unnecessarily refactor stable Diesel/Transport code.
+
+60. Backend Services
+Separate important business logic from route handlers.
+Example services:
+deployment.service
+
+attendance.service
+
+face.service
+
+attendance-report.service
+
+attendance-correction.service
+
+Controllers should not contain every calculation.
+
+61. Suggested Backend Models
+V1 likely needs:
+Existing:
+User
+Firm
+
+New:
+Worker
+Designation
+WorkLocation
+WorkerDeployment
+FaceProfile
+AttendanceTransaction / AttendanceRecord
+AttendanceCorrection
+AuditLog
+
+Avoid creating redundant collections unless needed.
+
+62. Suggested API Groups
+Example structure:
+/api/attendance/workers
+
+/api/attendance/designations
+
+/api/attendance/work-locations
+
+/api/attendance/deployments
+
+/api/attendance/transfers
+
+/api/attendance/faces
+
+/api/attendance/scans
+
+/api/attendance/dashboard
+
+/api/attendance/reports
+
+/api/attendance/corrections
+
+Use the existing auth middleware.
+
+63. Worker Creation Workflow
+ADMIN
+  ↓
+Attendance Administration
+  ↓
+Workers
+  ↓
+Add Worker
+  ↓
+Enter Worker Details
+  ↓
+Select Initial Firm
+  ↓
+Select Designation
+  ↓
+Select Shed / Work Location
+  ↓
+Select Supervisor
+  ↓
+Save Worker
+  ↓
+Create Initial Deployment
+  ↓
+Register Face
+  ↓
+Worker Ready for Attendance
+
+
+64. Daily Attendance Workflow
+ATTENDANCE OPERATOR
+        ↓
+Open Face Attendance
+        ↓
+Camera Starts
+        ↓
+Worker Stands in Front
+        ↓
+Face Detected
+        ↓
+Face Recognized
+        ↓
+Worker Identified
+        ↓
+Backend Validation
+        ↓
+Check Today's State
+        ↓
+┌──────────────────────┐
+│ No IN Yet            │
+│ → Create DUTY IN     │
+└──────────────────────┘
+        ↓
+Worker = PRESENT
+        ↓
+Dashboard Updates
+
+At departure:
+Face Scan
+   ↓
+Worker recognized
+   ↓
+Existing open attendance?
+   ↓
+DUTY OUT
+   ↓
+Save timestamp
+   ↓
+Calculate worked time
+   ↓
+DUTY COMPLETED
+
+
+65. Full System Workflow
+                   EXISTING FIRMS
+                 RAGHAV / SANJANA
+                         │
+                         ▼
+                 WORK LOCATION MASTER
+                         │
+                ┌────────┴─────────┐
+                ▼                  ▼
+              SHEDS         MISC LOCATIONS
+                         │
+                         ▼
+                  WORKER MASTER
+                         │
+                         ▼
+                  DESIGNATION
+                         │
+                         ▼
+                    SUPERVISOR
+                         │
+                         ▼
+                 INITIAL DEPLOYMENT
+                         │
+                         ▼
+                  FACE ENROLMENT
+                         │
+                         ▼
+                WORKER READY
+                         │
+                         ▼
+                    FACE SCAN
+                         │
+                         ▼
+                FACE RECOGNITION
+                         │
+                         ▼
+                  WORKER FOUND?
+                    /        \
+                  NO          YES
+                  │            │
+                  ▼            ▼
+              RETRY       BACKEND VALIDATION
+                               │
+                               ▼
+                     TODAY'S ATTENDANCE?
+                         /            \
+                       NONE           OPEN
+                        │              │
+                        ▼              ▼
+                    DUTY IN        DUTY OUT
+                        │              │
+                        ▼              ▼
+                    PRESENT      DUTY COMPLETED
+                        │              │
+                        └───────┬──────┘
+                                ▼
+                         DAILY REPORT
+                                │
+                                ▼
+                       MONTHLY REPORT
+
+
+66. Live Manpower Workflow
+Successful DUTY IN
+        ↓
+Attendance = PRESENT
+        ↓
+Firm known
+        ↓
+Work Location known
+        ↓
+Add worker to live manpower
+
+Example:
+Raghav
+
+Shed 1       8
+Shed 2      10
+Shed 3      12
+Misc         4
+
+Total       34
+
+After Duty OUT:
+Attendance = DUTY_COMPLETED
+        ↓
+Remove worker from current-inside count
+
+
+67. Transfer Workflow
+Admin selects Worker
+       ↓
+Get Active Deployment
+       ↓
+Select New Firm/Shed
+       ↓
+Effective Date
+       ↓
+Reason
+       ↓
+Validate
+       ↓
+Close Old Deployment
+       ↓
+Create New Deployment
+       ↓
+Keep Previous History
+
+
+68. Correction Workflow
+Admin opens Attendance
+       ↓
+Select Record
+       ↓
+Edit IN / OUT
+       ↓
+Enter Mandatory Reason
+       ↓
+Validate
+       ↓
+Create Correction/Audit Record
+       ↓
+Update effective attendance result
+       ↓
+Recalculate Worked Hours
+
+Never silently modify without audit information.
+
+69. Dashboard Workflow
+Attendance Dashboard
+       ↓
+Select Date
+       ↓
+Select Firm
+       ↓
+Backend calculates
+       ↓
+Total Active
+Present
+Not Reported
+Completed
+Absent
+       ↓
+Group PRESENT workers
+by Work Location
+       ↓
+Display Live Shed Manpower
+
+
+70. Client-facing V1 Features
+Administration
+Worker Master
+Worker ID
+Worker Photo
+Active/Inactive worker
+Designation Master
+Shed Master
+Miscellaneous Work Location
+Supervisor Assignment
+Worker Deployment
+Deployment History
+Shed Transfer
+Inter-Firm Transfer
+Face Registration
+Face Re-registration
+Attendance Correction
+Audit History
+Attendance
+Face Recognition
+Face Duty IN
+Automatic IN Timestamp
+Face Duty OUT
+Automatic OUT Timestamp
+Working Hour Calculation
+Duplicate Scan Prevention
+Face Not Recognized Handling
+Invalid IN/OUT Protection
+Current Attendance Status
+Management
+All Firms dashboard
+Raghav dashboard
+Sanjana dashboard
+Live Present Count
+Not Reported Count
+Duty Completed Count
+Absent Count
+Shed-wise Live Manpower
+Shed-wise Worker List
+Worker Attendance History
+Worker Deployment History
+Reports
+Daily Attendance Register
+Monthly Attendance Summary
+Firm Filter
+Shed Filter
+Designation Filter
+Supervisor Filter
+Worker Search
+Status Filter
+Basic Export
+Security/Reliability
+JWT authentication
+Role-based authorization
+Firm-level backend authorization
+Duplicate attendance protection
+Backend attendance validation
+Database indexes
+Pagination
+Error handling
+Audit trail
+Historical deployment preservation
+Worker deactivation instead of deletion
+Module isolation
+Mobile-first scanner
+
+71. NOT Included in V1
+Do NOT build these until core V1 is stable:
+Lunch OUT
+Lunch IN
+
+Detailed shift management
+
+Late-coming calculation
+
+Early-departure calculation
+
+Overtime
+
+Leave management
+
+Same-day multiple shed movement
+
+Time spent in each shed
+
+Temporary hourly deployment
+
+GPS attendance
+
+Geo-fencing
+
+Device restrictions
+
+Offline attendance
+
+Offline synchronization
+
+Advanced liveness detection
+
+Advanced anti-photo spoofing
+
+Payroll
+
+Bank integration
+
+Aadhaar verification
+
+Contractor payroll
+
+Labour costing
+
+Notifications
+
+The database should be designed so some of these features can be added later without rebuilding the core system.
+
+72. V1 Definition of Done
+Version 1 is complete only when the following full scenario works reliably:
+1. Admin logs in.
+
+2. Admin creates Raghav sheds.
+
+3. Admin creates Sanjana sheds.
+
+4. Admin creates designations.
+
+5. Admin creates worker Raj Kumar.
+
+6. Raj is assigned:
+   Raghav → Shed 3 → Farm Worker → Supervisor A.
+
+7. Admin registers Raj's face.
+
+8. Raj comes in the morning.
+
+9. Operator scans Raj's face.
+
+10. System recognizes Raj.
+
+11. Backend validates Raj.
+
+12. System stores:
+    DUTY IN = exact time.
+
+13. Raj appears as PRESENT.
+
+14. Raghav present count increases.
+
+15. Shed 3 live count increases.
+
+16. Raj's name appears inside Shed 3 worker list.
+
+17. Raj accidentally scans again immediately.
+
+18. Duplicate scan is rejected.
+
+19. Raj comes at departure time.
+
+20. Face is scanned again.
+
+21. System recognizes Raj.
+
+22. System creates DUTY OUT.
+
+23. Working hours are calculated.
+
+24. Raj becomes DUTY COMPLETED.
+
+25. Raj disappears from current-inside count.
+
+26. Daily report shows correct IN, OUT and hours.
+
+27. Monthly report includes that day.
+
+28. Admin can view Raj's attendance history.
+
+29. Admin transfers Raj from Shed 3 → Shed 4.
+
+30. Old deployment remains in history.
+
+31. New attendance uses Shed 4.
+
+32. Old attendance continues showing Shed 3.
+
+33. If attendance is incorrect, Admin can correct it.
+
+34. Original/corrected information remains in audit history.
+
+35. Diesel and Transport modules continue working normally.
+
+If all 35 scenarios work correctly, Attendance V1 is ready for controlled production use.
+
+73. Development Order
+Do NOT ask the coding AI to generate the entire Attendance module in one huge step.
+Build in this order.
+Stage 1 — Core Masters
+Designation
+Work Location
+Worker
+
+Test completely.
+Stage 2 — Deployment
+Initial Deployment
+Current Deployment
+Deployment History
+
+Test completely.
+Stage 3 — Administration UI
+Workers
+Designations
+Sheds
+Supervisors
+Deployment
+
+Test completely.
+Stage 4 — Basic Attendance Without Face
+Temporarily test using Worker ID:
+DUTY IN
+DUTY OUT
+Duplicate prevention
+Working hours
+
+Make attendance logic completely reliable first.
+Stage 5 — Face Registration
+Camera
+Face enrolment
+Face profile
+Recognition
+
+Stage 6 — Connect Face to Attendance
+Face recognized
+↓
+Worker ID
+↓
+Existing attendance service
+
+Do NOT create separate face-attendance business logic.
+Face recognition should call the same attendance service already tested in Stage 4.
+Stage 7 — Live Dashboard
+Firm totals
+Shed totals
+Worker lists
+
+Stage 8 — Reports
+Daily
+Monthly
+History
+Filters
+
+Stage 9 — Transfer
+Shed transfer
+Firm transfer
+History
+
+Stage 10 — Corrections & Audit
+Attendance correction
+Deployment correction
+Audit history
+
+Stage 11 — Production Testing
+Test:
+Multiple phones
+Slow network
+Repeated scans
+Inactive workers
+Wrong firm
+Wrong shed
+Unknown face
+Morning rush
+Concurrent workers
+Transfer history
+Corrections
+Mobile UI
+
+Only after these tests should the Attendance module be enabled for real farm workers.
+
+74. Most Important Architecture Rule
+Face Recognition must NOT contain the attendance business logic.
+Use:
+FACE RECOGNITION
+       ↓
+Recognized Worker ID
+       ↓
+ATTENDANCE SERVICE
+       ↓
+Validate state
+       ↓
+Create IN/OUT
+
+The same Attendance Service should work whether the worker was identified using:
+Face
+Admin correction
+Future attendance device
+
+This keeps the application maintainable and prevents duplicate business logic.
+
+75. Final V1 Architecture
+                  POULTRY REPORTING SYSTEM
+                            │
+                    EXISTING AUTH/JWT
+                            │
+                    EXISTING FIRMS
+                     /             \
+                  RAGHAV          SANJANA
+                     \             /
+                      \           /
+                       ATTENDANCE
+                            │
+            ┌───────────────┼────────────────┐
+            │               │                │
+       ADMINISTRATION   FACE SCANNER       REPORTS
+            │               │                │
+       Worker Master    Recognition       Daily
+       Designation           │            Monthly
+       Locations             │            History
+       Deployment            ▼
+       Transfer          Worker ID
+       Corrections           │
+            │                ▼
+            └──────► ATTENDANCE SERVICE
+                             │
+                      ┌──────┴──────┐
+                      │             │
+                   DUTY IN       DUTY OUT
+                      │             │
+                      └──────┬──────┘
+                             │
+                       LIVE STATUS
+                             │
+                      LIVE MANPOWER
+                             │
+                      SHED-WISE VIEW
+                             │
+                         MONGODB
+
+Final Goal
+Version 1 should be a:
+Reliable Face-Based Poultry Farm Attendance & Live Manpower Management System
+for:
+Raghav + Sanjana
+with:
+Worker Management + Deployment + Face IN/OUT + Live Shed Manpower + Transfers + Attendance Reports + Corrections + Historical Audit Trail.
+
