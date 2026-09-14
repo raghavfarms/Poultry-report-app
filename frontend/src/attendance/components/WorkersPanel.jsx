@@ -102,8 +102,6 @@ function PrivateDetailsSection({ form, set }) {
 function CreateWorkerModal({ firmId, onClose, onSaved }) {
   const todayDate = new Date().toISOString().split('T')[0];
   const [form, setForm] = useState({
-    userId: '',
-    userAccountLabel: '',
     fullName: '',
     fatherOrHusbandName: '',
     gender: 'NOT_SPECIFIED',
@@ -111,7 +109,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
     address: '',
     dateOfJoining: todayDate,
     designation: '',
-    isSupervisor: false,
     remarks: '',
     workLocation: '',
     supervisor: '',
@@ -163,7 +160,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
       address: form.address.trim(),
       dateOfJoining: form.dateOfJoining,
       designation: form.designation,
-      isSupervisor: form.isSupervisor,
+      isSupervisor: false,
       remarks: form.remarks.trim(),
       initialDeployment: {
         workLocation: form.workLocation,
@@ -172,10 +169,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
         reason: form.reason.trim() || 'Initial deployment',
       },
     };
-
-    if (form.userId) {
-      body.userId = form.userId;
-    }
 
     if (form.aadhaarNumber) {
       body.aadhaarNumber = form.aadhaarNumber.trim();
@@ -256,22 +249,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
             </Field>
 
 
-            <RemoteSelect
-              label="Link Web User (Optional)"
-              resource="registered-users"
-              firmId={firmId}
-              value={form.userId}
-              selectedLabel={form.userAccountLabel || ''}
-              onChange={(value, account) => {
-                setForm((prev) => ({
-                  ...prev,
-                  userId: value || '',
-                  userAccountLabel: account?.name || '',
-                  fullName: prev.fullName || account?.fullName || account?.name || '',
-                }));
-              }}
-            />
-
             <Field label="Mobile Number">
               <input
                 type="tel"
@@ -282,6 +259,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                 onChange={(e) => set('mobileNumber', e.target.value)}
               />
             </Field>
+
             <Field label="Gender">
               <select
                 className={compactInputClass}
@@ -303,6 +281,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                 onChange={(e) => set('fatherOrHusbandName', e.target.value)}
               />
             </Field>
+
             <Field label="Address">
               <input
                 maxLength={1000}
@@ -331,19 +310,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                   onChange={handlePhotoChange}
                 />
               </div>
-            </div>
-
-            {/* Supervisor toggle */}
-            <div className="flex items-end">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer select-none rounded-md border border-slate-200 bg-slate-50/70 px-2 h-7 w-full hover:bg-slate-100">
-                <input
-                  type="checkbox"
-                  className="rounded text-emerald-700 focus:ring-emerald-500"
-                  checked={form.isSupervisor}
-                  onChange={(e) => set('isSupervisor', e.target.checked)}
-                />
-                <span>Eligible as Supervisor</span>
-              </label>
             </div>
           </div>
 
@@ -438,7 +404,6 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
     gender: worker.gender || 'NOT_SPECIFIED',
     mobileNumber: worker.mobileNumber || '',
     address: worker.address || '',
-    isSupervisor: worker.isSupervisor ?? false,
     active: worker.active ?? true,
     leavingDate: worker.leavingDate || '',
     inactiveReason: worker.inactiveReason || '',
@@ -504,7 +469,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
       gender: form.gender,
       mobileNumber: form.mobileNumber.trim(),
       address: form.address.trim(),
-      isSupervisor: form.isSupervisor,
+      isSupervisor: worker.isSupervisor ?? false,
       active: form.active,
       leavingDate: form.active ? null : form.leavingDate || null,
       inactiveReason: form.active ? '' : form.inactiveReason.trim(),
@@ -613,19 +578,6 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
                   onChange={handlePhotoChange}
                 />
               </div>
-            </div>
-
-            {/* Supervisor toggle */}
-            <div className="flex items-end">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer select-none rounded-md border border-slate-200 bg-slate-50/70 px-2 h-7 w-full hover:bg-slate-100">
-                <input
-                  type="checkbox"
-                  className="rounded text-emerald-700 focus:ring-emerald-500"
-                  checked={form.isSupervisor}
-                  onChange={(e) => set('isSupervisor', e.target.checked)}
-                />
-                <span>Eligible as Supervisor</span>
-              </label>
             </div>
 
             {/* Active toggle */}

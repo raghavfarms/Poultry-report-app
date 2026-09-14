@@ -148,15 +148,12 @@ export async function getDailyAttendanceReport(user, query = {}) {
         status = 'ON_DUTY';
         onDutyCount++;
         dutyOut = null; // Still on duty
-      } else if (dayWorkedMinutes >= 480) {
+      } else if (dayWorkedMinutes >= 475) {
         status = 'COMPLETED';
         completedCount++;
       } else if (dayWorkedMinutes >= 240) {
         status = 'HALF_DAY';
         halfDayCount++;
-      } else if (dayWorkedMinutes > 0 || workerSessions.length > 0) {
-        status = 'PRESENT';
-        completedCount++;
       } else {
         status = 'ABSENT';
         absentCount++;
@@ -355,16 +352,13 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
         if (isOpen) {
           days[dayStr] = 'OD'; // On duty right now
           presentDays += 1;
-        } else if (dayMinutes >= 480) {
-          days[dayStr] = 'P'; // Full day (>= 8 hrs)
+        } else if (dayMinutes >= 475) {
+          days[dayStr] = 'P'; // Full day (>= 7 hrs 55 mins)
           presentDays += 1;
         } else if (dayMinutes >= 240) {
-          days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 8 hrs)
+          days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 7 hrs 55 mins)
           presentDays += 0.5;
           absentDays += 0.5;
-        } else if (dayMinutes > 0 || daySessions.length > 0) {
-          days[dayStr] = 'P'; // Present (< 4 hrs)
-          presentDays += 1;
         } else {
           days[dayStr] = 'A';
           absentDays += 1;

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import DailyRegisterView from '../components/DailyRegisterView.jsx';
 import MonthlySummaryView from '../components/MonthlySummaryView.jsx';
-import { inputClass } from '../../components/Ui.jsx';
+import { inputClass, Spinner } from '../../components/Ui.jsx';
 import { api } from '../../api/client.js';
 import { attendancePath } from '../services/adminApi.js';
 
@@ -17,7 +17,7 @@ function getCurrentMonthString() {
 export default function AttendanceReportPage() {
   const [activeTab, setActiveTab] = useState('daily');
   const [firms, setFirms] = useState([]);
-  const [firmId, setFirmId] = useState('');
+  const [firmId, setFirmId] = useState('all');
   const [loadingFirms, setLoadingFirms] = useState(true);
   const [date, setDate] = useState(getTodayString());
   const [month, setMonth] = useState(getCurrentMonthString());
@@ -28,11 +28,15 @@ export default function AttendanceReportPage() {
     api(attendancePath('firms'))
       .then(({ firms: list = [] }) => {
         setFirms(list);
-        if (list[0]) setFirmId(list[0]._id);
       })
       .catch(() => {})
       .finally(() => setLoadingFirms(false));
   }, []);
+
+  const visibleFirms = useMemo(() => {
+    if (!firmId || firmId === 'all') return firms;
+    return firms.filter((f) => String(f._id) === String(firmId));
+  }, [firms, firmId]);
 
   const changeDate = (days) => {
     const parts = (date || getTodayString()).split('-');
@@ -108,6 +112,7 @@ export default function AttendanceReportPage() {
                     value={firmId}
                     onChange={(e) => setFirmId(e.target.value)}
                   >
+                    <option value="all">All firms</option>
                     {firms.map((f) => (
                       <option key={f._id} value={f._id}>
                         {f.name}
@@ -185,7 +190,7 @@ export default function AttendanceReportPage() {
             {/* Right Column on Mobile (Half-Width Vacant Space): Take Attendance Button */}
             <div className="col-span-1 flex flex-col pt-3.5 sm:pt-0 sm:justify-end sm:w-auto">
               <Link
-                to={`/attendance/scan${firmId ? `?firmId=${firmId}&date=${date}` : ''}`}
+                to={`/attendance/scan${firmId && firmId !== 'all' ? `?firmId=${firmId}&date=${date}` : `?date=${date}`}`}
                 className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 w-full flex-1 sm:flex-none sm:min-h-7 sm:h-7 sm:w-auto rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2 sm:px-3 py-1.5 sm:py-0 font-bold transition shadow-xs cursor-pointer text-center border border-emerald-600"
                 title="Open camera face scanner to take attendance"
               >
@@ -199,22 +204,69 @@ export default function AttendanceReportPage() {
 
       {/* Main Tab Content */}
       {activeTab === 'daily' && (
-        <DailyRegisterView
-          firmId={firmId}
-          setFirmId={setFirmId}
-          firms={firms}
-          date={date}
-          setDate={setDate}
-        />
+        <div className="space-y-4 sm:space-y-6">
+          {loadingFirms ? (
+            <div className="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
+              <Spinner label="Loading firms…" />
+            </div>
+          ) : visibleFirms.length ? (
+            visibleFirms.map((f, index) => (
+              <section key={f._id} className="space-y-2">
+                <div className="flex items-center gap-2 pt-1 pb-0.5 border-b border-slate-200">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-md">
+                    {visibleFirms.length > 1 ? `${index + 1}. Firm` : 'Firm'}
+                  </span>
+                  <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-wide">
+                    {f.name}
+                  </h2>
+                </div>
+                <DailyRegisterView
+                  firmId={f._id}
+                  firms={firms}
+                  date={date}
+                  setDate={setDate}
+                />
+              </section>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+              No accessible firm was found.
+            </div>
+          )}
+        </div>
       )}
+
       {activeTab === 'monthly' && (
-        <MonthlySummaryView
-          firmId={firmId}
-          setFirmId={setFirmId}
-          firms={firms}
-          month={month}
-          setMonth={setMonth}
-        />
+        <div className="space-y-4 sm:space-y-6">
+          {loadingFirms ? (
+            <div className="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
+              <Spinner label="Loading firms…" />
+            </div>
+          ) : visibleFirms.length ? (
+            visibleFirms.map((f, index) => (
+              <section key={f._id} className="space-y-2">
+                <div className="flex items-center gap-2 pt-1 pb-0.5 border-b border-slate-200">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-md">
+                    {visibleFirms.length > 1 ? `${index + 1}. Firm` : 'Firm'}
+                  </span>
+                  <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-wide">
+                    {f.name}
+                  </h2>
+                </div>
+                <MonthlySummaryView
+                  firmId={f._id}
+                  firms={firms}
+                  month={month}
+                  setMonth={setMonth}
+                />
+              </section>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+              No accessible firm was found.
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
