@@ -48,8 +48,8 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
   return (
     <div className="space-y-4">
       {/* Filters Bar */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-5">
           {/* Firm Selector */}
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -128,7 +128,7 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
           </div>
 
           {/* Search Worker */}
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Search Worker
             </label>
@@ -175,10 +175,10 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="attendance-table w-full text-left text-xs">
+            <table className="attendance-table w-full text-left text-xs min-w-[750px]">
               <thead className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Timestamp (IST)</th>
+                  <th className="px-4 py-3 sticky left-0 z-20 bg-slate-50 border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] whitespace-nowrap">Timestamp (IST)</th>
                   <th className="px-4 py-3">Action</th>
                   <th className="px-4 py-3">Worker</th>
                   <th className="px-4 py-3">Original Value</th>
@@ -197,8 +197,8 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
                   });
 
                   return (
-                    <tr key={log._id} className="hover:bg-slate-50/80">
-                      <td data-label="Timestamp (IST)" className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                    <tr key={log._id} className="hover:bg-slate-50/80 group">
+                      <td data-label="Timestamp (IST)" className="px-4 py-3 font-mono text-[11px] text-slate-500 whitespace-nowrap sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)]">
                         {formattedTimestamp}
                       </td>
                       <td data-label="Action" className="px-4 py-3">

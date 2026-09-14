@@ -307,29 +307,29 @@ export default function MonthlySummaryView({
             <p className="text-sm font-semibold">No attendance records found for this month.</p>
           </div>
         ) : (
-          <div className="attendance-month-matrix overflow-x-auto report-scroll" tabIndex={0} role="region" aria-label="Monthly attendance matrix; scroll horizontally to see all days">
+          <div className="attendance-month-matrix overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll" tabIndex={0} role="region" aria-label="Monthly attendance matrix; scroll horizontally to see all days">
             <table className="w-full min-w-[850px] text-left text-xs border-collapse">
-              <thead className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                 <tr>
-                  <th className="sticky left-0 z-10 bg-slate-50 px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] whitespace-nowrap">
+                  <th className="sticky top-0 left-0 z-30 bg-slate-50 px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] whitespace-nowrap">
                     Worker
                   </th>
-                  <th className="px-2.5 py-1.5 whitespace-nowrap">Designation</th>
-                  <th className="px-2.5 py-1.5 whitespace-nowrap">Shed</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap">Designation</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap">Shed</th>
                   {daysArray.map((d) => (
-                    <th key={d} className="px-1 py-1.5 text-center min-w-6 whitespace-nowrap">
+                    <th key={d} className="sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 whitespace-nowrap">
                       {Number(d)}
                     </th>
                   ))}
-                  <th className="px-2.5 py-1.5 text-center whitespace-nowrap">Present</th>
-                  <th className="px-2.5 py-1.5 text-center whitespace-nowrap">Absent</th>
-                  {canEdit && <th className="px-2.5 py-1.5 text-center whitespace-nowrap" data-html2canvas-ignore="true">Action</th>}
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap">Present</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap">Absent</th>
+                  {canEdit && <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap" data-html2canvas-ignore="true">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {records.map((r) => (
-                  <tr key={r.workerId} className="hover:bg-slate-50/60">
-                    <td className="sticky left-0 z-10 bg-white px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] font-semibold text-slate-900 whitespace-nowrap">
+                  <tr key={r.workerId} className="hover:bg-slate-50/60 group">
+                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] font-semibold text-slate-900 whitespace-nowrap">
                       <div>
                         <p className="truncate max-w-[130px]">{r.workerName}</p>
                         <p className="text-[10px] text-slate-400">{r.workerCode}</p>

@@ -835,7 +835,18 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
   );
 }
 
-function WorkerActionDropdown({ worker, onToggle, onDelete, busy, canTransfer }) {
+function WorkerActionDropdown({
+  worker,
+  onToggle,
+  onDelete,
+  onEdit,
+  onTransfer,
+  onDetails,
+  onEnrolFace,
+  busy,
+  canTransfer,
+  compact = false,
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -847,50 +858,124 @@ function WorkerActionDropdown({ worker, onToggle, onDelete, busy, canTransfer })
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [open]);
 
   return (
     <div className="relative inline-block text-left" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
         disabled={busy}
-        className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs inline-flex items-center gap-1 font-semibold text-slate-700 hover:text-slate-900 cursor-pointer`}
+        className={`${secondaryButton} ${
+          compact
+            ? '!min-h-6.5 !h-6.5 !w-6.5 !p-0 text-sm !rounded-md'
+            : '!min-h-8 sm:!min-h-9 !h-8 sm:!h-9 !px-2.5 !py-1 text-xs'
+        } inline-flex items-center justify-center font-bold text-slate-600 hover:text-slate-900 cursor-pointer whitespace-nowrap`}
         aria-haspopup="true"
         aria-expanded={open}
+        title="More actions"
       >
-        <span>Action</span>
-        <span className="text-[9px]">▼</span>
+        <span>{compact ? '⋮' : 'Action ▾'}</span>
       </button>
 
       {open && (
-        <div className="absolute right-0 bottom-full sm:bottom-auto sm:top-full mb-1 sm:mb-0 sm:mt-1 z-30 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-black/5">
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2 transition cursor-pointer"
-            onClick={() => {
-              setOpen(false);
-              onToggle(worker);
-            }}
-          >
-            <span>{worker.active ? '🚫' : '✅'}</span>
-            <span>{worker.active ? 'Deactivate' : 'Activate'}</span>
-          </button>
+        <div
+          className="absolute right-0 top-full mt-1 z-30 w-44 rounded-xl border border-slate-200 bg-white py-1 shadow-xl ring-1 ring-black/5 text-xs divide-y divide-slate-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="py-1">
+            {onDetails && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
+                onClick={() => {
+                  setOpen(false);
+                  onDetails(worker);
+                }}
+              >
+                <span>👤</span>
+                <span>View Profile</span>
+              </button>
+            )}
 
-          {canTransfer && (
+            {onEdit && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
+                onClick={() => {
+                  setOpen(false);
+                  onEdit(worker);
+                }}
+              >
+                <span>✏️</span>
+                <span>Edit Worker</span>
+              </button>
+            )}
+
+            {onEnrolFace && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
+                onClick={() => {
+                  setOpen(false);
+                  onEnrolFace(worker);
+                }}
+              >
+                <span>📷</span>
+                <span>Enrol Face</span>
+              </button>
+            )}
+
+            {canTransfer && onTransfer && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
+                onClick={() => {
+                  setOpen(false);
+                  onTransfer(worker);
+                }}
+              >
+                <span>⇄</span>
+                <span>Transfer Worker</span>
+              </button>
+            )}
+          </div>
+
+          <div className="py-1">
             <button
               type="button"
-              className="w-full text-left px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition border-t border-slate-100 cursor-pointer"
+              className="w-full text-left px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition cursor-pointer"
               onClick={() => {
                 setOpen(false);
-                onDelete(worker);
+                onToggle(worker);
               }}
             >
-              <span>🗑️</span>
-              <span>Delete</span>
+              <span>{worker.active ? '🚫' : '✅'}</span>
+              <span>{worker.active ? 'Deactivate' : 'Activate'}</span>
             </button>
-          )}
+
+            {canTransfer && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition cursor-pointer"
+                onClick={() => {
+                  setOpen(false);
+                  onDelete(worker);
+                }}
+              >
+                <span>🗑️</span>
+                <span>Delete Worker</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -982,29 +1067,30 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
   }
 
   return (
-    <section className={`${panelClass} space-y-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
+    <section className={`${panelClass} space-y-3.5`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-900">Registered Workers</h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-[11px] sm:text-xs text-slate-500">
             Register workers, enrol face biometrics, and manage deployments.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Link
             to="/attendance/scan"
-            className="flex-1 sm:flex-initial inline-flex !min-h-9 !h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700 shadow-2xs transition"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-2xs transition whitespace-nowrap h-8"
           >
             <span>📷</span>
-            <span>Open Scanner</span>
+            <span>Scanner</span>
           </Link>
           <button
             type="button"
-            className={`${primaryButton} flex-1 sm:flex-initial !min-h-9 !h-9 !px-3 text-xs font-bold`}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-800 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-900 shadow-2xs transition disabled:opacity-50 whitespace-nowrap h-8 cursor-pointer"
             disabled={!firmId}
             onClick={() => setCreating(true)}
           >
-            + Register Worker
+            <span>+</span>
+            <span>Add Worker</span>
           </button>
         </div>
       </div>
@@ -1015,61 +1101,116 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
 
       <Alert>{error}</Alert>
 
-      {/* Filter Toolbar */}
-      <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 items-center">
-        <input
-          aria-label="Search workers"
-          className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
-          placeholder="Search name, code, mobile…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-        <select
-          aria-label="Filter by Designation"
-          className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
-          value={designation}
-          onChange={(e) => {
-            setDesignation(e.target.value);
-            setPage(1);
-          }}
-          disabled={!firmId}
-        >
-          <option value="">All Designations</option>
-          {designations.map((d) => (
-            <option key={d._id} value={d._id}>
-              {d.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="Supervisor filter"
-          className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
-          value={supervisorFilter}
-          onChange={(e) => {
-            setSupervisorFilter(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All Roles</option>
-          <option value="true">Supervisors Only</option>
-          <option value="false">Non-Supervisors</option>
-        </select>
-        <select
-          aria-label="Status filter"
-          className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
-          value={active}
-          onChange={(e) => {
-            setActive(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All Statuses</option>
-          <option value="true">Active Only</option>
-          <option value="false">Inactive Only</option>
-        </select>
+      {/* Filter Toolbar: Line 1 Search + Line 2 Horizontal scrollable filter pills */}
+      <div className="space-y-1.5">
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 text-xs">
+            🔍
+          </span>
+          <input
+            aria-label="Search workers"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-7 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-500"
+            placeholder="Search name, code, phone…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setPage(1);
+              }}
+              className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+              aria-label="Clear search"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+          {/* Designation Filter */}
+          <select
+            aria-label="Filter by Designation"
+            className={`rounded-lg border px-2 py-1 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+              designation
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            }`}
+            value={designation}
+            onChange={(e) => {
+              setDesignation(e.target.value);
+              setPage(1);
+            }}
+            disabled={!firmId}
+          >
+            <option value="">All Designations</option>
+            {designations.map((d) => (
+              <option key={d._id} value={d._id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Role Filter */}
+          <select
+            aria-label="Supervisor filter"
+            className={`rounded-lg border px-2 py-1 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+              supervisorFilter
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            }`}
+            value={supervisorFilter}
+            onChange={(e) => {
+              setSupervisorFilter(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All Roles</option>
+            <option value="true">Supervisors</option>
+            <option value="false">Workers</option>
+          </select>
+
+          {/* Status Filter */}
+          <select
+            aria-label="Status filter"
+            className={`rounded-lg border px-2 py-1 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+              active
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            }`}
+            value={active}
+            onChange={(e) => {
+              setActive(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">All Status</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+
+          {/* Reset Filters chip if any filter is active */}
+          {(Boolean(search) || Boolean(designation) || Boolean(supervisorFilter) || Boolean(active)) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setDesignation('');
+                setSupervisorFilter('');
+                setActive('');
+                setPage(1);
+              }}
+              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 shrink-0 cursor-pointer"
+            >
+              ✕ Reset
+            </button>
+          )}
+        </div>
       </div>
 
       <LoadState state={state}>
@@ -1078,118 +1219,236 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
             No workers match the selected filters.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="attendance-table w-full">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  {['Worker', 'Firm / Designation', 'Supervisor', 'Face Recognition', 'Joined', 'Status', 'Actions'].map(
-                    (h) => (
-                      <th key={h} className={cellClass}>
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {state.data.items.map((worker) => (
-                  <tr key={worker._id} className="hover:bg-slate-50/60">
-                    <td data-label="Worker" className={cellClass}>
-                      <div className="flex items-center gap-3">
-                        <WorkerPhoto worker={worker} />
-                        <div>
-                          <p className="font-semibold text-slate-900">{worker.fullName}</p>
-                          <p className="font-mono text-xs text-slate-500">{worker.workerCode}</p>
-                          {worker.mobileNumber && (
-                            <p className="text-xs text-slate-400">📱 {worker.mobileNumber}</p>
+          <>
+            {/* Mobile Card View (< 640px) */}
+            <div className="sm:hidden space-y-1.5">
+              {state.data.items.map((worker) => (
+                <div
+                  key={worker._id}
+                  className="rounded-xl border border-slate-200/90 bg-white p-2 shadow-2xs hover:border-slate-300 transition active:bg-slate-50/70 cursor-pointer"
+                  onClick={() => setDetailsWorker(worker)}
+                  title="Tap to view worker profile"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Worker Avatar (compact 32px) */}
+                    <WorkerPhoto worker={worker} compact={true} />
+
+                    {/* Content Section */}
+                    <div className="min-w-0 flex-1">
+                      {/* Top Line: Worker Name + Code badge + Active/Inactive status */}
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="font-bold text-slate-900 text-xs truncate max-w-[140px]">
+                            {worker.fullName}
+                          </p>
+                          <span className="font-mono text-[9px] text-slate-500 bg-slate-100 px-1 py-0.5 rounded leading-none shrink-0">
+                            {worker.workerCode}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {worker.isSupervisor && (
+                            <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-800 leading-none">
+                              Sup
+                            </span>
                           )}
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none ${
+                              worker.active
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {worker.active ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
                       </div>
-                    </td>
-                    <td data-label="Firm / designation" className={cellClass}>
-                      <p className="font-medium text-slate-800">{worker.designation?.name || '—'}</p>
-                      <p className="text-xs text-slate-500">{worker.firm?.name}</p>
-                    </td>
-                    <td data-label="Role" className={cellClass}>
-                      {worker.isSupervisor ? (
-                        <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                          Supervisor
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-400">Worker</span>
-                      )}
-                    </td>
-                    <td data-label="Face recognition" className={cellClass}>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${
-                          worker.faceStatus === 'REGISTERED'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-500'
-                        }`}
-                      >
-                        {worker.faceStatus === 'REGISTERED'
-                          ? '✓ Enrolled'
-                          : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
-                          ? 'Re-enrol'
-                          : 'Not Enrolled'}
-                      </span>
-                    </td>
-                    <td data-label="Joined" className={`${cellClass} whitespace-nowrap text-xs text-slate-600`}>
-                      {worker.dateOfJoining}
-                    </td>
-                    <td data-label="Status" className={cellClass}>
-                      <Status active={worker.active} />
-                    </td>
-                    <td data-label="Actions" className={cellClass}>
-                      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 pt-1 sm:pt-0">
-                        <button
-                          type="button"
-                          className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs hover:border-emerald-300 hover:text-emerald-700`}
-                          title="Enrol face recognition"
-                          onClick={() => setEnrollingFaceWorker(worker)}
+
+                      {/* Bottom Line: Designation/Firm + Face Badge on left; Actions on right */}
+                      <div className="mt-1 flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 truncate text-[11px] text-slate-500">
+                          <span className="font-medium text-slate-700 truncate max-w-[105px]">
+                            {worker.designation?.name || '—'}
+                          </span>
+                          {worker.firm?.name && (
+                            <span className="text-slate-400 truncate max-w-[80px]">
+                              · {worker.firm.name}
+                            </span>
+                          )}
+                          <span
+                            className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold shrink-0 ${
+                              worker.faceStatus === 'REGISTERED'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            {worker.faceStatus === 'REGISTERED'
+                              ? '✓ Face'
+                              : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
+                              ? '⚠️ Face'
+                              : 'No Face'}
+                          </span>
+                        </div>
+
+                        {/* Quick Actions: [📷 Face] + [⋮] */}
+                        <div
+                          className="flex items-center gap-1 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          📷 Face
-                        </button>
-                        {canTransfer && (
                           <button
                             type="button"
-                            className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs hover:border-cyan-300 hover:text-cyan-700`}
-                            title="Transfer worker to new shed or firm"
-                            onClick={() => setTransferringWorker(worker)}
+                            className="inline-flex items-center gap-0.5 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer shadow-2xs whitespace-nowrap"
+                            title="Enrol face recognition"
+                            onClick={() => setEnrollingFaceWorker(worker)}
                           >
-                            ⇄ Transfer
+                            <span>📷</span>
+                            <span>Face</span>
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs`}
-                          onClick={() => setDetailsWorker(worker)}
-                        >
-                          Details
-                        </button>
-                        <button
-                          type="button"
-                          className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs`}
-                          onClick={() => setEditing(worker)}
-                        >
-                          Edit
-                        </button>
-                        <WorkerActionDropdown
-                          worker={worker}
-                          onToggle={toggleWorker}
-                          onDelete={handleDeleteWorker}
-                          busy={busy}
-                          canTransfer={canTransfer}
-                        />
+                          <WorkerActionDropdown
+                            worker={worker}
+                            onToggle={toggleWorker}
+                            onDelete={handleDeleteWorker}
+                            onEdit={setEditing}
+                            onTransfer={setTransferringWorker}
+                            onDetails={setDetailsWorker}
+                            onEnrolFace={setEnrollingFaceWorker}
+                            busy={busy}
+                            canTransfer={canTransfer}
+                            compact={true}
+                          />
+                        </div>
                       </div>
-                    </td>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View (>= 640px) */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="attendance-table w-full min-w-[760px]">
+                <thead className="bg-slate-50 text-slate-500">
+                  <tr>
+                    {['Worker', 'Firm / Designation', 'Supervisor', 'Face Recognition', 'Joined', 'Status', 'Actions'].map(
+                      (h) => (
+                        <th
+                          key={h}
+                          className={`${cellClass} ${
+                            h === 'Worker'
+                              ? 'sticky left-0 z-20 bg-slate-50 border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[180px] whitespace-nowrap'
+                              : ''
+                          }`}
+                        >
+                          {h}
+                        </th>
+                      )
+                    )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {state.data.items.map((worker) => (
+                    <tr key={worker._id} className="hover:bg-slate-50/60 group">
+                      <td
+                        data-label="Worker"
+                        className={`${cellClass} sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[180px]`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <WorkerPhoto worker={worker} />
+                          <div>
+                            <p className="font-semibold text-slate-900">{worker.fullName}</p>
+                            <p className="font-mono text-xs text-slate-500">{worker.workerCode}</p>
+                            {worker.mobileNumber && (
+                              <p className="text-xs text-slate-400">📱 {worker.mobileNumber}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Firm / designation" className={cellClass}>
+                        <p className="font-medium text-slate-800">{worker.designation?.name || '—'}</p>
+                        <p className="text-xs text-slate-500">{worker.firm?.name}</p>
+                      </td>
+                      <td data-label="Role" className={cellClass}>
+                        {worker.isSupervisor ? (
+                          <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                            Supervisor
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">Worker</span>
+                        )}
+                      </td>
+                      <td data-label="Face recognition" className={cellClass}>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${
+                            worker.faceStatus === 'REGISTERED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {worker.faceStatus === 'REGISTERED'
+                            ? '✓ Enrolled'
+                            : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
+                            ? 'Re-enrol'
+                            : 'Not Enrolled'}
+                        </span>
+                      </td>
+                      <td data-label="Joined" className={`${cellClass} whitespace-nowrap text-xs text-slate-600`}>
+                        {worker.dateOfJoining}
+                      </td>
+                      <td data-label="Status" className={cellClass}>
+                        <Status active={worker.active} />
+                      </td>
+                      <td data-label="Actions" className={`${cellClass} whitespace-nowrap`}>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs hover:border-emerald-300 hover:text-emerald-700 whitespace-nowrap`}
+                            title="Enrol face recognition"
+                            onClick={() => setEnrollingFaceWorker(worker)}
+                          >
+                            📷 Face
+                          </button>
+                          {canTransfer && (
+                            <button
+                              type="button"
+                              className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs hover:border-cyan-300 hover:text-cyan-700 whitespace-nowrap`}
+                              title="Transfer worker to new shed or firm"
+                              onClick={() => setTransferringWorker(worker)}
+                            >
+                              ⇄ Transfer
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs whitespace-nowrap`}
+                            onClick={() => setDetailsWorker(worker)}
+                          >
+                            Details
+                          </button>
+                          <button
+                            type="button"
+                            className={`${secondaryButton} !min-h-9 !px-2.5 !py-1 text-xs whitespace-nowrap`}
+                            onClick={() => setEditing(worker)}
+                          >
+                            Edit
+                          </button>
+                          <WorkerActionDropdown
+                            worker={worker}
+                            onToggle={toggleWorker}
+                            onDelete={handleDeleteWorker}
+                            busy={busy}
+                            canTransfer={canTransfer}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         <Pager
           pagination={state.data?.pagination}

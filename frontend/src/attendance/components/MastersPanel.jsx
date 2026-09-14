@@ -176,19 +176,178 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
     try { await saveAttendance(`${kind}/${item._id}`, { active: !item.active }, 'PATCH'); onChanged(`${item.name} ${item.active ? 'deactivated' : 'activated'}.`); }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   }
-  return <section className={`${panelClass} space-y-4`}>
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">{isLocation ? 'Sheds & work locations' : 'Designations'}</h2><p className="text-sm text-slate-500">{isLocation ? 'Manage sheds, supervisors and bird capacities.' : 'Define the roles used when deploying workers.'}</p></div><button className={`${primaryButton} w-full sm:w-auto !min-h-10`} disabled={!firmId} onClick={() => setEditor({ item: null })}>+ Add {isLocation ? 'location' : 'designation'}</button></div>
-    {!firmId && <p className="text-sm text-amber-800">Select a firm above to add a record.</p>}
-    <Alert>{error}</Alert>
-    <div className="grid gap-3 grid-cols-1 sm:grid-cols-[1fr_180px]"><input aria-label="Search names" className={inputClass} placeholder="Search by name…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /><select aria-label="Active status" className={inputClass} value={active} onChange={(e) => { setActive(e.target.value); setPage(1); }}><option value="">All statuses</option><option value="true">Active</option><option value="false">Inactive</option></select></div>
+  return (
+    <section className={`${panelClass} space-y-3`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-slate-900">
+            {isLocation ? 'Sheds & work locations' : 'Designations'}
+          </h2>
+          <p className="text-[11px] sm:text-xs text-slate-500">
+            {isLocation
+              ? 'Manage sheds, supervisors and bird capacities.'
+              : 'Define the roles used when deploying workers.'}
+          </p>
+        </div>
+        <button
+          className={`${primaryButton} self-start sm:self-auto !min-h-7.5 h-7.5 px-3 py-1.5 text-xs font-semibold rounded-xl whitespace-nowrap cursor-pointer`}
+          disabled={!firmId}
+          onClick={() => setEditor({ item: null })}
+        >
+          + Add {isLocation ? 'Location' : 'Designation'}
+        </button>
+      </div>
+
+      {!firmId && <p className="text-sm text-amber-800">Select a firm above to add a record.</p>}
+      <Alert>{error}</Alert>
+
+      {/* Filter toolbar: compact 1-line layout */}
+      <div className="flex items-center gap-1.5 text-xs">
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-400 text-xs">
+            🔍
+          </span>
+          <input
+            aria-label="Search names"
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-7 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-500"
+            placeholder={`Search ${isLocation ? 'locations' : 'designations'}…`}
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch('');
+                setPage(1);
+              }}
+              className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <select
+          aria-label="Active status"
+          className={`shrink-0 rounded-lg border px-2 py-1.5 text-[11px] font-medium outline-none transition cursor-pointer ${
+            active
+              ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+          }`}
+          value={active}
+          onChange={(e) => {
+            setActive(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">All Status</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+      </div>
     <LoadState state={state}>
-      {!state.data?.items.length ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">No matching {isLocation ? 'locations' : 'designations'}.</p> : <div className="overflow-x-auto"><table className="attendance-table w-full"><thead className="bg-slate-50 text-slate-500"><tr>{['Name', 'Firm', ...(isLocation ? ['Supervisor', 'Bird capacity'] : []), 'Status', 'Actions'].map((label) => <th key={label} className={cellClass}>{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{state.data.items.map((item) => <tr key={item._id}>
-        <td data-label="Name" className={cellClass}><p className="font-semibold">{item.name}</p>{isLocation && <p className="text-xs text-slate-500">{item.type === 'SHED' ? 'Shed' : 'Miscellaneous'}</p>}</td><td data-label="Firm" className={cellClass}>{item.firm?.name}</td>
-        {isLocation && <><td data-label="Supervisor" className={cellClass}>{item.supervisor?.fullName || 'Unassigned'}</td><td data-label="Bird capacity" className={cellClass}>{item.type !== 'SHED' ? '—' : item.birdCapacity ? <><p className="font-semibold">{item.birdCapacity.total.toLocaleString('en-IN')} total</p><p className="whitespace-nowrap text-xs text-slate-500">Male {item.birdCapacity.male.toLocaleString('en-IN')} · Female {item.birdCapacity.female.toLocaleString('en-IN')}</p></> : <span className="text-amber-800">Not configured</span>}</td></>}
-        <td data-label="Status" className={cellClass}><Status active={item.active} /></td><td data-label="Actions" className={cellClass}><div className="grid grid-cols-2 sm:flex sm:gap-2"><button className={`${secondaryButton} !min-h-9 !px-3 !py-1 text-xs`} onClick={() => setEditor({ item })}>Edit</button><button className={`${secondaryButton} !min-h-9 !px-3 !py-1 text-xs`} disabled={busy} onClick={() => toggle(item)}>{item.active ? 'Deactivate' : 'Activate'}</button></div></td>
-      </tr>)}</tbody></table></div>}
-      <Pager pagination={state.data?.pagination} onPage={setPage} onLimit={(value) => { setLimit(value); setPage(1); }} />
+      {!state.data?.items.length ? (
+        <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">
+          No matching {isLocation ? 'locations' : 'designations'}.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="attendance-table w-full min-w-[620px]">
+            <thead className="bg-slate-50 text-slate-500">
+              <tr>
+                {['Name', 'Firm', ...(isLocation ? ['Supervisor', 'Bird capacity'] : []), 'Status', 'Actions'].map(
+                  (label) => (
+                    <th
+                      key={label}
+                      className={`${cellClass} ${
+                        label === 'Name'
+                          ? 'sticky left-0 z-20 bg-slate-50 border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[140px] whitespace-nowrap'
+                          : ''
+                      }`}
+                    >
+                      {label === 'Name' ? (isLocation ? 'Location / Shed Name' : 'Designation Name') : label}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {state.data.items.map((item) => (
+                <tr key={item._id} className="hover:bg-slate-50/80 group">
+                  <td
+                    data-label="Name"
+                    className={`${cellClass} sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[140px]`}
+                  >
+                    <p className="font-semibold text-slate-900 truncate max-w-[150px]">{item.name}</p>
+                    {isLocation && (
+                      <p className="text-xs text-slate-500">{item.type === 'SHED' ? 'Shed' : 'Miscellaneous'}</p>
+                    )}
+                  </td>
+                  <td data-label="Firm" className={cellClass}>
+                    {item.firm?.name}
+                  </td>
+                  {isLocation && (
+                    <>
+                      <td data-label="Supervisor" className={cellClass}>
+                        {item.supervisor?.fullName || 'Unassigned'}
+                      </td>
+                      <td data-label="Bird capacity" className={cellClass}>
+                        {item.type !== 'SHED' ? (
+                          '—'
+                        ) : item.birdCapacity ? (
+                          <>
+                            <p className="font-semibold">{item.birdCapacity.total.toLocaleString('en-IN')} total</p>
+                            <p className="whitespace-nowrap text-xs text-slate-500">
+                              Male {item.birdCapacity.male.toLocaleString('en-IN')} · Female{' '}
+                              {item.birdCapacity.female.toLocaleString('en-IN')}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-amber-800">Not configured</span>
+                        )}
+                      </td>
+                    </>
+                  )}
+                  <td data-label="Status" className={cellClass}>
+                    <Status active={item.active} />
+                  </td>
+                  <td data-label="Actions" className={`${cellClass} whitespace-nowrap`}>
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
+                      <button
+                        className={`${secondaryButton} !min-h-8 sm:!min-h-9 !px-3 !py-1 text-xs whitespace-nowrap`}
+                        onClick={() => setEditor({ item })}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={`${secondaryButton} !min-h-8 sm:!min-h-9 !px-3 !py-1 text-xs whitespace-nowrap`}
+                        disabled={busy}
+                        onClick={() => toggle(item)}
+                      >
+                        {item.active ? 'Deactivate' : 'Activate'}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <Pager
+        pagination={state.data?.pagination}
+        onPage={setPage}
+        onLimit={(value) => {
+          setLimit(value);
+          setPage(1);
+        }}
+      />
     </LoadState>
     {editor && <MasterForm item={editor.item} kind={kind} firmId={editor.item?.firm?._id || firmId} onClose={() => setEditor(null)} onSaved={(message) => { setEditor(null); onChanged(message); }} />}
-  </section>;
+    </section>
+  );
 }

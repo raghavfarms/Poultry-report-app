@@ -427,15 +427,15 @@ export default function LiveDashboardView() {
             </div>
           ) : (
             <div className="mt-4 overflow-x-auto">
-              <table className="attendance-table w-full text-left text-xs">
+              <table className="attendance-table w-full min-w-[620px] text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="pb-2.5">Worker</th>
-                    <th className="pb-2.5">Work Location</th>
-                    <th className="pb-2.5">Designation</th>
-                    <th className="pb-2.5">Duty IN</th>
-                    <th className="pb-2.5">Elapsed</th>
-                    <th className="pb-2.5">Source</th>
+                    <th className="pb-2.5 sticky left-0 z-20 bg-white border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] pr-3 min-w-[140px] whitespace-nowrap">Worker</th>
+                    <th className="pb-2.5 px-2">Work Location</th>
+                    <th className="pb-2.5 px-2">Designation</th>
+                    <th className="pb-2.5 px-2">Duty IN</th>
+                    <th className="pb-2.5 px-2">Elapsed</th>
+                    <th className="pb-2.5 px-2">Source</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -447,8 +447,8 @@ export default function LiveDashboardView() {
                       hour12: true,
                     });
                     return (
-                      <tr key={staff.sessionId} className="hover:bg-slate-50/80">
-                        <td data-label="Worker" className="py-2.5">
+                      <tr key={staff.sessionId} className="hover:bg-slate-50/80 group">
+                        <td data-label="Worker" className="py-2.5 sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] pr-3 min-w-[140px]">
                           <div className="flex items-center gap-2">
                             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
                               {staff.workerName?.slice(0, 1)?.toUpperCase() || '?'}

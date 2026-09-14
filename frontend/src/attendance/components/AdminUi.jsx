@@ -217,7 +217,7 @@ export function Dialog({ title, onClose, busy = false, maxWidth = '420px', child
   );
 }
 
-export function WorkerPhoto({ worker, large = false }) {
+export function WorkerPhoto({ worker, large = false, compact = false, size = '' }) {
   const [url, setUrl] = useState('');
   useEffect(() => {
     setUrl('');
@@ -230,12 +230,13 @@ export function WorkerPhoto({ worker, large = false }) {
     return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [worker._id, worker.hasPhotograph, worker.updatedAt]);
   const src = url || (!worker.hasPhotograph ? worker.photographUrl : '');
-  return <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl bg-emerald-50 font-bold text-emerald-800 ${large ? 'h-24 w-24 text-3xl' : 'h-11 w-11 text-lg'}`}>
+  const sizeClass = size || (large ? 'h-24 w-24 text-3xl rounded-xl' : compact ? 'h-8 w-8 text-xs rounded-lg' : 'h-11 w-11 text-lg rounded-xl');
+  return <span className={`flex shrink-0 items-center justify-center overflow-hidden bg-emerald-50 font-bold text-emerald-800 ${sizeClass}`}>
     {src ? <img className="h-full w-full object-cover" src={src} alt={`${worker.fullName}'s photograph`} onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : (worker.fullName?.slice(0, 1)?.toUpperCase() || '?')}
   </span>;
 }
 
 export const dateTime = (value) => value ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date(value)) : 'Present';
-export const panelClass = 'min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5';
+export const panelClass = 'min-w-0 rounded-2xl border border-slate-200 bg-white p-3 sm:p-5 shadow-sm';
 export const cellClass = 'px-3 py-3 text-left align-top text-sm';
 export function Status({ active }) { return <span className={`rounded-full px-2 py-1 text-xs font-semibold ${active ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{active ? 'Active' : 'Inactive'}</span>; }

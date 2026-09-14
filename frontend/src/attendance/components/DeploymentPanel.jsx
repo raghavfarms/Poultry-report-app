@@ -40,13 +40,56 @@ export function InitialDeploymentForm({ worker, onClose, onSaved }) {
 
 export function DeploymentTable({ items = [] }) {
   if (!items.length) return <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">No deployments match this selection.</p>;
-  return <div className="overflow-x-auto"><table className="attendance-table w-full"><thead className="bg-slate-50 text-slate-500"><tr>{['Worker', 'Firm / location', 'Designation / supervisor', 'Start Date', 'Reason'].map((label) => <th key={label} className={cellClass}>{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{items.map((row) => <tr key={row._id}>
-    <td data-label="Worker" className={cellClass}><p className="font-semibold">{row.workerNameSnapshot}</p><p className="text-xs text-slate-500">{row.workerCodeSnapshot}</p></td>
-    <td data-label="Firm / location" className={cellClass}><p>{row.firmNameSnapshot}</p><p className="text-xs text-slate-500">{row.workLocationNameSnapshot}</p></td>
-    <td data-label="Designation / supervisor" className={cellClass}><p>{row.designationNameSnapshot}</p><p className="text-xs text-slate-500">{row.supervisorNameSnapshot || 'No supervisor'}</p></td>
-    <td data-label="Start Date" className={`${cellClass} whitespace-nowrap`}>{dateTime(row.effectiveFrom)}</td>
-    <td data-label="Reason" className={cellClass}><p>{row.reason}</p><p className="text-xs text-slate-500">{row.allocationType.replaceAll('_', ' ')}</p></td>
-  </tr>)}</tbody></table></div>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="attendance-table w-full min-w-[650px]">
+        <thead className="bg-slate-50 text-slate-500">
+          <tr>
+            {['Worker', 'Firm / location', 'Designation / supervisor', 'Start Date', 'Reason'].map((label) => (
+              <th
+                key={label}
+                className={`${cellClass} ${
+                  label === 'Worker'
+                    ? 'sticky left-0 z-20 bg-slate-50 border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[130px] whitespace-nowrap'
+                    : ''
+                }`}
+              >
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {items.map((row) => (
+            <tr key={row._id} className="hover:bg-slate-50/80 group">
+              <td
+                data-label="Worker"
+                className={`${cellClass} sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[130px]`}
+              >
+                <p className="font-semibold text-slate-900 truncate max-w-[130px]">{row.workerNameSnapshot}</p>
+                <p className="text-xs text-slate-500 font-mono">{row.workerCodeSnapshot}</p>
+              </td>
+              <td data-label="Firm / location" className={cellClass}>
+                <p className="font-medium text-slate-800">{row.firmNameSnapshot}</p>
+                <p className="text-xs text-slate-500">{row.workLocationNameSnapshot}</p>
+              </td>
+              <td data-label="Designation / supervisor" className={cellClass}>
+                <p className="font-medium text-slate-800">{row.designationNameSnapshot}</p>
+                <p className="text-xs text-slate-500">{row.supervisorNameSnapshot || 'No supervisor'}</p>
+              </td>
+              <td data-label="Start Date" className={`${cellClass} whitespace-nowrap`}>
+                {dateTime(row.effectiveFrom)}
+              </td>
+              <td data-label="Reason" className={cellClass}>
+                <p className="text-slate-800">{row.reason}</p>
+                <p className="text-xs text-slate-500">{row.allocationType.replaceAll('_', ' ')}</p>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export default function DeploymentPanel({ firmId, revision }) {
@@ -85,14 +128,27 @@ export default function DeploymentPanel({ firmId, revision }) {
     revision
   );
   const change = (setter, value) => { setter(value); setPage(1); };
-  return <section className={`${panelClass} space-y-4`}>
-    <div><h2 className="text-lg font-bold">Worker deployment</h2><p className="text-sm text-slate-500">View current shed assignments of active workers.</p></div>
-    {firmId && (
-      <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-3 items-center">
-        <Field label="Worker">
+  return (
+    <section className={`${panelClass} space-y-3`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-slate-900">Worker deployment</h2>
+          <p className="text-[11px] sm:text-xs text-slate-500">
+            View current shed assignments of active workers.
+          </p>
+        </div>
+      </div>
+
+      {firmId && (
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+          {/* Worker Filter */}
           <select
             aria-label="Filter by Worker"
-            className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
+            className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+              worker
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            }`}
             value={worker}
             onChange={(e) => change(setWorker, e.target.value)}
           >
@@ -103,11 +159,15 @@ export default function DeploymentPanel({ firmId, revision }) {
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Work location">
+
+          {/* Work Location Filter */}
           <select
             aria-label="Filter by Work location"
-            className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
+            className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+              location
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            }`}
             value={location}
             onChange={(e) => change(setLocation, e.target.value)}
           >
@@ -118,11 +178,15 @@ export default function DeploymentPanel({ firmId, revision }) {
               </option>
             ))}
           </select>
-        </Field>
-        <Field label="Supervisor">
+
+          {/* Supervisor Filter */}
           <select
             aria-label="Filter by Supervisor"
-            className={`${inputClass} !min-h-9 sm:!min-h-10 !h-9 sm:!h-10 !py-1 text-xs sm:text-sm font-medium`}
+            className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+              supervisor
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+            }`}
             value={supervisor}
             onChange={(e) => change(setSupervisor, e.target.value)}
           >
@@ -133,12 +197,29 @@ export default function DeploymentPanel({ firmId, revision }) {
               </option>
             ))}
           </select>
-        </Field>
-      </div>
-    )}
-    <LoadState state={state}>
-      <DeploymentTable items={state.data?.items} />
-      <Pager pagination={state.data?.pagination} onPage={setPage} onLimit={(value) => { setLimit(value); setPage(1); }} />
-    </LoadState>
-  </section>;
+
+          {/* Reset Filters chip */}
+          {(Boolean(worker) || Boolean(location) || Boolean(supervisor)) && (
+            <button
+              type="button"
+              onClick={() => {
+                setWorker('');
+                setLocation('');
+                setSupervisor('');
+                setPage(1);
+              }}
+              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-semibold text-rose-700 hover:bg-rose-100 shrink-0 cursor-pointer"
+            >
+              ✕ Reset
+            </button>
+          )}
+        </div>
+      )}
+
+      <LoadState state={state}>
+        <DeploymentTable items={state.data?.items} />
+        <Pager pagination={state.data?.pagination} onPage={setPage} onLimit={(value) => { setLimit(value); setPage(1); }} />
+      </LoadState>
+    </section>
+  );
 }

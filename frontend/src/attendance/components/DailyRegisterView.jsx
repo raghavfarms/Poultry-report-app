@@ -279,20 +279,20 @@ export default function DailyRegisterView({
             <p className="text-sm font-semibold">No attendance records found matching filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="attendance-table w-full text-left text-xs">
-              <thead className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <div className="overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll">
+            <table className="attendance-table w-full text-left text-xs border-collapse">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                 <tr>
-                  <th className="sticky left-0 z-10 bg-slate-50 px-2.5 py-1.5 sm:px-3 sm:py-2 border-r border-slate-200/60 shadow-[1px_0_2px_rgba(0,0,0,0.03)]">Worker ID & Name</th>
-                  <th className="px-3 py-2">Work Location</th>
-                  <th className="px-3 py-2">Designation</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2">Duty IN</th>
-                  <th className="px-3 py-2">Duty OUT</th>
-                  <th className="px-3 py-2">Hours Logged</th>
-                  <th className="px-3 py-2">Lunch Time</th>
-                  <th className="px-3 py-2">Source</th>
-                  <th className="px-3 py-2">Remarks</th>
+                  <th className="sticky top-0 left-0 z-30 bg-slate-50 px-2.5 py-1.5 sm:px-3 sm:py-2 border-r border-slate-200/60 shadow-[1px_0_2px_rgba(0,0,0,0.03)] whitespace-nowrap">Worker ID & Name</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Work Location</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Designation</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Status</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Duty IN</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Duty OUT</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Hours Logged</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Lunch Time</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Source</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Remarks</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -305,8 +305,8 @@ export default function DailyRegisterView({
                     : '—';
 
                   return (
-                    <tr key={r.workerId} className="hover:bg-slate-50/80">
-                      <td data-label="Worker" className="sticky left-0 z-10 bg-white px-2.5 py-1 sm:px-3 border-r border-slate-200/60 shadow-[1px_0_2px_rgba(0,0,0,0.03)]">
+                    <tr key={r.workerId} className="hover:bg-slate-50/80 group">
+                      <td data-label="Worker" className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors px-2.5 py-1 sm:px-3 border-r border-slate-200/60 shadow-[1px_0_2px_rgba(0,0,0,0.03)]">
                         <div className="flex items-center gap-1.5">
                           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[9px] font-bold text-slate-700">
                             {r.workerName?.slice(0, 1)?.toUpperCase() || '?'}
