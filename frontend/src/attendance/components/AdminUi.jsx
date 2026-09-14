@@ -212,7 +212,7 @@ export function Dialog({ title, onClose, busy = false, maxWidth = '420px', child
           Close
         </button>
       </div>
-      <div className="p-2.5 sm:p-3">{children}</div>
+      <div className="p-2 sm:p-3">{children}</div>
     </dialog>
   );
 }

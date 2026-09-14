@@ -78,15 +78,15 @@ export function workerPayload(body, create = false) {
   fields(body, [
     'fullName', 'fatherOrHusbandName', 'gender', 'mobileNumber', 'address', 'photographUrl',
     'dateOfJoining', 'designation', 'isSupervisor', 'active', 'leavingDate', 'inactiveReason',
-    'remarks', 'aadhaarNumber', 'bankDetails', ...(create ? ['firmId', 'initialDeployment'] : []),
+    'remarks', 'referenceName', 'referenceMobile', 'aadhaarNumber', 'bankDetails', ...(create ? ['firmId', 'initialDeployment'] : []),
   ]);
   const result = {};
   if (create) result.firm = objectId(body.firmId, 'Firm');
   if (create || body.fullName !== undefined) result.fullName = text(body.fullName, 'Full name', 120, true);
   if (create || body.dateOfJoining !== undefined) result.dateOfJoining = dateOnly(body.dateOfJoining, 'Date of joining');
   if (create || body.designation !== undefined) result.designation = objectId(body.designation, 'Designation');
-  for (const key of ['fatherOrHusbandName', 'address', 'inactiveReason', 'remarks']) {
-    if (body[key] !== undefined) result[key] = text(body[key], key, key === 'fatherOrHusbandName' ? 120 : 1000);
+  for (const key of ['fatherOrHusbandName', 'address', 'inactiveReason', 'remarks', 'referenceName']) {
+    if (body[key] !== undefined) result[key] = text(body[key], key, key === 'address' || key === 'inactiveReason' || key === 'remarks' ? 1000 : 120);
   }
   for (const key of ['active', 'isSupervisor']) if (body[key] !== undefined) result[key] = boolean(body[key], key);
   if (body.gender !== undefined) {
@@ -96,6 +96,14 @@ export function workerPayload(body, create = false) {
   if (body.mobileNumber !== undefined) {
     result.mobileNumber = text(body.mobileNumber, 'Mobile number', 16).replace(/[\s-]/g, '');
     if (!/^(?:\+?\d{10,15})?$/.test(result.mobileNumber)) throw badRequest('Enter a valid mobile number.');
+  }
+  if (body.referenceMobile !== undefined) {
+    if (body.referenceMobile === null || body.referenceMobile === '') {
+      result.referenceMobile = '';
+    } else {
+      result.referenceMobile = text(body.referenceMobile, 'Reference mobile', 16).replace(/[\s-]/g, '');
+      if (!/^(?:\+?\d{10,15})?$/.test(result.referenceMobile)) throw badRequest('Enter a valid reference mobile number.');
+    }
   }
   if (body.leavingDate !== undefined) result.leavingDate = body.leavingDate === null ? null : dateOnly(body.leavingDate, 'Leaving date');
   if (body.photographUrl !== undefined) {

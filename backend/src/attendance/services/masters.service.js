@@ -163,7 +163,7 @@ export function publicWorker(worker) {
 }
 
 export async function listWorkers(user, query) {
-  const filter = { ...firmScope(user, query.firmId), ...searchFilter(query, ['fullName', 'workerCode', 'mobileNumber']) };
+  const filter = { ...firmScope(user, query.firmId), ...searchFilter(query, ['fullName', 'workerCode', 'mobileNumber', 'referenceName']) };
   if (query.designation !== undefined) filter.designation = objectId(query.designation, 'Designation');
   if (query.isSupervisor !== undefined) {
     if (!['true', 'false'].includes(query.isSupervisor)) throw badRequest('Supervisor filter must be true or false.');

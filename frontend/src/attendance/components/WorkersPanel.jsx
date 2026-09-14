@@ -34,7 +34,7 @@ function PrivateDetailsSection({ form, set }) {
       </button>
       {open && (
         <div className="mt-1.5 space-y-1.5 pt-1.5 border-t border-slate-200">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2.5 gap-y-1.5">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
             <Field label="Aadhaar Number">
               <input
                 type="text"
@@ -109,6 +109,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
     address: '',
     dateOfJoining: todayDate,
     designation: '',
+    referenceName: '',
     remarks: '',
     workLocation: '',
     supervisor: '',
@@ -161,6 +162,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
       dateOfJoining: form.dateOfJoining,
       designation: form.designation,
       isSupervisor: false,
+      referenceName: form.referenceName.trim(),
       remarks: form.remarks.trim(),
       initialDeployment: {
         workLocation: form.workLocation,
@@ -210,7 +212,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
         {error && <Alert>{error}</Alert>}
         <fieldset disabled={busy} className="space-y-2">
           {/* Main 2-Column Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2.5 gap-y-1.5">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
             <Field label="Full Name *">
               <input
                 required
@@ -248,7 +250,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
               />
             </Field>
 
-
             <Field label="Mobile Number">
               <input
                 type="tel"
@@ -257,6 +258,15 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                 className={compactInputClass}
                 value={form.mobileNumber}
                 onChange={(e) => set('mobileNumber', e.target.value)}
+              />
+            </Field>
+
+            <Field label="Father / Husband Name">
+              <input
+                maxLength={120}
+                className={compactInputClass}
+                value={form.fatherOrHusbandName}
+                onChange={(e) => set('fatherOrHusbandName', e.target.value)}
               />
             </Field>
 
@@ -273,15 +283,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
               </select>
             </Field>
 
-            <Field label="Father / Husband Name">
-              <input
-                maxLength={120}
-                className={compactInputClass}
-                value={form.fatherOrHusbandName}
-                onChange={(e) => set('fatherOrHusbandName', e.target.value)}
-              />
-            </Field>
-
             <Field label="Address">
               <input
                 maxLength={1000}
@@ -292,8 +293,18 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
               />
             </Field>
 
+            <Field label="Reference Name (Optional)">
+              <input
+                maxLength={120}
+                placeholder="e.g. Reference person"
+                className={compactInputClass}
+                value={form.referenceName}
+                onChange={(e) => set('referenceName', e.target.value)}
+              />
+            </Field>
+
             {/* Photo upload inline */}
-            <div className="flex flex-col justify-end">
+            <div className="col-span-2 flex flex-col justify-end">
               <span className="text-[11px] font-semibold text-slate-600 leading-tight mb-0.5">Worker Photo</span>
               <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50/70 px-2 h-7">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded bg-emerald-100 text-[10px] font-bold text-emerald-800 border border-emerald-200">
@@ -321,7 +332,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
               </span>
               <span className="text-[10px] text-slate-400">Starting location</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2.5 gap-y-1.5">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
               <RemoteSelect
                 required
                 label="Work Location"
@@ -363,17 +374,6 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
           {/* Confidential Details */}
           <PrivateDetailsSection form={form} set={set} />
 
-          {/* Remarks */}
-          <Field label="Remarks (Optional)">
-            <input
-              maxLength={1000}
-              placeholder="Additional notes"
-              className={compactInputClass}
-              value={form.remarks}
-              onChange={(e) => set('remarks', e.target.value)}
-            />
-          </Field>
-
           {/* Modal Footer Buttons */}
           <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
             <button
@@ -407,6 +407,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
     active: worker.active ?? true,
     leavingDate: worker.leavingDate || '',
     inactiveReason: worker.inactiveReason || '',
+    referenceName: worker.referenceName || '',
     remarks: worker.remarks || '',
     aadhaarNumber: '',
     accountHolderName: '',
@@ -473,6 +474,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
       active: form.active,
       leavingDate: form.active ? null : form.leavingDate || null,
       inactiveReason: form.active ? '' : form.inactiveReason.trim(),
+      referenceName: form.referenceName.trim(),
       remarks: form.remarks.trim(),
     };
 
@@ -510,7 +512,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
       <form onSubmit={save} className="space-y-2">
         {error && <Alert>{error}</Alert>}
         <fieldset disabled={busy} className="space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2.5 gap-y-1.5">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
             <Field label="Full Name *">
               <input
                 required
@@ -520,6 +522,18 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
                 onChange={(e) => set('fullName', e.target.value)}
               />
             </Field>
+
+            <Field label="Mobile Number">
+              <input
+                type="tel"
+                maxLength={15}
+                placeholder="10-digit mobile"
+                className={compactInputClass}
+                value={form.mobileNumber}
+                onChange={(e) => set('mobileNumber', e.target.value)}
+              />
+            </Field>
+
             <Field label="Father / Husband Name">
               <input
                 maxLength={120}
@@ -528,6 +542,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
                 onChange={(e) => set('fatherOrHusbandName', e.target.value)}
               />
             </Field>
+
             <Field label="Gender">
               <select
                 className={compactInputClass}
@@ -540,16 +555,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
                 <option value="OTHER">Other</option>
               </select>
             </Field>
-            <Field label="Mobile Number">
-              <input
-                type="tel"
-                maxLength={15}
-                placeholder="10-digit mobile"
-                className={compactInputClass}
-                value={form.mobileNumber}
-                onChange={(e) => set('mobileNumber', e.target.value)}
-              />
-            </Field>
+
             <Field label="Address">
               <input
                 maxLength={1000}
@@ -560,28 +566,39 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
               />
             </Field>
 
+            <Field label="Reference Name (Optional)">
+              <input
+                maxLength={120}
+                placeholder="e.g. Reference person"
+                className={compactInputClass}
+                value={form.referenceName}
+                onChange={(e) => set('referenceName', e.target.value)}
+              />
+            </Field>
+
             {/* Photo updater inline */}
             <div className="flex flex-col justify-end">
-              <span className="text-[11px] font-semibold text-slate-600 leading-tight mb-0.5">Update Photograph</span>
-              <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50/70 px-2 h-7">
+              <span className="text-[11px] font-semibold text-slate-600 leading-tight mb-0.5">Update Photo</span>
+              <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50/70 px-1.5 h-7">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded bg-emerald-100 text-[10px] font-bold text-emerald-800 border border-emerald-200">
                   {photoPreview ? (
                     <img src={photoPreview} alt="Preview" className="h-full w-full object-cover" />
                   ) : (
-                    <WorkerPhoto worker={worker} />
+                    <WorkerPhoto worker={worker} compact />
                   )}
                 </span>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  className="w-full text-[10px] text-slate-500 file:mr-1.5 file:rounded file:border-0 file:bg-emerald-700 file:px-1.5 file:py-0.5 file:text-[10px] file:font-semibold file:text-white hover:file:bg-emerald-800 cursor-pointer"
+                  className="w-full text-[9px] text-slate-500 file:mr-1 file:rounded file:border-0 file:bg-emerald-700 file:px-1.5 file:py-0.5 file:text-[9px] file:font-semibold file:text-white hover:file:bg-emerald-800 cursor-pointer"
                   onChange={handlePhotoChange}
                 />
               </div>
             </div>
 
             {/* Active toggle */}
-            <div className="flex items-end">
+            <div className="flex flex-col justify-end">
+              <span className="text-[11px] font-semibold text-slate-600 leading-tight mb-0.5">Status</span>
               <label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer select-none rounded-md border border-slate-200 bg-slate-50/70 px-2 h-7 w-full hover:bg-slate-100">
                 <input
                   type="checkbox"
@@ -604,7 +621,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
 
           {/* Inactive details */}
           {!form.active && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2.5 gap-y-1.5 p-2 rounded-lg border border-red-200 bg-red-50/30">
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 p-2 rounded-lg border border-red-200 bg-red-50/30">
               <Field label="Leaving Date (India)">
                 <input
                   type="date"
@@ -628,17 +645,6 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
 
           {/* Confidential Details */}
           <PrivateDetailsSection form={form} set={set} />
-
-          {/* Remarks */}
-          <Field label="Remarks (Optional)">
-            <input
-              maxLength={1000}
-              placeholder="Additional notes"
-              className={compactInputClass}
-              value={form.remarks}
-              onChange={(e) => set('remarks', e.target.value)}
-            />
-          </Field>
 
           <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
             <button
@@ -671,50 +677,52 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
   const currentDeployment = deploymentState.data?.deployment;
 
   return (
-    <Dialog title={`${worker.fullName} (${worker.workerCode})`} onClose={onClose}>
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-          <div className="flex items-center gap-4">
-            <WorkerPhoto worker={worker} large />
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-900">{worker.fullName}</h3>
+    <Dialog title={`${worker.fullName} (${worker.workerCode})`} onClose={onClose} maxWidth="max-w-[500px]">
+      <div className="space-y-1.5 sm:space-y-2">
+        {/* Worker Top Profile Banner - Ultra Compact */}
+        <div className="flex items-center justify-between gap-2.5 rounded-lg border border-slate-200/80 bg-slate-50/70 p-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <WorkerPhoto worker={worker} size="h-10 w-10 sm:h-12 sm:w-12 text-sm rounded-lg shadow-xs shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 truncate">{worker.fullName}</h3>
                 <Status active={worker.active} />
                 {worker.isSupervisor && (
-                  <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                  <span className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-bold text-amber-800 shrink-0">
                     Supervisor
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-500">{worker.workerCode} · {worker.firm?.name}</p>
-              <p className="mt-1 text-sm font-medium text-emerald-800">{worker.designation?.name}</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 truncate mt-0.5">
+                {worker.workerCode} · {worker.firm?.name} · <span className="font-semibold text-emerald-800">{worker.designation?.name}</span>
+              </p>
             </div>
           </div>
           {!currentDeployment && worker.active && (
             <button
               type="button"
-              className={primaryButton}
+              className={`${primaryButton} !min-h-6 !h-6 !px-2 text-[10px] font-bold rounded shrink-0`}
               onClick={() => {
                 onClose();
                 onAssignInitial(worker);
               }}
             >
-              + Assign Initial Deployment
+              + Assign
             </button>
           )}
         </div>
 
-        {/* Tab Headers */}
-        <div className="flex border-b border-slate-200 overflow-x-auto whitespace-nowrap -webkit-overflow-scrolling-touch">
+        {/* Tab Headers - Compact 3-tab layout that fits on mobile without scrollbar */}
+        <div className="flex border-b border-slate-200 gap-1 text-[11px]">
           {[
-            ['profile', 'Profile & Current Assignment'],
-            ['history', 'Deployment History'],
-            ['private', 'Confidential Details'],
+            ['profile', 'Overview'],
+            ['history', 'Deployments'],
+            ['private', 'Confidential'],
           ].map(([key, label]) => (
             <button
               key={key}
               type="button"
-              className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-semibold transition ${
+              className={`shrink-0 border-b-2 px-2 sm:px-3 py-1 font-semibold transition cursor-pointer ${
                 tab === key
                   ? 'border-emerald-700 text-emerald-800'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -728,70 +736,94 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
 
         {/* Tab Content */}
         {tab === 'profile' && (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-slate-100 p-4 text-sm">
-              <div><span className="text-slate-500">Date of Joining:</span> <span className="font-semibold">{worker.dateOfJoining}</span></div>
-              <div><span className="text-slate-500">Mobile Number:</span> <span className="font-semibold">{worker.mobileNumber || 'None'}</span></div>
-              <div><span className="text-slate-500">Father/Husband Name:</span> <span className="font-semibold">{worker.fatherOrHusbandName || 'None'}</span></div>
-              <div><span className="text-slate-500">Gender:</span> <span className="font-semibold">{worker.gender}</span></div>
-              <div className="sm:col-span-2"><span className="text-slate-500">Address:</span> <span className="font-semibold">{worker.address || 'None'}</span></div>
+          <div className="space-y-1.5 sm:space-y-2">
+            {/* Master Details Grid - 2 columns inline key-value */}
+            <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 rounded-lg border border-slate-200/80 bg-white p-2 text-[11px] leading-tight">
+              <div className="truncate"><span className="text-slate-400 font-medium">Joined:</span> <span className="font-semibold text-slate-800">{worker.dateOfJoining}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Mobile:</span> <span className="font-semibold text-slate-800">{worker.mobileNumber || '—'}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Father:</span> <span className="font-semibold text-slate-800">{worker.fatherOrHusbandName || '—'}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Gender:</span> <span className="font-semibold text-slate-800">{worker.gender}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Ref:</span> <span className="font-semibold text-slate-800">{worker.referenceName || '—'}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Address:</span> <span className="font-semibold text-slate-800">{worker.address || '—'}</span></div>
               {!worker.active && (
                 <>
-                  <div><span className="text-slate-500">Leaving Date:</span> <span className="font-semibold text-red-700">{worker.leavingDate || 'Not specified'}</span></div>
-                  <div><span className="text-slate-500">Inactive Reason:</span> <span className="font-semibold">{worker.inactiveReason || 'None'}</span></div>
+                  <div className="truncate"><span className="text-rose-400 font-medium">Left:</span> <span className="font-semibold text-rose-700">{worker.leavingDate || '—'}</span></div>
+                  <div className="truncate"><span className="text-rose-400 font-medium">Reason:</span> <span className="font-semibold text-slate-700">{worker.inactiveReason || '—'}</span></div>
                 </>
               )}
             </div>
 
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-4">
-              <h4 className="text-sm font-bold text-emerald-900">Current Work Assignment</h4>
+            {/* Current Work Assignment - Compact card */}
+            <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/40 p-2 text-[11px]">
+              <div className="flex items-center justify-between mb-1 pb-0.5 border-b border-emerald-100 text-[10px]">
+                <span className="font-bold text-emerald-900 uppercase tracking-wide">
+                  Current Assignment
+                </span>
+                {currentDeployment ? (
+                  <span className="font-bold text-emerald-700 bg-emerald-100/90 px-1 py-0.2 rounded text-[9px]">
+                    Active
+                  </span>
+                ) : (
+                  <span className="font-medium text-amber-700 text-[9px]">Unassigned</span>
+                )}
+              </div>
               {deploymentState.loading ? (
-                <div className="py-3"><Spinner /></div>
+                <div className="py-1"><Spinner /></div>
               ) : currentDeployment ? (
-                <div className="mt-2 grid gap-2 sm:grid-cols-2 text-sm">
-                  <div><span className="text-slate-500">Location:</span> <span className="font-bold text-slate-800">{currentDeployment.workLocationNameSnapshot}</span></div>
-                  <div><span className="text-slate-500">Supervisor:</span> <span className="font-bold text-slate-800">{currentDeployment.supervisorNameSnapshot || 'None'}</span></div>
-                  <div><span className="text-slate-500">Effective Since:</span> <span className="font-medium text-slate-700">{dateTime(currentDeployment.effectiveFrom)}</span></div>
-                  <div><span className="text-slate-500">Reason:</span> <span className="text-slate-700">{currentDeployment.reason}</span></div>
+                <div className="grid grid-cols-2 gap-x-2.5 gap-y-1">
+                  <div className="truncate"><span className="text-slate-500 font-medium">Location:</span> <span className="font-bold text-slate-800">{currentDeployment.workLocationNameSnapshot}</span></div>
+                  <div className="truncate"><span className="text-slate-500 font-medium">Supervisor:</span> <span className="font-bold text-slate-800">{currentDeployment.supervisorNameSnapshot || 'None'}</span></div>
+                  <div className="truncate"><span className="text-slate-500 font-medium">Since:</span> <span className="font-medium text-slate-700">{dateTime(currentDeployment.effectiveFrom)}</span></div>
+                  <div className="truncate"><span className="text-slate-500 font-medium">Reason:</span> <span className="text-slate-700">{currentDeployment.reason}</span></div>
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-amber-800">
-                  No active deployment record. Worker is currently unassigned.
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] text-amber-800">No active deployment record.</p>
+                  {worker.active && (
+                    <button
+                      type="button"
+                      className={`${primaryButton} !min-h-5 !h-5 !px-2 text-[10px] font-bold rounded`}
+                      onClick={() => {
+                        onClose();
+                        onAssignInitial(worker);
+                      }}
+                    >
+                      + Assign
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Face Recognition Profile</h4>
-                <p className="text-xs text-slate-500">
-                  Status:{' '}
-                  <span
-                    className={`font-semibold ${
-                      worker.faceStatus === 'REGISTERED'
-                        ? 'text-emerald-700'
-                        : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
-                        ? 'text-amber-700'
-                        : 'text-slate-500'
-                    }`}
-                  >
-                    {worker.faceStatus === 'REGISTERED'
-                      ? '✓ Registered & Active'
+            {/* Face Profile Section - Single slim row */}
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-slate-50/70 px-2.5 py-1.5 text-[11px]">
+              <div className="min-w-0">
+                <span className="text-slate-500 font-medium">Face ID: </span>
+                <span
+                  className={`font-semibold ${
+                    worker.faceStatus === 'REGISTERED'
+                      ? 'text-emerald-700'
                       : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
-                      ? 'Re-registration Required'
-                      : 'Not Registered'}
-                  </span>
-                </p>
+                      ? 'text-amber-700'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  {worker.faceStatus === 'REGISTERED'
+                    ? '✓ Registered'
+                    : worker.faceStatus === 'RE_REGISTRATION_REQUIRED'
+                    ? 'Re-enrol needed'
+                    : 'Not registered'}
+                </span>
               </div>
               <button
                 type="button"
-                className={secondaryButton}
+                className={`${secondaryButton} !min-h-6 !h-6 !px-2 text-[10px] font-semibold rounded cursor-pointer shrink-0`}
                 onClick={() => {
                   onClose();
                   onEnrolFace(worker);
                 }}
               >
-                {worker.faceStatus === 'REGISTERED' ? '📷 Manage Face' : '📷 Enrol Face'}
+                {worker.faceStatus === 'REGISTERED' ? '📷 Manage' : '📷 Enrol'}
               </button>
             </div>
           </div>
@@ -806,27 +838,42 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
         {tab === 'private' && (
           <LoadState state={privateState}>
             {privateState.data?.worker ? (
-              <div className="space-y-3 rounded-xl border border-slate-200 p-4 text-sm">
+              <div className="space-y-2.5 rounded-xl border border-slate-200/80 p-2.5 sm:p-3 text-xs">
                 <div>
-                  <span className="text-slate-500">Aadhaar Number:</span>{' '}
-                  <span className="font-mono font-bold tracking-wider text-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Aadhaar Number</span>
+                  <span className="font-mono font-bold tracking-wider text-slate-800 text-xs mt-0.5 block">
                     {privateState.data.worker.aadhaarNumber || 'Not provided'}
                   </span>
                 </div>
                 {privateState.data.worker.bankDetails ? (
-                  <div className="grid gap-2 sm:grid-cols-2 pt-2 border-t border-slate-100">
-                    <div><span className="text-slate-500">Bank Name:</span> <span className="font-semibold">{privateState.data.worker.bankDetails.bankName || '—'}</span></div>
-                    <div><span className="text-slate-500">Account Holder:</span> <span className="font-semibold">{privateState.data.worker.bankDetails.accountHolderName || '—'}</span></div>
-                    <div><span className="text-slate-500">Account Number:</span> <span className="font-mono font-bold">{privateState.data.worker.bankDetails.accountNumber}</span></div>
-                    <div><span className="text-slate-500">IFSC Code:</span> <span className="font-mono font-bold">{privateState.data.worker.bankDetails.ifsc}</span></div>
-                    <div><span className="text-slate-500">Branch:</span> <span className="font-semibold">{privateState.data.worker.bankDetails.branch || '—'}</span></div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-500 block">Bank Name</span>
+                      <span className="font-semibold text-slate-800 truncate block mt-0.5">{privateState.data.worker.bankDetails.bankName || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-500 block">Account Holder</span>
+                      <span className="font-semibold text-slate-800 truncate block mt-0.5">{privateState.data.worker.bankDetails.accountHolderName || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-500 block">Account Number</span>
+                      <span className="font-mono font-bold text-slate-800 truncate block mt-0.5">{privateState.data.worker.bankDetails.accountNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-500 block">IFSC Code</span>
+                      <span className="font-mono font-bold text-slate-800 truncate block mt-0.5">{privateState.data.worker.bankDetails.ifsc}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-500 block">Branch</span>
+                      <span className="font-semibold text-slate-800 truncate block mt-0.5">{privateState.data.worker.bankDetails.branch || '—'}</span>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-slate-500">No bank details recorded.</p>
+                  <p className="text-slate-500 text-xs">No bank details recorded.</p>
                 )}
               </div>
             ) : (
-              <p className="text-slate-500">Confidential details unavailable.</p>
+              <p className="text-slate-500 text-xs">Confidential details unavailable.</p>
             )}
           </LoadState>
         )}

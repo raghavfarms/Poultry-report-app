@@ -26,6 +26,8 @@ const schema = new mongoose.Schema({
   active: { type: Boolean, default: true },
   leavingDate: { type: String, default: null },
   inactiveReason: { type: String, trim: true, maxlength: 1000, default: '' },
+  referenceName: { type: String, trim: true, maxlength: 120, default: '' },
+  referenceMobile: { type: String, match: /^(?:\+?\d{10,15})?$/, default: '' },
   remarks: { type: String, trim: true, maxlength: 1000, default: '' },
   aadhaarNumber: { type: String, match: /^[2-9]\d{11}$/, select: false },
   bankDetails: { type: bankSchema, select: false },
