@@ -118,16 +118,16 @@ export async function login(req, res) {
     return res.status(401).json({ message: 'Email or password is incorrect.' });
   }
   if (user.role === 'labour') {
-    user.role = 'office';
-    await user.save();
+    await User.updateOne({ _id: user._id }, { $set: { role: 'user' } });
+    user.role = 'user';
   }
   res.json({ token: signToken(user), user: publicUser(user) });
 }
 
 export async function getCurrentUser(req, res) {
   if (req.user?.role === 'labour') {
-    await User.updateOne({ _id: req.user._id }, { $set: { role: 'office' } });
-    req.user.role = 'office';
+    await User.updateOne({ _id: req.user._id }, { $set: { role: 'user' } });
+    req.user.role = 'user';
   }
   res.json({ user: publicUser(req.user) });
 }

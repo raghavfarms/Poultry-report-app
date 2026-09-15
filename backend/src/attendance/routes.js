@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { protect, attendanceStaffOnly, supervisorOrAdminOnly } from '../middleware/auth.js';
+import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly } from '../middleware/auth.js';
 import { firmScope } from './authorization.js';
 import Firm from '../models/Firm.js';
 import * as service from './services/masters.service.js';
@@ -51,12 +51,12 @@ router.get('/registered-users', async (req, res) => res.json(await service.listR
 
 for (const kind of ['designations', 'work-locations']) {
   router.get(`/${kind}`, async (req, res) => res.json(await service.listMasters(kind, req.user, req.query)));
-  router.post(`/${kind}`, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
+  router.post(`/${kind}`, attendanceAdminOnly, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
   router.get(`/${kind}/:id`, async (req, res) => {
     const item = await service.getMaster(kind, req.user, req.params.id);
     res.json({ item: kind === 'work-locations' ? service.locationWithCapacity(item) : item });
   });
-  router.patch(`/${kind}/:id`, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
+  router.patch(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
 }
 
 // Deployments
@@ -64,18 +64,18 @@ router.get('/deployments', async (req, res) => res.json(await deploymentService.
 
 // Workers
 router.get('/workers', async (req, res) => res.json(await service.listWorkers(req.user, req.query)));
-router.post('/workers', async (req, res) => res.status(201).json(await service.createWorker(req.user, req.body)));
-router.get('/workers/:id/private-details', async (req, res) => res.json(await service.getWorker(req.user, req.params.id, true)));
+router.post('/workers', attendanceAdminOnly, async (req, res) => res.status(201).json(await service.createWorker(req.user, req.body)));
+router.get('/workers/:id/private-details', attendanceAdminOnly, async (req, res) => res.json(await service.getWorker(req.user, req.params.id, true)));
 router.get('/workers/:id', async (req, res) => res.json({ worker: await service.getWorker(req.user, req.params.id) }));
-router.patch('/workers/:id', async (req, res) => res.json({ worker: await service.updateWorker(req.user, req.params.id, req.body) }));
-router.delete('/workers/:id', supervisorOrAdminOnly, async (req, res) => res.json(await service.deleteWorker(req.user, req.params.id)));
+router.patch('/workers/:id', attendanceAdminOnly, async (req, res) => res.json({ worker: await service.updateWorker(req.user, req.params.id, req.body) }));
+router.delete('/workers/:id', attendanceAdminOnly, async (req, res) => res.json(await service.deleteWorker(req.user, req.params.id)));
 router.get('/workers/:id/deployment', async (req, res) => res.json(await deploymentService.currentDeployment(req.user, req.params.id, req.query)));
 router.get('/workers/:id/deployments', async (req, res) => res.json(await deploymentService.listDeployments(req.user, req.query, req.params.id)));
-router.post('/workers/:id/initial-deployment', async (req, res) => res.status(201).json({ deployment: await deploymentService.assignInitialDeployment(req.user, req.params.id, req.body) }));
-router.post('/workers/:id/transfer', supervisorOrAdminOnly, async (req, res) => res.json(await deploymentService.transferWorker(req.user, req.params.id, req.body)));
+router.post('/workers/:id/initial-deployment', attendanceAdminOnly, async (req, res) => res.status(201).json({ deployment: await deploymentService.assignInitialDeployment(req.user, req.params.id, req.body) }));
+router.post('/workers/:id/transfer', attendanceAdminOnly, async (req, res) => res.json(await deploymentService.transferWorker(req.user, req.params.id, req.body)));
 
 // Worker Photo
-router.put('/workers/:id/photo', express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '2mb' }), async (req, res) => {
+router.put('/workers/:id/photo', attendanceAdminOnly, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '2mb' }), async (req, res) => {
   res.json(await photoService.saveWorkerPhoto(req.user, req.params.id, req.body));
 });
 router.get('/workers/:id/photo', async (req, res) => {
@@ -84,8 +84,8 @@ router.get('/workers/:id/photo', async (req, res) => {
 });
 
 // Face Biometrics
-router.post('/workers/:id/face', async (req, res) => res.json(await faceService.enrolWorkerFace(req.user, req.params.id, req.body)));
-router.delete('/workers/:id/face', async (req, res) => res.json(await faceService.deleteWorkerFaceProfile(req.user, req.params.id)));
+router.post('/workers/:id/face', attendanceAdminOnly, async (req, res) => res.json(await faceService.enrolWorkerFace(req.user, req.params.id, req.body)));
+router.delete('/workers/:id/face', attendanceAdminOnly, async (req, res) => res.json(await faceService.deleteWorkerFaceProfile(req.user, req.params.id)));
 router.get('/face-descriptors', async (req, res) => res.json(await faceService.listFirmFaceDescriptors(req.user, req.query)));
 
 // Live Attendance Tracking & Events
@@ -103,7 +103,7 @@ router.get('/reports/daily', async (req, res) => res.json(await reportService.ge
 router.get('/reports/monthly', async (req, res) => res.json(await reportService.getMonthlyAttendanceSummary(req.user, req.query)));
 
 // Audit Logs
-router.get('/audit-logs', async (req, res) => res.json(await auditService.listAuditLogs(req.user, req.query)));
+router.get('/audit-logs', attendanceAdminOnly, async (req, res) => res.json(await auditService.listAuditLogs(req.user, req.query)));
 
 // Error handling
 router.use((error, req, res, next) => {
