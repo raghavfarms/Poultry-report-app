@@ -232,12 +232,12 @@ function captureFacePhotoBlob(videoEl, box) {
   const isAligned = faceDetection?.status === 'SUCCESS';
 
   return (
-    <Dialog title="Enrol face recognition" onClose={onClose} busy={busy}>
-      <div className="flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <p className="text-sm text-slate-600">{worker.fullName} · {worker.workerCode}</p>
+    <Dialog title="Enrol face recognition" onClose={onClose} busy={busy} maxWidth="max-w-xl">
+      <div className="flex w-full flex-col">
+        <p className="text-xs font-semibold text-slate-500 mb-1">{worker.fullName} · {worker.workerCode}</p>
 
         {/* Body */}
-        <div className="space-y-3 py-3">
+        <div className="space-y-3 py-1">
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
               {error}
@@ -295,9 +295,9 @@ function captureFacePhotoBlob(videoEl, box) {
           )}
 
           {/* Status info */}
-          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-500">Current Registration:</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-slate-500">Status:</span>
               <span
                 className={`font-semibold ${
                   worker.faceStatus === 'REGISTERED'
@@ -316,48 +316,54 @@ function captureFacePhotoBlob(videoEl, box) {
             </div>
             {!worker.hasPhotograph && (
               <span className="text-[10px] text-emerald-700 font-medium bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                📷 Auto-saves profile photo
+                📷 Auto-saves photo
               </span>
             )}
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center sm:justify-between border-t border-slate-100 bg-slate-50 px-4 py-3 sm:px-5">
-          {worker.faceStatus === 'REGISTERED' ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleClear}
-              className="text-xs font-semibold text-red-600 hover:text-red-700 hover:underline min-h-[36px] text-center sm:text-left"
-            >
-              Clear Face Data
-            </button>
-          ) : (
-            <span className="hidden sm:inline" />
-          )}
+        <div className="flex flex-col gap-2.5 border-t border-slate-100 bg-slate-50 p-3 rounded-b-xl -mx-2 -mb-2 sm:-mx-3 sm:-mb-3 mt-2">
+          {/* Main Action: 100% full width so label NEVER wraps or cuts off on narrow mobile screens */}
+          <button
+            type="button"
+            disabled={busy || !cameraActive || !isAligned || enrolled}
+            onClick={handleEnrol}
+            className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 px-4 text-xs font-bold text-white shadow-sm transition active:scale-[0.98] cursor-pointer ${
+              isAligned && !busy && !enrolled
+                ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                : 'cursor-not-allowed bg-slate-300 text-slate-500'
+            }`}
+          >
+            <span>📷</span>
+            <span>{busy ? 'Enrolling...' : enrolled ? '✓ Enrolled' : 'Capture & Enrol Face'}</span>
+          </button>
 
-          <div className="flex flex-col-reverse sm:flex-row gap-2">
+          {/* Secondary Controls: Clear Face Data (left) and Cancel (right) */}
+          <div className="flex items-center justify-between gap-2">
+            {worker.faceStatus === 'REGISTERED' ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleClear}
+                className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer py-1"
+                title="Remove enrolled face"
+              >
+                <span>🗑️</span>
+                <span>Clear Face Data</span>
+              </button>
+            ) : (
+              <span />
+            )}
+
             <button
               type="button"
               disabled={busy}
               onClick={onClose}
               aria-label="Close dialog"
-              className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 min-h-[44px]"
+              className="whitespace-nowrap rounded-xl border border-slate-300 bg-white px-5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer shadow-xs text-center"
             >
               {enrolled ? 'Done' : 'Cancel'}
-            </button>
-            <button
-              type="button"
-              disabled={busy || !cameraActive || !isAligned || enrolled}
-              onClick={handleEnrol}
-              className={`w-full sm:w-auto rounded-xl px-5 py-2.5 text-xs font-semibold text-white shadow-sm transition min-h-[44px] ${
-                isAligned && !busy && !enrolled
-                  ? 'bg-emerald-700 hover:bg-emerald-800'
-                  : 'cursor-not-allowed bg-slate-300'
-              }`}
-            >
-              {busy ? 'Enrolling...' : enrolled ? '✓ Enrolled' : 'Capture & Enrol Face'}
             </button>
           </div>
         </div>

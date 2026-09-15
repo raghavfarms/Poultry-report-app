@@ -26,4 +26,3 @@ schema.pre('validate', function () {
 });
 schema.index({ firm: 1, active: 1, order: 1, name: 1 });
 export default mongoose.model('AttendanceWorkLocation', schema);
-

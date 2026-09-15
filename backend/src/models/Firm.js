@@ -12,3 +12,4 @@ const firmSchema = new mongoose.Schema(
 
 export default mongoose.model('Firm', firmSchema);
 
+

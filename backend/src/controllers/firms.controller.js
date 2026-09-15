@@ -23,3 +23,4 @@ export async function updateFirm(req, res) {
   if (!firm) throw notFoundError('Firm not found.');
   res.json({ firm });
 }
+

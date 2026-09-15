@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { protect } from '../middleware/auth.js';
 import { getCurrentUser,
- getRegistrationFirms,
+  getRegistrationFirms,
    getSetupStatus,
      login,
        register,
