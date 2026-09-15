@@ -22,6 +22,105 @@ function formatLunchBreak(minutes) {
   return `${mins} min`;
 }
 
+function renderGeoLocation(r) {
+  if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
+    return <span className="text-slate-300">—</span>;
+  }
+
+  const inLoc = r.inLocation;
+  const outLoc = r.outLocation;
+  const hasInCoords = inLoc?.status === 'CAPTURED' && Number.isFinite(inLoc.latitude) && Number.isFinite(inLoc.longitude);
+  const hasOutCoords = outLoc?.status === 'CAPTURED' && Number.isFinite(outLoc.latitude) && Number.isFinite(outLoc.longitude);
+
+  if (hasInCoords && hasOutCoords) {
+    return (
+      <div className="inline-flex items-center justify-center gap-1">
+        <a
+          href={`https://www.google.com/maps?q=${inLoc.latitude},${inLoc.longitude}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Duty IN: ${inLoc.latitude.toFixed(5)}, ${inLoc.longitude.toFixed(5)} (±${Math.round(inLoc.accuracyMetres || 0)}m)${r.remarks ? `\nRemarks: ${r.remarks}` : ''}`}
+          className="inline-flex items-center gap-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 text-[10px] font-bold transition shadow-2xs cursor-pointer"
+        >
+          <span>📍</span>
+          <span>IN</span>
+        </a>
+        <a
+          href={`https://www.google.com/maps?q=${outLoc.latitude},${outLoc.longitude}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Duty OUT: ${outLoc.latitude.toFixed(5)}, ${outLoc.longitude.toFixed(5)} (±${Math.round(outLoc.accuracyMetres || 0)}m)`}
+          className="inline-flex items-center gap-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 px-1.5 py-0.5 text-[10px] font-bold transition shadow-2xs cursor-pointer"
+        >
+          <span>📍</span>
+          <span>OUT</span>
+        </a>
+      </div>
+    );
+  }
+
+  if (hasInCoords) {
+    return (
+      <a
+        href={`https://www.google.com/maps?q=${inLoc.latitude},${inLoc.longitude}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`GPS Location: ${inLoc.latitude.toFixed(5)}, ${inLoc.longitude.toFixed(5)} (Accuracy: ±${Math.round(inLoc.accuracyMetres || 0)}m)${r.remarks ? `\nRemarks: ${r.remarks}` : ''}`}
+        className="inline-flex items-center gap-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold transition shadow-2xs cursor-pointer"
+      >
+        <span>📍</span>
+        <span>Map</span>
+        <svg className="w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </a>
+    );
+  }
+
+  if (hasOutCoords) {
+    return (
+      <a
+        href={`https://www.google.com/maps?q=${outLoc.latitude},${outLoc.longitude}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`OUT GPS Location: ${outLoc.latitude.toFixed(5)}, ${outLoc.longitude.toFixed(5)} (Accuracy: ±${Math.round(outLoc.accuracyMetres || 0)}m)`}
+        className="inline-flex items-center gap-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold transition shadow-2xs cursor-pointer"
+      >
+        <span>📍</span>
+        <span>OUT Map</span>
+        <svg className="w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </a>
+    );
+  }
+
+  const status = inLoc?.status || outLoc?.status;
+  if (status === 'PERMISSION_DENIED') {
+    return (
+      <span className="inline-flex items-center rounded bg-rose-50 text-rose-700 px-1.5 py-0.5 text-[9px] font-semibold border border-rose-200" title="Location permission denied in browser">
+        🚫 Denied
+      </span>
+    );
+  }
+  if (status === 'UNAVAILABLE') {
+    return (
+      <span className="inline-flex items-center rounded bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[9px] font-semibold border border-amber-200" title="GPS unavailable or disabled on device">
+        ⚠️ GPS Off
+      </span>
+    );
+  }
+  if (status === 'TIMEOUT') {
+    return (
+      <span className="inline-flex items-center rounded bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[9px] font-semibold border border-amber-200" title="GPS signal timed out">
+        ⏱️ Timeout
+      </span>
+    );
+  }
+
+  return <span className="text-slate-300" title={r.remarks || undefined}>—</span>;
+}
+
 export default function DailyRegisterView({
   firmId: propFirmId,
   setFirmId: propSetFirmId,
@@ -292,7 +391,7 @@ export default function DailyRegisterView({
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Hours Logged</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Lunch Time</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Source</th>
-                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Remarks</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Geo Location</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -409,8 +508,8 @@ export default function DailyRegisterView({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td data-label="Remarks" className="px-3 py-1.5 text-slate-500 max-w-xs break-words">
-                        {r.remarks || '—'}
+                      <td data-label="Geo Location" className="px-3 py-1.5 whitespace-nowrap text-center">
+                        {renderGeoLocation(r)}
                       </td>
                     </tr>
                   );

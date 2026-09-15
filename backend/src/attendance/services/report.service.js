@@ -168,6 +168,10 @@ export async function getDailyAttendanceReport(user, query = {}) {
       if (query.status !== status) continue;
     }
 
+    const firstSession = workerSessions[0];
+    const inLoc = workerSessions.find((s) => s.inLocation?.status === 'CAPTURED')?.inLocation || firstSession?.inLocation || null;
+    const outLoc = workerSessions.slice().reverse().find((s) => s.outLocation?.status === 'CAPTURED')?.outLocation || latestSession?.outLocation || null;
+
     rows.push({
       workerId: worker._id,
       workerCode: worker.workerCode,
@@ -187,6 +191,8 @@ export async function getDailyAttendanceReport(user, query = {}) {
       status,
       sessionsCount: workerSessions.length,
       source: latestSession?.inEvent?.source || (workerSessions.length ? 'MANUAL' : '—'),
+      inLocation: inLoc,
+      outLocation: outLoc,
       remarks: workerSessions.map((s) => s.remarks).filter(Boolean).join('; ') || '',
     });
   }

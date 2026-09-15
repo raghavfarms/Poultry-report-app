@@ -23,8 +23,7 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
   const validTime = Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === capturedAt;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
-      !finite(accuracyMetres) || accuracyMetres < 0 || !validTime ||
-      now.getTime() - timestamp.getTime() > 120000 || timestamp.getTime() - now.getTime() > 30000) {
+      !finite(accuracyMetres) || accuracyMetres < 0 || !validTime) {
     return unavailable('INVALID');
   }
   return { status: 'CAPTURED', latitude, longitude, accuracyMetres, capturedAt: timestamp };
