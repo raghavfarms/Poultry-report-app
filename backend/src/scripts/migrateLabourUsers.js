@@ -10,10 +10,10 @@ try {
 
   const result = await User.updateMany(
     { role: 'labour' },
-    { $set: { role: 'office' } },
+    { $set: { role: 'user' } },
   );
 
-  console.log(`Updated ${result.modifiedCount} user(s) from 'labour' to 'office'.`);
+  console.log(`Updated ${result.modifiedCount} user(s) from 'labour' to 'user'.`);
 } catch (error) {
   console.error('Migration failed:', error.message);
   process.exitCode = 1;

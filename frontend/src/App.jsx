@@ -69,7 +69,7 @@ export default function App() {
         <Route
           path="admin/attendance"
           element={
-            <ProtectedRoute attendanceStaff>
+            <ProtectedRoute attendanceAdmin>
               <AttendanceAdminPage />
             </ProtectedRoute>
           }

@@ -23,14 +23,15 @@ export default function OverviewPage() {
   }, []);
 
   const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
+  const isSecurity = user?.role === "security";
 
   if (desktop)
     return (
       <div className="space-y-6">
-        <DieselReports compact />
-        <TransportPage />
+        {!isSecurity && <DieselReports compact />}
+        {!isSecurity && <TransportPage />}
         {hasAttendanceAccess && <AttendanceReportPage />}
-        {user.role === "developer" && (
+        {user?.role === "developer" && (
           <section>
             <h2 className="mb-4 text-xl font-black text-slate-900">
               Next report modules
@@ -72,9 +73,10 @@ export default function OverviewPage() {
           Select a report to open or close it.
         </p>
       </div>
-      {(user.role === "developer"
+      {(user?.role === "developer"
         ? modules
         : modules.filter(([slug]) => {
+            if (user?.role === "security") return slug === "attendance";
             if (slug === "attendance") return hasAttendanceAccess;
             return ["diesel", "transport"].includes(slug);
           })
