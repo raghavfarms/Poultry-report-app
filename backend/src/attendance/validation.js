@@ -36,11 +36,20 @@ function fields(body, allowed) {
 }
 
 export function masterPayload(kind, body, create = false) {
-  const allowed = ['name', 'active', ...(create ? ['firmId'] : [])];
+  const allowed = ['name', 'active', ...(create || kind === 'geofences' ? ['firmId'] : [])];
   if (kind === 'work-locations') allowed.push('type', 'supervisor', 'remarks', 'order', 'birdCapacity');
+  if (kind === 'geofences') allowed.push('latitude', 'longitude', 'radiusMetres', 'isOfficeTesting', 'remarks', 'order');
   fields(body, allowed);
   const result = {};
-  if (create) result.firm = objectId(body.firmId, 'Firm');
+  if (create) {
+    if (kind === 'geofences') {
+      result.firm = body.firmId ? objectId(body.firmId, 'Firm') : null;
+    } else {
+      result.firm = objectId(body.firmId, 'Firm');
+    }
+  } else if (kind === 'geofences' && body.firmId !== undefined) {
+    result.firm = body.firmId ? objectId(body.firmId, 'Firm') : null;
+  }
   if (create || body.name !== undefined) {
     result.name = text(body.name, 'Name', 100, true).replace(/\s+/g, ' ');
     result.nameKey = result.name.toLowerCase();
@@ -71,6 +80,33 @@ export function masterPayload(kind, body, create = false) {
       result.order = body.order;
     }
   }
+  if (kind === 'geofences') {
+    if (create || body.latitude !== undefined) {
+      const lat = Number(body.latitude);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw badRequest('Latitude must be a valid number between -90 and 90.');
+      result.latitude = lat;
+    }
+    if (create || body.longitude !== undefined) {
+      const lon = Number(body.longitude);
+      if (!Number.isFinite(lon) || lon < -180 || lon > 180) throw badRequest('Longitude must be a valid number between -180 and 180.');
+      result.longitude = lon;
+    }
+    if (body.radiusMetres !== undefined) {
+      const rad = Number(body.radiusMetres);
+      if (!Number.isFinite(rad) || rad < 10 || rad > 50000) throw badRequest('Radius must be between 10 and 50,000 metres.');
+      result.radiusMetres = Math.round(rad);
+    } else if (create) {
+      result.radiusMetres = 500;
+    }
+    if (body.isOfficeTesting !== undefined) {
+      result.isOfficeTesting = boolean(body.isOfficeTesting, 'Office testing');
+    }
+    if (body.remarks !== undefined) result.remarks = text(body.remarks, 'Remarks', 1000);
+    if (body.order !== undefined) {
+      if (!Number.isSafeInteger(body.order) || body.order < 0) throw badRequest('Order must be a non-negative integer.');
+      result.order = body.order;
+    }
+  }
   return result;
 }
 
@@ -83,7 +119,11 @@ export function workerPayload(body, create = false) {
   const result = {};
   if (create) result.firm = objectId(body.firmId, 'Firm');
   if (create || body.fullName !== undefined) result.fullName = text(body.fullName, 'Full name', 120, true);
-  if (create || body.dateOfJoining !== undefined) result.dateOfJoining = dateOnly(body.dateOfJoining, 'Date of joining');
+  if (body.dateOfJoining) {
+    result.dateOfJoining = dateOnly(body.dateOfJoining, 'Date of joining');
+  } else if (body.dateOfJoining === null || body.dateOfJoining === '' || create) {
+    result.dateOfJoining = null;
+  }
   if (create || body.designation !== undefined) result.designation = objectId(body.designation, 'Designation');
   for (const key of ['fatherOrHusbandName', 'address', 'inactiveReason', 'remarks', 'referenceName']) {
     if (body[key] !== undefined) result[key] = text(body[key], key, key === 'address' || key === 'inactiveReason' || key === 'remarks' ? 1000 : 120);
@@ -138,7 +178,9 @@ export function workerPayload(body, create = false) {
 }
 
 export function validateWorkerDates(worker) {
-  if (worker.leavingDate && worker.leavingDate < worker.dateOfJoining) throw badRequest('Leaving date cannot be before joining date.');
+  if (worker.leavingDate && worker.dateOfJoining && worker.leavingDate < worker.dateOfJoining) {
+    throw badRequest('Leaving date cannot be before joining date.');
+  }
   if (worker.active && worker.leavingDate) throw badRequest('An active worker cannot have a leaving date. Clear it when reactivating.');
 }
 

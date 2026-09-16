@@ -53,8 +53,8 @@ export function attendanceStaffOnly(req, res, next) {
 }
 
 export function supervisorOrAdminOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Supervisor, farm incharge or admin access is required to transfer workers.' });
+  if (!['admin', 'developer', 'office', 'supervisor'].includes(req.user?.role)) {
+    return res.status(403).json({ message: 'Supervisor or admin access is required.' });
   }
   next();
 }

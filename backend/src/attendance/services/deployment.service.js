@@ -32,13 +32,14 @@ export function initialDeploymentPayload(body, dateOfJoining) {
   if (Object.keys(body).some((key) => !['workLocation', 'supervisor', 'effectiveFrom', 'reason'].includes(key))) {
     throw badRequest('Initial deployment contains unsupported or read-only fields.');
   }
+  const fallbackDate = dateOfJoining || new Date().toISOString().slice(0, 10);
   const result = {
     workLocation: objectId(body.workLocation, 'Work location'),
-    effectiveFrom: deploymentInstant(body.effectiveFrom ?? dateOfJoining),
+    effectiveFrom: deploymentInstant(body.effectiveFrom ?? fallbackDate),
     reason: body.reason === undefined ? 'Initial deployment' : text(body.reason, 'Reason', 1000, true),
   };
   if (body.supervisor !== undefined) result.supervisor = body.supervisor === null ? null : objectId(body.supervisor, 'Supervisor');
-  if (result.effectiveFrom < deploymentInstant(dateOfJoining, 'Date of joining')) {
+  if (dateOfJoining && result.effectiveFrom < deploymentInstant(dateOfJoining, 'Date of joining')) {
     throw badRequest('Deployment cannot start before the worker’s joining date.');
   }
   return result;

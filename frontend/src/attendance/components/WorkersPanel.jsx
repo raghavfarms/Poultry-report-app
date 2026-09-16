@@ -107,7 +107,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
     gender: 'NOT_SPECIFIED',
     mobileNumber: '',
     address: '',
-    dateOfJoining: todayDate,
+    dateOfJoining: '',
     designation: '',
     referenceName: '',
     remarks: '',
@@ -159,7 +159,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
       gender: form.gender,
       mobileNumber: form.mobileNumber.trim(),
       address: form.address.trim(),
-      dateOfJoining: form.dateOfJoining,
+      dateOfJoining: form.dateOfJoining || null,
       designation: form.designation,
       isSupervisor: false,
       referenceName: form.referenceName.trim(),
@@ -167,7 +167,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
       initialDeployment: {
         workLocation: form.workLocation,
         supervisor: form.supervisor || null,
-        effectiveFrom: form.effectiveFrom || form.dateOfJoining,
+        effectiveFrom: form.effectiveFrom || form.dateOfJoining || todayDate,
         reason: form.reason.trim() || 'Initial deployment',
       },
     };
@@ -226,16 +226,15 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
 
             <RemoteSelect
               required
-              label="Designation *"
+              label="Designation"
               resource="designations"
               firmId={firmId}
               value={form.designation}
               onChange={(value) => set('designation', value)}
             />
 
-            <Field label="Date of Joining *">
+            <Field label="Date of Joining (Optional)">
               <input
-                required
                 type="date"
                 className={compactInputClass}
                 value={form.dateOfJoining}
@@ -244,7 +243,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                   setForm((prev) => ({
                     ...prev,
                     dateOfJoining: joining,
-                    effectiveFrom: joining,
+                    effectiveFrom: joining || prev.effectiveFrom,
                   }));
                 }}
               />
@@ -353,7 +352,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                 <input
                   required
                   type="date"
-                  min={form.dateOfJoining}
+                  min={form.dateOfJoining || undefined}
                   className={compactInputClass}
                   value={form.effectiveFrom}
                   onChange={(e) => set('effectiveFrom', e.target.value)}

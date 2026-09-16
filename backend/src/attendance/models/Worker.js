@@ -20,7 +20,7 @@ const schema = new mongoose.Schema({
   photographUrl: { type: String, maxlength: 2048, default: '' },
   hasPhotograph: { type: Boolean, default: false },
   photographFile: { type: new mongoose.Schema({ key: String, mimeType: String }, { _id: false }), select: false },
-  dateOfJoining: { type: String, required: true },
+  dateOfJoining: { type: String, default: null },
   designation: { type: mongoose.Schema.Types.ObjectId, ref: 'AttendanceDesignation', required: true },
   isSupervisor: { type: Boolean, default: false },
   active: { type: Boolean, default: true },

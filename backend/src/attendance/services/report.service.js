@@ -6,7 +6,7 @@ import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import { firmScope } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
-import { indiaDateString, formatWorkedHours } from './attendance.service.js';
+import { indiaDateString, formatWorkedHours, autoCutExpiredSessions } from './attendance.service.js';
 import { notFoundError, badRequest } from '../../utils/http.js';
 
 /**
@@ -45,6 +45,9 @@ export async function getDailyAttendanceReport(user, query = {}) {
 
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
+
+  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
+  await autoCutExpiredSessions(firmObjectId, now);
 
   // 3. Parallel fetch of workers, deployments, and attendance sessions
   const [workers, deployments, sessions] = await Promise.all([
@@ -173,6 +176,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
     const outLoc = workerSessions.slice().reverse().find((s) => s.outLocation?.status === 'CAPTURED')?.outLocation || latestSession?.outLocation || null;
 
     rows.push({
+      sessionId: latestSession?._id || null,
       workerId: worker._id,
       workerCode: worker.workerCode,
       workerName: worker.fullName,
@@ -263,6 +267,9 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
+
+  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
+  await autoCutExpiredSessions(firmObjectId, now);
 
   // Determine days in month
   const [yearStr, monthStr] = targetMonth.split('-');
@@ -355,11 +362,11 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
         workerWorkedMinutes += dayMinutes;
 
-        if (isOpen) {
+        if (isOpen && fullDateStr === todayDate) {
           days[dayStr] = 'OD'; // On duty right now
           presentDays += 1;
-        } else if (dayMinutes >= 475) {
-          days[dayStr] = 'P'; // Full day (>= 7 hrs 55 mins)
+        } else if (isOpen || dayMinutes >= 475) {
+          days[dayStr] = 'P'; // Full day (>= 7 hrs 55 mins or auto-cut)
           presentDays += 1;
         } else if (dayMinutes >= 240) {
           days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 7 hrs 55 mins)

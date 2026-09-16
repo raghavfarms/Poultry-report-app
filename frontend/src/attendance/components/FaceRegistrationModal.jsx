@@ -1,7 +1,7 @@
 import { Dialog } from './AdminUi.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { loadFaceModels, detectFaceForEnrolment } from '../services/faceModelLoader.js';
-import { enrolFace, clearFaceRegistration, uploadWorkerPhoto } from '../services/adminApi.js';
+import { loadFaceModels, detectFaceForEnrolment, getFaceApi } from '../services/faceModelLoader.js';
+import { enrolFace, clearFaceRegistration, uploadWorkerPhoto, fetchFirmFaceDescriptors } from '../services/adminApi.js';
 
 export default function FaceRegistrationModal({ worker, onClose, onSaved }) {
   const videoRef = useRef(null);
@@ -18,6 +18,7 @@ export default function FaceRegistrationModal({ worker, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
   const [error, setError] = useState('');
+  const [enrolledFaces, setEnrolledFaces] = useState([]);
 
   // 1. Initialize models & camera
   useEffect(() => {
@@ -44,6 +45,30 @@ export default function FaceRegistrationModal({ worker, onClose, onSaved }) {
       if (detectionLoopRef.current) cancelAnimationFrame(detectionLoopRef.current);
     };
   }, []);
+
+  // Pre-fetch firm face descriptors to detect duplicate faces immediately on device
+  useEffect(() => {
+    let active = true;
+    async function loadDescriptors() {
+      try {
+        const firmId = worker?.firm?._id || worker?.firm;
+        if (!firmId) return;
+        const data = await fetchFirmFaceDescriptors(firmId);
+        if (!active) return;
+        const currentWorkerId = String(worker._id);
+        const others = (data?.descriptors || []).filter(
+          (d) => String(d.workerId) !== currentWorkerId
+        );
+        setEnrolledFaces(others);
+      } catch (err) {
+        console.warn('Could not pre-load firm face descriptors for duplicate check:', err);
+      }
+    }
+    loadDescriptors();
+    return () => {
+      active = false;
+    };
+  }, [worker]);
 
   // Stop camera helper
   function stopCamera() {
@@ -182,6 +207,27 @@ function captureFacePhotoBlob(videoEl, box) {
         throw new Error(res.message || 'Face quality check failed. Please reposition.');
       }
 
+      // Check for duplicate face against cached enrolled workers
+      if (Array.isArray(enrolledFaces) && enrolledFaces.length > 0) {
+        const faceapi = await getFaceApi();
+        let duplicateMatch = null;
+        for (const existing of enrolledFaces) {
+          if (!existing.descriptor || existing.descriptor.length !== 128) continue;
+          const dist = faceapi.euclideanDistance(res.descriptor, existing.descriptor);
+          if (dist <= 0.42) {
+            duplicateMatch = existing;
+            break;
+          }
+        }
+        if (duplicateMatch) {
+          const dupMsg = `Duplicate face detected! This face is already enrolled for worker "${duplicateMatch.fullName}" (${duplicateMatch.workerCode}). Multiple workers cannot share the same face.`;
+          setError(dupMsg);
+          setFeedback('⚠️ Duplicate face rejected.');
+          setBusy(false);
+          return;
+        }
+      }
+
       const payload = {
         score: res.score,
         faceBox: res.box,
@@ -207,8 +253,9 @@ function captureFacePhotoBlob(videoEl, box) {
         onSaved(result.message);
       }, 1200);
     } catch (err) {
-      setError(err.message || 'Failed to enrol face. Please retry.');
-      setFeedback('Enrolment failed. Please try again.');
+      const msg = err.message || 'Failed to enrol face. Please retry.';
+      setError(msg);
+      setFeedback(msg.includes('Duplicate face') ? '⚠️ Duplicate face rejected.' : 'Enrolment failed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -239,8 +286,20 @@ function captureFacePhotoBlob(videoEl, box) {
         {/* Body */}
         <div className="space-y-3 py-1">
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-              {error}
+            <div
+              className={`rounded-xl border p-3 text-xs flex items-start gap-2.5 ${
+                error.includes('Duplicate face')
+                  ? 'border-rose-300 bg-rose-50 text-rose-800'
+                  : 'border-red-200 bg-red-50 text-red-700'
+              }`}
+            >
+              <span className="text-base leading-none">⚠️</span>
+              <div className="flex-1">
+                {error.includes('Duplicate face') && (
+                  <div className="font-bold text-rose-900 mb-0.5">Duplicate Face Warning</div>
+                )}
+                <span>{error}</span>
+              </div>
             </div>
           )}
 

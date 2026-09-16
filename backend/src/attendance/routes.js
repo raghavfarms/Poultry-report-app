@@ -49,7 +49,7 @@ router.get('/firms', async (req, res) => {
 router.get('/capacity', async (req, res) => res.json(await service.firmCapacity(req.user, req.query)));
 router.get('/registered-users', async (req, res) => res.json(await service.listRegisteredUsers(req.user, req.query)));
 
-for (const kind of ['designations', 'work-locations']) {
+for (const kind of ['designations', 'work-locations', 'geofences']) {
   router.get(`/${kind}`, async (req, res) => res.json(await service.listMasters(kind, req.user, req.query)));
   router.post(`/${kind}`, attendanceAdminOnly, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
   router.get(`/${kind}/:id`, async (req, res) => {
@@ -94,6 +94,7 @@ router.get('/events', async (req, res) => res.json(await attendanceService.listA
 router.post('/events', async (req, res) => res.status(201).json(await attendanceService.recordAttendance(req.user, req.body)));
 router.get('/sessions', async (req, res) => res.json(await attendanceService.listAttendanceSessions(req.user, req.query)));
 router.post('/sessions/correct', async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
+router.post('/sessions/auto-cut', async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
 
 // Dashboard
 router.get('/dashboard/live', async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));

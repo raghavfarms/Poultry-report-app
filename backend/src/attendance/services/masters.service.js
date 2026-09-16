@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import Firm from '../../models/Firm.js';
 import Designation from '../models/Designation.js';
 import WorkLocation from '../models/WorkLocation.js';
+import AttendanceGeofence from '../models/AttendanceGeofence.js';
 import Worker from '../models/Worker.js';
 import WorkerCounter from '../models/WorkerCounter.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
@@ -18,7 +19,7 @@ import { badRequest, notFoundError } from '../../utils/http.js';
 import { firmScope } from '../authorization.js';
 import { masterPayload, workerPayload, objectId, pagination, searchFilter, validateWorkerDates } from '../validation.js';
 
-const masterModels = { designations: Designation, 'work-locations': WorkLocation };
+const masterModels = { designations: Designation, 'work-locations': WorkLocation, geofences: AttendanceGeofence };
 export function locationWithCapacity(item) {
   const result = item.toObject ? item.toObject() : { ...item };
   result.birdCapacity = result.birdCapacity == null ? null : {
@@ -89,7 +90,15 @@ async function pageResult(Model, filter, query, sort, populate = []) {
 }
 
 export async function listMasters(kind, user, query) {
-  const filter = { ...firmScope(user, query.firmId), ...searchFilter(query, ['name']) };
+  let filter = { ...searchFilter(query, ['name']) };
+  const scope = firmScope(user, query.firmId);
+  if (kind === 'geofences') {
+    if (scope.firm) {
+      filter.$or = [{ firm: scope.firm }, { firm: null }];
+    }
+  } else {
+    filter = { ...filter, ...scope };
+  }
   if (kind === 'work-locations' && query.type !== undefined) {
     if (!['SHED', 'MISCELLANEOUS'].includes(query.type)) throw badRequest('Invalid location type.');
     filter.type = query.type;
@@ -103,14 +112,23 @@ export async function listMasters(kind, user, query) {
 }
 
 export async function getMaster(kind, user, id) {
-  const item = await masterModels[kind].findOne({ _id: objectId(id), ...firmScope(user) });
+  const scope = firmScope(user);
+  let filter = { _id: objectId(id) };
+  if (kind === 'geofences') {
+    if (scope.firm) filter.$or = [{ firm: scope.firm }, { firm: null }];
+  } else {
+    filter = { ...filter, ...scope };
+  }
+  const item = await masterModels[kind].findOne(filter);
   if (!item) throw notFoundError('Record not found.');
   return item;
 }
 
 export async function createMaster(kind, user, body) {
   const data = masterPayload(kind, body, true);
-  await activeFirm(user, data.firm);
+  if (data.firm) {
+    await activeFirm(user, data.firm);
+  }
   if (kind === 'work-locations') {
     validateLocationCapacity(data);
     await validSupervisor(data.supervisor, data.firm);
@@ -122,7 +140,12 @@ export async function createMaster(kind, user, body) {
 export async function updateMaster(kind, user, id, body) {
   const data = masterPayload(kind, body);
   const item = await getMaster(kind, user, id);
-  await activeFirm(user, item.firm);
+  if (item.firm) {
+    await activeFirm(user, item.firm);
+  }
+  if (data.firm) {
+    await activeFirm(user, data.firm);
+  }
   if (kind === 'work-locations' && data.supervisor !== undefined) await validSupervisor(data.supervisor, item.firm);
   item.set(data);
   if (kind === 'work-locations') validateLocationCapacity(item);

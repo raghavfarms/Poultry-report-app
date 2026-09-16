@@ -256,15 +256,16 @@ export default function WorkerAttendancePortal() {
       await loadProfile();
     } catch (err) {
       playChime(false);
+      const isGeofence = err?.message && (err.message.includes('boundary') || err.message.includes('Location access') || err.message.includes('GPS'));
       setScannerFeedback(err?.message || 'Face verification failed. Please try again.');
-      // Keep scanner open for retry after 2.5s
+      // Keep scanner open for retry
       setTimeout(() => {
         processingRef.current = false;
         setIsProcessing(false);
         isScanningActiveRef.current = true;
         setScannerFeedback('Position your face inside the circle.');
         runScanCycle();
-      }, 2500);
+      }, isGeofence ? 4500 : 2500);
     }
   }
 

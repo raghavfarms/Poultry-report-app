@@ -6,8 +6,11 @@ import AttendanceEvent from '../models/AttendanceEvent.js';
 import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
+import WorkLocation from '../models/WorkLocation.js';
+import AttendanceGeofence from '../models/AttendanceGeofence.js';
+import Firm from '../../models/Firm.js';
 import { findEffectiveDeployment } from './deployment.service.js';
-import { normalizeAttendanceLocation } from './location.service.js';
+import { normalizeAttendanceLocation, verifyAttendanceGeofence } from './location.service.js';
 import { firmScope } from '../authorization.js';
 import { objectId, pagination, dateOnly, text } from '../validation.js';
 import { badRequest, notFoundError, conflictError, forbiddenError } from '../../utils/http.js';
@@ -24,6 +27,17 @@ export function formatWorkedHours(minutes) {
   const mins = minutes % 60;
   if (hrs === 0) return `${mins}m`;
   return `${hrs}h ${mins}m`;
+}
+
+export function getAutoCutShiftDetails(dutyIn) {
+  if (!dutyIn) return { isNightShift: false, shiftHours: 8, shiftMinutes: 480 };
+  const inDate = new Date(dutyIn);
+  const inHour = Number(new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false }).format(inDate));
+  // Check-ins from 5:00 PM (17:00) to 5:00 AM (05:00) IST are 12-hour night shifts!
+  const isNightShift = inHour >= 17 || inHour < 5;
+  const shiftHours = isNightShift ? 12 : 8;
+  const shiftMinutes = shiftHours * 60;
+  return { isNightShift, shiftHours, shiftMinutes };
 }
 
 export async function recordAttendance(user, payload = {}, options = {}) {
@@ -91,6 +105,32 @@ export async function recordAttendance(user, payload = {}, options = {}) {
       }
     }
 
+    // 2b. Geofence Boundary Check (enforced on FACE and SELF scans against active Geofence Master records)
+    let geofenceResult = null;
+    if (source === 'FACE' || source === 'SELF') {
+      const activeGeofences = await AttendanceGeofence.find({
+        $or: [{ firm: deployment.firm }, { firm: null }],
+        active: true,
+      }).session(dbSession).lean();
+
+      if (activeGeofences.length > 0) {
+        geofenceResult = verifyAttendanceGeofence({
+          location: normalizedLocation,
+          geofences: activeGeofences,
+          firmName: deployment.firmNameSnapshot || 'the farm',
+        });
+
+        if (!geofenceResult.allowed) {
+          throw badRequest(geofenceResult.message);
+        }
+      }
+    }
+
+    let effectiveRemarks = typeof remarks === 'string' ? remarks.slice(0, 1000) : '';
+    if (geofenceResult?.match === 'OFFICE_TESTING') {
+      effectiveRemarks = effectiveRemarks ? `${effectiveRemarks} [Office Testing]` : '[Office Testing]';
+    }
+
     const todayDate = indiaDateString(now);
 
     // If worker's formal joining date is after this attendance date, auto-adjust joining date so they aren't marked unjoined or absent
@@ -133,8 +173,10 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         } else {
           anyOpenSession.status = 'DUTY_COMPLETED';
           if (!anyOpenSession.dutyOut) {
-            anyOpenSession.dutyOut = new Date(anyOpenSession.dutyIn.getTime() + 8 * 60 * 60 * 1000);
-            anyOpenSession.workedMinutes = 480;
+            const { shiftMinutes } = getAutoCutShiftDetails(anyOpenSession.dutyIn);
+            anyOpenSession.dutyOut = new Date(anyOpenSession.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+            anyOpenSession.workedMinutes = Math.max(0, shiftMinutes - (anyOpenSession.lunchMinutes || 0));
+            anyOpenSession.remarks = anyOpenSession.remarks ? `${anyOpenSession.remarks}; [Auto-Cut: Missed Duty OUT]` : '[Auto-Cut: Missed Duty OUT]';
           }
           await anyOpenSession.save({ session: dbSession });
         }
@@ -214,7 +256,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         source,
         location: normalizedLocation,
         recordedBy: user._id,
-        remarks: typeof remarks === 'string' ? remarks.slice(0, 1000) : '',
+        remarks: effectiveRemarks,
       }], { session: dbSession });
 
       // Create attendance session
@@ -290,7 +332,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         location: normalizedLocation,
         sessionId: openSession._id,
         recordedBy: user._id,
-        remarks: typeof remarks === 'string' ? remarks.slice(0, 1000) : '',
+        remarks: effectiveRemarks,
       }], { session: dbSession });
 
       openSession.lunchOut = now;
@@ -344,7 +386,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         location: normalizedLocation,
         sessionId: openSession._id,
         recordedBy: user._id,
-        remarks: typeof remarks === 'string' ? remarks.slice(0, 1000) : '',
+        remarks: effectiveRemarks,
       }], { session: dbSession });
 
       openSession.lunchIn = now;
@@ -411,7 +453,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         location: normalizedLocation,
         sessionId: openSession._id,
         recordedBy: user._id,
-        remarks: typeof remarks === 'string' ? remarks.slice(0, 1000) : '',
+        remarks: effectiveRemarks,
       }], { session: dbSession });
 
       // Update session to DUTY_COMPLETED
@@ -740,6 +782,119 @@ export async function correctAttendanceSession(user, payload = {}) {
   } finally {
     await dbSession.endSession();
   }
+}
+
+export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
+  const query = { status: 'PRESENT' };
+  if (firmId) query.firm = firmId;
+  const openSessions = await AttendanceSession.find(query);
+  const todayDate = indiaDateString(now);
+
+  let updatedCount = 0;
+  for (const session of openSessions) {
+    if (!session.dutyIn) continue;
+    const elapsedHours = (now.getTime() - session.dutyIn.getTime()) / (1000 * 60 * 60);
+    // Auto-cut if running >= 15 hours, or from a past date and running >= 12 hours
+    if (elapsedHours >= 15 || (session.date < todayDate && elapsedHours >= 12)) {
+      const { shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
+      const netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
+      session.dutyOut = new Date(session.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+      session.workedMinutes = netMinutes;
+      session.status = 'DUTY_COMPLETED';
+      session.onLunch = false;
+      session.remarks = session.remarks ? `${session.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]';
+      await session.save();
+      updatedCount++;
+    }
+  }
+  return updatedCount;
+}
+
+export async function manualAutoCutSession(user, payload = {}) {
+  const { sessionId, workerId, date, remarks = '' } = payload;
+  let sessionDoc = null;
+
+  if (sessionId) {
+    sessionDoc = await AttendanceSession.findById(objectId(sessionId, 'Session'));
+  } else if (workerId) {
+    const targetDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : indiaDateString();
+    sessionDoc = await AttendanceSession.findOne({
+      worker: objectId(workerId, 'Worker'),
+      date: targetDate,
+      status: 'PRESENT',
+    });
+    if (!sessionDoc) {
+      sessionDoc = await AttendanceSession.findOne({
+        worker: objectId(workerId, 'Worker'),
+        status: 'PRESENT',
+      }).sort({ createdAt: -1 });
+    }
+  }
+
+  if (!sessionDoc) throw notFoundError('No active open attendance session found to auto-cut.');
+  firmScope(user, sessionDoc.firm);
+
+  if (sessionDoc.status === 'DUTY_COMPLETED') {
+    return { success: true, message: 'Worker is already marked OUT.', session: sessionDoc };
+  }
+
+  const now = new Date();
+  const { shiftMinutes } = getAutoCutShiftDetails(sessionDoc.dutyIn);
+
+  // Calculate elapsed time from dutyIn
+  const elapsedMs = Math.max(0, now.getTime() - sessionDoc.dutyIn.getTime());
+  const grossMinutes = Math.max(0, Math.round(elapsedMs / (60 * 1000)));
+  const effectiveGrossMinutes = Math.min(grossMinutes, shiftMinutes);
+  const netWorkedMinutes = Math.max(0, effectiveGrossMinutes - (sessionDoc.lunchMinutes || 0));
+
+  const outTime = grossMinutes <= shiftMinutes ? now : new Date(sessionDoc.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+
+  // If worker was on lunch, end lunch
+  if (sessionDoc.onLunch && sessionDoc.lunchOut) {
+    const lunchElapsedMs = now.getTime() - sessionDoc.lunchOut.getTime();
+    sessionDoc.lunchMinutes = Math.max(0, Math.round(lunchElapsedMs / (60 * 1000)));
+    sessionDoc.lunchIn = now;
+    sessionDoc.onLunch = false;
+  }
+
+  const actorName = user.fullName || user.username || user.role || 'Supervisor';
+  const cutRemark = remarks.trim() || `Auto-Cut by ${actorName}`;
+
+  // Record an immutable event
+  const [event] = await AttendanceEvent.create([{
+    worker: sessionDoc.worker,
+    workerCodeSnapshot: sessionDoc.workerCodeSnapshot,
+    workerNameSnapshot: sessionDoc.workerNameSnapshot,
+    firm: sessionDoc.firm,
+    firmNameSnapshot: sessionDoc.firmNameSnapshot,
+    workLocation: sessionDoc.workLocation,
+    workLocationNameSnapshot: sessionDoc.workLocationNameSnapshot,
+    designation: sessionDoc.designation,
+    designationNameSnapshot: sessionDoc.designationNameSnapshot,
+    supervisor: sessionDoc.supervisor || null,
+    supervisorNameSnapshot: sessionDoc.supervisorNameSnapshot || '',
+    eventType: 'DUTY_OUT',
+    timestamp: outTime,
+    attendanceDate: sessionDoc.date,
+    source: 'MANUAL',
+    recordedBy: user._id,
+    remarks: cutRemark,
+  }]);
+
+  sessionDoc.dutyOut = outTime;
+  sessionDoc.outEvent = event._id;
+  sessionDoc.workedMinutes = netWorkedMinutes;
+  sessionDoc.status = 'DUTY_COMPLETED';
+  sessionDoc.onLunch = false;
+  sessionDoc.remarks = sessionDoc.remarks ? `${sessionDoc.remarks}; [${cutRemark}]` : `[${cutRemark}]`;
+
+  await sessionDoc.save();
+
+  return {
+    success: true,
+    message: `${sessionDoc.workerNameSnapshot} auto-cut completed (${formatWorkedHours(netWorkedMinutes)} logged).`,
+    session: sessionDoc,
+  };
 }
 
 

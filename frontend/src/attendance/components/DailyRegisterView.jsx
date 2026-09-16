@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
-import { attendancePath } from '../services/adminApi.js';
+import { attendancePath, saveAttendance } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 
 function getTodayString() {
@@ -22,103 +22,25 @@ function formatLunchBreak(minutes) {
   return `${mins} min`;
 }
 
-function renderGeoLocation(r) {
-  if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
-    return <span className="text-slate-300">—</span>;
-  }
-
+function renderMiniMapLink(r) {
   const inLoc = r.inLocation;
   const outLoc = r.outLocation;
   const hasInCoords = inLoc?.status === 'CAPTURED' && Number.isFinite(inLoc.latitude) && Number.isFinite(inLoc.longitude);
   const hasOutCoords = outLoc?.status === 'CAPTURED' && Number.isFinite(outLoc.latitude) && Number.isFinite(outLoc.longitude);
+  if (!hasInCoords && !hasOutCoords) return null;
 
-  if (hasInCoords && hasOutCoords) {
-    return (
-      <div className="inline-flex items-center justify-center gap-1">
-        <a
-          href={`https://www.google.com/maps?q=${inLoc.latitude},${inLoc.longitude}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`Duty IN: ${inLoc.latitude.toFixed(5)}, ${inLoc.longitude.toFixed(5)} (±${Math.round(inLoc.accuracyMetres || 0)}m)${r.remarks ? `\nRemarks: ${r.remarks}` : ''}`}
-          className="inline-flex items-center gap-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 text-[10px] font-bold transition shadow-2xs cursor-pointer"
-        >
-          <span>📍</span>
-          <span>IN</span>
-        </a>
-        <a
-          href={`https://www.google.com/maps?q=${outLoc.latitude},${outLoc.longitude}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={`Duty OUT: ${outLoc.latitude.toFixed(5)}, ${outLoc.longitude.toFixed(5)} (±${Math.round(outLoc.accuracyMetres || 0)}m)`}
-          className="inline-flex items-center gap-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 px-1.5 py-0.5 text-[10px] font-bold transition shadow-2xs cursor-pointer"
-        >
-          <span>📍</span>
-          <span>OUT</span>
-        </a>
-      </div>
-    );
-  }
-
-  if (hasInCoords) {
-    return (
-      <a
-        href={`https://www.google.com/maps?q=${inLoc.latitude},${inLoc.longitude}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={`GPS Location: ${inLoc.latitude.toFixed(5)}, ${inLoc.longitude.toFixed(5)} (Accuracy: ±${Math.round(inLoc.accuracyMetres || 0)}m)${r.remarks ? `\nRemarks: ${r.remarks}` : ''}`}
-        className="inline-flex items-center gap-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold transition shadow-2xs cursor-pointer"
-      >
-        <span>📍</span>
-        <span>Map</span>
-        <svg className="w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-      </a>
-    );
-  }
-
-  if (hasOutCoords) {
-    return (
-      <a
-        href={`https://www.google.com/maps?q=${outLoc.latitude},${outLoc.longitude}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title={`OUT GPS Location: ${outLoc.latitude.toFixed(5)}, ${outLoc.longitude.toFixed(5)} (Accuracy: ±${Math.round(outLoc.accuracyMetres || 0)}m)`}
-        className="inline-flex items-center gap-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold transition shadow-2xs cursor-pointer"
-      >
-        <span>📍</span>
-        <span>OUT Map</span>
-        <svg className="w-2.5 h-2.5 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-        </svg>
-      </a>
-    );
-  }
-
-  const status = inLoc?.status || outLoc?.status;
-  if (status === 'PERMISSION_DENIED') {
-    return (
-      <span className="inline-flex items-center rounded bg-rose-50 text-rose-700 px-1.5 py-0.5 text-[9px] font-semibold border border-rose-200" title="Location permission denied in browser">
-        🚫 Denied
-      </span>
-    );
-  }
-  if (status === 'UNAVAILABLE') {
-    return (
-      <span className="inline-flex items-center rounded bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[9px] font-semibold border border-amber-200" title="GPS unavailable or disabled on device">
-        ⚠️ GPS Off
-      </span>
-    );
-  }
-  if (status === 'TIMEOUT') {
-    return (
-      <span className="inline-flex items-center rounded bg-amber-50 text-amber-700 px-1.5 py-0.5 text-[9px] font-semibold border border-amber-200" title="GPS signal timed out">
-        ⏱️ Timeout
-      </span>
-    );
-  }
-
-  return <span className="text-slate-300" title={r.remarks || undefined}>—</span>;
+  const targetLoc = hasOutCoords ? outLoc : inLoc;
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${targetLoc.latitude},${targetLoc.longitude}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`GPS Location: ${targetLoc.latitude.toFixed(5)}, ${targetLoc.longitude.toFixed(5)} (±${Math.round(targetLoc.accuracyMetres || 0)}m)`}
+      className="inline-flex items-center text-slate-400 hover:text-sky-700 text-[11px] transition ml-0.5"
+    >
+      📍
+    </a>
+  );
 }
 
 export default function DailyRegisterView({
@@ -219,6 +141,71 @@ export default function DailyRegisterView({
       return (a.workerName || '').localeCompare(b.workerName || '', undefined, { sensitivity: 'base' });
     });
   }, [data?.records]);
+
+  const [autoCuttingWorkerId, setAutoCuttingWorkerId] = useState(null);
+  const [autoCutNotice, setAutoCutNotice] = useState('');
+
+  const handleAutoCut = async (r) => {
+    const confirmed = window.confirm(
+      `Auto-Cut attendance for ${r.workerName}?\n\nThis will mark them DUTY OUT now and calculate logged hours.`
+    );
+    if (!confirmed) return;
+
+    setAutoCuttingWorkerId(r.workerId);
+    setError('');
+    setAutoCutNotice('');
+    try {
+      const res = await saveAttendance('sessions/auto-cut', {
+        workerId: r.workerId,
+        sessionId: r.sessionId,
+        date,
+      });
+      setAutoCutNotice(res.message || `${r.workerName} auto-cut completed.`);
+      setTimeout(() => setAutoCutNotice(''), 4000);
+      loadRegister();
+    } catch (err) {
+      setError(err.message || 'Failed to auto-cut attendance.');
+    } finally {
+      setAutoCuttingWorkerId(null);
+    }
+  };
+
+  const renderAutoCutColumn = (r) => {
+    if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
+      return <span className="text-slate-300">—</span>;
+    }
+
+    const isOnDuty = r.status === 'ON_DUTY' || r.onLunch;
+
+    if (isOnDuty) {
+      const isCutting = autoCuttingWorkerId === r.workerId;
+      return (
+        <div className="inline-flex items-center justify-center gap-1.5">
+          <button
+            type="button"
+            disabled={isCutting}
+            onClick={() => handleAutoCut(r)}
+            className="inline-flex items-center gap-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Worker did not scan face on OUT? Click to auto-cut duty out."
+          >
+            <span>✂️</span>
+            <span>{isCutting ? 'Cutting…' : 'Auto Cut'}</span>
+          </button>
+          {renderMiniMapLink(r)}
+        </div>
+      );
+    }
+
+    return (
+      <div className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-slate-500">
+        <span className="inline-flex items-center gap-0.5 text-emerald-700 font-bold">
+          <span>✓</span>
+          <span>Out</span>
+        </span>
+        {renderMiniMapLink(r)}
+      </div>
+    );
+  };
 
   // Export Daily Register to PDF
   const exportPdf = async () => {
@@ -367,6 +354,13 @@ export default function DailyRegisterView({
         </div>
       </div>
 
+      {autoCutNotice && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 flex items-center justify-between shadow-2xs">
+          <span>✂️ {autoCutNotice}</span>
+          <button type="button" onClick={() => setAutoCutNotice('')} className="text-emerald-600 hover:text-emerald-800 text-xs cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* Muster Roll Table */}
       <div ref={reportRef} className="report-export-content overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
         {loadingData ? (
@@ -391,7 +385,7 @@ export default function DailyRegisterView({
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Hours Logged</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Lunch Time</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Source</th>
-                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Geo Location</th>
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Auto Cut</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -399,6 +393,7 @@ export default function DailyRegisterView({
                   const inTimeFormatted = r.dutyIn
                     ? new Date(r.dutyIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
                     : '—';
+                  const isNextDayOut = r.dutyIn && r.dutyOut && new Date(r.dutyOut).getDate() !== new Date(r.dutyIn).getDate();
                   const outTimeFormatted = r.dutyOut
                     ? new Date(r.dutyOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
                     : '—';
@@ -454,7 +449,15 @@ export default function DailyRegisterView({
                         {inTimeFormatted}
                       </td>
                       <td data-label="Duty OUT (IST)" className="px-3 py-1.5 font-medium text-slate-800">
-                        {outTimeFormatted}
+                        <span>{outTimeFormatted}</span>
+                        {isNextDayOut && (
+                          <span
+                            className="ml-1 text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.5 rounded"
+                            title="Checked out on the next calendar day (overnight shift)"
+                          >
+                            +1 day
+                          </span>
+                        )}
                       </td>
                       <td data-label="Worked hours" className="px-3 py-1.5">
                         {r.workedMinutes > 0 ? (
@@ -508,8 +511,8 @@ export default function DailyRegisterView({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td data-label="Geo Location" className="px-3 py-1.5 whitespace-nowrap text-center">
-                        {renderGeoLocation(r)}
+                      <td data-label="Auto Cut" className="px-3 py-1.5 whitespace-nowrap text-center">
+                        {renderAutoCutColumn(r)}
                       </td>
                     </tr>
                   );

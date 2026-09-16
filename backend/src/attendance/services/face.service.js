@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { requireRegisteredWorker } from './registeredUser.service.js';
 import Worker from '../models/Worker.js';
 import WorkerFaceProfile from '../models/WorkerFaceProfile.js';
@@ -18,6 +19,16 @@ export function validateDescriptor(descriptor) {
   }
 }
 
+export function euclideanDistance(arrA, arrB) {
+  if (!Array.isArray(arrA) || !Array.isArray(arrB) || arrA.length !== arrB.length) return Infinity;
+  let sum = 0;
+  for (let i = 0; i < arrA.length; i++) {
+    const diff = arrA[i] - arrB[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
 export async function enrolWorkerFace(user, workerId, payload = {}) {
   const workerObjectId = objectId(workerId, 'Worker');
   const worker = await Worker.findById(workerObjectId);
@@ -34,6 +45,38 @@ export async function enrolWorkerFace(user, workerId, payload = {}) {
 
   const { descriptor, descriptorVersion = 'v1', quality = {} } = payload;
   validateDescriptor(descriptor);
+
+  // Verify face duplicacy: Ensure this face descriptor does not match any other enrolled worker
+  let existingProfiles = [];
+  if (mongoose.connection.readyState === 1) {
+    existingProfiles = await WorkerFaceProfile.find({
+      worker: { $ne: worker._id },
+      active: true,
+    })
+      .populate({
+        path: 'worker',
+        select: 'fullName workerCode active firm',
+        populate: { path: 'firm', select: 'name' },
+      })
+      .lean();
+  }
+
+  if (Array.isArray(existingProfiles)) {
+    for (const profile of existingProfiles) {
+      if (!profile.descriptor || profile.descriptor.length !== 128) continue;
+      if (!profile.worker || !profile.worker.active) continue;
+
+      const dist = euclideanDistance(descriptor, profile.descriptor);
+      // Distance <= 0.42 strictly matches the same person
+      if (dist <= 0.42) {
+        const otherWorker = profile.worker;
+        const firmLabel = otherWorker.firm?.name ? ` in ${otherWorker.firm.name}` : '';
+        throw badRequest(
+          `Duplicate face detected! This face is already enrolled for worker "${otherWorker.fullName}" (${otherWorker.workerCode})${firmLabel}. Multiple workers cannot share the same face.`
+        );
+      }
+    }
+  }
 
   const profile = await WorkerFaceProfile.findOneAndUpdate(
     { worker: worker._id },

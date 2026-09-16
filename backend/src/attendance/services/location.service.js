@@ -21,9 +21,11 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
   const timestamp = typeof capturedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(capturedAt)
     ? new Date(capturedAt) : new Date(NaN);
   const validTime = Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === capturedAt;
+  const ageMs = now.getTime() - timestamp.getTime();
+  const isFresh = ageMs >= -60000 && ageMs <= 15 * 60 * 1000;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
-      !finite(accuracyMetres) || accuracyMetres < 0 || !validTime) {
+      !finite(accuracyMetres) || accuracyMetres < 0 || !validTime || !isFresh) {
     return unavailable('INVALID');
   }
   return { status: 'CAPTURED', latitude, longitude, accuracyMetres, capturedAt: timestamp };
@@ -33,4 +35,78 @@ export function attendanceLocationReport(location) {
   const status = location?.status;
   const safeStatus = Object.hasOwn(locationMessages, status) ? status : 'NOT_PROVIDED';
   return { status: safeStatus, message: locationMessages[safeStatus], needsAttention: safeStatus !== 'CAPTURED' };
+}
+
+export function calculateDistanceMetres(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Earth's mean radius in metres
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+export function formatDistanceMetres(metres) {
+  if (metres >= 1000) {
+    return `${(metres / 1000).toFixed(1)} km`;
+  }
+  return `${metres} metres`;
+}
+
+export function verifyAttendanceGeofence({ location, geofences = [], firmName = 'farm' }) {
+  // If no geofences are configured/active for this farm, attendance is permitted
+  const activeGeofences = (geofences || []).filter((g) => g.active !== false && Number.isFinite(g.latitude) && Number.isFinite(g.longitude));
+  if (activeGeofences.length === 0) {
+    return { allowed: true, reason: 'GEOFENCE_NOT_CONFIGURED' };
+  }
+
+  // When geofences are configured, location must be successfully captured
+  if (!location || location.status !== 'CAPTURED') {
+    let reason = 'LOCATION_REQUIRED';
+    let message = 'Location access is required: Please turn on GPS and allow location permission to mark attendance.';
+    if (location?.status === 'PERMISSION_DENIED') {
+      message = 'Location permission denied: Please allow browser location access in settings to mark attendance within the farm boundary.';
+    } else if (location?.status === 'TIMEOUT') {
+      message = 'GPS location timed out: Please ensure location services are enabled on your device and retry.';
+    } else if (location?.status === 'UNAVAILABLE') {
+      message = 'GPS signal unavailable: Please ensure location services / GPS is enabled on your device.';
+    }
+    return { allowed: false, reason, message };
+  }
+
+  const { latitude, longitude } = location;
+  let minDistance = Infinity;
+  let closestGeofence = null;
+
+  for (const geo of activeGeofences) {
+    const radius = geo.radiusMetres || 500;
+    const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
+    if (dist <= radius) {
+      return {
+        allowed: true,
+        distanceMetres: dist,
+        boundaryMetres: radius,
+        geofence: geo,
+        match: geo.isOfficeTesting ? 'OFFICE_TESTING' : 'FARM',
+      };
+    }
+    if (dist < minDistance) {
+      minDistance = dist;
+      closestGeofence = geo;
+    }
+  }
+
+  const targetName = closestGeofence?.name || firmName;
+  const targetRadius = closestGeofence?.radiusMetres || 500;
+  return {
+    allowed: false,
+    reason: 'OUTSIDE_GEOFENCE',
+    distanceMetres: minDistance,
+    boundaryMetres: targetRadius,
+    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${targetRadius}m of the location.`,
+  };
 }

@@ -56,7 +56,7 @@ export default function FaceAttendancePage() {
   const [enrolledWorkers, setEnrolledWorkers] = useState([]);
   const [loadingWorkers, setLoadingWorkers] = useState(false);
 
-  const [mode, setMode] = useState('AUTO'); // 'AUTO' | 'DUTY_IN' | 'DUTY_OUT'
+  const [mode, setMode] = useState('DUTY_IN'); // 'DUTY_IN' | 'LUNCH_OUT' | 'LUNCH_IN' | 'DUTY_OUT'
   const [facingMode, setFacingMode] = useState('user');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -347,8 +347,15 @@ export default function FaceAttendancePage() {
           err.message.toLowerCase().includes('already marked') ||
           err.message.toLowerCase().includes('already checked') ||
           err.message.toLowerCase().includes('already completed'));
+      const isGeofence =
+        err.message &&
+        (err.message.toLowerCase().includes('boundary') ||
+          err.message.toLowerCase().includes('location access') ||
+          err.message.toLowerCase().includes('location permission') ||
+          err.message.toLowerCase().includes('gps') ||
+          err.message.toLowerCase().includes('outside farm'));
       setActiveResult({
-        type: isDuplicate ? 'DUPLICATE' : 'ERROR',
+        type: isDuplicate ? 'DUPLICATE' : (isGeofence ? 'GEOFENCE' : 'ERROR'),
         workerName: worker.fullName,
         workerCode: worker.workerCode,
         workerId: worker.workerId || worker._id,
@@ -482,35 +489,34 @@ export default function FaceAttendancePage() {
         )}
       </div>
 
-      {/* Mode Selector Tabs - Mobile Responsive Grid */}
-      <div className="w-full bg-slate-900/70 px-2 py-1.5 sm:py-2 border-b border-slate-800/60 flex justify-center">
-        <div className="grid grid-cols-4 gap-1 sm:gap-1.5 w-full max-w-2xl rounded-xl bg-slate-800 p-1">
+      {/* Mode Selector Tabs - Separate distinct buttons, compact width & height */}
+      <div className="w-full bg-slate-900/80 px-2 py-1 sm:py-1.5 border-b border-slate-800/60 flex justify-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 w-full max-w-[280px] xs:max-w-[300px] sm:max-w-lg">
           {[
-            { id: 'AUTO', icon: '⚡', short: 'Auto', full: 'Auto' },
-            { id: 'LUNCH', icon: '🍱', short: 'Lunch', full: 'Lunch' },
-            { id: 'DUTY_IN', icon: '🟢', short: 'IN', full: 'Duty IN' },
-            { id: 'DUTY_OUT', icon: '🔴', short: 'OUT', full: 'Duty OUT' },
+            { id: 'DUTY_IN', icon: '🟢', label: 'Duty IN', activeStyle: 'bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-950/40 ring-1 ring-emerald-400/50 font-extrabold' },
+            { id: 'LUNCH_OUT', icon: '🍱', label: 'Lunch OUT', activeStyle: 'bg-amber-600 border-amber-400 text-white shadow-md shadow-amber-950/40 ring-1 ring-amber-400/50 font-extrabold' },
+            { id: 'DUTY_OUT', icon: '🔴', label: 'Duty OUT', activeStyle: 'bg-rose-600 border-rose-400 text-white shadow-md shadow-rose-950/40 ring-1 ring-rose-400/50 font-extrabold' },
+            { id: 'LUNCH_IN', icon: '🍽️', label: 'Lunch IN', activeStyle: 'bg-teal-600 border-teal-400 text-white shadow-md shadow-teal-950/40 ring-1 ring-teal-400/50 font-extrabold' },
           ].map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setMode(item.id)}
-              className={`flex min-h-[36px] sm:min-h-[42px] min-w-0 items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-1 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold transition text-center cursor-pointer whitespace-nowrap ${
+              className={`flex h-8 sm:h-8.5 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] sm:text-xs transition text-center cursor-pointer select-none whitespace-nowrap border active:scale-[0.98] ${
                 mode === item.id
-                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                  ? item.activeStyle
+                  : 'bg-slate-800/90 border-slate-700/80 text-slate-300 hover:bg-slate-700/80 hover:text-white shadow-xs font-semibold'
               }`}
             >
-              <span className="shrink-0 text-xs sm:text-sm">{item.icon}</span>
-              <span className="sm:hidden">{item.short}</span>
-              <span className="hidden sm:inline">{item.full}</span>
+              <span className="shrink-0 text-xs sm:text-sm leading-none">{item.icon}</span>
+              <span className="leading-none tracking-tight">{item.label}</span>
             </button>
           ))}
         </div>
       </div>
 
       {/* Main Scanner Viewport */}
-      <main className="relative flex flex-1 flex-col items-center justify-center p-3 sm:p-5 overflow-hidden">
+      <main className="relative flex flex-1 flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
         {cameraError ? (
           <div className="max-w-md rounded-2xl border border-red-500/30 bg-red-950/40 p-6 text-center backdrop-blur-md">
             <span className="text-3xl">📷</span>
@@ -525,7 +531,7 @@ export default function FaceAttendancePage() {
             </button>
           </div>
         ) : (
-          <div className="relative flex aspect-3/4 max-h-[58vh] sm:max-h-[68vh] w-full max-w-sm items-center justify-center overflow-hidden rounded-3xl border-2 border-slate-800 bg-slate-900 shadow-2xl">
+          <div className="relative flex aspect-3/4 max-h-[66vh] sm:max-h-[72vh] w-full max-w-[370px] sm:max-w-md items-center justify-center overflow-hidden rounded-3xl border-2 border-slate-800 bg-slate-900 shadow-2xl">
             {/* Live Video Feed */}
             <video
               ref={videoRef}
@@ -536,7 +542,7 @@ export default function FaceAttendancePage() {
             />
 
             {/* Oval Alignment Frame */}
-            <div className="pointer-events-none absolute h-56 sm:h-64 w-44 sm:w-48 rounded-[50%] border-2 border-dashed border-emerald-400/60 shadow-[0_0_25px_rgba(16,185,129,0.15)]" />
+            <div className="pointer-events-none absolute h-60 sm:h-68 w-46 sm:w-52 rounded-[50%] border-2 border-dashed border-emerald-400/60 shadow-[0_0_25px_rgba(16,185,129,0.15)]" />
 
             {/* Switch Camera Button */}
             <button
@@ -593,7 +599,7 @@ export default function FaceAttendancePage() {
                       ? 'bg-teal-600'
                       : activeResult.event?.eventType === 'DUTY_IN'
                       ? 'bg-emerald-600'
-                      : 'bg-indigo-600'
+                      : 'bg-rose-600'
                   }`}
                 >
                   <span>
@@ -684,6 +690,35 @@ export default function FaceAttendancePage() {
                 >
                   <span>➡️</span>
                   <span>Continue / Next Person</span>
+                </button>
+              </div>
+            )}
+
+            {/* Geofence / Location Boundary Overlay */}
+            {activeResult && activeResult.type === 'GEOFENCE' && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center backdrop-blur-md animate-fade-in">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/20 text-3xl text-rose-400 border-2 border-rose-500/50 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
+                  📍
+                </div>
+                <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-rose-400">
+                  Location Fencing Boundary
+                </h2>
+                <p className="mt-1 text-base font-bold text-white">
+                  {activeResult.workerName}
+                </p>
+                {activeResult.workerCode && (
+                  <p className="text-xs font-mono text-rose-300">{activeResult.workerCode}</p>
+                )}
+                <div className="mt-3 rounded-xl bg-rose-950/60 px-4 py-3 text-xs text-rose-200 border border-rose-500/30 max-w-sm leading-relaxed font-medium">
+                  {activeResult.message}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>Try Again / Next Person</span>
                 </button>
               </div>
             )}

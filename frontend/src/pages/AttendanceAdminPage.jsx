@@ -5,6 +5,7 @@ import { Alert, Spinner, inputClass } from '../components/Ui.jsx';
 import WorkersPanel from '../attendance/components/WorkersPanel.jsx';
 import DeploymentPanel from '../attendance/components/DeploymentPanel.jsx';
 import MastersPanel from '../attendance/components/MastersPanel.jsx';
+import GeofencePanel from '../attendance/components/GeofencePanel.jsx';
 import AuditLogPanel from '../attendance/components/AuditLogPanel.jsx';
 import { attendancePath } from '../attendance/services/adminApi.js';
 
@@ -139,6 +140,7 @@ export default function AttendanceAdminPage() {
         {[
           ['workers', '👤 Workers'],
           ...(canTransferOrDeploy ? [['deployments', '📍 Deployments']] : []),
+          ['geofences', '📍 Farm Geofences'],
           ['work-locations', '🏠 Sheds & Locations'],
           ['designations', '🏷️ Designations'],
           ['audit', '📜 Audit History'],
@@ -165,6 +167,16 @@ export default function AttendanceAdminPage() {
 
       {tab === 'deployments' && canTransferOrDeploy && (
         <DeploymentPanel key={firmId} firmId={firmId} revision={revision} />
+      )}
+
+      {tab === 'geofences' && (
+        <GeofencePanel
+          key={`${firmId}-${tab}`}
+          firmId={firmId}
+          firms={firms}
+          revision={revision}
+          onChanged={handleChanged}
+        />
       )}
 
       {tab === 'work-locations' && (
