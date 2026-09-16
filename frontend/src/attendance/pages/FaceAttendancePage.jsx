@@ -191,6 +191,7 @@ export default function FaceAttendancePage() {
       nextTimeoutRef.current = null;
     }
     matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
+    lastUnknownRef.current = Date.now();
     setActiveResult(null);
     setStatusPill('Ready · Scanning face...');
     processingRef.current = false;
@@ -201,18 +202,14 @@ export default function FaceAttendancePage() {
     const now = Date.now();
     if (now - lastUnknownRef.current < 3500 || processingRef.current) return;
     lastUnknownRef.current = now;
+    processingRef.current = true;
     playBeep('error');
     setActiveResult({
       type: 'UNKNOWN',
       title: 'UNKNOWN',
       message: 'No matching face found. Face the camera in good light and check that the correct firm is selected.',
     });
-    setStatusPill('⚠️ Face not matched · Please try again');
-
-    setTimeout(() => {
-      setActiveResult((prev) => (prev?.type === 'UNKNOWN' ? null : prev));
-      setStatusPill('Ready · Scanning face...');
-    }, 2800);
+    setStatusPill('⚠️ Face not matched · Tap Try Again / Next Person');
   }
 
   // Continuous scanner recognition loop
@@ -228,8 +225,8 @@ export default function FaceAttendancePage() {
         return;
       }
 
-      // Scan every 250ms if not actively submitting an attendance transaction
-      if (timestamp - lastScanTime > 250 && !processingRef.current) {
+      // Scan every 250ms if not actively submitting an attendance transaction and no active result
+      if (timestamp - lastScanTime > 250 && !processingRef.current && !activeResult) {
         lastScanTime = timestamp;
 
         try {
@@ -329,11 +326,11 @@ export default function FaceAttendancePage() {
         message: res.message,
       });
 
-      // Pause scanning: user/operator presses "Next Person" (or 10s auto-resume if unattended)
-      if (nextTimeoutRef.current) clearTimeout(nextTimeoutRef.current);
-      nextTimeoutRef.current = setTimeout(() => {
-        handleNextWorker();
-      }, 10000);
+      // Pause scanning: user/operator presses "Next Person" (never auto-resumes until clicked)
+      if (nextTimeoutRef.current) {
+        clearTimeout(nextTimeoutRef.current);
+        nextTimeoutRef.current = null;
+      }
     } catch (err) {
       playBeep('error');
       console.warn('Attendance scan error:', err);
@@ -352,11 +349,11 @@ export default function FaceAttendancePage() {
         message: err.message || 'Unable to record attendance.',
       });
 
-      // Clear warning card after 5 seconds or via manual tap
-      if (nextTimeoutRef.current) clearTimeout(nextTimeoutRef.current);
-      nextTimeoutRef.current = setTimeout(() => {
-        handleNextWorker();
-      }, 5000);
+      // Keep warning card displayed until operator explicitly clicks Continue / Next Person
+      if (nextTimeoutRef.current) {
+        clearTimeout(nextTimeoutRef.current);
+        nextTimeoutRef.current = null;
+      }
     }
   }
 
@@ -470,26 +467,26 @@ export default function FaceAttendancePage() {
 
       {/* Mode Selector Tabs - Mobile Responsive Grid */}
       <div className="w-full bg-slate-900/70 px-2 py-1.5 sm:py-2 border-b border-slate-800/60 flex justify-center">
-        <div className="grid grid-cols-4 gap-1 w-full max-w-lg rounded-xl bg-slate-800 p-1">
+        <div className="grid grid-cols-4 gap-1 sm:gap-1.5 w-full max-w-2xl rounded-xl bg-slate-800 p-1">
           {[
-            { id: 'AUTO', icon: '⚡', short: 'Auto', full: 'Auto (IN/OUT)' },
-            { id: 'LUNCH', icon: '🍱', short: 'Lunch', full: 'Lunch Break' },
-            { id: 'DUTY_IN', icon: '🟢', short: 'Duty IN', full: 'Duty IN only' },
-            { id: 'DUTY_OUT', icon: '🔴', short: 'Duty OUT', full: 'Duty OUT only' },
+            { id: 'AUTO', icon: '⚡', short: 'Auto', full: 'Auto' },
+            { id: 'LUNCH', icon: '🍱', short: 'Lunch', full: 'Lunch' },
+            { id: 'DUTY_IN', icon: '🟢', short: 'IN', full: 'Duty IN' },
+            { id: 'DUTY_OUT', icon: '🔴', short: 'OUT', full: 'Duty OUT' },
           ].map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setMode(item.id)}
-              className={`flex min-h-[38px] sm:min-h-[44px] items-center justify-center gap-1 rounded-lg px-1 sm:px-2.5 py-1.5 text-[10px] xs:text-[11px] sm:text-xs font-bold transition text-center cursor-pointer ${
+              className={`flex min-h-[36px] sm:min-h-[42px] min-w-0 items-center justify-center gap-1 sm:gap-1.5 rounded-lg px-1 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold transition text-center cursor-pointer whitespace-nowrap ${
                 mode === item.id
                   ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400/30'
                   : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
               }`}
             >
               <span className="shrink-0 text-xs sm:text-sm">{item.icon}</span>
-              <span className="sm:hidden truncate">{item.short}</span>
-              <span className="hidden sm:inline whitespace-nowrap">{item.full}</span>
+              <span className="sm:hidden">{item.short}</span>
+              <span className="hidden sm:inline">{item.full}</span>
             </button>
           ))}
         </div>
