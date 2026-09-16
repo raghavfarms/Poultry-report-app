@@ -48,6 +48,7 @@ export default function FaceAttendancePage() {
   const processingRef = useRef(false);
   const lastUnknownRef = useRef(0);
   const matchConsensusRef = useRef({ workerId: null, count: 0, lastSeen: 0 });
+  const nextTimeoutRef = useRef(null);
 
   const [firms, setFirms] = useState([]);
   const [selectedFirmId, setSelectedFirmId] = useState(queryFirmId);
@@ -137,6 +138,7 @@ export default function FaceAttendancePage() {
       mounted = false;
       stopCamera();
       if (loopRef.current) cancelAnimationFrame(loopRef.current);
+      if (nextTimeoutRef.current) clearTimeout(nextTimeoutRef.current);
     };
   }, []);
 
@@ -180,6 +182,18 @@ export default function FaceAttendancePage() {
     const nextMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextMode);
     startCamera(nextMode);
+  }
+
+  // Controlled transition: Resume scanner for the next worker
+  function handleNextWorker() {
+    if (nextTimeoutRef.current) {
+      clearTimeout(nextTimeoutRef.current);
+      nextTimeoutRef.current = null;
+    }
+    matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
+    setActiveResult(null);
+    setStatusPill('Ready · Scanning face...');
+    processingRef.current = false;
   }
 
   // Handle detected face that is not registered/enrolled
@@ -315,12 +329,11 @@ export default function FaceAttendancePage() {
         message: res.message,
       });
 
-      // Show result card for 3.5 seconds, then auto-return to continuous scan mode!
-      setTimeout(() => {
-        setActiveResult(null);
-        setStatusPill('Ready · Scanning face...');
-        processingRef.current = false;
-      }, 3500);
+      // Pause scanning: user/operator presses "Next Person" (or 10s auto-resume if unattended)
+      if (nextTimeoutRef.current) clearTimeout(nextTimeoutRef.current);
+      nextTimeoutRef.current = setTimeout(() => {
+        handleNextWorker();
+      }, 10000);
     } catch (err) {
       playBeep('error');
       console.warn('Attendance scan error:', err);
@@ -339,12 +352,11 @@ export default function FaceAttendancePage() {
         message: err.message || 'Unable to record attendance.',
       });
 
-      // Clear warning card after 3.5 seconds
-      setTimeout(() => {
-        setActiveResult(null);
-        setStatusPill('Ready · Scanning face...');
-        processingRef.current = false;
-      }, 3500);
+      // Clear warning card after 5 seconds or via manual tap
+      if (nextTimeoutRef.current) clearTimeout(nextTimeoutRef.current);
+      nextTimeoutRef.current = setTimeout(() => {
+        handleNextWorker();
+      }, 5000);
     }
   }
 
@@ -595,9 +607,15 @@ export default function FaceAttendancePage() {
                   </p>
                 )}
 
-                <p className="mt-4 text-[10px] text-slate-400">
-                  Next worker scan ready in 3s...
-                </p>
+                {/* Controlled Next Worker Button */}
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-4 w-full max-w-xs inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] py-2.5 sm:py-3 px-5 text-xs sm:text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/30 transition cursor-pointer"
+                >
+                  <span>➡️</span>
+                  <span>Next Person / Scan Next</span>
+                </button>
               </div>
             )}
 
@@ -616,7 +634,14 @@ export default function FaceAttendancePage() {
                 <div className="mt-3 rounded-xl bg-red-950/50 px-3.5 py-2 text-xs text-red-200 border border-red-500/30 max-w-xs">
                   {activeResult.message}
                 </div>
-                <p className="mt-4 text-[10px] text-slate-400">Resuming scanner...</p>
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-500/40 bg-red-900/60 hover:bg-red-800 px-4 py-1.5 text-xs font-semibold text-white transition cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>Try Again / Next Person</span>
+                </button>
               </div>
             )}
 
@@ -638,7 +663,14 @@ export default function FaceAttendancePage() {
                 <div className="mt-3 rounded-xl bg-amber-950/50 px-3.5 py-2.5 text-xs text-amber-200 border border-amber-500/30 max-w-xs leading-relaxed font-medium">
                   {activeResult.message}
                 </div>
-                <p className="mt-4 text-[10px] text-slate-400">Resuming scanner...</p>
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 px-4 py-2 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
+                >
+                  <span>➡️</span>
+                  <span>Continue / Next Person</span>
+                </button>
               </div>
             )}
 
@@ -655,7 +687,14 @@ export default function FaceAttendancePage() {
                   <p className="text-xs font-mono text-slate-400">{activeResult.workerCode}</p>
                 )}
                 <p className="mt-3 text-xs text-red-300 max-w-xs">{activeResult.message}</p>
-                <p className="mt-4 text-[10px] text-slate-400">Resuming scanner...</p>
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-1.5 text-xs font-semibold text-white transition cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>Continue / Next</span>
+                </button>
               </div>
             )}
           </div>

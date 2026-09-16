@@ -386,7 +386,7 @@ export default function WorkerAttendancePortal() {
                     Completed for Today
                   </div>
                 ) : isCheckedIn ? (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-1.5 text-xs font-black text-emerald-800 animate-pulse">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-1.5 text-xs font-black text-emerald-800">
                     <span className="h-2 w-2 rounded-full bg-emerald-600" />
                     Clocked IN (Duty Active)
                   </div>

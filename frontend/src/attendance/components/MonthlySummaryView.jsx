@@ -289,7 +289,7 @@ export default function MonthlySummaryView({
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span> HD (Half Day)
         </span>
         <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900 border border-emerald-300/50">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-ping"></span> OD (On Duty)
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span> OD (On Duty)
         </span>
         <span className="inline-flex items-center gap-1 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-800 border border-rose-200/50">
           <span className="h-1.5 w-1.5 rounded-full bg-rose-500"></span> A (Absent)
@@ -348,7 +348,7 @@ export default function MonthlySummaryView({
                       let cellClass = 'text-slate-300';
                       if (code === 'P') cellClass = 'bg-emerald-100 text-emerald-800 font-bold';
                       else if (code === 'HD') cellClass = 'bg-amber-100 text-amber-800 font-bold';
-                      else if (code === 'OD') cellClass = 'bg-emerald-600 text-white font-black animate-pulse';
+                      else if (code === 'OD') cellClass = 'bg-emerald-600 text-white font-bold';
                       else if (code === 'A') cellClass = 'bg-rose-50 text-rose-600 font-medium';
 
                       return (

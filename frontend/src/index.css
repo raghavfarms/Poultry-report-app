@@ -328,8 +328,17 @@ button {
 .report-export-content.pdf-exporting .transport-report-table th,
 .report-export-content.pdf-exporting .transport-report-table td,
 .report-export-content.pdf-exporting .attendance-table th,
-.report-export-content.pdf-exporting .attendance-table td {
+.report-export-content.pdf-exporting .attendance-table td,
+.report-export-content.pdf-exporting table th,
+.report-export-content.pdf-exporting table td {
   position: static !important;
+}
+.report-export-content.pdf-exporting .max-w-3xl {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+.report-export-content.pdf-exporting .pdf-print-header {
+  display: block !important;
 }
 .report-export-content.pdf-exporting .attendance-table thead th {
   background-color: #f1f5f9 !important;
@@ -374,5 +383,15 @@ button {
   }
   .report-table tr {
     break-inside: avoid;
+  }
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .max-w-3xl {
+    max-width: 100% !important;
+  }
+  th.sticky,
+  td.sticky {
+    position: static !important;
   }
 }
