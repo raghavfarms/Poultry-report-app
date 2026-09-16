@@ -72,7 +72,7 @@ router.delete('/workers/:id', attendanceAdminOnly, async (req, res) => res.json(
 router.get('/workers/:id/deployment', async (req, res) => res.json(await deploymentService.currentDeployment(req.user, req.params.id, req.query)));
 router.get('/workers/:id/deployments', async (req, res) => res.json(await deploymentService.listDeployments(req.user, req.query, req.params.id)));
 router.post('/workers/:id/initial-deployment', attendanceAdminOnly, async (req, res) => res.status(201).json({ deployment: await deploymentService.assignInitialDeployment(req.user, req.params.id, req.body) }));
-router.post('/workers/:id/transfer', attendanceAdminOnly, async (req, res) => res.json(await deploymentService.transferWorker(req.user, req.params.id, req.body)));
+router.post('/workers/:id/transfer', async (req, res) => res.json(await deploymentService.transferWorker(req.user, req.params.id, req.body)));
 
 // Worker Photo
 router.put('/workers/:id/photo', attendanceAdminOnly, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '2mb' }), async (req, res) => {

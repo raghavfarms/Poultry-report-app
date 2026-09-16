@@ -150,7 +150,7 @@ export function pagination(query) {
   };
   const page = read(query.page, 1);
   const limit = read(query.limit, 25);
-  if (![25, 50, 100].includes(limit) || page > 1000000) throw badRequest('Use a page size of 25, 50 or 100 and a valid page.');
+  if (limit < 1 || limit > 1000 || page > 1000000) throw badRequest('Use a valid page and a limit between 1 and 1000.');
   return { page, limit, skip: (page - 1) * limit };
 }
 

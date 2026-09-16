@@ -10,7 +10,7 @@ import { attendancePath } from '../attendance/services/adminApi.js';
 
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
-  const canTransferOrDeploy = ['admin', 'developer', 'office', 'supervisor'].includes(user?.role);
+  const canTransferOrDeploy = ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
 
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState('');

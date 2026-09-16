@@ -5,6 +5,7 @@ import { api } from '../../api/client.js';
 import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent } from '../services/adminApi.js';
 import { loadFaceModels, detectAndRecognizeFaces } from '../services/faceModelLoader.js';
 import { captureLocation } from '../services/captureLocation.js';
+import TransferModal from '../components/TransferModal.jsx';
 
 // Subtle audio feedback using Web Audio API (no external asset needed)
 function playBeep(type = 'success') {
@@ -65,6 +66,7 @@ export default function FaceAttendancePage() {
   const [statusPill, setStatusPill] = useState('Initializing Face Scanner...');
   const [activeResult, setActiveResult] = useState(null); // { type: 'SUCCESS' | 'DUPLICATE' | 'ERROR', data, message }
   const [locationStatus, setLocationStatus] = useState('IDLE'); // 'CAPTURED' | 'DENIED' | 'UNAVAILABLE'
+  const [showTransferModal, setShowTransferModal] = useState(false);
 
   // 1. Determine firms available to user
   useEffect(() => {
@@ -225,8 +227,8 @@ export default function FaceAttendancePage() {
         return;
       }
 
-      // Scan every 250ms if not actively submitting an attendance transaction and no active result
-      if (timestamp - lastScanTime > 250 && !processingRef.current && !activeResult) {
+      // Scan every 250ms if not actively submitting an attendance transaction, no modal, and no active result
+      if (timestamp - lastScanTime > 250 && !processingRef.current && !activeResult && !showTransferModal) {
         lastScanTime = timestamp;
 
         try {
@@ -285,7 +287,7 @@ export default function FaceAttendancePage() {
       cancelled = true;
       cancelAnimationFrame(loopRef.current);
     };
-  }, [cameraActive, loadingWorkers, enrolledWorkers, selectedFirmId, attendanceDate, mode, activeResult]);
+  }, [cameraActive, loadingWorkers, enrolledWorkers, selectedFirmId, attendanceDate, mode, activeResult, showTransferModal]);
 
   // Handle recognized worker: capture location and post to backend attendance service
   async function handleRecognizedWorker(worker) {
@@ -323,6 +325,9 @@ export default function FaceAttendancePage() {
         event: res.event,
         session: res.session,
         workedDuration: res.workedDuration,
+        workerId: res.event?.workerId || worker.workerId || worker._id,
+        workerName: res.event?.workerNameSnapshot || worker.fullName,
+        workerCode: res.event?.workerCodeSnapshot || worker.workerCode,
         message: res.message,
       });
 
@@ -346,6 +351,8 @@ export default function FaceAttendancePage() {
         type: isDuplicate ? 'DUPLICATE' : 'ERROR',
         workerName: worker.fullName,
         workerCode: worker.workerCode,
+        workerId: worker.workerId || worker._id,
+        worker: worker,
         message: err.message || 'Unable to record attendance.',
       });
 
@@ -450,6 +457,16 @@ export default function FaceAttendancePage() {
               Today
             </button>
           )}
+          {/* Transfer Worker Button - Just Adjacent to Date */}
+          <button
+            type="button"
+            onClick={() => setShowTransferModal(true)}
+            className="flex items-center gap-1 rounded-lg border border-cyan-500/50 bg-cyan-950/70 hover:bg-cyan-900/90 active:scale-95 px-2 sm:px-2.5 py-1 text-[11px] font-bold text-cyan-300 hover:text-cyan-100 transition shadow-sm cursor-pointer whitespace-nowrap"
+            title="Transfer worker to another shed or farm"
+          >
+            <span className="text-xs">⇄</span>
+            <span>Transfer</span>
+          </button>
         </div>
 
         {attendanceDate !== todayString ? (
@@ -697,6 +714,47 @@ export default function FaceAttendancePage() {
           </div>
         )}
       </main>
+
+      {/* Worker Transfer Modal */}
+      {showTransferModal && (
+        <TransferModal
+          firms={firms}
+          firmId={selectedFirmId}
+          defaultDate={attendanceDate}
+          fallbackWorkers={enrolledWorkers}
+          worker={
+            activeResult?.workerId || activeResult?.event?.workerId
+              ? {
+                  _id: activeResult.workerId || activeResult.event?.workerId,
+                  fullName: activeResult.workerName || activeResult.event?.workerNameSnapshot,
+                  workerCode: activeResult.workerCode || activeResult.event?.workerCodeSnapshot,
+                  firm: selectedFirmId,
+                }
+              : null
+          }
+          currentDeployment={
+            activeResult?.workLocationId || activeResult?.event?.workLocationIdSnapshot
+              ? {
+                  workLocation: activeResult.workLocationId || activeResult.event?.workLocationIdSnapshot,
+                  workLocationNameSnapshot: activeResult.workLocationName || activeResult.event?.workLocationNameSnapshot,
+                  firmNameSnapshot: firms.find((f) => String(f._id || f) === String(selectedFirmId))?.name || '',
+                }
+              : null
+          }
+          onClose={() => setShowTransferModal(false)}
+          onSuccess={(msg) => {
+            setShowTransferModal(false);
+            setStatusPill(`✓ ${msg}`);
+            if (selectedFirmId) {
+              fetchFirmFaceDescriptors(selectedFirmId)
+                .then((res) => {
+                  setEnrolledWorkers(res.descriptors || []);
+                })
+                .catch(() => {});
+            }
+          }}
+        />
+      )}
 
       {/* Bottom Footer Info */}
       <footer className="border-t border-slate-900 bg-slate-950 px-4 py-2 text-center text-[11px] text-slate-500">

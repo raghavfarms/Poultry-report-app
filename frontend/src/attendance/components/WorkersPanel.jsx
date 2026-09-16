@@ -1031,7 +1031,7 @@ function WorkerActionDropdown({
 
 export default function WorkersPanel({ firmId, firms = [], revision, onChanged }) {
   const { user } = useAuth();
-  const canTransfer = ['admin', 'developer', 'office', 'supervisor'].includes(user?.role);
+  const canTransfer = ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
 
   const [search, setSearch] = useState('');
   const [designation, setDesignation] = useState('');

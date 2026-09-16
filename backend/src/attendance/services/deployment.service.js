@@ -172,8 +172,8 @@ export async function transferWorker(user, id, body = {}) {
     const currentDep = await WorkerDeployment.findOne({ worker: worker._id, effectiveTo: null }).session(session);
     if (!currentDep) throw badRequest('Worker has no active deployment to transfer from.');
 
-    if (effectiveFrom <= currentDep.effectiveFrom) {
-      throw badRequest('Transfer effective date must be after the current deployment start date.');
+    if (effectiveFrom < currentDep.effectiveFrom) {
+      throw badRequest('Transfer effective date cannot be before the current deployment start date.');
     }
 
     const isInterFirm = Boolean(toFirmId && String(toFirmId) !== String(worker.firm));
