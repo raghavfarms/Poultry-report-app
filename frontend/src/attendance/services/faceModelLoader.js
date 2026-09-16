@@ -72,8 +72,9 @@ export async function detectFaceForEnrolment(input) {
   await loadFaceModels();
 
   // We use detectAllFaces first to ensure there is strictly ONE face in the frame!
+  // High-resolution inputSize 416 extracts crisp landmarks to avoid duplicate/ambiguous profiles
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.55 }))
+    .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.60 }))
     .withFaceLandmarks(true)
     .withFaceDescriptors();
 
@@ -92,7 +93,7 @@ export async function detectFaceForEnrolment(input) {
   const box = detection.detection.box;
 
   // Basic quality checks: face box should be sufficiently large
-  if (box.width < 80 || box.height < 80) {
+  if (box.width < 90 || box.height < 90) {
     return {
       status: 'TOO_FAR',
       message: 'Please move closer to the camera.',
@@ -117,12 +118,13 @@ export async function detectFaceForEnrolment(input) {
   };
 }
 
-export async function detectAndRecognizeFaces(input, enrolledWorkers = [], threshold = 0.52) {
+export async function detectAndRecognizeFaces(input, enrolledWorkers = [], threshold = 0.42) {
   const faceapi = await getFaceApi();
   await loadFaceModels();
 
+  // Higher resolution inputSize 416 provides precise feature landmarks, separating similar oval faces
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+    .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.55 }))
     .withFaceLandmarks(true)
     .withFaceDescriptors();
 
@@ -144,6 +146,7 @@ export async function detectAndRecognizeFaces(input, enrolledWorkers = [], thres
       }
     }
 
+    // Strict threshold (<= 0.42) ensures only the real registered person matches
     const matched = bestWorker && minDistance <= threshold;
     return {
       box: det.detection.box,

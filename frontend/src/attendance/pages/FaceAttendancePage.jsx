@@ -47,6 +47,7 @@ export default function FaceAttendancePage() {
   const loopRef = useRef(null);
   const processingRef = useRef(false);
   const lastUnknownRef = useRef(0);
+  const matchConsensusRef = useRef({ workerId: null, count: 0, lastSeen: 0 });
 
   const [firms, setFirms] = useState([]);
   const [selectedFirmId, setSelectedFirmId] = useState(queryFirmId);
@@ -221,18 +222,43 @@ export default function FaceAttendancePage() {
           const { faces, bestMatch } = await detectAndRecognizeFaces(
             videoRef.current,
             enrolledWorkers,
-            0.52
+            0.42
           );
           // Discard frames from an old firm, date, mode, or stopped camera.
           if (cancelled) return;
 
           if (faces.length === 0) {
+            matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
             if (!activeResult) setStatusPill('Position face in camera view');
           } else if (bestMatch) {
-            // Recognized enrolled worker! Submit attendance
-            await handleRecognizedWorker(bestMatch.worker);
+            const now = Date.now();
+            const candidateWorkerId = String(bestMatch.worker.workerId);
+
+            // Multi-frame consensus: require 2 consecutive frames of the same worker within 1200ms
+            if (
+              matchConsensusRef.current.workerId === candidateWorkerId &&
+              now - matchConsensusRef.current.lastSeen < 1200
+            ) {
+              matchConsensusRef.current.count += 1;
+              matchConsensusRef.current.lastSeen = now;
+            } else {
+              matchConsensusRef.current = {
+                workerId: candidateWorkerId,
+                count: 1,
+                lastSeen: now,
+              };
+            }
+
+            if (matchConsensusRef.current.count >= 2) {
+              // Confirmed genuine match across multiple frames!
+              matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
+              await handleRecognizedWorker(bestMatch.worker);
+            } else {
+              setStatusPill(`Verifying: ${bestMatch.worker.fullName}... hold still`);
+            }
           } else {
-            // Face detected but not matched to any registered worker
+            // Face detected but distance > 0.42 (Not matched to any registered worker)
+            matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
             handleUnknownFace();
           }
         } catch (e) {
