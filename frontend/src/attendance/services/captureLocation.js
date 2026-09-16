@@ -21,7 +21,7 @@ export function captureLocation({ geolocation = globalThis.navigator?.geolocatio
             !Number.isFinite(timestamp.getTime())) return finish({ status: 'UNAVAILABLE' });
         finish({ status: 'CAPTURED', latitude, longitude, accuracyMetres: accuracy, capturedAt: timestamp.toISOString() });
       }, (error) => finish({ status: ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[error?.code] || 'UNAVAILABLE' }),
-      { enableHighAccuracy: true, maximumAge: 0, timeout });
+      { enableHighAccuracy: true, maximumAge: 30000, timeout });
     } catch {
       finish({ status: 'UNAVAILABLE' });
     }

@@ -14,7 +14,7 @@ const schema = new mongoose.Schema({
   firm: { type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true },
   fullName: { type: String, required: true, trim: true, maxlength: 120 },
   fatherOrHusbandName: { type: String, trim: true, maxlength: 120, default: '' },
-  gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER', 'NOT_SPECIFIED'], default: 'NOT_SPECIFIED' },
+  gender: { type: String, enum: ['MALE', 'FEMALE', 'OTHER', 'LOCAL', 'NOT_SPECIFIED'], default: 'NOT_SPECIFIED' },
   mobileNumber: { type: String, match: /^(?:\+?\d{10,15})?$/, default: '' },
   address: { type: String, trim: true, maxlength: 1000, default: '' },
   photographUrl: { type: String, maxlength: 2048, default: '' },

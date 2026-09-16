@@ -18,11 +18,11 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
   if (input.status !== 'CAPTURED') return unavailable(input.status);
   const { latitude, longitude, accuracyMetres, capturedAt } = input;
   const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-  const timestamp = typeof capturedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(capturedAt)
+  const timestamp = typeof capturedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(capturedAt)
     ? new Date(capturedAt) : new Date(NaN);
-  const validTime = Number.isFinite(timestamp.getTime()) && timestamp.toISOString() === capturedAt;
-  const ageMs = now.getTime() - timestamp.getTime();
-  const isFresh = ageMs >= -60000 && ageMs <= 15 * 60 * 1000;
+  const validTime = Number.isFinite(timestamp.getTime());
+  const ageMs = Math.abs(now.getTime() - timestamp.getTime());
+  const isFresh = ageMs <= 60 * 60 * 1000;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
       !finite(accuracyMetres) || accuracyMetres < 0 || !validTime || !isFresh) {
@@ -69,11 +69,13 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
     let reason = 'LOCATION_REQUIRED';
     let message = 'Location access is required: Please turn on GPS and allow location permission to mark attendance.';
     if (location?.status === 'PERMISSION_DENIED') {
-      message = 'Location permission denied: Please allow browser location access in settings to mark attendance within the farm boundary.';
+      message = 'Location permission denied: Please allow browser location access in settings to mark attendance within the boundary.';
     } else if (location?.status === 'TIMEOUT') {
       message = 'GPS location timed out: Please ensure location services are enabled on your device and retry.';
     } else if (location?.status === 'UNAVAILABLE') {
       message = 'GPS signal unavailable: Please ensure location services / GPS is enabled on your device.';
+    } else if (location?.status === 'UNSUPPORTED') {
+      message = 'Location is unsupported or blocked by your browser. Please access the application using localhost or HTTPS.';
     }
     return { allowed: false, reason, message };
   }

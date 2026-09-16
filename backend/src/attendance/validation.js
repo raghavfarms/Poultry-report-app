@@ -130,7 +130,7 @@ export function workerPayload(body, create = false) {
   }
   for (const key of ['active', 'isSupervisor']) if (body[key] !== undefined) result[key] = boolean(body[key], key);
   if (body.gender !== undefined) {
-    if (!['MALE', 'FEMALE', 'OTHER', 'NOT_SPECIFIED'].includes(body.gender)) throw badRequest('Gender is invalid.');
+    if (!['MALE', 'FEMALE', 'OTHER', 'LOCAL', 'NOT_SPECIFIED'].includes(body.gender)) throw badRequest('Gender is invalid.');
     result.gender = body.gender;
   }
   if (body.mobileNumber !== undefined) {

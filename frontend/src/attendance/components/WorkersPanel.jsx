@@ -279,6 +279,7 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
                 <option value="MALE">Male</option>
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
+                <option value="LOCAL">Local</option>
               </select>
             </Field>
 
@@ -552,6 +553,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
                 <option value="MALE">Male</option>
                 <option value="FEMALE">Female</option>
                 <option value="OTHER">Other</option>
+                <option value="LOCAL">Local</option>
               </select>
             </Field>
 
@@ -741,7 +743,7 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
               <div className="truncate"><span className="text-slate-400 font-medium">Joined:</span> <span className="font-semibold text-slate-800">{worker.dateOfJoining}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Mobile:</span> <span className="font-semibold text-slate-800">{worker.mobileNumber || '—'}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Father:</span> <span className="font-semibold text-slate-800">{worker.fatherOrHusbandName || '—'}</span></div>
-              <div className="truncate"><span className="text-slate-400 font-medium">Gender:</span> <span className="font-semibold text-slate-800">{worker.gender}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Gender:</span> <span className="font-semibold text-slate-800">{worker.gender === 'LOCAL' ? 'Local' : worker.gender === 'MALE' ? 'Male' : worker.gender === 'FEMALE' ? 'Female' : worker.gender === 'OTHER' ? 'Other' : '—'}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Ref:</span> <span className="font-semibold text-slate-800">{worker.referenceName || '—'}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Address:</span> <span className="font-semibold text-slate-800">{worker.address || '—'}</span></div>
               {!worker.active && (

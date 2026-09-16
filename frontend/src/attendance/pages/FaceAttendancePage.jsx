@@ -65,7 +65,10 @@ export default function FaceAttendancePage() {
   const [attendanceDate, setAttendanceDate] = useState(queryDate || todayString);
   const [statusPill, setStatusPill] = useState('Initializing Face Scanner...');
   const [activeResult, setActiveResult] = useState(null); // { type: 'SUCCESS' | 'DUPLICATE' | 'ERROR', data, message }
-  const [locationStatus, setLocationStatus] = useState('IDLE'); // 'CAPTURED' | 'DENIED' | 'UNAVAILABLE'
+  const [locationStatus, setLocationStatus] = useState('ACQUIRING'); // 'ACQUIRING' | 'CAPTURED' | 'PERMISSION_DENIED' | 'UNAVAILABLE' | 'TIMEOUT'
+  const [locationDetails, setLocationDetails] = useState(null);
+  const latestLocationRef = useRef(null);
+  const watchIdRef = useRef(null);
   const [showTransferModal, setShowTransferModal] = useState(false);
 
   // 1. Determine firms available to user
@@ -117,6 +120,61 @@ export default function FaceAttendancePage() {
       mounted = false;
     };
   }, [selectedFirmId]);
+
+  // Proactive Location Acquisition & Continuous GPS Tracking
+  const requestLocation = async () => {
+    setLocationStatus('ACQUIRING');
+    try {
+      const loc = await captureLocation({ timeoutMs: 10000 });
+      latestLocationRef.current = loc;
+      setLocationStatus(loc.status);
+      if (loc.status === 'CAPTURED') {
+        setLocationDetails({ accuracy: Math.round(loc.accuracyMetres || 0), lat: loc.latitude, lon: loc.longitude });
+      }
+    } catch {
+      setLocationStatus('UNAVAILABLE');
+    }
+  };
+
+  useEffect(() => {
+    requestLocation();
+
+    if (globalThis.navigator?.geolocation?.watchPosition) {
+      try {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude, accuracy } = position.coords || {};
+            const timestamp = new Date(position.timestamp);
+            if ([latitude, longitude, accuracy].every((v) => typeof v === 'number' && Number.isFinite(v))) {
+              const freshLoc = {
+                status: 'CAPTURED',
+                latitude,
+                longitude,
+                accuracyMetres: accuracy,
+                capturedAt: timestamp.toISOString(),
+              };
+              latestLocationRef.current = freshLoc;
+              setLocationStatus('CAPTURED');
+              setLocationDetails({ accuracy: Math.round(accuracy), lat: latitude, lon: longitude });
+            }
+          },
+          (error) => {
+            const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[error?.code] || 'UNAVAILABLE';
+            if (!latestLocationRef.current || latestLocationRef.current.status !== 'CAPTURED') {
+              setLocationStatus(mapped);
+            }
+          },
+          { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+        );
+      } catch {}
+    }
+
+    return () => {
+      if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   // 3. Start Camera and Face Detection Loop
   useEffect(() => {
@@ -297,13 +355,22 @@ export default function FaceAttendancePage() {
     setStatusPill(`Recognized: ${worker.fullName} (${worker.workerCode})`);
 
     try {
-      // 1. Non-blocking scan-time location capture
-      let loc = null;
-      try {
-        loc = await captureLocation({ timeoutMs: 3500 });
-        setLocationStatus(loc.status || 'CAPTURED');
-      } catch (locErr) {
-        setLocationStatus('UNAVAILABLE');
+      // 1. Resolve Location: prefer pre-warmed / watched fresh location
+      let loc = latestLocationRef.current;
+      const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
+        (Date.now() - new Date(loc.capturedAt).getTime() < 60000);
+
+      if (!isFresh) {
+        try {
+          loc = await captureLocation({ timeoutMs: 6000 });
+          latestLocationRef.current = loc;
+          setLocationStatus(loc.status || 'CAPTURED');
+          if (loc?.status === 'CAPTURED') {
+            setLocationDetails({ accuracy: Math.round(loc.accuracyMetres || 0), lat: loc.latitude, lon: loc.longitude });
+          }
+        } catch {
+          loc = loc || { status: 'UNAVAILABLE' };
+        }
       }
 
       // 2. Call unified backend attendance service
@@ -407,23 +474,44 @@ export default function FaceAttendancePage() {
             </select>
           )}
 
-          <div
-            title={`Scan Location Status: ${locationStatus}`}
-            className="flex min-h-[34px] sm:min-h-[38px] items-center gap-1.5 rounded-lg bg-slate-800 px-2 sm:px-2.5 py-1 text-[11px] font-medium"
+          <button
+            type="button"
+            onClick={requestLocation}
+            title={`GPS Status: ${locationStatus}. Click to refresh.`}
+            className={`flex min-h-[34px] sm:min-h-[38px] items-center gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] font-medium transition cursor-pointer border ${
+              locationStatus === 'CAPTURED'
+                ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300'
+                : locationStatus === 'ACQUIRING'
+                ? 'bg-amber-950/40 border-amber-800/80 text-amber-300 animate-pulse'
+                : locationStatus === 'PERMISSION_DENIED'
+                ? 'bg-rose-950/60 border-rose-800 text-rose-300'
+                : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
+            }`}
           >
             <span
               className={`h-2 w-2 rounded-full ${
                 locationStatus === 'CAPTURED'
                   ? 'bg-emerald-400'
-                  : locationStatus === 'DENIED'
+                  : locationStatus === 'ACQUIRING'
                   ? 'bg-amber-400'
+                  : locationStatus === 'PERMISSION_DENIED'
+                  ? 'bg-rose-400'
                   : 'bg-slate-400'
               }`}
             />
-            <span className="hidden sm:inline text-slate-300">
-              {locationStatus === 'CAPTURED' ? 'GPS Active' : 'GPS Optional'}
+            <span className="hidden sm:inline">
+              {locationStatus === 'CAPTURED'
+                ? `GPS Active${locationDetails?.accuracy ? ` (±${locationDetails.accuracy}m)` : ''}`
+                : locationStatus === 'ACQUIRING'
+                ? 'Acquiring GPS...'
+                : locationStatus === 'PERMISSION_DENIED'
+                ? 'Location Blocked ⚠️'
+                : 'Retry GPS'}
             </span>
-          </div>
+            <span className="sm:hidden">
+              {locationStatus === 'CAPTURED' ? 'GPS' : 'GPS ?'}
+            </span>
+          </button>
         </div>
       </header>
 
@@ -517,6 +605,38 @@ export default function FaceAttendancePage() {
 
       {/* Main Scanner Viewport */}
       <main className="relative flex flex-1 flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
+        {/* Location Status Alerts */}
+        {locationStatus === 'PERMISSION_DENIED' && (
+          <div className="mb-2 w-full max-w-md rounded-xl border border-rose-600/80 bg-rose-950/80 p-2 text-center text-xs text-rose-200 backdrop-blur-sm shadow-lg">
+            <p className="font-bold text-rose-300">📍 Browser Location Permission Blocked</p>
+            <p className="text-[11px] text-rose-200/90 mt-0.5">
+              Click the padlock / sliders icon in your browser address bar and set <strong>Location → Allow</strong>, then tap Retry.
+            </p>
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="mt-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 px-3 py-1 text-[11px] font-bold text-white shadow-xs transition cursor-pointer"
+            >
+              🔄 Retry Location Access
+            </button>
+          </div>
+        )}
+        {locationStatus === 'UNAVAILABLE' && (
+          <div className="mb-2 w-full max-w-md rounded-xl border border-amber-600/60 bg-amber-950/70 p-2 text-center text-xs text-amber-200 backdrop-blur-sm shadow-md">
+            <p className="font-bold text-amber-300">⚠️ GPS / Location Unavailable</p>
+            <p className="text-[10.5px] text-amber-200/90 mt-0.5">
+              Ensure device Location / GPS is turned ON in Windows/Phone settings, or connect to Wi-Fi.
+            </p>
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="mt-1 rounded-md bg-amber-700 hover:bg-amber-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-2xs transition cursor-pointer"
+            >
+              🔄 Retry GPS
+            </button>
+          </div>
+        )}
+
         {cameraError ? (
           <div className="max-w-md rounded-2xl border border-red-500/30 bg-red-950/40 p-6 text-center backdrop-blur-md">
             <span className="text-3xl">📷</span>

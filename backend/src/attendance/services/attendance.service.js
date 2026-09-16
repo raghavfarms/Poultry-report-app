@@ -48,12 +48,21 @@ export async function recordAttendance(user, payload = {}, options = {}) {
     const parsed = new Date(timestamp);
     if (!isNaN(parsed.getTime())) now = parsed;
   } else if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    const curr = options.now instanceof Date ? options.now : new Date();
-    const hh = String(curr.getHours()).padStart(2, '0');
-    const mm = String(curr.getMinutes()).padStart(2, '0');
-    const ss = String(curr.getSeconds()).padStart(2, '0');
-    const parsed = new Date(`${date}T${hh}:${mm}:${ss}+05:30`);
-    if (!isNaN(parsed.getTime())) now = parsed;
+    const today = indiaDateString();
+    if (date === today) {
+      now = new Date();
+    } else {
+      const curr = options.now instanceof Date ? options.now : new Date();
+      const istTimeStr = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(curr);
+      const parsed = new Date(`${date}T${istTimeStr}+05:30`);
+      if (!isNaN(parsed.getTime())) now = parsed;
+    }
   }
 
   let resolvedEventType = eventType;
@@ -69,8 +78,8 @@ export async function recordAttendance(user, payload = {}, options = {}) {
 
   const workerObjectId = objectId(workerId, 'Worker');
 
-  // Location normalization: optional, never blocks attendance
-  const normalizedLocation = normalizeAttendanceLocation(location, now);
+  // Location normalization: optional, never blocks attendance (always fresh against real server time)
+  const normalizedLocation = normalizeAttendanceLocation(location, new Date());
 
   const executeInSession = async (dbSession) => {
     // 1. Verify worker exists and is accessible by current user's assigned firms
