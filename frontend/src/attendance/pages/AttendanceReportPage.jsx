@@ -29,8 +29,6 @@ export default function AttendanceReportPage() {
   const [loadingFirms, setLoadingFirms] = useState(true);
   const [date, setDate] = useState(getTodayString());
   const [month, setMonth] = useState(getCurrentMonthString());
-  const [liveAutoRefresh, setLiveAutoRefresh] = useState(true);
-  const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const [exportingPdf, setExportingPdf] = useState(false);
   const dailyReportRef = useRef(null);
 
@@ -244,13 +242,13 @@ export default function AttendanceReportPage() {
                 <Link
                   to={`/attendance/scan${firmId && firmId !== 'all' ? `?firmId=${firmId}&date=${date}` : `?date=${date}`}`}
                   className={`flex ${
-                    activeTab === 'monthly'
-                      ? 'flex-col justify-center min-h-[76px] h-[76px] gap-1'
-                      : 'flex-row min-h-[45px] h-[45px]'
+                    activeTab === 'daily'
+                      ? 'flex-row min-h-[45px] h-[45px]'
+                      : 'flex-col justify-center min-h-[76px] h-[76px] gap-1'
                   } sm:flex-row sm:min-h-9 sm:h-9 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 sm:px-3 font-bold transition shadow-xs cursor-pointer text-center border border-emerald-600 text-xs tracking-tight sm:tracking-normal w-full max-w-[146px] sm:w-auto sm:max-w-none whitespace-nowrap`}
                   title="Open camera face scanner to take attendance"
                 >
-                  <span className={activeTab === 'monthly' ? 'text-base sm:text-xs' : ''}>📷</span>
+                  <span className={activeTab === 'daily' ? '' : 'text-base sm:text-xs'}>📷</span>
                   <span>Take Attendance</span>
                 </Link>
               </div>
@@ -280,34 +278,6 @@ export default function AttendanceReportPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                     </svg>
                     <span>Print</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Just Below / Adjacent: Live Controls (Auto-refresh & Refresh) */}
-              {activeTab === 'live' && (
-                <div className="flex items-center justify-start gap-2 sm:gap-2 pt-1 sm:pt-0">
-                  <label className="flex cursor-pointer items-center gap-1 text-[10px] sm:text-xs font-semibold text-slate-600 select-none shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={liveAutoRefresh}
-                      onChange={(e) => setLiveAutoRefresh(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                    />
-                    <span className="flex items-center gap-1">
-                      {liveAutoRefresh && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-                      <span className="hidden sm:inline">Auto-refresh (30s)</span>
-                      <span className="sm:hidden text-[10px]">Auto 30s</span>
-                    </span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setLiveRefreshKey((k) => k + 1)}
-                    className="!h-7 !min-h-7 px-2 flex items-center justify-center gap-1 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer shadow-2xs transition active:scale-95 shrink-0"
-                    title="Refresh Live Data"
-                  >
-                    <span>↻</span>
-                    <span className="hidden sm:inline">Refresh</span>
                   </button>
                 </div>
               )}
