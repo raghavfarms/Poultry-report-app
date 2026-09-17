@@ -7,7 +7,9 @@
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
-    "promote-developer": "node src/scripts/promoteDeveloper.js"
+    "promote-developer": "node src/scripts/promoteDeveloper.js",
+    "create-office": "node src/scripts/createOfficeFirm.js",
+    "remove-office": "node src/scripts/removeOfficeFirm.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

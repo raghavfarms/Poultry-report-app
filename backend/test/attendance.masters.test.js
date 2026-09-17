@@ -82,6 +82,7 @@ test('pagination bounds and literal search prevent unbounded requests and regex 
 test('worker codes have firm-specific prefixes and a unique database index', () => {
   assert.equal(workerCodePrefix('RAGHAV'), 'RGF');
   assert.equal(workerCodePrefix('SANJANA'), 'SJF');
+  assert.equal(workerCodePrefix('OFFICE'), 'OFC');
   assert.throws(() => workerCodePrefix('OTHER'), { status: 400 });
   assert.ok(Worker.schema.indexes().some(([keys, options]) => keys.workerCode === 1 && options.unique));
 });

@@ -99,8 +99,8 @@ function PrivateDetailsSection({ form, set }) {
   );
 }
 
-function CreateWorkerModal({ firmId, onClose, onSaved }) {
-  const todayDate = new Date().toISOString().split('T')[0];
+function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
+  const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   const [form, setForm] = useState({
     fullName: '',
     fatherOrHusbandName: '',
@@ -328,47 +328,59 @@ function CreateWorkerModal({ firmId, onClose, onSaved }) {
           <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/30 p-2 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
-                Initial Deployment <span className="font-normal text-emerald-700">(Mandatory)</span>
+                {isOffice ? 'Office Location / Department' : 'Initial Deployment'} <span className="font-normal text-emerald-700">(Mandatory)</span>
               </span>
               <span className="text-[10px] text-slate-400">Starting location</span>
             </div>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-              <RemoteSelect
-                required
-                label="Work Location"
-                resource="work-locations"
-                firmId={firmId}
-                value={form.workLocation}
-                onChange={(value) => set('workLocation', value)}
-              />
-              <RemoteSelect
-                label="Assigned Supervisor"
-                resource="workers"
-                supervisor
-                firmId={firmId}
-                value={form.supervisor}
-                onChange={(value) => set('supervisor', value)}
-              />
-              <Field label="Assignment Start Date *">
-                <input
+            {isOffice ? (
+              <div>
+                <RemoteSelect
                   required
-                  type="date"
-                  min={form.dateOfJoining || undefined}
-                  className={compactInputClass}
-                  value={form.effectiveFrom}
-                  onChange={(e) => set('effectiveFrom', e.target.value)}
+                  label="Office Location / Department *"
+                  resource="work-locations"
+                  firmId={firmId}
+                  value={form.workLocation}
+                  onChange={(value) => set('workLocation', value)}
                 />
-              </Field>
-              <Field label="Deployment Reason">
-                <input
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                <RemoteSelect
                   required
-                  maxLength={500}
-                  className={compactInputClass}
-                  value={form.reason}
-                  onChange={(e) => set('reason', e.target.value)}
+                  label="Work Location *"
+                  resource="work-locations"
+                  firmId={firmId}
+                  value={form.workLocation}
+                  onChange={(value) => set('workLocation', value)}
                 />
-              </Field>
-            </div>
+                <RemoteSelect
+                  label="Assigned Supervisor"
+                  resource="workers"
+                  supervisor
+                  firmId={firmId}
+                  value={form.supervisor}
+                  onChange={(value) => set('supervisor', value)}
+                />
+                <Field label="Assignment Start Date (Optional)">
+                  <input
+                    type="date"
+                    min={form.dateOfJoining || undefined}
+                    className={compactInputClass}
+                    value={form.effectiveFrom}
+                    onChange={(e) => set('effectiveFrom', e.target.value)}
+                  />
+                </Field>
+                <Field label="Deployment Reason (Optional)">
+                  <input
+                    maxLength={500}
+                    placeholder="Defaults to Initial deployment"
+                    className={compactInputClass}
+                    value={form.reason}
+                    onChange={(e) => set('reason', e.target.value)}
+                  />
+                </Field>
+              </div>
+            )}
           </div>
 
           {/* Confidential Details */}
@@ -740,7 +752,7 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
           <div className="space-y-1.5 sm:space-y-2">
             {/* Master Details Grid - 2 columns inline key-value */}
             <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 rounded-lg border border-slate-200/80 bg-white p-2 text-[11px] leading-tight">
-              <div className="truncate"><span className="text-slate-400 font-medium">Joined:</span> <span className="font-semibold text-slate-800">{worker.dateOfJoining}</span></div>
+              <div className="truncate"><span className="text-slate-400 font-medium">Joined:</span> <span className="font-semibold text-slate-800">{worker.dateOfJoining || '—'}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Mobile:</span> <span className="font-semibold text-slate-800">{worker.mobileNumber || '—'}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Father:</span> <span className="font-semibold text-slate-800">{worker.fatherOrHusbandName || '—'}</span></div>
               <div className="truncate"><span className="text-slate-400 font-medium">Gender:</span> <span className="font-semibold text-slate-800">{worker.gender === 'LOCAL' ? 'Local' : worker.gender === 'MALE' ? 'Male' : worker.gender === 'FEMALE' ? 'Female' : worker.gender === 'OTHER' ? 'Other' : '—'}</span></div>
@@ -1033,6 +1045,8 @@ function WorkerActionDropdown({
 export default function WorkersPanel({ firmId, firms = [], revision, onChanged }) {
   const { user } = useAuth();
   const canTransfer = ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
+  const currentFirm = firms.find((f) => String(f._id) === String(firmId));
+  const isOffice = currentFirm?.code === 'OFFICE' || /office/i.test(currentFirm?.name || '');
 
   const [search, setSearch] = useState('');
   const [designation, setDesignation] = useState('');
@@ -1204,24 +1218,26 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
             ))}
           </select>
 
-          {/* Role Filter */}
-          <select
-            aria-label="Supervisor filter"
-            className={`rounded-lg border px-2 py-1 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
-              supervisorFilter
-                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
-                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-            }`}
-            value={supervisorFilter}
-            onChange={(e) => {
-              setSupervisorFilter(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All Roles</option>
-            <option value="true">Supervisors</option>
-            <option value="false">Workers</option>
-          </select>
+          {/* Role Filter (Farms Only) */}
+          {!isOffice && (
+            <select
+              aria-label="Supervisor filter"
+              className={`rounded-lg border px-2 py-1 text-[11px] font-medium outline-none transition shrink-0 cursor-pointer ${
+                supervisorFilter
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                  : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+              }`}
+              value={supervisorFilter}
+              onChange={(e) => {
+                setSupervisorFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="">All Roles</option>
+              <option value="true">Supervisors</option>
+              <option value="false">Workers</option>
+            </select>
+          )}
 
           {/* Status Filter */}
           <select
@@ -1294,7 +1310,7 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
                           </span>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          {worker.isSupervisor && (
+                          {!isOffice && worker.isSupervisor && (
                             <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-800 leading-none">
                               Sup
                             </span>
@@ -1378,7 +1394,7 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
               <table className="attendance-table w-full min-w-[760px]">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
-                    {['Worker', 'Firm / Designation', 'Supervisor', 'Face Recognition', 'Joined', 'Status', 'Actions'].map(
+                    {['Worker', 'Firm / Designation', ...(isOffice ? [] : ['Supervisor']), 'Face Recognition', 'Joined', 'Status', 'Actions'].map(
                       (h) => (
                         <th
                           key={h}
@@ -1416,15 +1432,17 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
                         <p className="font-medium text-slate-800">{worker.designation?.name || '—'}</p>
                         <p className="text-xs text-slate-500">{worker.firm?.name}</p>
                       </td>
-                      <td data-label="Role" className={cellClass}>
-                        {worker.isSupervisor ? (
-                          <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
-                            Supervisor
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">Worker</span>
-                        )}
-                      </td>
+                      {!isOffice && (
+                        <td data-label="Role" className={cellClass}>
+                          {worker.isSupervisor ? (
+                            <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
+                              Supervisor
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">Worker</span>
+                          )}
+                        </td>
+                      )}
                       <td data-label="Face recognition" className={cellClass}>
                         <span
                           className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${
@@ -1443,7 +1461,7 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
                         </span>
                       </td>
                       <td data-label="Joined" className={`${cellClass} whitespace-nowrap text-xs text-slate-600`}>
-                        {worker.dateOfJoining}
+                        {worker.dateOfJoining || '—'}
                       </td>
                       <td data-label="Status" className={cellClass}>
                         <Status active={worker.active} />
@@ -1511,6 +1529,7 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
       {creating && (
         <CreateWorkerModal
           firmId={firmId}
+          isOffice={isOffice}
           onClose={() => setCreating(false)}
           onSaved={(msg, newWorker) => {
             setCreating(false);

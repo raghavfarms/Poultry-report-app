@@ -7,7 +7,7 @@ import DeploymentPanel from '../attendance/components/DeploymentPanel.jsx';
 import MastersPanel from '../attendance/components/MastersPanel.jsx';
 import GeofencePanel from '../attendance/components/GeofencePanel.jsx';
 import AuditLogPanel from '../attendance/components/AuditLogPanel.jsx';
-import { attendancePath } from '../attendance/services/adminApi.js';
+import { attendancePath, sortFirmsOrder, getDefaultFirmId } from '../attendance/services/adminApi.js';
 
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
@@ -27,8 +27,10 @@ export default function AttendanceAdminPage() {
     setLoadingFirms(true);
     api(attendancePath('firms'))
       .then(({ firms: list = [] }) => {
-        setFirms(list);
-        if (list[0]) setFirmId(list[0]._id);
+        const sorted = sortFirmsOrder(list);
+        setFirms(sorted);
+        const defId = getDefaultFirmId(sorted);
+        if (defId) setFirmId(defId);
       })
       .catch((err) => setError(err.message || 'Failed to load firms.'))
       .finally(() => setLoadingFirms(false));
@@ -62,7 +64,7 @@ export default function AttendanceAdminPage() {
             Attendance Administration
           </p>
           <h1 className="mt-0.5 text-xl font-black text-slate-900 sm:text-2xl">
-            Worker & Shed Management
+            {activeFirm?.code === 'OFFICE' ? 'Staff & Office Management' : 'Worker & Shed Management'}
           </h1>
         </div>
 
@@ -97,8 +99,8 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* Bird Capacity Summary Widget */}
-      {capacityData?.firms?.[0] && (
+      {/* Bird Capacity Summary Widget (Farms Only) */}
+      {capacityData?.firms?.[0] && activeFirm?.code !== 'OFFICE' && (
         <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/70 to-cyan-50/40 p-4 shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -138,10 +140,10 @@ export default function AttendanceAdminPage() {
       {/* Tab Navigation */}
       <div className="attendance-tabs no-print border-b border-slate-200">
         {[
-          ['workers', '👤 Workers'],
+          ['workers', activeFirm?.code === 'OFFICE' ? '👤 Employees' : '👤 Workers'],
           ...(canTransferOrDeploy ? [['deployments', '📍 Deployments']] : []),
-          ['geofences', '📍 Farm Geofences'],
-          ['work-locations', '🏠 Sheds & Locations'],
+          ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
+          ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
           ['designations', '🏷️ Designations'],
           ['audit', '📜 Audit History'],
         ].map(([key, label]) => (
@@ -184,6 +186,7 @@ export default function AttendanceAdminPage() {
           key={`${firmId}-${tab}`}
           kind="work-locations"
           firmId={firmId}
+          firms={firms}
           revision={revision}
           onChanged={handleChanged}
         />
@@ -193,6 +196,7 @@ export default function AttendanceAdminPage() {
         <MastersPanel
           kind="designations"
           firmId={firmId}
+          firms={firms}
           revision={revision}
           onChanged={handleChanged}
         />

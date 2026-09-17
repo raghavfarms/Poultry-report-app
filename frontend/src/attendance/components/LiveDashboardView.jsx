@@ -106,6 +106,128 @@ export default function LiveDashboardView({
         ) : (
           <div className="space-y-5">
             {firmReports.map((rep) => {
+              const isOffice = rep.isOffice || rep.firm?.code === 'OFFICE' || /office/i.test(rep.firm?.name || '');
+
+              if (isOffice) {
+                const officeDesignations = rep.designations || [];
+                const totalStaff = officeDesignations.reduce((acc, d) => acc + (d.totalStaff || 0), 0);
+                const totalPresent = officeDesignations.reduce((acc, d) => acc + (d.onDutyCount || 0) + (d.completedCount || 0), 0);
+                const totalHalfDay = officeDesignations.reduce((acc, d) => acc + (d.halfDayCount || 0), 0);
+                const totalAbsent = officeDesignations.reduce((acc, d) => acc + (d.absentCount || 0), 0);
+
+                return (
+                  <div
+                    key={rep.firm?._id}
+                    className="overflow-hidden rounded-xl border-2 border-slate-400 bg-white shadow-sm"
+                  >
+                    <div className="overflow-x-auto">
+                      <table className="w-full table-fixed border-collapse text-xs text-center">
+                        <colgroup>
+                          <col className="w-[40%]" />
+                          <col className="w-[15%]" />
+                          <col className="w-[15%]" />
+                          <col className="w-[15%]" />
+                          <col className="w-[15%]" />
+                        </colgroup>
+                        <thead>
+                          {/* Yellow Office Header Bar (Matching Excel Sheet) */}
+                          <tr className="bg-amber-300 text-slate-900 border-b-2 border-slate-400 font-black">
+                            <th className="py-2 px-2.5 text-left uppercase tracking-wider border-r border-slate-400 font-black text-[11px] sm:text-xs leading-tight">
+                              {rep.firm?.name || 'Head Office'}
+                            </th>
+                            <th className="py-2 px-1 border-r border-slate-400 text-center font-bold text-[10px] sm:text-xs">
+                              Total Staff
+                            </th>
+                            <th className="py-2 px-1 border-r border-slate-400 text-center font-bold text-[10px] sm:text-xs leading-tight">
+                              Present
+                            </th>
+                            <th className="py-2 px-1 border-r border-slate-400 text-center font-bold text-[10px] sm:text-xs leading-tight">
+                              Half Day
+                            </th>
+                            <th className="sticky right-0 z-10 py-2 px-1 text-slate-950 font-bold bg-amber-400 text-center text-[10px] sm:text-xs border-l border-amber-500 shadow-[-1px_0_2px_rgba(0,0,0,0.06)]">
+                              Absent
+                            </th>
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {officeDesignations.length === 0 ? (
+                            <tr className="border-b border-slate-200">
+                              <td colSpan={5} className="py-4 text-center text-xs text-slate-400">
+                                No designations configured for {rep.firm?.name}.
+                              </td>
+                            </tr>
+                          ) : (
+                            officeDesignations.map((desig, idx) => {
+                              const presentCount = (desig.onDutyCount || 0) + (desig.completedCount || 0);
+                              return (
+                                <tr
+                                  key={desig._id || desig.name}
+                                  className={`hover:bg-amber-50/50 transition-colors border-b border-slate-300 ${
+                                    idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'
+                                  }`}
+                                >
+                                  <td className="py-2 px-2.5 text-left font-bold text-slate-800 border-r border-slate-300 text-[11px] sm:text-xs leading-tight break-words">
+                                    {desig.name}
+                                  </td>
+                                  <td className="py-2 px-1 font-bold text-slate-900 border-r border-slate-300 text-xs">
+                                    {formatCount(desig.totalStaff)}
+                                  </td>
+                                  <td className="py-2 px-1 font-semibold text-slate-800 border-r border-slate-300 text-xs">
+                                    {presentCount > 0 ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-900">
+                                        {presentCount}
+                                      </span>
+                                    ) : (
+                                      '—'
+                                    )}
+                                  </td>
+                                  <td className="py-2 px-1 font-semibold text-slate-800 border-r border-slate-300 text-xs">
+                                    {desig.halfDayCount > 0 ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900">
+                                        {desig.halfDayCount}
+                                      </span>
+                                    ) : (
+                                      '—'
+                                    )}
+                                  </td>
+                                  <td className="sticky right-0 z-10 py-2 px-1 font-semibold text-slate-700 bg-slate-100 border-l border-slate-200 text-xs shadow-[-1px_0_2px_rgba(0,0,0,0.06)]">
+                                    {desig.absentCount > 0 ? (
+                                      <span className="text-rose-700 font-bold">{desig.absentCount}</span>
+                                    ) : (
+                                      '0'
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+
+                          {/* Subtotal Row (Sky Blue Highlight - Matching Client Sheet) */}
+                          <tr className="bg-sky-400 text-slate-950 font-bold border-t-2 border-slate-500 text-xs">
+                            <td className="py-2 px-2.5 text-left uppercase border-r border-sky-500 font-bold text-[11px] sm:text-xs leading-tight break-words">
+                              SUBTOTAL ({rep.firm?.name || 'HEAD OFFICE'})
+                            </td>
+                            <td className="py-2 px-1 border-r border-sky-500 font-bold text-xs">
+                              {formatTotal(totalStaff)}
+                            </td>
+                            <td className="py-2 px-1 border-r border-sky-500 font-bold text-xs">
+                              {formatTotal(totalPresent)}
+                            </td>
+                            <td className="py-2 px-1 border-r border-sky-500 font-bold text-xs">
+                              {formatTotal(totalHalfDay)}
+                            </td>
+                            <td className="sticky right-0 z-10 py-2 px-1 bg-sky-500 text-white font-bold text-xs border-l border-sky-600 shadow-[-1px_0_2px_rgba(0,0,0,0.06)]">
+                              {formatTotal(totalAbsent)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              }
+
               const sheds = rep.sheds || [];
               const summary = rep.summary || {};
               const totalLabour = sheds.reduce((acc, s) => acc + (s.labourCount || 0), 0);

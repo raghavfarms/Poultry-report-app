@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../api/client.js';
-import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent } from '../services/adminApi.js';
+import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent, sortFirmsOrder, getDefaultFirmId } from '../services/adminApi.js';
 import { loadFaceModels, detectAndRecognizeFaces } from '../services/faceModelLoader.js';
 import { captureLocation } from '../services/captureLocation.js';
 import TransferModal from '../components/TransferModal.jsx';
@@ -61,7 +61,7 @@ export default function FaceAttendancePage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
-  const todayString = new Date().toISOString().split('T')[0];
+  const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   const [attendanceDate, setAttendanceDate] = useState(queryDate || todayString);
   const [statusPill, setStatusPill] = useState('Initializing Face Scanner...');
   const [activeResult, setActiveResult] = useState(null); // { type: 'SUCCESS' | 'DUPLICATE' | 'ERROR', data, message }
@@ -71,25 +71,18 @@ export default function FaceAttendancePage() {
   const watchIdRef = useRef(null);
   const [showTransferModal, setShowTransferModal] = useState(false);
 
-  // 1. Determine firms available to user
+  // 1. Determine firms available to user (Raghav first, Sanjana second, Office last)
   useEffect(() => {
     api(attendancePath('firms'))
       .then(({ firms: list = [] }) => {
-        setFirms(list);
-        if (queryFirmId && list.some((f) => String(f._id || f) === String(queryFirmId))) {
-          setSelectedFirmId(queryFirmId);
-        } else if (list[0]) {
-          setSelectedFirmId(list[0]._id || list[0]);
-        }
+        const sorted = sortFirmsOrder(list);
+        setFirms(sorted);
+        setSelectedFirmId((prev) => getDefaultFirmId(sorted, queryFirmId || prev));
       })
       .catch(() => {
-        const fallback = user?.firms || [];
+        const fallback = sortFirmsOrder(user?.firms || []);
         setFirms(fallback);
-        if (queryFirmId && fallback.some((f) => String(f._id || f) === String(queryFirmId))) {
-          setSelectedFirmId(queryFirmId);
-        } else if (fallback[0]) {
-          setSelectedFirmId(fallback[0]._id || fallback[0]);
-        }
+        setSelectedFirmId((prev) => getDefaultFirmId(fallback, queryFirmId || prev));
       });
   }, [user, queryFirmId]);
 

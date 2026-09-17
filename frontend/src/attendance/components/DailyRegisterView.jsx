@@ -65,6 +65,11 @@ export default function DailyRegisterView({
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch] = useState('');
 
+  const currentFirm = useMemo(() => {
+    return (firms || []).find((f) => String(f._id) === String(firmId));
+  }, [firms, firmId]);
+  const isOffice = currentFirm?.code === 'OFFICE' || /office/i.test(currentFirm?.name || '');
+
   const [loadingFirms, setLoadingFirms] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -233,21 +238,21 @@ export default function DailyRegisterView({
       {/* Secondary Filters Bar - Ultra-Slim Single Row */}
       <div className="rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 items-center">
-          {/* Shed / Location Filter */}
+          {/* Location / Department Filter */}
           <div>
             <label className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
-              Shed / Location
+              {isOffice ? 'Department / Location' : 'Shed / Location'}
             </label>
             <select
-              aria-label="Filter by Shed"
+              aria-label={isOffice ? 'Filter by Department' : 'Filter by Shed'}
               className={`${inputClass} !min-h-7 !h-7 !py-0 !px-1.5 text-xs font-semibold rounded-lg`}
               value={selectedLocation}
               onChange={(e) => setSelectedLocation(e.target.value)}
             >
-              <option value="">All Sheds & Locations</option>
+              <option value="">{isOffice ? 'All Departments & Locations' : 'All Sheds & Locations'}</option>
               {workLocations.map((loc) => (
                 <option key={loc._id} value={loc._id}>
-                  {loc.name} ({loc.type})
+                  {loc.name} {loc.type && loc.type !== 'MISCELLANEOUS' ? `(${loc.type})` : ''}
                 </option>
               ))}
             </select>

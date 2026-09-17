@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInitialRecord, initialDeploymentPayload } from './deployment.service.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
-import { firmScope } from '../authorization.js';
+import { firmScope, sortFirms } from '../authorization.js';
 import { masterPayload, workerPayload, objectId, pagination, searchFilter, validateWorkerDates } from '../validation.js';
 
 const masterModels = { designations: Designation, 'work-locations': WorkLocation, geofences: AttendanceGeofence };
@@ -36,8 +36,8 @@ function validateLocationCapacity(item) {
 
 export async function firmCapacity(user, query) {
   const scope = firmScope(user, query.firmId);
-  const firms = await Firm.find({ active: true, ...(scope.firm ? { _id: scope.firm } : {}) })
-    .select('name code').sort({ name: 1 }).lean();
+  const firms = sortFirms(await Firm.find({ active: true, ...(scope.firm ? { _id: scope.firm } : {}) })
+    .select('name code').lean());
   const totals = await WorkLocation.aggregate([
     { $match: { firm: { $in: firms.map((firm) => firm._id) }, active: true, type: 'SHED' } },
     { $group: {
@@ -154,7 +154,7 @@ export async function updateMaster(kind, user, id, body) {
 }
 
 export function workerCodePrefix(firmCode) {
-  const prefix = { RAGHAV: 'RGF', SANJANA: 'SJF' }[firmCode];
+  const prefix = { RAGHAV: 'RGF', SANJANA: 'SJF', OFFICE: 'OFC' }[firmCode];
   if (!prefix) throw badRequest('Worker ID prefix is not configured for this firm.');
   return prefix;
 }

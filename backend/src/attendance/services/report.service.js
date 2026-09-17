@@ -4,7 +4,7 @@ import WorkLocation from '../models/WorkLocation.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
 import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
-import { firmScope } from '../authorization.js';
+import { firmScope, sortFirms } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
 import { indiaDateString, formatWorkedHours, autoCutExpiredSessions } from './attendance.service.js';
 import { notFoundError, badRequest } from '../../utils/http.js';
@@ -30,8 +30,8 @@ export async function getDailyAttendanceReport(user, query = {}) {
   let firmId = query.firmId;
   if (!firmId) {
     if (user.role === 'developer') {
-      const firstFirm = await Firm.findOne({ active: true }).sort({ name: 1 }).select('_id').lean();
-      if (firstFirm) firmId = String(firstFirm._id);
+      const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
+      if (allActive[0]) firmId = String(allActive[0]._id);
     } else {
       const permitted = (user.firms || []).map((id) => String(id._id || id));
       if (permitted.length > 0) firmId = permitted[0];
@@ -52,13 +52,13 @@ export async function getDailyAttendanceReport(user, query = {}) {
   // 3. Parallel fetch of workers, deployments, and attendance sessions
   const [workers, deployments, sessions] = await Promise.all([
     Worker.find({ firm: firmObjectId, active: true })
-      .select('fullName workerCode designation dateOfJoining')
+      .select('fullName workerCode designation dateOfJoining createdAt')
       .populate('designation', 'name')
       .sort({ workerCode: 1 })
       .lean(),
 
     WorkerDeployment.find({ firm: firmObjectId, effectiveTo: null })
-      .select('worker workLocation workLocationNameSnapshot designationNameSnapshot supervisorNameSnapshot')
+      .select('worker workLocation workLocationNameSnapshot designationNameSnapshot supervisorNameSnapshot effectiveFrom')
       .lean(),
 
     AttendanceSession.find({ firm: firmObjectId, date: targetDate })
@@ -92,8 +92,12 @@ export async function getDailyAttendanceReport(user, query = {}) {
     const deployment = deploymentByWorker.get(workerIdStr);
     const workerSessions = sessionsByWorker.get(workerIdStr) || [];
 
+    const effectiveJoining = worker.dateOfJoining
+      || (deployment?.effectiveFrom ? indiaDateString(deployment.effectiveFrom) : null)
+      || (worker.createdAt ? indiaDateString(worker.createdAt) : null);
+
     // If worker had not joined yet as of targetDate and has no attendance on this date, skip them
-    if (worker.dateOfJoining && targetDate < worker.dateOfJoining && workerSessions.length === 0) {
+    if (effectiveJoining && targetDate < effectiveJoining && workerSessions.length === 0) {
       continue;
     }
 
@@ -252,8 +256,8 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
   let firmId = query.firmId;
   if (!firmId) {
     if (user.role === 'developer') {
-      const firstFirm = await Firm.findOne({ active: true }).sort({ name: 1 }).select('_id').lean();
-      if (firstFirm) firmId = String(firstFirm._id);
+      const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
+      if (allActive[0]) firmId = String(allActive[0]._id);
     } else {
       const permitted = (user.firms || []).map((id) => String(id._id || id));
       if (permitted.length > 0) firmId = permitted[0];
@@ -280,13 +284,13 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
   // Parallel fetch workers, deployments, and month's sessions
   const [workers, deployments, sessions, correctionCounts] = await Promise.all([
     Worker.find({ firm: firmObjectId, active: true })
-      .select('fullName workerCode designation dateOfJoining')
+      .select('fullName workerCode designation dateOfJoining createdAt')
       .populate('designation', 'name')
       .sort({ workerCode: 1 })
       .lean(),
 
     WorkerDeployment.find({ firm: firmObjectId, effectiveTo: null })
-      .select('worker workLocation workLocationNameSnapshot designationNameSnapshot')
+      .select('worker workLocation workLocationNameSnapshot designationNameSnapshot effectiveFrom')
       .lean(),
 
     AttendanceSession.find({
@@ -326,6 +330,10 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
     const workLocationId = deployment?.workLocation ? String(deployment.workLocation) : null;
     const workLocationName = deployment?.workLocationNameSnapshot || 'Unassigned';
     const designationName = worker.designation?.name || deployment?.designationNameSnapshot || '—';
+
+    const effectiveJoining = worker.dateOfJoining
+      || (deployment?.effectiveFrom ? indiaDateString(deployment.effectiveFrom) : null)
+      || (worker.createdAt ? indiaDateString(worker.createdAt) : null);
 
     if (query.workLocationId && workLocationId !== String(query.workLocationId)) {
       continue;
@@ -376,12 +384,12 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
           days[dayStr] = 'A';
           absentDays += 1;
         }
-      } else if (worker.dateOfJoining && fullDateStr < worker.dateOfJoining) {
+      } else if (effectiveJoining && fullDateStr < effectiveJoining) {
         days[dayStr] = '—'; // Not joined yet
       } else if (fullDateStr > todayDate) {
         days[dayStr] = '—'; // Future date
       } else {
-        days[dayStr] = 'A'; // Absent
+        days[dayStr] = 'A'; // Absent after joining
         absentDays += 1;
       }
     }

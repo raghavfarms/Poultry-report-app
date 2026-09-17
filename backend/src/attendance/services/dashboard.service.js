@@ -1,10 +1,11 @@
 import Firm from '../../models/Firm.js';
 import Worker from '../models/Worker.js';
 import WorkLocation from '../models/WorkLocation.js';
+import Designation from '../models/Designation.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
 import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceEvent from '../models/AttendanceEvent.js';
-import { firmScope } from '../authorization.js';
+import { firmScope, sortFirms } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
 import { indiaDateString, formatWorkedHours } from './attendance.service.js';
 import { notFoundError, badRequest } from '../../utils/http.js';
@@ -30,8 +31,8 @@ export async function getLiveDashboardData(user, query = {}) {
   let firmId = query.firmId;
   if (!firmId) {
     if (user.role === 'developer') {
-      const firstFirm = await Firm.findOne({ active: true }).sort({ name: 1 }).select('_id').lean();
-      if (firstFirm) firmId = String(firstFirm._id);
+      const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
+      if (allActive[0]) firmId = String(allActive[0]._id);
     } else {
       const permitted = (user.firms || []).map((id) => String(id._id || id));
       if (permitted.length > 0) firmId = permitted[0];
@@ -48,10 +49,10 @@ export async function getLiveDashboardData(user, query = {}) {
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // 3. Parallel queries for active workers, active sheds/locations, open deployments, sessions, and events
-  const [activeWorkers, workLocations, openDeployments, sessions, recentEvents] = await Promise.all([
+  // 3. Parallel queries for active workers, active sheds/locations, open deployments, sessions, events, and designations
+  const [activeWorkers, workLocations, openDeployments, sessions, recentEvents, firmDesignations] = await Promise.all([
     Worker.find({ firm: firmObjectId, active: true })
-      .select('fullName workerCode photo designation gender isSupervisor faceStatus')
+      .select('fullName workerCode photo designation gender isSupervisor faceStatus dateOfJoining createdAt')
       .populate('designation', 'name')
       .lean(),
 
@@ -61,7 +62,7 @@ export async function getLiveDashboardData(user, query = {}) {
       .lean(),
 
     WorkerDeployment.find({ firm: firmObjectId, effectiveTo: null })
-      .select('worker workLocation designation supervisor')
+      .select('worker workLocation designation supervisor effectiveFrom')
       .lean(),
 
     AttendanceSession.find({ firm: firmObjectId, date: targetDate })
@@ -75,6 +76,10 @@ export async function getLiveDashboardData(user, query = {}) {
       .limit(15)
       .select('worker workerCodeSnapshot workerNameSnapshot eventType timestamp source workLocationNameSnapshot location')
       .lean(),
+
+    Designation.find({ firm: firmObjectId, active: true })
+      .sort({ name: 1 })
+      .lean(),
   ]);
 
   // 4. Classify sessions & compute KPIs
@@ -82,7 +87,20 @@ export async function getLiveDashboardData(user, query = {}) {
   const completedSessions = sessions.filter((s) => s.status === 'DUTY_COMPLETED');
   const uniqueAttendedWorkerIds = new Set(sessions.map((s) => String(s.worker)));
 
-  const totalActiveWorkers = activeWorkers.length;
+  const deploymentMap = new Map(openDeployments.map((dep) => [String(dep.worker), dep]));
+  const relevantWorkers = activeWorkers.filter((w) => {
+    const dep = deploymentMap.get(String(w._id));
+    const effectiveJoining = w.dateOfJoining
+      || (dep?.effectiveFrom ? indiaDateString(dep.effectiveFrom) : null)
+      || (w.createdAt ? indiaDateString(w.createdAt) : null);
+    const hasAttended = uniqueAttendedWorkerIds.has(String(w._id));
+    if (effectiveJoining && targetDate < effectiveJoining && !hasAttended) {
+      return false;
+    }
+    return true;
+  });
+
+  const totalActiveWorkers = relevantWorkers.length;
   const onDutyCount = onDutySessions.length;
   const completedCount = completedSessions.length;
   const notReportedCount = Math.max(0, totalActiveWorkers - uniqueAttendedWorkerIds.size);
@@ -92,7 +110,7 @@ export async function getLiveDashboardData(user, query = {}) {
 
   const totalWorkedMinutes = completedSessions.reduce((acc, s) => acc + (s.workedMinutes || 0), 0);
 
-   // 5. Aggregate Daily Attendance by Worker (0.5 Half-Day, 1.0 Full-Day/On-Duty, 0 Absent)
+  // 5. Aggregate Daily Attendance by Worker (0.5 Half-Day, 1.0 Full-Day/On-Duty, 0 Absent)
   const sessionsByWorker = new Map();
   for (const sess of sessions) {
     const wId = String(sess.worker);
@@ -101,7 +119,6 @@ export async function getLiveDashboardData(user, query = {}) {
   }
 
   const workerMap = new Map(activeWorkers.map((w) => [String(w._id), w]));
-  const deploymentMap = new Map(openDeployments.map((dep) => [String(dep.worker), dep]));
 
   // Map of wId -> { weight, status, workLocationId, isSupervisor, isFemale, isSecurity, workerName }
   const workerDailyAttendance = new Map();
@@ -238,7 +255,62 @@ export async function getLiveDashboardData(user, query = {}) {
     }
   }
 
-  // 6. Build Live On-Duty Staff List
+  // 6. Designation-wise headcount & attendance breakdown (Used for Office Option A)
+  const isOffice = firm.code === 'OFFICE' || /office/i.test(firm.name || '');
+  const designationStats = new Map();
+  for (const d of firmDesignations) {
+    designationStats.set(String(d._id), {
+      _id: d._id,
+      name: d.name,
+      totalStaff: 0,
+      onDutyCount: 0,
+      completedCount: 0,
+      halfDayCount: 0,
+      presentCount: 0,
+      absentCount: 0,
+    });
+  }
+
+  for (const w of relevantWorkers) {
+    const dId = String(w.designation?._id || w.designation || '');
+    if (!designationStats.has(dId)) {
+      const dName = w.designation?.name || 'General Staff';
+      designationStats.set(dId, {
+        _id: dId || 'unassigned',
+        name: dName,
+        totalStaff: 0,
+        onDutyCount: 0,
+        completedCount: 0,
+        halfDayCount: 0,
+        presentCount: 0,
+        absentCount: 0,
+      });
+    }
+    const stat = designationStats.get(dId);
+    stat.totalStaff += 1;
+
+    const att = workerDailyAttendance.get(String(w._id));
+    if (att) {
+      if (att.status === 'ON_DUTY') {
+        stat.onDutyCount += 1;
+        stat.presentCount += 1;
+      } else if (att.status === 'COMPLETED') {
+        stat.completedCount += 1;
+        stat.presentCount += 1;
+      } else if (att.status === 'HALF_DAY') {
+        stat.halfDayCount += 1;
+        stat.presentCount += 1;
+      }
+    }
+  }
+
+  for (const stat of designationStats.values()) {
+    stat.absentCount = Math.max(0, stat.totalStaff - (stat.onDutyCount + stat.completedCount + stat.halfDayCount));
+  }
+
+  const designations = Array.from(designationStats.values());
+
+  // 7. Build Live On-Duty Staff List
   const onDutyStaff = onDutySessions.map((session) => {
     const dutyInTime = new Date(session.dutyIn).getTime();
     const elapsedMinutes = Math.max(0, Math.floor((now.getTime() - dutyInTime) / 60000));
@@ -266,6 +338,7 @@ export async function getLiveDashboardData(user, query = {}) {
       name: firm.name,
       code: firm.code,
     },
+    isOffice,
     date: targetDate,
     isToday: targetDate === todayDate,
     generatedAt: now.toISOString(),
@@ -282,6 +355,7 @@ export async function getLiveDashboardData(user, query = {}) {
       otherSupervisorsCount,
     },
     sheds,
+    designations,
     onDutyStaff,
     recentActivity: recentEvents.map((evt) => ({
       _id: evt._id,

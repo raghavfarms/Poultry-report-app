@@ -53,4 +53,37 @@ export async function deleteWorker(workerId) {
   });
 }
 
+export function sortFirmsOrder(firms = []) {
+  return [...firms].sort((a, b) => {
+    const nameA = typeof a === 'string' ? a : (a?.name || '');
+    const nameB = typeof b === 'string' ? b : (b?.name || '');
+    const codeA = a?.code || '';
+    const codeB = b?.code || '';
+
+    const isOfficeA = codeA === 'OFFICE' || /office/i.test(nameA);
+    const isOfficeB = codeB === 'OFFICE' || /office/i.test(nameB);
+    if (isOfficeA !== isOfficeB) return isOfficeA ? 1 : -1; // office always last
+
+    const isRaghavA = /raghav/i.test(nameA);
+    const isRaghavB = /raghav/i.test(nameB);
+    if (isRaghavA !== isRaghavB) return isRaghavA ? -1 : 1; // Raghav first
+
+    const isSanjanaA = /sanjana/i.test(nameA);
+    const isSanjanaB = /sanjana/i.test(nameB);
+    if (isSanjanaA !== isSanjanaB) return isSanjanaA ? -1 : 1; // Sanjana second
+
+    return nameA.localeCompare(nameB);
+  });
+}
+
+export function getDefaultFirmId(firms = [], currentId = '') {
+  if (currentId && firms.some((f) => String(f._id || f) === String(currentId))) {
+    return currentId;
+  }
+  const raghav = firms.find((f) => /raghav/i.test(f?.name || (typeof f === 'string' ? f : '')));
+  const nonOffice = firms.find((f) => f?.code !== 'OFFICE' && !/office/i.test(f?.name || (typeof f === 'string' ? f : '')));
+  const target = raghav || nonOffice || firms[0];
+  return target ? (target._id || target) : '';
+}
+
 

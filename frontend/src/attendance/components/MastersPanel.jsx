@@ -3,25 +3,53 @@ import { Alert, Field, inputClass, primaryButton, secondaryButton } from '../../
 import { attendancePath, saveAttendance } from '../services/adminApi.js';
 import { useAttendanceData, useDebounced, LoadState, Pager, Dialog, RemoteSelect, Status, panelClass, cellClass } from './AdminUi.jsx';
 
-function MasterForm({ item, kind, firmId, onClose, onSaved }) {
+function MasterForm({ item, kind, firmId, isOffice, onClose, onSaved }) {
   const isLocation = kind === 'work-locations';
-  const [form, setForm] = useState({ name: item?.name || '', active: item?.active ?? true, type: item?.type || 'SHED', supervisor: item?.supervisor?._id || '',
-    remarks: item?.remarks || '', order: item?.order || 0, configured: item?.birdCapacity != null, male: item?.birdCapacity?.male ?? '', female: item?.birdCapacity?.female ?? '' });
+  const [form, setForm] = useState({
+    name: item?.name || '',
+    active: item?.active ?? true,
+    type: item?.type || (isOffice ? 'MISCELLANEOUS' : 'SHED'),
+    supervisor: item?.supervisor?._id || '',
+    remarks: item?.remarks || '',
+    order: item?.order || 0,
+    configured: item?.birdCapacity != null,
+    male: item?.birdCapacity?.male ?? '',
+    female: item?.birdCapacity?.female ?? '',
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
   async function save(e) {
-    e.preventDefault(); if (busy) return;
-    setBusy(true); setError('');
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError('');
     const body = { name: form.name, active: form.active, ...(!item ? { firmId } : {}) };
-    if (isLocation) Object.assign(body, { type: form.type, supervisor: form.supervisor || null, remarks: form.remarks, order: Number(form.order),
-      birdCapacity: form.type === 'SHED' && form.configured ? { male: Number(form.male), female: Number(form.female) } : null });
-    try { await saveAttendance(`${kind}${item ? `/${item._id}` : ''}`, body, item ? 'PATCH' : 'POST'); onSaved(`${isLocation ? 'Work location' : 'Designation'} saved.`); }
-    catch (err) { setError(err.message); } finally { setBusy(false); }
+    if (isLocation) {
+      Object.assign(body, {
+        type: isOffice ? 'MISCELLANEOUS' : form.type,
+        supervisor: isOffice ? null : (form.supervisor || null),
+        remarks: form.remarks,
+        order: Number(form.order),
+        birdCapacity: !isOffice && form.type === 'SHED' && form.configured ? { male: Number(form.male), female: Number(form.female) } : null,
+      });
+    }
+    try {
+      await saveAttendance(`${kind}${item ? `/${item._id}` : ''}`, body, item ? 'PATCH' : 'POST');
+      onSaved(`${isLocation ? (isOffice ? 'Office location' : 'Work location') : 'Designation'} saved.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const dialogTitle = `${item ? 'Edit' : 'Add'} ${isLocation ? (isOffice ? 'office location' : 'work location') : 'designation'}`;
+
   return (
     <Dialog
-      title={`${item ? 'Edit' : 'Add'} ${isLocation ? 'work location' : 'designation'}`}
+      title={dialogTitle}
       onClose={onClose}
       busy={busy}
       maxWidth="420px"
@@ -29,12 +57,12 @@ function MasterForm({ item, kind, firmId, onClose, onSaved }) {
       <form onSubmit={save} className="space-y-2.5">
         <Alert>{error}</Alert>
         <fieldset disabled={busy} className="space-y-2.5">
-          <Field label="Name *">
+          <Field label={isLocation && isOffice ? 'Location / Department Name *' : 'Name *'}>
             <input
               autoFocus
               required
               maxLength={100}
-              placeholder={isLocation ? 'e.g. Shed 1' : 'e.g. Supervisor'}
+              placeholder={isLocation ? (isOffice ? 'e.g. Accounts, HR, Reception' : 'e.g. Shed 1') : 'e.g. Supervisor'}
               className={`${inputClass} !min-h-8 !h-8 !py-1 !px-2.5 text-xs font-semibold rounded-lg`}
               value={form.name}
               onChange={(e) => set('name', e.target.value)}
@@ -42,17 +70,86 @@ function MasterForm({ item, kind, firmId, onClose, onSaved }) {
           </Field>
           {isLocation && (
             <>
-              <div className="grid grid-cols-[1.4fr_1fr] sm:grid-cols-2 gap-2">
-                <Field label="Location type">
-                  <select
-                    className={`${inputClass} !min-h-8 !h-8 !py-1 !px-2 text-xs rounded-lg`}
-                    value={form.type}
-                    onChange={(e) => set('type', e.target.value)}
-                  >
-                    <option value="SHED">Shed</option>
-                    <option value="MISCELLANEOUS">Miscellaneous</option>
-                  </select>
-                </Field>
+              {!isOffice ? (
+                <>
+                  <div className="grid grid-cols-[1.4fr_1fr] sm:grid-cols-2 gap-2">
+                    <Field label="Location type">
+                      <select
+                        className={`${inputClass} !min-h-8 !h-8 !py-1 !px-2 text-xs rounded-lg`}
+                        value={form.type}
+                        onChange={(e) => set('type', e.target.value)}
+                      >
+                        <option value="SHED">Shed</option>
+                        <option value="MISCELLANEOUS">Miscellaneous</option>
+                      </select>
+                    </Field>
+                    <Field label="Display order">
+                      <input
+                        className={`${inputClass} !min-h-8 !h-8 !py-1 !px-2 text-xs rounded-lg`}
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        value={form.order}
+                        onChange={(e) => set('order', e.target.value)}
+                      />
+                    </Field>
+                  </div>
+                  <RemoteSelect
+                    resource="workers"
+                    firmId={firmId}
+                    supervisor
+                    label="Supervisor / in-charge"
+                    value={form.supervisor}
+                    selectedLabel={item?.supervisor?.fullName}
+                    onChange={(value) => set('supervisor', value)}
+                  />
+                  {form.type === 'SHED' && (
+                    <section className="space-y-1.5 rounded-lg border border-emerald-100 bg-emerald-50/40 p-2 sm:p-2.5">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                          checked={form.configured}
+                          onChange={(e) => set('configured', e.target.checked)}
+                        />
+                        <span>Set bird capacity</span>
+                      </label>
+                      <p className="text-[10.5px] text-slate-500 leading-tight">
+                        Capacity is the number of birds the shed can accommodate.
+                      </p>
+                      {form.configured ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            {['male', 'female'].map((key) => (
+                              <Field key={key} label={`${key === 'male' ? 'Male' : 'Female'} capacity *`}>
+                                <input
+                                  required
+                                  type="number"
+                                  min="0"
+                                  max="1000000000"
+                                  step="1"
+                                  className={`${inputClass} !min-h-7.5 !h-7.5 !py-0.5 !px-2 text-xs rounded-lg`}
+                                  value={form[key]}
+                                  onChange={(e) => set(key, e.target.value)}
+                                />
+                              </Field>
+                            ))}
+                          </div>
+                          <p className="text-[11px] font-bold text-emerald-900">
+                            Total: {(Number(form.male) + Number(form.female)).toLocaleString('en-IN')} birds
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-[11px] font-medium text-amber-800">Capacity not configured.</p>
+                      )}
+                    </section>
+                  )}
+                  {form.type === 'MISCELLANEOUS' && item?.birdCapacity && (
+                    <p className="text-[11px] text-amber-800">Saving as miscellaneous will clear bird capacity.</p>
+                  )}
+                </>
+              ) : (
                 <Field label="Display order">
                   <input
                     className={`${inputClass} !min-h-8 !h-8 !py-1 !px-2 text-xs rounded-lg`}
@@ -64,59 +161,6 @@ function MasterForm({ item, kind, firmId, onClose, onSaved }) {
                     onChange={(e) => set('order', e.target.value)}
                   />
                 </Field>
-              </div>
-              <RemoteSelect
-                resource="workers"
-                firmId={firmId}
-                supervisor
-                label="Supervisor / in-charge"
-                value={form.supervisor}
-                selectedLabel={item?.supervisor?.fullName}
-                onChange={(value) => set('supervisor', value)}
-              />
-              {form.type === 'SHED' && (
-                <section className="space-y-1.5 rounded-lg border border-emerald-100 bg-emerald-50/40 p-2 sm:p-2.5">
-                  <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
-                      checked={form.configured}
-                      onChange={(e) => set('configured', e.target.checked)}
-                    />
-                    <span>Set bird capacity</span>
-                  </label>
-                  <p className="text-[10.5px] text-slate-500 leading-tight">
-                    Capacity is the number of birds the shed can accommodate.
-                  </p>
-                  {form.configured ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        {['male', 'female'].map((key) => (
-                          <Field key={key} label={`${key === 'male' ? 'Male' : 'Female'} capacity *`}>
-                            <input
-                              required
-                              type="number"
-                              min="0"
-                              max="1000000000"
-                              step="1"
-                              className={`${inputClass} !min-h-7.5 !h-7.5 !py-0.5 !px-2 text-xs rounded-lg`}
-                              value={form[key]}
-                              onChange={(e) => set(key, e.target.value)}
-                            />
-                          </Field>
-                        ))}
-                      </div>
-                      <p className="text-[11px] font-bold text-emerald-900">
-                        Total: {(Number(form.male) + Number(form.female)).toLocaleString('en-IN')} birds
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-[11px] font-medium text-amber-800">Capacity not configured.</p>
-                  )}
-                </section>
-              )}
-              {form.type === 'MISCELLANEOUS' && item?.birdCapacity && (
-                <p className="text-[11px] text-amber-800">Saving as miscellaneous will clear bird capacity.</p>
               )}
               <Field label="Remarks">
                 <textarea
@@ -161,7 +205,7 @@ function MasterForm({ item, kind, firmId, onClose, onSaved }) {
   );
 }
 
-export default function MastersPanel({ kind, firmId, revision, onChanged }) {
+export default function MastersPanel({ kind, firmId, firms = [], revision, onChanged }) {
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('');
   const [page, setPage] = useState(1);
@@ -170,7 +214,10 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const isLocation = kind === 'work-locations';
+  const currentFirm = firms.find((f) => String(f._id) === String(firmId));
   const state = useAttendanceData(attendancePath(kind, { firmId, search: useDebounced(search), active, page, limit }), revision);
+  const isOfficeFirm = currentFirm?.code === 'OFFICE' || /office/i.test(currentFirm?.name || '') || Boolean(state.data?.items?.some((it) => it.firm?.code === 'OFFICE' || /office/i.test(it.firm?.name || '')));
+
   async function toggle(item) {
     setBusy(true); setError('');
     try { await saveAttendance(`${kind}/${item._id}`, { active: !item.active }, 'PATCH'); onChanged(`${item.name} ${item.active ? 'deactivated' : 'activated'}.`); }
@@ -181,11 +228,11 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-900">
-            {isLocation ? 'Sheds & work locations' : 'Designations'}
+            {isLocation ? (isOfficeFirm ? 'Office Departments & Locations' : 'Sheds & work locations') : 'Designations'}
           </h2>
           <p className="text-[11px] sm:text-xs text-slate-500">
             {isLocation
-              ? 'Manage sheds, supervisors and bird capacities.'
+              ? (isOfficeFirm ? 'Manage office departments, rooms and work areas.' : 'Manage sheds, supervisors and bird capacities.')
               : 'Define the roles used when deploying workers.'}
           </p>
         </div>
@@ -194,7 +241,7 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
           disabled={!firmId}
           onClick={() => setEditor({ item: null })}
         >
-          + Add {isLocation ? 'Location' : 'Designation'}
+          + Add {isLocation ? (isOfficeFirm ? 'Office Location' : 'Location') : 'Designation'}
         </button>
       </div>
 
@@ -210,7 +257,7 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
           <input
             aria-label="Search names"
             className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-8 pr-7 py-1.5 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-1 focus:ring-emerald-500"
-            placeholder={`Search ${isLocation ? 'locations' : 'designations'}…`}
+            placeholder={`Search ${isLocation ? (isOfficeFirm ? 'office locations' : 'locations') : 'designations'}…`}
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -252,14 +299,14 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
     <LoadState state={state}>
       {!state.data?.items.length ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-slate-500">
-          No matching {isLocation ? 'locations' : 'designations'}.
+          No matching {isLocation ? (isOfficeFirm ? 'office locations' : 'locations') : 'designations'}.
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="attendance-table w-full min-w-[620px]">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
-                {['Name', 'Firm', ...(isLocation ? ['Supervisor', 'Bird capacity'] : []), 'Status', 'Actions'].map(
+                {['Name', 'Firm', ...(isLocation && !isOfficeFirm ? ['Supervisor', 'Bird capacity'] : []), 'Status', 'Actions'].map(
                   (label) => (
                     <th
                       key={label}
@@ -269,7 +316,9 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
                           : ''
                       }`}
                     >
-                      {label === 'Name' ? (isLocation ? 'Location / Shed Name' : 'Designation Name') : label}
+                      {label === 'Name'
+                        ? (isLocation ? (isOfficeFirm ? 'Office Location / Department' : 'Location / Shed Name') : 'Designation Name')
+                        : label}
                     </th>
                   )
                 )}
@@ -283,14 +332,14 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
                     className={`${cellClass} sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors border-r border-slate-200/80 shadow-[1px_0_2px_rgba(0,0,0,0.04)] min-w-[140px]`}
                   >
                     <p className="font-semibold text-slate-900 truncate max-w-[150px]">{item.name}</p>
-                    {isLocation && (
+                    {isLocation && !isOfficeFirm && (
                       <p className="text-xs text-slate-500">{item.type === 'SHED' ? 'Shed' : 'Miscellaneous'}</p>
                     )}
                   </td>
                   <td data-label="Firm" className={cellClass}>
                     {item.firm?.name}
                   </td>
-                  {isLocation && (
+                  {isLocation && !isOfficeFirm && (
                     <>
                       <td data-label="Supervisor" className={cellClass}>
                         {item.supervisor?.fullName || 'Unassigned'}
@@ -347,7 +396,19 @@ export default function MastersPanel({ kind, firmId, revision, onChanged }) {
         }}
       />
     </LoadState>
-    {editor && <MasterForm item={editor.item} kind={kind} firmId={editor.item?.firm?._id || firmId} onClose={() => setEditor(null)} onSaved={(message) => { setEditor(null); onChanged(message); }} />}
+    {editor && (
+      <MasterForm
+        item={editor.item}
+        kind={kind}
+        firmId={editor.item?.firm?._id || firmId}
+        isOffice={isOfficeFirm}
+        onClose={() => setEditor(null)}
+        onSaved={(message) => {
+          setEditor(null);
+          onChanged(message);
+        }}
+      />
+    )}
     </section>
   );
 }

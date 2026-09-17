@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly } from '../middleware/auth.js';
-import { firmScope } from './authorization.js';
+import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
 import * as service from './services/masters.service.js';
 import * as deploymentService from './services/deployment.service.js';
@@ -42,8 +42,8 @@ router.post('/supervisor/sessions/correct', async (req, res) => res.json(await a
 router.get('/firms', async (req, res) => {
   const scope = firmScope(req.user);
   const firms = await Firm.find({ active: true, ...(scope.firm ? { _id: scope.firm } : {}) })
-    .select('name code').sort({ name: 1 }).lean();
-  res.json({ firms });
+    .select('name code').lean();
+  res.json({ firms: sortFirms(firms) });
 });
 
 router.get('/capacity', async (req, res) => res.json(await service.firmCapacity(req.user, req.query)));

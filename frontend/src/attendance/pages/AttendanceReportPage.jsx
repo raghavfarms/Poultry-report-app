@@ -4,18 +4,12 @@ import DailyRegisterView from '../components/DailyRegisterView.jsx';
 import MonthlySummaryView from '../components/MonthlySummaryView.jsx';
 import { inputClass, Spinner } from '../../components/Ui.jsx';
 import { api } from '../../api/client.js';
-import { attendancePath } from '../services/adminApi.js';
+import { attendancePath, sortFirmsOrder } from '../services/adminApi.js';
 import LiveDashboardView from '../components/LiveDashboardView.jsx';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 
 function getTodayString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-}
-
-function getYesterdayString() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
 }
 
 function getCurrentMonthString() {
@@ -55,9 +49,8 @@ export default function AttendanceReportPage() {
 
   const handleTabChange = (newTab) => {
     setActiveTab(newTab);
-    if (newTab === 'daily') {
-      setDate(getYesterdayString());
-    } else if (newTab === 'live') {
+    // Keep date defaulting to live today
+    if (!date) {
       setDate(getTodayString());
     }
   };
@@ -67,14 +60,17 @@ export default function AttendanceReportPage() {
     setLoadingFirms(true);
     api(attendancePath('firms'))
       .then(({ firms: list = [] }) => {
-        setFirms(list);
+        setFirms(sortFirmsOrder(list));
       })
       .catch(() => {})
       .finally(() => setLoadingFirms(false));
   }, []);
 
   const visibleFirms = useMemo(() => {
-    if (!firmId || firmId === 'all') return firms;
+    if (!firmId || firmId === 'all') {
+      // "All Firms" combines real poultry farms (Raghav, Sanjana), excluding Office
+      return firms.filter((f) => f.code !== 'OFFICE');
+    }
     return firms.filter((f) => String(f._id) === String(firmId));
   }, [firms, firmId]);
 
@@ -84,8 +80,6 @@ export default function AttendanceReportPage() {
     d.setUTCDate(d.getUTCDate() + days);
     setDate(d.toISOString().slice(0, 10));
   };
-
-  const isToday = date === getTodayString();
 
   return (
     <div className="attendance-page space-y-1.5 sm:space-y-2">

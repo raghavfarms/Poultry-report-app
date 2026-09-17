@@ -143,5 +143,93 @@ test('monthly summary sort orders records name-wise alphabetically A to Z', () =
   assert.deepEqual(mockRecords.map(r => r.workerName), ['Ishant', 'pradeep', 'Rajeev', 'vishal']);
 });
 
+test('monthly attendance displays dash before joining date and A/P/HD/OD after joining date when dateOfJoining is unset', () => {
+  const targetMonth = '2026-09';
+  const todayDate = '2026-09-17';
+  const daysInMonth = 30;
+
+  const worker = {
+    _id: 'w1',
+    fullName: 'Office Employee',
+    dateOfJoining: null, // User did not set joining date
+    createdAt: new Date('2026-09-15T10:00:00+05:30'),
+  };
+  const deployment = {
+    effectiveFrom: new Date('2026-09-15T00:00:00+05:30'),
+  };
+
+  const sessionsForWorker = new Map([
+    ['2026-09-16', [{ status: 'DUTY_COMPLETED', workedMinutes: 480 }]], // P
+    ['2026-09-17', [{ status: 'PRESENT', workedMinutes: 60 }]],          // OD
+  ]);
+
+  const indiaDateString = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+  const effectiveJoining = worker.dateOfJoining
+    || (deployment?.effectiveFrom ? indiaDateString(deployment.effectiveFrom) : null)
+    || (worker.createdAt ? indiaDateString(worker.createdAt) : null);
+
+  assert.equal(effectiveJoining, '2026-09-15');
+
+  const days = {};
+  let absentDays = 0;
+  let presentDays = 0;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayStr = String(day).padStart(2, '0');
+    const fullDateStr = `${targetMonth}-${dayStr}`;
+
+    if (sessionsForWorker.has(fullDateStr)) {
+      const daySessions = sessionsForWorker.get(fullDateStr);
+      let dayMinutes = 0;
+      let isOpen = false;
+      for (const sess of daySessions) {
+        if (sess.status === 'PRESENT') isOpen = true;
+        dayMinutes += (sess.workedMinutes || 0);
+      }
+      if (isOpen && fullDateStr === todayDate) {
+        days[dayStr] = 'OD';
+        presentDays += 1;
+      } else if (isOpen || dayMinutes >= 475) {
+        days[dayStr] = 'P';
+        presentDays += 1;
+      } else if (dayMinutes >= 240) {
+        days[dayStr] = 'HD';
+        presentDays += 0.5;
+        absentDays += 0.5;
+      } else {
+        days[dayStr] = 'A';
+        absentDays += 1;
+      }
+    } else if (effectiveJoining && fullDateStr < effectiveJoining) {
+      days[dayStr] = '—'; // Not joined yet
+    } else if (fullDateStr > todayDate) {
+      days[dayStr] = '—'; // Future date
+    } else {
+      days[dayStr] = 'A'; // Absent after joining
+      absentDays += 1;
+    }
+  }
+
+  // Days 1-14 must be dash
+  for (let d = 1; d <= 14; d++) {
+    assert.equal(days[String(d).padStart(2, '0')], '—', `Day ${d} must be dash before joining`);
+  }
+  // Day 15 (joining date, no session): Absent
+  assert.equal(days['15'], 'A', 'Day 15 must be Absent');
+  // Day 16: P
+  assert.equal(days['16'], 'P', 'Day 16 must be Present');
+  // Day 17 (today): OD
+  assert.equal(days['17'], 'OD', 'Day 17 must be On Duty');
+  // Days 18-30 (future): dash
+  for (let d = 18; d <= 30; d++) {
+    assert.equal(days[String(d).padStart(2, '0')], '—', `Day ${d} must be dash for future`);
+  }
+
+  // Total Absent must only be 1 (for day 15), NOT 15
+  assert.equal(absentDays, 1);
+  assert.equal(presentDays, 2);
+});
+
+
 
 
