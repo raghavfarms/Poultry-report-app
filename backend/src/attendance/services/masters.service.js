@@ -153,6 +153,26 @@ export async function updateMaster(kind, user, id, body) {
   return kind === 'work-locations' ? locationWithCapacity(item) : item;
 }
 
+export async function deleteMaster(kind, user, id) {
+  const item = await getMaster(kind, user, id);
+  if (item.firm) {
+    await activeFirm(user, item.firm);
+  }
+  if (kind === 'designations') {
+    const assignedWorkers = await Worker.countDocuments({ designation: item._id });
+    if (assignedWorkers > 0) {
+      throw badRequest(`Cannot delete designation "${item.name}" because ${assignedWorkers} worker(s) are assigned to it. Deactivate it instead.`);
+    }
+  } else if (kind === 'work-locations') {
+    const assignedDeployments = await WorkerDeployment.countDocuments({ location: item._id, active: true });
+    if (assignedDeployments > 0) {
+      throw badRequest(`Cannot delete location "${item.name}" because active worker deployments exist here. Deactivate it instead.`);
+    }
+  }
+  await item.deleteOne();
+  return { message: `${item.name} deleted successfully.` };
+}
+
 export function workerCodePrefix(firmCode) {
   const prefix = { RAGHAV: 'RGF', SANJANA: 'SJF', OFFICE: 'OFC' }[firmCode];
   if (!prefix) throw badRequest('Worker ID prefix is not configured for this firm.');

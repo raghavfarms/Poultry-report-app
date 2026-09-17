@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../api/client.js';
-import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent, sortFirmsOrder, getDefaultFirmId } from '../services/adminApi.js';
+import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFirm } from '../services/adminApi.js';
 import { loadFaceModels, detectAndRecognizeFaces } from '../services/faceModelLoader.js';
 import { captureLocation } from '../services/captureLocation.js';
 import TransferModal from '../components/TransferModal.jsx';
@@ -456,7 +456,11 @@ export default function FaceAttendancePage() {
           {firms.length > 1 && (
             <select
               value={selectedFirmId}
-              onChange={(e) => setSelectedFirmId(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedFirmId(val);
+                setStoredAttendanceFirm(val);
+              }}
               className="min-h-[34px] sm:min-h-[38px] rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-white cursor-pointer max-w-[110px] sm:max-w-[160px] truncate"
             >
               {firms.map((f) => (

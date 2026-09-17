@@ -82,6 +82,7 @@ for (const kind of ['designations', 'work-locations', 'geofences']) {
     res.json({ item: kind === 'work-locations' ? service.locationWithCapacity(item) : item });
   });
   router.patch(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
+  router.delete(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json(await service.deleteMaster(kind, req.user, req.params.id)));
 }
 
 // Deployments

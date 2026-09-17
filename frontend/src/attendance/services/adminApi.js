@@ -7,7 +7,11 @@ export function attendancePath(resource, filters = {}) {
   }
   return `/attendance/${resource}${query.size ? `?${query}` : ''}`;
 }
-export const saveAttendance = (resource, body, method = 'POST') => api(attendancePath(resource), { method, body: JSON.stringify(body) });
+export const saveAttendance = (resource, body = {}, method = 'POST') =>
+  api(attendancePath(resource), {
+    method,
+    ...(method !== 'GET' && method !== 'DELETE' ? { body: JSON.stringify(body) } : {}),
+  });
 export async function uploadWorkerPhoto(id, file) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) throw new Error('Choose a JPEG, PNG or WebP photo up to 2 MB.');
   return api(attendancePath(`workers/${id}/photo`), { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
@@ -76,9 +80,29 @@ export function sortFirmsOrder(firms = []) {
   });
 }
 
+export const ATTENDANCE_FIRM_STORAGE_KEY = 'attendance_selected_firm';
+
+export function getStoredAttendanceFirm(defaultVal = '') {
+  try {
+    return localStorage.getItem(ATTENDANCE_FIRM_STORAGE_KEY) || defaultVal;
+  } catch {
+    return defaultVal;
+  }
+}
+
+export function setStoredAttendanceFirm(firmId) {
+  try {
+    if (firmId !== undefined && firmId !== null) {
+      localStorage.setItem(ATTENDANCE_FIRM_STORAGE_KEY, String(firmId));
+    }
+  } catch {}
+}
+
 export function getDefaultFirmId(firms = [], currentId = '') {
-  if (currentId && firms.some((f) => String(f._id || f) === String(currentId))) {
-    return currentId;
+  const stored = getStoredAttendanceFirm();
+  const candidate = currentId || stored;
+  if (candidate && (candidate === 'all' || firms.some((f) => String(f._id || f) === String(candidate)))) {
+    return candidate;
   }
   const raghav = firms.find((f) => /raghav/i.test(f?.name || (typeof f === 'string' ? f : '')));
   const nonOffice = firms.find((f) => f?.code !== 'OFFICE' && !/office/i.test(f?.name || (typeof f === 'string' ? f : '')));

@@ -63,16 +63,39 @@ async function start() {
     );
 
     const adminUser = await User.findOne({ role: { $in: ['developer', 'admin'] } }).lean();
-    const defaultDesignations = ['Management', 'Head', 'Developer', 'Accountant', 'Support Staff'];
     const Designation = (await import('./attendance/models/Designation.js')).default;
-    for (const name of defaultDesignations) {
-      await Designation.findOneAndUpdate(
-        { firm: officeFirm._id, nameKey: name.toLowerCase() },
+    const existingDesignationCount = await Designation.countDocuments({ firm: officeFirm._id });
+    if (existingDesignationCount === 0) {
+      const defaultDesignations = ['Management', 'Head', 'Developer', 'Accountant', 'Support Staff'];
+      for (const name of defaultDesignations) {
+        await Designation.findOneAndUpdate(
+          { firm: officeFirm._id, nameKey: name.toLowerCase() },
+          {
+            $setOnInsert: {
+              firm: officeFirm._id,
+              name,
+              nameKey: name.toLowerCase(),
+              active: true,
+              createdBy: adminUser?._id,
+            },
+          },
+          { upsert: true, new: true }
+        );
+      }
+    }
+
+    const WorkLocation = (await import('./attendance/models/WorkLocation.js')).default;
+    const existingLocationCount = await WorkLocation.countDocuments({ firm: officeFirm._id });
+    if (existingLocationCount === 0) {
+      await WorkLocation.findOneAndUpdate(
+        { firm: officeFirm._id, nameKey: 'main office' },
         {
           $setOnInsert: {
             firm: officeFirm._id,
-            name,
-            nameKey: name.toLowerCase(),
+            name: 'Main Office',
+            nameKey: 'main office',
+            type: 'MISCELLANEOUS',
+            order: 1,
             active: true,
             createdBy: adminUser?._id,
           },
@@ -80,23 +103,6 @@ async function start() {
         { upsert: true, new: true }
       );
     }
-
-    const WorkLocation = (await import('./attendance/models/WorkLocation.js')).default;
-    await WorkLocation.findOneAndUpdate(
-      { firm: officeFirm._id, nameKey: 'main office' },
-      {
-        $setOnInsert: {
-          firm: officeFirm._id,
-          name: 'Main Office',
-          nameKey: 'main office',
-          type: 'MISCELLANEOUS',
-          order: 1,
-          active: true,
-          createdBy: adminUser?._id,
-        },
-      },
-      { upsert: true, new: true }
-    );
     console.log('✅ Head Office firm, designations, and location verified.');
   } catch (err) {
     console.error('Head Office auto-seed note:', err.message);

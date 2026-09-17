@@ -4,7 +4,7 @@ import DailyRegisterView from '../components/DailyRegisterView.jsx';
 import MonthlySummaryView from '../components/MonthlySummaryView.jsx';
 import { inputClass, Spinner } from '../../components/Ui.jsx';
 import { api } from '../../api/client.js';
-import { attendancePath, sortFirmsOrder } from '../services/adminApi.js';
+import { attendancePath, sortFirmsOrder, getStoredAttendanceFirm, setStoredAttendanceFirm } from '../services/adminApi.js';
 import LiveDashboardView from '../components/LiveDashboardView.jsx';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 
@@ -19,7 +19,7 @@ function getCurrentMonthString() {
 export default function AttendanceReportPage() {
   const [activeTab, setActiveTab] = useState('live');
   const [firms, setFirms] = useState([]);
-  const [firmId, setFirmId] = useState('all');
+  const [firmId, setFirmId] = useState(() => getStoredAttendanceFirm('all'));
   const [loadingFirms, setLoadingFirms] = useState(true);
   const [date, setDate] = useState(getTodayString());
   const [month, setMonth] = useState(getCurrentMonthString());
@@ -60,7 +60,14 @@ export default function AttendanceReportPage() {
     setLoadingFirms(true);
     api(attendancePath('firms'))
       .then(({ firms: list = [] }) => {
-        setFirms(sortFirmsOrder(list));
+        const sorted = sortFirmsOrder(list);
+        setFirms(sorted);
+        const stored = getStoredAttendanceFirm();
+        if (stored) {
+          if (stored === 'all' || sorted.some((f) => String(f._id) === String(stored))) {
+            setFirmId(stored);
+          }
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingFirms(false));
@@ -158,7 +165,11 @@ export default function AttendanceReportPage() {
                     aria-label="Select Firm"
                     className={`${inputClass} !min-h-7 !h-7 !py-0 !px-1.5 text-xs font-semibold rounded-lg w-full truncate cursor-pointer`}
                     value={firmId}
-                    onChange={(e) => setFirmId(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFirmId(val);
+                      setStoredAttendanceFirm(val);
+                    }}
                   >
                     <option value="all">
                       All Firms

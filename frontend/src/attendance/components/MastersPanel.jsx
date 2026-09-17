@@ -223,6 +223,19 @@ export default function MastersPanel({ kind, firmId, firms = [], revision, onCha
     try { await saveAttendance(`${kind}/${item._id}`, { active: !item.active }, 'PATCH'); onChanged(`${item.name} ${item.active ? 'deactivated' : 'activated'}.`); }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   }
+
+  async function removeItem(item) {
+    if (!window.confirm(`Are you sure you want to permanently delete "${item.name}"?`)) return;
+    setBusy(true); setError('');
+    try {
+      await saveAttendance(`${kind}/${item._id}`, {}, 'DELETE');
+      onChanged(`${item.name} deleted successfully.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section className={`${panelClass} space-y-3`}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -378,6 +391,14 @@ export default function MastersPanel({ kind, firmId, firms = [], revision, onCha
                         onClick={() => toggle(item)}
                       >
                         {item.active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        className="!min-h-8 sm:!min-h-9 !px-2.5 !py-1 text-xs whitespace-nowrap rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 hover:border-rose-300 font-semibold transition cursor-pointer"
+                        disabled={busy}
+                        onClick={() => removeItem(item)}
+                        title={`Delete ${item.name}`}
+                      >
+                        Delete
                       </button>
                     </div>
                   </td>

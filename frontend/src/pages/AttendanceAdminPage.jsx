@@ -7,7 +7,7 @@ import DeploymentPanel from '../attendance/components/DeploymentPanel.jsx';
 import MastersPanel from '../attendance/components/MastersPanel.jsx';
 import GeofencePanel from '../attendance/components/GeofencePanel.jsx';
 import AuditLogPanel from '../attendance/components/AuditLogPanel.jsx';
-import { attendancePath, sortFirmsOrder, getDefaultFirmId } from '../attendance/services/adminApi.js';
+import { attendancePath, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFirm } from '../attendance/services/adminApi.js';
 
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
@@ -80,7 +80,11 @@ export default function AttendanceAdminPage() {
               aria-label="Select Firm"
               className={`${inputClass} !min-h-9 w-full sm:!w-48 !rounded-xl !py-1 text-sm font-semibold text-slate-800`}
               value={firmId}
-              onChange={(e) => setFirmId(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setFirmId(val);
+                setStoredAttendanceFirm(val);
+              }}
             >
               {firms.map((f) => (
                 <option key={f._id} value={f._id}>
