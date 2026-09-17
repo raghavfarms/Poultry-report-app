@@ -43,8 +43,68 @@ async function start() {
     console.error('Sudheer account sync note:', err.message);
   }
 
+  // 3. Ensure Head Office firm, default designations, and office location exist
+  try {
+    const officeFirm = await Firm.findOneAndUpdate(
+      { code: 'OFFICE' },
+      {
+        $setOnInsert: {
+          name: 'Head Office',
+          code: 'OFFICE',
+          active: true,
+        },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+
+    await User.updateMany(
+      { role: { $in: ['admin', 'developer'] } },
+      { $addToSet: { firms: officeFirm._id } }
+    );
+
+    const adminUser = await User.findOne({ role: { $in: ['developer', 'admin'] } }).lean();
+    const defaultDesignations = ['Management', 'Head', 'Developer', 'Accountant', 'Support Staff'];
+    const Designation = (await import('./attendance/models/Designation.js')).default;
+    for (const name of defaultDesignations) {
+      await Designation.findOneAndUpdate(
+        { firm: officeFirm._id, nameKey: name.toLowerCase() },
+        {
+          $setOnInsert: {
+            firm: officeFirm._id,
+            name,
+            nameKey: name.toLowerCase(),
+            active: true,
+            createdBy: adminUser?._id,
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    const WorkLocation = (await import('./attendance/models/WorkLocation.js')).default;
+    await WorkLocation.findOneAndUpdate(
+      { firm: officeFirm._id, nameKey: 'main office' },
+      {
+        $setOnInsert: {
+          firm: officeFirm._id,
+          name: 'Main Office',
+          nameKey: 'main office',
+          type: 'MISCELLANEOUS',
+          order: 1,
+          active: true,
+          createdBy: adminUser?._id,
+        },
+      },
+      { upsert: true, new: true }
+    );
+    console.log('✅ Head Office firm, designations, and location verified.');
+  } catch (err) {
+    console.error('Head Office auto-seed note:', err.message);
+  }
+
   app.listen(port, () => console.log(`API listening on http://localhost:${port}`));
 }
+
 
 start().catch((error) => {
   console.error(error);

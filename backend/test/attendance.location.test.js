@@ -51,3 +51,7 @@ test('unanswered permission prompt times out and a late result does not replace 
   lateSuccess({ coords: { latitude: 18, longitude: 73, accuracy: 5 }, timestamp: now.getTime() });
   assert.deepEqual(result, { status: 'TIMEOUT' });
 });
+
+
+
+ 

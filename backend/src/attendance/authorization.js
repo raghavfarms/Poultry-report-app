@@ -1,9 +1,9 @@
 import { objectId } from './validation.js';
 
-// Attendance honours assigned firms for admins too. Existing module permissions are unchanged.
+// Attendance honours assigned firms for supervisors/staff. Admins and developers have access to all firms.
 export function firmScope(user, requestedFirm) {
   const firm = requestedFirm === undefined ? undefined : objectId(requestedFirm, 'Firm');
-  if (user.role === 'developer') return firm ? { firm } : {};
+  if (['developer', 'admin'].includes(user.role)) return firm ? { firm } : {};
   const permitted = (user.firms || []).map((id) => String(id._id || id));
   if (firm && !permitted.includes(String(firm))) {
     const error = new Error('You do not have access to this firm.');
@@ -12,6 +12,7 @@ export function firmScope(user, requestedFirm) {
   }
   return { firm: firm || { $in: permitted.map((id) => objectId(id, 'Assigned firm')) } };
 }
+
 
 export function sortFirms(firms = []) {
   return [...firms].sort((a, b) => {
