@@ -15,6 +15,7 @@ const transportEntrySchema = new mongoose.Schema(
     openingFull: { type: Boolean, default: true },
     closingDate: { type: String, default: '', validate: (value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value) },
     closingReading: { type: Number, default: null, min: 0 },
+    completedAt: { type: Date, default: null },
     fill1Liters: { type: Number, default: 0, min: 0 },
     fill2Liters: { type: Number, default: 0, min: 0 },
     fill1Reading: { type: Number, default: null, min: 0 },

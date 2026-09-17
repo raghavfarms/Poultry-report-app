@@ -2,7 +2,9 @@ import Firm from '../models/Firm.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 
 export async function getFirms(req, res) {
-  const filter = ['admin', 'developer'].includes(req.user.role) ? { active: true } : { _id: { $in: req.user.firms }, active: true };
+  const filter = ['admin', 'developer'].includes(req.user.role)
+    ? { active: true, code: { $ne: 'OFFICE' } }
+    : { _id: { $in: req.user.firms }, active: true, code: { $ne: 'OFFICE' } };
   const firms = await Firm.find(filter).sort({ name: 1 }).lean();
   res.json({ firms });
 }
@@ -23,3 +25,4 @@ export async function updateFirm(req, res) {
   if (!firm) throw notFoundError('Firm not found.');
   res.json({ firm });
 }
+

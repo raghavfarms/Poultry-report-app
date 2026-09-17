@@ -11,4 +11,6 @@ router.post('/', saveTransportEntry);
 router.put('/:entryId', saveTransportEntry);
 router.patch('/:entryId/station', updateTransportStation);
 router.delete('/:entryId', adminOnly, deleteTransportEntry);
+
 export default router;
+ 

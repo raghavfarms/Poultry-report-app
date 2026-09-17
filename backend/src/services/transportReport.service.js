@@ -1,3 +1,5 @@
+import { isTransportComplete, transportEditExpiresAt } from './transportAccess.service.js';
+
 export function calculateTransportRows(entries) {
   const lastFullReading = new Map();
   const firstCycleReading = new Map();
@@ -11,7 +13,8 @@ export function calculateTransportRows(entries) {
     const fuelFilled = fill1Liters + fill2Liters;
     const totalDiesel = fuelFilled;
     let consumedLiters = null;
-    const complete = entry.closingReading != null;
+    const complete = isTransportComplete(entry);
+    const editExpiresAt = transportEditExpiresAt(entry);
     const kmRun = complete ? Number(entry.closingReading) - Number(entry.openingReading) : null;
     const accumulatedFuel = Number(pendingFuel.get(vehicleId) || 0) + fuelFilled;
     let fullCycleDistanceKm = null;
@@ -31,6 +34,7 @@ export function calculateTransportRows(entries) {
     } else if (complete) {
       pendingFuel.set(vehicleId, accumulatedFuel);
     }
-    return { ...entry, complete, totalDiesel, consumedLiters, kmRun, fullCycleDistanceKm, cycleFuelLiters, averageKmPerLiter };
+    return { ...entry, complete, editExpiresAt, totalDiesel, consumedLiters, kmRun, fullCycleDistanceKm, cycleFuelLiters, averageKmPerLiter };
   });
 }
+

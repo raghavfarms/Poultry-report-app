@@ -154,4 +154,6 @@ Then update backend `CLIENT_URL` to the exact Vercel frontend URL. Multiple allo
 
 ## Important production note
 
-Public labour registration is enabled because that was requested. If farm accounts must be controlled, the next security improvement should be admin approval or invitation codes for labour registration.
+Public labour registration is enabled because that was requested. If farm accounts must be controlled, the next security improvement should be admin approval or invitation codes for labour registration
+
+

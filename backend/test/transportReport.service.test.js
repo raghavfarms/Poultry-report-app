@@ -22,9 +22,11 @@ test('transport mileage appears only when a full-to-full cycle closes', () => {
 test('partial transport entry waits for its closing reading', () => {
   const [row] = calculateTransportRows([{ vehicle: 'v1', openingReading: 1000, closingReading: null, fill1Liters: 20, fill2Liters: 0, isFull: true }]);
   assert.equal(row.complete, false);
+  assert.equal(row.editExpiresAt, null);
   assert.equal(row.kmRun, null);
   assert.equal(row.averageKmPerLiter, null);
 });
+
 
 test('emergency fuel and final top-up both count, without adding tank capacity', () => {
   const [row] = calculateTransportRows([{ vehicle: 'v1', tankCapacity: 100, openingReading: 1000, closingReading: 1750, fill1Liters: 10, fill2Liters: 65, isFull: true }]);

@@ -19,13 +19,13 @@ export function Alert({ type = "error", children }) {
   ) : null;
 }
 
-export function Field({ label, hint, children }) {
+export function Field({ label, hint, className = '', children }) {
   return (
-    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+    <label className={`grid gap-0.5 text-[11px] font-semibold text-slate-600 leading-tight ${className}`}>
       <span>{label}</span>
       {children}
       {hint && (
-        <span className="text-xs font-normal text-slate-500">{hint}</span>
+        <span className="text-[10px] font-normal text-slate-400">{hint}</span>
       )}
     </label>
   );
@@ -33,7 +33,10 @@ export function Field({ label, hint, children }) {
 
 export const inputClass =
   "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 disabled:bg-slate-100 disabled:text-slate-500";
+export const compactInputClass =
+  "min-h-7 h-7 w-full rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200 disabled:bg-slate-100 disabled:text-slate-500";
 export const primaryButton =
   "inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50";
 export const secondaryButton =
   "inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-50 disabled:opacity-50";
+

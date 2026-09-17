@@ -4,48 +4,34 @@ import { api } from "../api/client.js";
 import { Alert, Field, inputClass, primaryButton } from "../components/Ui.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
-//  AuthShell is a resuable react component that provides a shared layout used by the login, registration, and setup pages.
+// AuthShell provides a clean, mobile-responsive card layout that fits mobile screens without excessive scrolling
 function AuthShell({
   title,
   subtitle,
   children,
-  compact = ["Welcome back", "Labour registration"].includes(title),
+  maxWidth = "max-w-[340px] sm:max-w-[380px]",
 }) {
-  const registrationClasses =
-    title === "Labour registration"
-      ? "registration-card [&_.grid-cols-2]:grid-cols-1 sm:[&_.grid-cols-2]:grid-cols-2"
-      : "";
-
-  const cardSize =
-    title === "Welcome back"
-      ? "max-w-xs p-5"
-      : compact
-        ? "max-w-sm p-5 sm:p-6"
-        : "max-w-md p-6 sm:p-8";
-
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-800 to-lime-800 p-4">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-950 via-emerald-800 to-lime-800 px-3 py-4 sm:p-6">
       <section
-        className={`w-full rounded-3xl bg-white shadow-2xl ${cardSize} ${registrationClasses}`}
+        className={`w-full rounded-2xl sm:rounded-3xl bg-white shadow-2xl p-4 sm:p-6 ${maxWidth}`}
       >
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">
+        <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
           Poultry Reporting System
         </p>
 
-        <h1
-          className={`${compact ? "mt-2 text-xl" : "mt-3 text-2xl"} font-bold text-slate-900`}
-        >
+        <h1 className="mt-1 text-lg sm:text-xl font-bold text-slate-900 leading-tight">
           {title}
         </h1>
 
-        <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        <div className={compact ? "mt-5" : "mt-6"}>{children}</div>
+        <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>
+        <div className="mt-3.5 sm:mt-4">{children}</div>
       </section>
     </main>
   );
 }
 
-// show password toggle button for password input fields. The button is accessible and has a visible label for screen readers.
+// Compact password input with show/hide toggle
 function PasswordInput({ className = "", ...inputProps }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -54,7 +40,7 @@ function PasswordInput({ className = "", ...inputProps }) {
       <input
         {...inputProps}
         type={showPassword ? "text" : "password"}
-        className={`${inputClass} !pr-11 ${className}`}
+        className={`${inputClass} !pr-9 !min-h-9 !h-9 !py-1 text-xs sm:text-sm ${className}`}
       />
       <button
         type="button"
@@ -62,13 +48,13 @@ function PasswordInput({ className = "", ...inputProps }) {
         aria-label={showPassword ? "Hide password" : "Show password"}
         aria-pressed={showPassword}
         title={showPassword ? "Hide password" : "Show password"}
-        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-slate-500 hover:text-emerald-700"
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-slate-400 hover:text-emerald-700 transition"
       >
         {showPassword ? (
           <svg
             aria-hidden="true"
             viewBox="0 0 24 24"
-            className="h-5 w-5 fill-none stroke-current"
+            className="h-4 w-4 fill-none stroke-current"
             strokeWidth="2"
           >
             <path d="M3 3l18 18" />
@@ -79,7 +65,7 @@ function PasswordInput({ className = "", ...inputProps }) {
           <svg
             aria-hidden="true"
             viewBox="0 0 24 24"
-            className="h-5 w-5 fill-none stroke-current"
+            className="h-4 w-4 fill-none stroke-current"
             strokeWidth="2"
           >
             <path d="M3 12s3.5-5.5 9-5.5 9 5.5 9 5.5-3.5 5.5-9 5.5S3 12 3 12z" />
@@ -91,7 +77,7 @@ function PasswordInput({ className = "", ...inputProps }) {
   );
 }
 
-// Registration and setup use the same four account fields.
+// Reusable account form hook
 function useAccountForm() {
   const [form, setForm] = useState({
     name: "",
@@ -111,6 +97,7 @@ function useAccountForm() {
   return { form, updateForm };
 }
 
+// Login page - compact & perfectly responsive on phone
 export function LoginPage() {
   const { user, acceptSession } = useAuth();
 
@@ -122,7 +109,6 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // An empty dependency array means this runs once when the page opens.
   useEffect(() => {
     async function checkSetupStatus() {
       try {
@@ -162,7 +148,6 @@ export function LoginPage() {
     }
   }
 
-  // Logged-in users should not see an authentication form.
   if (user) {
     return <Navigate to="/" replace />;
   }
@@ -171,8 +156,9 @@ export function LoginPage() {
     <AuthShell
       title="Welcome back"
       subtitle="Enter today’s farm data or review reports."
+      maxWidth="max-w-[320px] sm:max-w-[360px]"
     >
-      <form onSubmit={handleSubmit} className="grid gap-4">
+      <form onSubmit={handleSubmit} className="grid gap-3 text-xs">
         <Alert>{error}</Alert>
 
         <Field label="Email">
@@ -180,9 +166,10 @@ export function LoginPage() {
             required
             name="email"
             type="email"
-            className={inputClass}
+            className={`${inputClass} !min-h-9 !h-9 !py-1 text-xs sm:text-sm`}
             value={form.email}
             onChange={updateLoginField}
+            placeholder="user@example.com"
           />
         </Field>
 
@@ -192,18 +179,22 @@ export function LoginPage() {
             name="password"
             value={form.password}
             onChange={updateLoginField}
+            placeholder="Enter password"
           />
         </Field>
 
-        <button disabled={busy} className={primaryButton}>
+        <button
+          disabled={busy}
+          className={`${primaryButton} w-full !min-h-9.5 !h-9.5 text-xs sm:text-sm font-bold rounded-xl mt-1`}
+        >
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>
 
-      <div className="mt-5 space-y-2 text-center text-sm text-slate-600">
+      <div className="mt-4 space-y-1.5 text-center text-xs text-slate-600">
         <p>
-          New labour?{" "}
-          <Link className="font-semibold text-emerald-700" to="/register">
+          New user?{" "}
+          <Link className="font-semibold text-emerald-700 hover:underline" to="/register">
             Create an account
           </Link>
         </p>
@@ -211,7 +202,7 @@ export function LoginPage() {
         {setupRequired && (
           <p>
             First use?{" "}
-            <Link className="font-semibold text-amber-700" to="/setup">
+            <Link className="font-semibold text-amber-700 hover:underline" to="/setup">
               Set up the admin
             </Link>
           </p>
@@ -221,11 +212,13 @@ export function LoginPage() {
   );
 }
 
+// Register page - 2-column compact grid, fits completely on mobile phones
 export function RegisterPage() {
   const { user, acceptSession } = useAuth();
   const navigate = useNavigate();
   const { form, updateForm } = useAccountForm();
 
+  const [role, setRole] = useState("user");
   const [firms, setFirms] = useState([]);
   const [selectedFirmIds, setSelectedFirmIds] = useState([]);
   const [error, setError] = useState("");
@@ -235,7 +228,7 @@ export function RegisterPage() {
     async function loadRegistrationFirms() {
       try {
         const data = await api("/auth/registration-firms");
-        setFirms(data.firms);
+        setFirms(data.firms || []);
       } catch (requestError) {
         setError(requestError.message);
       }
@@ -273,6 +266,7 @@ export function RegisterPage() {
         method: "POST",
         body: JSON.stringify({
           ...form,
+          role,
           firmIds: selectedFirmIds,
         }),
       });
@@ -291,34 +285,56 @@ export function RegisterPage() {
 
   return (
     <AuthShell
-      title="Labour registration"
-      subtitle="Choose one firm or both firms."
+      title="Create account"
+      subtitle="Select your designated role and assigned firm(s)."
+      maxWidth="max-w-[340px] sm:max-w-[390px]"
     >
-      <form onSubmit={handleSubmit} className="grid gap-4">
+      <form onSubmit={handleSubmit} className="grid gap-2.5 text-xs">
         <Alert>{error}</Alert>
 
-        <Field label="Name">
-          <input
-            required
-            name="name"
-            className={inputClass}
-            value={form.name}
-            onChange={updateForm}
-          />
-        </Field>
+        {/* Row 1: Full Name & Role side by side */}
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Full Name">
+            <input
+              required
+              name="name"
+              className={`${inputClass} !min-h-9 !h-9 !py-1 text-xs sm:text-sm`}
+              value={form.name}
+              onChange={updateForm}
+              placeholder="Name"
+            />
+          </Field>
 
+          <Field label="Designated Role">
+            <select
+              className={`${inputClass} !min-h-9 !h-9 !py-1 text-xs sm:text-sm`}
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            >
+              <option value="user">User</option>
+              <option value="office">Office</option>
+              <option value="supervisor">Supervisor</option>
+              <option value="security">Security</option>
+              <option value="farm_incharge">Farm Incharge</option>
+            </select>
+          </Field>
+        </div>
+
+        {/* Row 2: Email */}
         <Field label="Email">
           <input
             required
             name="email"
             type="email"
-            className={inputClass}
+            className={`${inputClass} !min-h-9 !h-9 !py-1 text-xs sm:text-sm`}
             value={form.email}
             onChange={updateForm}
+            placeholder="user@example.com"
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Row 3: Password & Confirm Password side by side */}
+        <div className="grid grid-cols-2 gap-2">
           <Field label="Password">
             <PasswordInput
               required
@@ -326,58 +342,65 @@ export function RegisterPage() {
               name="password"
               value={form.password}
               onChange={updateForm}
+              placeholder="Min 6 chars"
             />
           </Field>
 
-          <Field label="Confirm">
+          <Field label="Confirm Password">
             <PasswordInput
               required
               minLength="6"
               name="confirm"
               value={form.confirm}
               onChange={updateForm}
+              placeholder="Confirm"
             />
           </Field>
         </div>
 
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium text-slate-700">
-            Firm(s)
+        {/* Row 4: Assigned Firms side by side */}
+        <fieldset className="space-y-1">
+          <legend className="text-[11px] font-semibold text-slate-600">
+            Assigned Firm(s)
           </legend>
 
-          <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {firms.map((firm) => {
               const isSelected = selectedFirmIds.includes(firm._id);
 
               return (
                 <label
                   key={firm._id}
-                  className={`flex min-h-12 items-center gap-3 rounded-xl border px-4 ${
+                  className={`flex min-h-[36px] h-9 items-center gap-2 rounded-xl border px-2.5 py-1 text-xs font-medium cursor-pointer transition ${
                     isSelected
-                      ? "border-emerald-600 bg-emerald-50"
-                      : "border-slate-300"
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-xs"
+                      : "border-slate-300 text-slate-700 hover:border-slate-400"
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleFirm(firm._id)}
-                    className="h-5 w-5 accent-emerald-700"
+                    className="h-4 w-4 rounded accent-emerald-700 shrink-0"
                   />
-                  <span className="font-medium">{firm.name}</span>
+                  <span className="truncate">{firm.name}</span>
                 </label>
               );
             })}
           </div>
         </fieldset>
 
-        <button disabled={busy || firms.length === 0} className={primaryButton}>
-          {busy ? "Creating…" : "Create labour account"}
+        {/* Submit Button */}
+        <button
+          disabled={busy || firms.length === 0}
+          className={`${primaryButton} w-full !min-h-9.5 !h-9.5 text-xs sm:text-sm font-bold rounded-xl mt-1`}
+        >
+          {busy ? "Creating account…" : "Create account"}
         </button>
       </form>
 
-      <p className="mt-5 text-center text-sm">
-        <Link className="font-semibold text-emerald-700" to="/login">
+      <p className="mt-3 text-center text-xs">
+        <Link className="font-semibold text-emerald-700 hover:underline" to="/login">
           Back to login
         </Link>
       </p>
@@ -385,6 +408,7 @@ export function RegisterPage() {
   );
 }
 
+// Setup page for one-time admin provisioning
 export function SetupPage() {
   const { user, acceptSession } = useAuth();
   const { form, updateForm } = useAccountForm();
@@ -437,41 +461,44 @@ export function SetupPage() {
   return (
     <AuthShell
       title="One-time admin setup"
-      subtitle="This creates Raghav and Sanjana firms. Assets remain empty until the admin adds them."
+      subtitle="This creates Raghav and Sanjana firms."
+      maxWidth="max-w-[340px] sm:max-w-[390px]"
     >
       {setupAllowed === false ? (
         <>
           <Alert type="success">Setup is already complete.</Alert>
-          <Link className={`${primaryButton} mt-4 w-full`} to="/login">
+          <Link className={`${primaryButton} mt-3 w-full !min-h-9.5 !h-9.5`} to="/login">
             Go to login
           </Link>
         </>
       ) : (
-        <form onSubmit={handleSubmit} className="grid gap-4">
+        <form onSubmit={handleSubmit} className="grid gap-2.5 text-xs">
           <Alert>{error}</Alert>
 
-          <Field label="Admin name">
+          <Field label="Admin Name">
             <input
               required
               name="name"
-              className={inputClass}
+              className={`${inputClass} !min-h-9 !h-9 !py-1 text-xs sm:text-sm`}
               value={form.name}
               onChange={updateForm}
+              placeholder="Admin name"
             />
           </Field>
 
-          <Field label="Admin email">
+          <Field label="Admin Email">
             <input
               required
               name="email"
               type="email"
-              className={inputClass}
+              className={`${inputClass} !min-h-9 !h-9 !py-1 text-xs sm:text-sm`}
               value={form.email}
               onChange={updateForm}
+              placeholder="admin@example.com"
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <Field label="Password">
               <PasswordInput
                 required
@@ -479,23 +506,25 @@ export function SetupPage() {
                 name="password"
                 value={form.password}
                 onChange={updateForm}
+                placeholder="Min 6 chars"
               />
             </Field>
 
-            <Field label="Confirm">
+            <Field label="Confirm Password">
               <PasswordInput
                 required
                 minLength="6"
                 name="confirm"
                 value={form.confirm}
                 onChange={updateForm}
+                placeholder="Confirm"
               />
             </Field>
           </div>
 
           <button
             disabled={busy || setupAllowed === null}
-            className={primaryButton}
+            className={`${primaryButton} w-full !min-h-9.5 !h-9.5 text-xs sm:text-sm font-bold rounded-xl mt-1`}
           >
             {busy ? "Setting up…" : "Create admin & firms"}
           </button>
