@@ -12,11 +12,14 @@ const completedEntry = {
 const expiry = Date.parse('2026-09-11T06:00:00Z');
 
 test('users can always edit open/incomplete entries regardless of elapsed time', () => {
-  const openEntry = { openingDate: '2026-09-01', openingTime: '00:00', closingReading: null, createdAt: '2026-09-01T06:00:00Z' };
-  assert.equal(transportEditExpiresAt(openEntry), null);
-  // even 10 days later, driver can edit/close it
-  assert.equal(canEditTransportEntry(openEntry, 'user', Date.parse('2026-09-11T06:00:00Z')), true);
+  for (const emptyClosing of [null, undefined, '', 0]) {
+    const openEntry = { openingDate: '2026-09-01', openingTime: '00:00', closingReading: emptyClosing, createdAt: '2026-09-01T06:00:00Z' };
+    assert.equal(transportEditExpiresAt(openEntry), null);
+    // even 10 days later, driver can edit/close it
+    assert.equal(canEditTransportEntry(openEntry, 'user', Date.parse('2026-09-11T06:00:00Z')), true);
+  }
 });
+
 
 test('users can edit completed entries for 24 hours from completion', () => {
   assert.equal(transportEditExpiresAt(completedEntry), expiry);

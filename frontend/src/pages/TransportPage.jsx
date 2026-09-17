@@ -150,13 +150,20 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               ? previous.complete && previous.isFull && Number(previous.closingReading) === Number(row.openingReading)
               : row.openingFull !== false;
             const openingFuel = openingKnownFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
-            const closingFuel = row.complete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
-            const totalFuel = openingFuel == null ? null : openingFuel + Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
             const isStaff = ["admin", "developer"].includes(user?.role);
+            const isJourneyComplete = Boolean(
+              row.complete &&
+              row.closingReading != null &&
+              row.closingReading !== "" &&
+              Number(row.closingReading) > 0
+            );
+            const closingFuel = isJourneyComplete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
+            const totalFuel = openingFuel == null ? null : openingFuel + Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
             const isWithin24Hours = row.editExpiresAt != null && Math.max(now, Date.now()) < row.editExpiresAt;
-            const canEdit = isStaff || !row.complete || isWithin24Hours;
+            // UNTIL JOURNEY IS COMPLETE, NEVER HIDE UPDATE BUTTON:
+            const canEdit = isStaff || !isJourneyComplete || isWithin24Hours;
 
-            return <tr key={row._id} className={`group ${row.complete ? "hover:bg-emerald-50" : "bg-amber-50"}`}>
+            return <tr key={row._id} className={`group ${isJourneyComplete ? "hover:bg-emerald-50" : "bg-amber-50"}`}>
               <td className={`${cell} sticky-date w-[102px] min-w-[102px] whitespace-nowrap font-medium`}>
                 {displayDate(row.openingDate)}
               </td>
@@ -176,10 +183,11 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>
                 {canEdit ? (
                   <button
+                    type="button"
                     onClick={() => onEdit(row)}
-                    className={!row.complete ? actionGreenButton : actionEditButton}
+                    className={!isJourneyComplete ? actionGreenButton : actionEditButton}
                   >
-                    {row.complete ? "Edit" : "Update"}
+                    {!isJourneyComplete ? "Update" : "Edit"}
                   </button>
                 ) : (
                   "—"

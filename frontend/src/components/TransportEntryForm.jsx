@@ -19,7 +19,10 @@ function FormField({ label, children }) {
 
 export default function TransportEntryForm({ entryId, initialVehicleId, initialDate, onSaved, onCancel }) {
   const { user } = useAuth();
-  const completing = Boolean(entryId) && !["admin", "developer"].includes(user.role);
+  const [isExistingComplete, setIsExistingComplete] = useState(false);
+  const isStaff = ["admin", "developer"].includes(user?.role);
+  // Full journey access: until journey is completed, driver/user can edit opening reading, opening date, etc.
+  const lockOpeningFields = Boolean(entryId) && !isStaff && isExistingComplete;
   const [vehicles, setVehicles] = useState([]), [stations, setStations] = useState([]), [form, setForm] = useState({
     ...empty,
     vehicleId: initialVehicleId || "",
@@ -44,8 +47,13 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
         setStations(stationData?.stations || []);
         if (entryData?.entry) {
           const e = entryData.entry;
+          const complete = Boolean(
+            e.closingReading != null && e.closingReading !== "" && Number(e.closingReading) > 0
+          );
+          setIsExistingComplete(complete);
           setForm({ ...empty, ...e, closingDate: e.closingDate || addDays(e.openingDate, 1), fill1Reading: e.fill1Reading ?? "", fill2Reading: e.fill2Reading ?? "", vehicleId: e.vehicle });
         } else {
+          setIsExistingComplete(false);
           setForm((current) => ({
             ...current,
             vehicleId: current.vehicleId || initialVehicleId || vehicleData.vehicles[0]?._id || "",
@@ -58,6 +66,7 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
       .catch((e) => setError(e.message)).finally(() => active && setLoading(false));
     return () => { active = false; };
   }, [entryId, initialVehicleId, initialDate]);
+
   useEffect(() => {
     if (!form.vehicleId || !form.openingDate || !form.openingTime) { setCycle({ lastFullReading: null, firstCycleReading: null, pendingFuelLiters: 0 }); return; }
     const query = new URLSearchParams({ vehicleId: form.vehicleId, date: form.openingDate, time: form.openingTime, ...(entryId ? { entryId } : {}) });
@@ -91,7 +100,7 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
   return <form onSubmit={submit} className="w-full rounded-2xl bg-white p-2 sm:p-4 shadow-xl border border-slate-100">
     <div className="mb-1 flex items-center justify-between"><div><p className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-emerald-700">Transport journey</p><h2 className="text-xs sm:text-base font-black text-slate-900">{entryId ? "Edit entry" : "Add entry"}</h2></div><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-[22px] !h-[22px] !px-1.5 !py-0 !text-[11px]`}>Close</button></div><Alert>{error}</Alert>
     {!vehicles.length ? <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">No active transport vehicle exists. An administrator must add one.</div> : <div className="mt-1 grid grid-cols-2 gap-1 sm:gap-2">
-      <FormField label="Vehicle"><select required disabled={completing} className={`${inputClass} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !rounded-md sm:!rounded-lg !px-1.5 !py-0 text-[10.5px] sm:text-xs`} value={form.vehicleId} onChange={update("vehicleId")}>{vehicles.map((v) => <option key={v._id} value={v._id}>{v.name} — {v.number}</option>)}</select></FormField>
+      <FormField label="Vehicle"><select required disabled={Boolean(entryId)} className={`${inputClass} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !rounded-md sm:!rounded-lg !px-1.5 !py-0 text-[10.5px] sm:text-xs`} value={form.vehicleId} onChange={update("vehicleId")}>{vehicles.map((v) => <option key={v._id} value={v._id}>{v.name} — {v.number}</option>)}</select></FormField>
       <FormField label="Station / Location">
         {stations.length > 0 ? (
           <select className={`${inputClass} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !rounded-md sm:!rounded-lg !px-1.5 !py-0 text-[10.5px] sm:text-xs`} value={form.station || ""} onChange={update("station")}>
@@ -102,10 +111,11 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
           <input type="text" placeholder="e.g. AMETHI, GKR" className={`${inputClass} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !rounded-md sm:!rounded-lg !px-1.5 !py-0 text-[10.5px] sm:text-xs`} value={form.station || ""} onChange={update("station")} />
         )}
       </FormField>
-      {fields.map(([label, key, type]) => <FormField key={key} label={label}><input required={!['from', 'destination', 'closingReading', 'fill1Liters', 'fill2Liters', 'note'].includes(key)} disabled={completing && !["closingReading", "closingDate", "fill1Liters", "fill2Liters"].includes(key)} type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined} onClick={type === "date" ? openDatePicker : undefined} className={`${inputClass} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !rounded-md sm:!rounded-lg !px-1.5 !py-0 text-[10.5px] sm:text-xs ${type === "date" ? "cursor-pointer" : ""}`} value={form[key]} onChange={update(key)} /></FormField>)}
-      <FormField label="Opening tank"><label className="flex min-h-[24px] h-[24px] items-center gap-1 text-[10px] sm:text-[11px] cursor-pointer text-slate-700"><input type="checkbox" disabled={Boolean(entryId)} checked={form.openingFull} onChange={(event) => setForm({ ...form, openingFull: event.target.checked })} className="accent-emerald-700" /> Full at departure</label></FormField>
+      {fields.map(([label, key, type]) => <FormField key={key} label={label}><input required={!['from', 'destination', 'closingReading', 'fill1Liters', 'fill2Liters', 'note'].includes(key)} disabled={lockOpeningFields && !["closingReading", "closingDate", "fill1Liters", "fill2Liters"].includes(key)} type={type} min={type === "number" ? "0" : undefined} step={type === "number" ? "0.01" : undefined} onClick={type === "date" ? openDatePicker : undefined} className={`${inputClass} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !rounded-md sm:!rounded-lg !px-1.5 !py-0 text-[10.5px] sm:text-xs ${type === "date" ? "cursor-pointer" : ""}`} value={form[key]} onChange={update(key)} /></FormField>)}
+      <FormField label="Opening tank"><label className="flex min-h-[24px] h-[24px] items-center gap-1 text-[10px] sm:text-[11px] cursor-pointer text-slate-700"><input type="checkbox" disabled={lockOpeningFields} checked={form.openingFull} onChange={(event) => setForm({ ...form, openingFull: event.target.checked })} className="accent-emerald-700" /> Full at departure</label></FormField>
       <FormField label="Closing tank"><label className="flex min-h-[24px] h-[24px] items-center gap-1 rounded-md bg-blue-50 px-1 text-[10px] sm:text-[11px] font-bold cursor-pointer text-blue-900"><input type="checkbox" checked={form.isFull} onChange={(event) => setForm({ ...form, isFull: event.target.checked })} className="accent-emerald-700" /> Full at closing</label></FormField>
     </div>}
-    {!!vehicles.length && <><div className="mt-1.5 grid grid-cols-3 gap-0.5 rounded-lg bg-emerald-50/80 p-0.5 sm:p-1 text-[8.5px] sm:text-[10px] text-center border border-emerald-100"><span><b className="text-slate-500 font-semibold block text-[7.5px] sm:text-[8.5px]">KM RUN</b>{totals.kmRun == null ? "—" : Number(totals.kmRun.toFixed(2))}</span><span><b className="text-slate-500 font-semibold block text-[7.5px] sm:text-[8.5px]">FUEL ADDED</b>{Number(totals.total.toFixed(2))} L</span><span><b className="text-slate-500 font-semibold block text-[7.5px] sm:text-[8.5px]">FULL-CYCLE AVG</b>{totals.average == null ? "—" : `${Number(totals.average.toFixed(2))} km/L`}</span></div><div className="mt-1.5 flex justify-end gap-1"><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !px-2.5 !py-0 !text-[11px] sm:!text-xs`}>Cancel</button><button disabled={saving} className={`${primaryButton} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !px-3 !py-0 !text-[11px] sm:!text-xs`}>{saving ? "Saving…" : totals.complete ? "Save closing" : "Save opening"}</button></div></>}
+    {!!vehicles.length && <><div className="mt-1.5 grid grid-cols-3 gap-0.5 rounded-lg bg-emerald-50/80 p-0.5 sm:p-1 text-[8.5px] sm:text-[10px] text-center border border-emerald-100"><span><b className="text-slate-500 font-semibold block text-[7.5px] sm:text-[8.5px]">KM RUN</b>{totals.kmRun == null ? "—" : Number(totals.kmRun.toFixed(2))}</span><span><b className="text-slate-500 font-semibold block text-[7.5px] sm:text-[8.5px]">FUEL ADDED</b>{Number(totals.total.toFixed(2))} L</span><span><b className="text-slate-500 font-semibold block text-[7.5px] sm:text-[8.5px]">FULL-CYCLE AVG</b>{totals.average == null ? "—" : `${Number(totals.average.toFixed(2))} km/L`}</span></div><div className="mt-1.5 flex justify-end gap-1"><button type="button" onClick={onCancel} className={`${secondaryButton} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !px-2.5 !py-0 !text-[11px] sm:!text-xs`}>Cancel</button><button disabled={saving} className={`${primaryButton} !min-h-[26px] !h-[26px] sm:!min-h-8 sm:!h-8 !px-3 !py-0 !text-[11px] sm:!text-xs`}>{saving ? "Saving…" : totals.complete ? "Save closing" : entryId ? "Update journey" : "Save opening"}</button></div></>}
+
   </form>;
 }

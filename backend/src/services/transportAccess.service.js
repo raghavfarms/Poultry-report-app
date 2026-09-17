@@ -1,7 +1,15 @@
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+export function isTransportComplete(entry) {
+  if (!entry) return false;
+  const reading = entry.closingReading;
+  if (reading == null || reading === '') return false;
+  const num = Number(reading);
+  return Number.isFinite(num) && num > 0;
+}
+
 export function transportEditExpiresAt(entry) {
-  if (entry.closingReading == null) return null;
+  if (!isTransportComplete(entry)) return null;
 
   const completedTime = entry.completedAt
     ? new Date(entry.completedAt).getTime()
@@ -14,8 +22,9 @@ export function transportEditExpiresAt(entry) {
 
 export function canEditTransportEntry(entry, role, now = Date.now()) {
   if (['admin', 'developer'].includes(role)) return true;
-  if (entry.closingReading == null) return true;
+  if (!isTransportComplete(entry)) return true;
 
   const expiresAt = transportEditExpiresAt(entry);
   return expiresAt != null && now < expiresAt;
 }
+

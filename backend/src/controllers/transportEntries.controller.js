@@ -4,6 +4,7 @@ import TransportStation from '../models/TransportStation.js';
 import { assertDate, todayUtc } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 import { calculateTransportRows } from '../services/transportReport.service.js';
+import { canEditTransportEntry, isTransportComplete } from '../services/transportAccess.service.js';
 
 const tripKey = (entry) => `${entry.openingDate}T${entry.openingTime}`;
 const number = (value, label) => {
@@ -27,8 +28,16 @@ export async function getTransportReport(req, res) {
   if (req.query.to) {
     rows = rows.filter((r) => r.openingDate <= req.query.to);
   }
-  res.json({ vehicles, rows, stations });
+  const entryProgress = {};
+  for (const v of vehicles) {
+    const vEntries = entries.filter((e) => String(e.vehicle) === String(v._id));
+    const hasUnfinishedEntry = vEntries.some((e) => !isTransportComplete(e));
+    const latestDate = vEntries.length ? vEntries[vEntries.length - 1].openingDate : null;
+    entryProgress[v._id] = { hasUnfinishedEntry, latestDate };
+  }
+  res.json({ vehicles, rows, stations, entryProgress });
 }
+
 
 export async function getTransportOpening(req, res) {
   assertDate(req.query.date);
@@ -72,13 +81,9 @@ export async function saveTransportEntry(req, res) {
   assertDate(openingDate, 'openingDate');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openingTime)) throw badRequest('Opening time is required.');
   if (!['admin', 'developer'].includes(req.user.role) && openingDate > todayUtc()) return res.status(403).json({ message: 'Users cannot enter a future journey.' });
-  if (existing && !['admin', 'developer'].includes(req.user.role)) {
-    const entryTime = existing.createdAt
-      ? new Date(existing.createdAt).getTime()
-      : new Date(`${existing.openingDate}T${existing.openingTime || '00:00'}:00Z`).getTime();
-    if (Date.now() - entryTime > 24 * 60 * 60 * 1000) {
-      return res.status(403).json({ message: 'Entries cannot be changed after 24 hours. Only an administrator or developer can edit.' });
-    }
+  const wasAlreadyComplete = existing ? isTransportComplete(existing) : false;
+  if (existing && !canEditTransportEntry(existing, req.user.role)) {
+    return res.status(403).json({ message: 'Entries cannot be changed after 24 hours. Only an administrator or developer can edit.' });
   }
   const openingReading = number(req.body.openingReading, 'Opening reading');
   const closingReading = req.body.closingReading === '' || req.body.closingReading == null ? null : number(req.body.closingReading, 'Closing reading');
@@ -93,7 +98,7 @@ export async function saveTransportEntry(req, res) {
   const openingFull = existing?.openingFull ?? (req.body.openingFull !== false);
   const fill1Reading = req.body.fill1Reading === '' || req.body.fill1Reading == null ? null : number(req.body.fill1Reading, 'Fill 1 reading');
   const fill2Reading = req.body.fill2Reading === '' || req.body.fill2Reading == null ? null : number(req.body.fill2Reading, 'Fill 2 reading');
-  const effectiveOpening = existing && !['admin', 'developer'].includes(req.user.role) ? existing.openingReading : openingReading;
+  const effectiveOpening = existing && !['admin', 'developer'].includes(req.user.role) && wasAlreadyComplete ? existing.openingReading : openingReading;
   if (closingReading != null && closingReading < effectiveOpening) throw badRequest('Closing reading cannot be below opening reading.');
   for (const reading of [fill1Reading, fill2Reading]) {
     if (reading != null && (reading < effectiveOpening || (closingReading != null && reading > closingReading))) throw badRequest('Fuel readings must be within the journey readings.');
@@ -103,7 +108,7 @@ export async function saveTransportEntry(req, res) {
   const finalFillReading = fill2Liters > 0 ? fill2Reading : fill1Reading;
   if (isFull && closingReading != null && finalFillReading != null && finalFillReading !== closingReading) throw badRequest('The final full-tank fill reading must match the closing reading.');
   if (isFull && fill1Liters + fill2Liters <= 0) throw badRequest('Refill litres are required when the tank is marked full.');
-  const isNowComplete = closingReading != null;
+  const isNowComplete = isTransportComplete({ closingReading });
   let completedAt = existing?.completedAt || null;
   if (isNowComplete && !completedAt) {
     completedAt = new Date();
@@ -117,7 +122,7 @@ export async function saveTransportEntry(req, res) {
     openingDate, openingTime, openingReading, closingDate, closingReading, completedAt,
     openingFull, fill1Liters, fill2Liters, fill1Reading, fill2Reading, isFull, note: String(req.body.note || '').trim(), updatedBy: req.user._id,
   };
-  if (existing && !['admin', 'developer'].includes(req.user.role)) {
+  if (existing && !['admin', 'developer'].includes(req.user.role) && wasAlreadyComplete) {
     Object.assign(payload, {
       vehicle: existing.vehicle,
       vehicleName: existing.vehicleName,
@@ -135,6 +140,7 @@ export async function saveTransportEntry(req, res) {
     ? await TransportEntry.findByIdAndUpdate(existing._id, payload, { new: true, runValidators: true })
     : await TransportEntry.create({ ...payload, createdBy: req.user._id });
   res.status(existing ? 200 : 201).json({ message: existing ? 'Transport entry updated.' : 'Transport entry saved.', entry });
+
 }
 
 export async function updateTransportStation(req, res) {
