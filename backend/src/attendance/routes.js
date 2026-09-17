@@ -2,6 +2,8 @@ import express, { Router } from 'express';
 import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly } from '../middleware/auth.js';
 import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
+import User from '../models/User.js';
+
 import * as service from './services/masters.service.js';
 import * as deploymentService from './services/deployment.service.js';
 import * as attendanceService from './services/attendance.service.js';
@@ -40,11 +42,34 @@ router.post('/supervisor/sessions/correct', async (req, res) => res.json(await a
 
 // Master data & firms
 router.get('/firms', async (req, res) => {
+  try {
+    const officeFirm = await Firm.findOneAndUpdate(
+      { code: 'OFFICE' },
+      {
+        $setOnInsert: {
+          name: 'Head Office',
+          code: 'OFFICE',
+          active: true,
+        },
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+    if (officeFirm) {
+      await User.updateMany(
+        { role: { $in: ['admin', 'developer'] } },
+        { $addToSet: { firms: officeFirm._id } }
+      );
+    }
+  } catch (err) {
+    console.error('Office firm auto-seed note:', err.message);
+  }
+
   const scope = firmScope(req.user);
   const firms = await Firm.find({ active: true, ...(scope.firm ? { _id: scope.firm } : {}) })
     .select('name code').lean();
   res.json({ firms: sortFirms(firms) });
 });
+
 
 router.get('/capacity', async (req, res) => res.json(await service.firmCapacity(req.user, req.query)));
 router.get('/registered-users', async (req, res) => res.json(await service.listRegisteredUsers(req.user, req.query)));
