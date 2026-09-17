@@ -11,9 +11,13 @@ export function AuthProvider({ children }) {
       return null;
     }
   });
-  const [loading, setLoading] = useState(
-    Boolean(localStorage.getItem("poultry_token")),
-  );
+  // Only block the UI if a token exists but no user profile is cached in localStorage yet.
+  // When user is already cached, render immediately (0s wait) and revalidate in background.
+  const [loading, setLoading] = useState(() => {
+    const hasToken = Boolean(localStorage.getItem("poultry_token"));
+    const hasUser = Boolean(localStorage.getItem("poultry_user"));
+    return hasToken && !hasUser;
+  });
 
   const logout = () => {
     localStorage.removeItem("poultry_token");
@@ -36,7 +40,11 @@ export function AuthProvider({ children }) {
           localStorage.setItem("poultry_user", JSON.stringify(current));
           setUser(current);
         })
-        .catch(logout)
+        .catch((err) => {
+          // If server returns 401, client.js dispatches "auth-expired" which handles logout.
+          // For network timeouts or server waking up, do not kick the user out prematurely.
+          console.warn("Session background sync:", err?.message || err);
+        })
         .finally(() => setLoading(false));
     } else setLoading(false);
     return () => window.removeEventListener("auth-expired", onExpired);
