@@ -574,9 +574,9 @@ export default function FaceAttendancePage() {
         )}
       </div>
 
-      {/* Mode Selector Tabs - Separate distinct buttons, compact width & height */}
-      <div className="w-full bg-slate-900/80 px-2 py-1 sm:py-1.5 border-b border-slate-800/60 flex justify-center">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 w-full max-w-[280px] xs:max-w-[300px] sm:max-w-lg">
+      {/* Mode Selector Tabs - Shifted slightly below with clean breathing room */}
+      <div className="w-full bg-slate-900/90 px-3 pt-3 pb-2.5 sm:py-3 border-b border-slate-800 flex justify-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 w-full max-w-[310px] xs:max-w-[330px] sm:max-w-lg">
           {[
             { id: 'DUTY_IN', icon: '🟢', label: 'Duty IN', activeStyle: 'bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-950/40 ring-1 ring-emerald-400/50 font-extrabold' },
             { id: 'LUNCH_OUT', icon: '🍱', label: 'Lunch OUT', activeStyle: 'bg-amber-600 border-amber-400 text-white shadow-md shadow-amber-950/40 ring-1 ring-amber-400/50 font-extrabold' },
@@ -587,7 +587,7 @@ export default function FaceAttendancePage() {
               key={item.id}
               type="button"
               onClick={() => setMode(item.id)}
-              className={`flex h-8 sm:h-8.5 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] sm:text-xs transition text-center cursor-pointer select-none whitespace-nowrap border active:scale-[0.98] ${
+              className={`flex h-9 sm:h-9 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[11.5px] sm:text-xs transition text-center cursor-pointer select-none whitespace-nowrap border active:scale-[0.98] ${
                 mode === item.id
                   ? item.activeStyle
                   : 'bg-slate-800/90 border-slate-700/80 text-slate-300 hover:bg-slate-700/80 hover:text-white shadow-xs font-semibold'

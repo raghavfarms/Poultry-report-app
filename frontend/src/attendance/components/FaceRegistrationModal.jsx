@@ -316,7 +316,7 @@ function captureFacePhotoBlob(videoEl, box) {
               </button>
             </div>
           ) : (
-            <div className="relative mx-auto flex h-60 sm:h-72 w-full max-w-sm items-center justify-center overflow-hidden rounded-2xl bg-slate-900 shadow-inner">
+            <div className="relative mx-auto flex h-[340px] sm:h-[400px] w-full max-w-sm items-center justify-center overflow-hidden rounded-2xl bg-slate-900 shadow-inner">
               <video
                 ref={videoRef}
                 playsInline
@@ -327,7 +327,7 @@ function captureFacePhotoBlob(videoEl, box) {
 
               {/* Oval face guide overlay */}
               <div
-                className={`pointer-events-none absolute h-48 sm:h-52 w-36 sm:w-40 rounded-[50%] border-2 transition-colors duration-200 ${
+                className={`pointer-events-none absolute h-56 sm:h-64 w-40 sm:w-46 rounded-[50%] border-2 transition-colors duration-200 ${
                   isAligned
                     ? 'border-emerald-400 bg-emerald-500/10 shadow-[0_0_20px_rgba(52,211,153,0.5)]'
                     : faceDetection?.status === 'MULTIPLE_FACES'
