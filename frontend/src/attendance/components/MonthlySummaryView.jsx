@@ -5,6 +5,7 @@ import { attendancePath } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import AttendanceCorrectionModal from './AttendanceCorrectionModal.jsx';
+import BulkAttendanceModal from './BulkAttendanceModal.jsx';
 
 function getCurrentMonthString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()).slice(0, 7);
@@ -20,6 +21,7 @@ export default function MonthlySummaryView({
   const { user } = useAuth();
   const canEdit = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge', 'security'].includes(user?.role);
   const [editingWorker, setEditingWorker] = useState(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [notice, setNotice] = useState('');
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
@@ -237,20 +239,31 @@ export default function MonthlySummaryView({
       {notice && <Alert type="success">{notice}</Alert>}
 
       {/* Worker count & export actions strip */}
-      <div className="flex items-center justify-between gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/90 py-1 px-2 text-xs shadow-2xs">
-        <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-700">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 py-1.5 px-2 text-xs shadow-2xs">
+        <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-700 whitespace-nowrap shrink-0">
           <span>Total staff:</span>
           <span className="font-black text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">{totalWorkers}</span>
         </div>
 
-        {/* Action Buttons: Export PDF, CSV & Print */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Action Buttons: Export PDF, CSV, Print & Bulk Entry */}
+        <div className="flex items-center gap-1 overflow-x-auto py-0.5 shrink-0">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setShowBulkModal(true)}
+              title="Bulk Daily Muster Entry for all workers"
+              className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded cursor-pointer shadow-2xs transition-colors whitespace-nowrap shrink-0"
+            >
+              <span>⚡ Bulk Entry</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={exportPdf}
             disabled={loadingData || !records.length || exportingPdf}
             title="Export Monthly Matrix to PDF"
-            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
           >
             <svg className="w-3 h-3 text-rose-600" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
@@ -263,7 +276,7 @@ export default function MonthlySummaryView({
             onClick={exportCsv}
             disabled={loadingData || !records.length}
             title="Export Monthly Matrix to CSV"
-            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
           >
             <span className="text-emerald-600">📊</span>
             <span>CSV</span>
@@ -274,12 +287,12 @@ export default function MonthlySummaryView({
             onClick={() => window.print()}
             disabled={loadingData || !records.length}
             title="Print Monthly Summary"
-            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
           >
             <svg className="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-            <span className="hidden sm:inline">Print</span>
+            <span>Print</span>
           </button>
         </div>
       </div>
@@ -386,6 +399,14 @@ export default function MonthlySummaryView({
           ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
           : month + '-01'}
         onClose={() => setEditingWorker(null)}
+        onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
+      />}
+      {showBulkModal && <BulkAttendanceModal
+        firmId={firmId}
+        initialDate={month === getCurrentMonthString()
+          ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+          : month + '-01'}
+        onClose={() => setShowBulkModal(false)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}
     </div>

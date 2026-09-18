@@ -906,4 +906,163 @@ export async function manualAutoCutSession(user, payload = {}) {
   };
 }
 
+/**
+ * Bulk Day Attendance Backfill
+ * Records muster roll attendance (Present, Half-Day, Absent) for multiple workers on a single date.
+ */
+export async function recordBulkDayAttendance(user, payload = {}) {
+  const {
+    firmId,
+    date,
+    records = [],
+    defaultDutyIn = '08:00',
+    defaultDutyOut = '17:00',
+    reason = 'Bulk muster roll entry',
+  } = payload;
+
+  if (!firmId) throw badRequest('Firm is required.');
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw badRequest('Valid date (YYYY-MM-DD) is required.');
+  if (!Array.isArray(records) || records.length === 0) throw badRequest('No worker attendance records provided.');
+
+  firmScope(user, firmId);
+  const firmObjectId = objectId(firmId, 'Firm');
+
+  const firm = await Firm.findById(firmObjectId).lean();
+  if (!firm) throw notFoundError('Firm not found.');
+
+  let updatedCount = 0;
+
+  for (const item of records) {
+    const { workerId, status } = item;
+    if (!workerId || !['P', 'HD', 'A'].includes(status)) continue;
+
+    const worker = await Worker.findById(objectId(workerId, 'Worker')).lean();
+    if (!worker || !worker.active) continue;
+
+    const lookupDate = new Date(`${date}T12:00:00+05:30`);
+    let deployment = await findEffectiveDeployment(worker._id, lookupDate);
+    if (!deployment) {
+      deployment = await WorkerDeployment.findOne({ worker: worker._id })
+        .sort({ effectiveFrom: 1 })
+        .lean();
+    }
+    if (!deployment) continue;
+
+    // Handle Absent (A): Remove any existing attendance session for this date
+    if (status === 'A') {
+      await AttendanceSession.deleteMany({ worker: worker._id, date });
+      continue;
+    }
+
+    const inTimeStr = defaultDutyIn || '08:00';
+    const outTimeStr = status === 'HD' ? '12:00' : (defaultDutyOut || '17:00');
+    const workedMinutes = status === 'HD' ? 240 : 480;
+
+    const dutyInDate = new Date(`${date}T${inTimeStr}:00+05:30`);
+    const dutyOutDate = new Date(`${date}T${outTimeStr}:00+05:30`);
+
+    // Create immutable audit events for IN and OUT
+    const inEvent = await AttendanceEvent.create({
+      worker: worker._id,
+      workerCodeSnapshot: worker.workerCode,
+      workerNameSnapshot: worker.fullName,
+      firm: deployment.firm,
+      firmNameSnapshot: deployment.firmNameSnapshot || firm.name,
+      workLocation: deployment.workLocation,
+      workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
+      designation: deployment.designation,
+      designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
+      supervisor: deployment.supervisor || null,
+      supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
+      eventType: 'DUTY_IN',
+      timestamp: dutyInDate,
+      attendanceDate: date,
+      source: 'CORRECTION',
+      location: { status: 'NOT_PROVIDED' },
+      remarks: reason,
+      recordedBy: user._id,
+    });
+
+    const outEvent = await AttendanceEvent.create({
+      worker: worker._id,
+      workerCodeSnapshot: worker.workerCode,
+      workerNameSnapshot: worker.fullName,
+      firm: deployment.firm,
+      firmNameSnapshot: deployment.firmNameSnapshot || firm.name,
+      workLocation: deployment.workLocation,
+      workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
+      designation: deployment.designation,
+      designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
+      supervisor: deployment.supervisor || null,
+      supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
+      eventType: 'DUTY_OUT',
+      timestamp: dutyOutDate,
+      attendanceDate: date,
+      source: 'CORRECTION',
+      location: { status: 'NOT_PROVIDED' },
+      remarks: reason,
+      recordedBy: user._id,
+    });
+
+    let session = await AttendanceSession.findOne({ worker: worker._id, date });
+    if (session) {
+      session.dutyIn = dutyInDate;
+      session.inEvent = inEvent._id;
+      session.dutyOut = dutyOutDate;
+      session.outEvent = outEvent._id;
+      session.workedMinutes = workedMinutes;
+      session.lunchMinutes = 0;
+      session.onLunch = false;
+      session.status = 'DUTY_COMPLETED';
+      session.remarks = reason;
+      await session.save();
+    } else {
+      session = await AttendanceSession.create({
+        worker: worker._id,
+        workerCodeSnapshot: worker.workerCode,
+        workerNameSnapshot: worker.fullName,
+        firm: deployment.firm,
+        firmNameSnapshot: deployment.firmNameSnapshot || firm.name,
+        workLocation: deployment.workLocation,
+        workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
+        designation: deployment.designation,
+        designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
+        supervisor: deployment.supervisor || null,
+        supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
+        date,
+        dutyIn: dutyInDate,
+        inEvent: inEvent._id,
+        dutyOut: dutyOutDate,
+        outEvent: outEvent._id,
+        lunchMinutes: 0,
+        workedMinutes,
+        status: 'DUTY_COMPLETED',
+        remarks: reason,
+      });
+    }
+
+    inEvent.sessionId = session._id;
+    outEvent.sessionId = session._id;
+    await inEvent.save();
+    await outEvent.save();
+
+    updatedCount++;
+  }
+
+  // Record audit log entry
+  await AttendanceAuditLog.create({
+    firm: firmObjectId,
+    firmNameSnapshot: firm.name,
+    entityType: 'ATTENDANCE_SESSION',
+    entityId: firmObjectId,
+    action: 'CORRECTION',
+    reason: `${reason} (${updatedCount} workers updated for ${date})`,
+    performedBy: user._id,
+    performedByName: user.fullName || user.name || 'Admin',
+    performedByRole: user.role || 'admin',
+  });
+
+  return { success: true, updatedCount, date };
+}
+
 

@@ -55,3 +55,6 @@ schema.index({ firm: 1, active: 1 });
 
 export default mongoose.model('AttendanceWorkerFaceProfile', schema);
 
+
+
+

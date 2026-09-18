@@ -71,7 +71,7 @@ export async function getLiveDashboardData(user, query = {}) {
       .sort({ dutyIn: -1 })
       .lean(),
 
-    AttendanceEvent.find({ firm: firmObjectId, date: targetDate })
+    AttendanceEvent.find({ firm: firmObjectId, $or: [{ attendanceDate: targetDate }, { date: targetDate }] })
       .sort({ timestamp: -1 })
       .limit(15)
       .select('worker workerCodeSnapshot workerNameSnapshot eventType timestamp source workLocationNameSnapshot location')

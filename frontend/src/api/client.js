@@ -2,8 +2,13 @@ export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/ap
 
 export async function api(path, options = {}) {
   const token = localStorage.getItem("poultry_token");
+  let body = options.body;
+  if (body && typeof body === "object" && !(body instanceof FormData) && !(body instanceof Blob)) {
+    body = JSON.stringify(body);
+  }
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
+    body,
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

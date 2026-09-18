@@ -12,3 +12,5 @@ schema.index({ firm: 1, nameKey: 1 }, { unique: true });
 schema.index({ firm: 1, active: 1, name: 1 });
 export default mongoose.model('AttendanceDesignation', schema);
 
+
+ 
