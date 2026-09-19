@@ -8,6 +8,7 @@ import AttendanceGeofence from '../models/AttendanceGeofence.js';
 import Worker from '../models/Worker.js';
 import WorkerCounter from '../models/WorkerCounter.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
+import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceEvent from '../models/AttendanceEvent.js';
 import WorkerFaceProfile from '../models/WorkerFaceProfile.js';
@@ -321,21 +322,37 @@ export async function updateWorker(user, id, body) {
   if (!worker) throw notFoundError('Worker not found.');
   await activeFirm(user, worker.firm);
 
+  let desigDoc = null;
+  if (data.designation !== undefined) {
+    desigDoc = await Designation.findOne({ _id: data.designation, firm: worker.firm, active: true }).lean();
+    if (!desigDoc) throw badRequest('Select an active designation belonging to this firm.');
+  }
+
   if (body.isSupervisor !== undefined) {
     data.isSupervisor = Boolean(body.isSupervisor);
-  } else if (data.designation !== undefined) {
-    const desig = await Designation.findById(data.designation).lean();
-    if (desig && /supervisor/i.test(desig.name)) {
+  } else if (desigDoc) {
+    if (/supervisor/i.test(desigDoc.name)) {
       data.isSupervisor = true;
     }
   }
 
-  if (((data.designation !== undefined && String(data.designation) !== String(worker.designation)) ||
-       (data.dateOfJoining !== undefined && data.dateOfJoining !== worker.dateOfJoining)) &&
-      await WorkerDeployment.exists({ worker: worker._id })) {
-    throw badRequest('This worker has deployment history. Assignment and joining-date changes require the transfer or correction workflow.');
+  let locDoc = null;
+  if (data.workLocation !== undefined && data.workLocation !== null) {
+    locDoc = await WorkLocation.findOne({ _id: data.workLocation, firm: worker.firm, active: true }).lean();
+    if (!locDoc) throw badRequest('Select an active work location belonging to this firm.');
   }
-  if (data.designation !== undefined || data.active === true) await validDesignation(data.designation || worker.designation, worker.firm);
+
+  if (data.active === true && data.designation === undefined) {
+    await validDesignation(worker.designation, worker.firm);
+  }
+
+  if (data.dateOfJoining !== undefined && data.dateOfJoining !== worker.dateOfJoining) {
+    const firstDep = await WorkerDeployment.findOne({ worker: worker._id }).sort({ effectiveFrom: 1 }).lean();
+    if (firstDep && new Date(`${data.dateOfJoining}T00:00:00+05:30`) > firstDep.effectiveFrom) {
+      throw badRequest('Date of joining cannot be after the worker’s initial deployment date.');
+    }
+  }
+
   if ((data.active === false || data.isSupervisor === false) && await WorkLocation.exists({ supervisor: worker._id, active: true })) {
     throw badRequest('Reassign this supervisor’s active work locations first.');
   }
@@ -349,9 +366,97 @@ export async function updateWorker(user, id, body) {
     if (rawPin.length < 4 || rawPin.length > 8) throw badRequest('PIN must be 4–8 digits.');
     worker.pinHash = await bcrypt.hash(rawPin, 10);
   }
-  worker.set(data);
+
+  // Synchronize active deployment if designation, workLocation, or worker name changed
+  const currentDep = await WorkerDeployment.findOne({ worker: worker._id, effectiveTo: null });
+  if (currentDep) {
+    let depChanged = false;
+    const oldValues = {};
+    const newValues = {};
+
+    if (desigDoc && String(currentDep.designation) !== String(desigDoc._id)) {
+      oldValues.designationId = currentDep.designation;
+      oldValues.designationName = currentDep.designationNameSnapshot;
+      currentDep.designation = desigDoc._id;
+      currentDep.designationNameSnapshot = desigDoc.name;
+      newValues.designationId = desigDoc._id;
+      newValues.designationName = desigDoc.name;
+      depChanged = true;
+    }
+
+    if (locDoc && String(currentDep.workLocation) !== String(locDoc._id)) {
+      oldValues.workLocationId = currentDep.workLocation;
+      oldValues.workLocationName = currentDep.workLocationNameSnapshot;
+      currentDep.workLocation = locDoc._id;
+      currentDep.workLocationNameSnapshot = locDoc.name;
+      newValues.workLocationId = locDoc._id;
+      newValues.workLocationName = locDoc.name;
+      depChanged = true;
+    }
+
+    if (data.fullName && data.fullName !== currentDep.workerNameSnapshot) {
+      currentDep.workerNameSnapshot = data.fullName;
+      depChanged = true;
+    }
+
+    if (depChanged) {
+      await currentDep.save();
+
+      try {
+        const firmDoc = await Firm.findById(worker.firm).select('name').lean();
+        await AttendanceAuditLog.create({
+          firm: worker.firm,
+          firmNameSnapshot: firmDoc?.name || '',
+          worker: worker._id,
+          workerCodeSnapshot: worker.workerCode,
+          workerNameSnapshot: data.fullName || worker.fullName,
+          entityType: 'WORKER_DEPLOYMENT',
+          entityId: currentDep._id,
+          action: 'CORRECTION',
+          previousValue: oldValues,
+          newValue: newValues,
+          reason: body.reason ? String(body.reason).trim() : 'Worker details correction (designation/location update)',
+          performedBy: user._id,
+          performedByName: user.name || 'Admin',
+          performedByRole: user.role || 'admin',
+        });
+      } catch (auditErr) {
+        console.warn('Audit log creation note:', auditErr.message);
+      }
+    }
+  } else if (locDoc) {
+    // No active deployment found, create initial deployment
+    try {
+      const firmDoc = await Firm.findById(worker.firm).select('name').lean();
+      const desig = desigDoc || await Designation.findById(data.designation || worker.designation).lean();
+      await WorkerDeployment.create({
+        worker: worker._id,
+        firm: worker.firm,
+        workLocation: locDoc._id,
+        designation: desig._id,
+        supervisor: locDoc.supervisor || null,
+        workerCodeSnapshot: worker.workerCode,
+        workerNameSnapshot: data.fullName || worker.fullName,
+        firmNameSnapshot: firmDoc?.name || '',
+        workLocationNameSnapshot: locDoc.name,
+        designationNameSnapshot: desig?.name || '',
+        supervisorNameSnapshot: '',
+        allocationType: 'INITIAL',
+        effectiveFrom: worker.dateOfJoining ? new Date(`${worker.dateOfJoining}T00:00:00+05:30`) : new Date(),
+        effectiveTo: null,
+        reason: 'Initial deployment via worker edit',
+        createdBy: user._id,
+      });
+    } catch (createDepErr) {
+      console.warn('Initial deployment creation note:', createDepErr.message);
+    }
+  }
+
+  const { workLocation: _wl, ...workerData } = data;
+  worker.set(workerData);
   validateWorkerDates(worker);
   await worker.save();
+  await worker.populate(workerPopulation);
   return publicWorker(worker);
 }
 

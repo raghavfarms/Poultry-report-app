@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Alert, Field, inputClass, compactInputClass, primaryButton, secondaryButton, Spinner } from '../../components/Ui.jsx';
+import { api } from '../../api/client.js';
 import { attendancePath, saveAttendance, uploadWorkerPhoto, deleteWorker } from '../services/adminApi.js';
 import {
   useAttendanceData,
@@ -418,8 +419,14 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
 }
 
 function EditWorkerModal({ worker, onClose, onSaved }) {
+  const firmId = worker.firm?._id || (typeof worker.firm === 'string' ? worker.firm : '');
+  const initialDesignationId = worker.designation?._id || (typeof worker.designation === 'string' ? worker.designation : '');
+  const isOffice = worker.firm?.code === 'OFFICE' || /office/i.test(worker.firm?.name || '');
+
   const [form, setForm] = useState({
     fullName: worker.fullName || '',
+    designation: initialDesignationId,
+    workLocation: '',
     fatherOrHusbandName: worker.fatherOrHusbandName || '',
     gender: worker.gender || 'NOT_SPECIFIED',
     mobileNumber: worker.mobileNumber || '',
@@ -438,6 +445,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
     branch: '',
   });
 
+  const [currentLocationName, setCurrentLocationName] = useState('');
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [busy, setBusy] = useState(false);
@@ -446,6 +454,22 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
+    // 1. Fetch current deployment to populate work location
+    api(attendancePath(`workers/${worker._id}/deployment`))
+      .then((res) => {
+        if (res?.deployment) {
+          const loc = res.deployment.workLocation;
+          const locId = loc?._id || (typeof loc === 'string' ? loc : '');
+          const locName = res.deployment.workLocationNameSnapshot || loc?.name || '';
+          if (locId) {
+            set('workLocation', locId);
+            setCurrentLocationName(locName);
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 2. Fetch private details (bank details, aadhaar)
     saveAttendance(`workers/${worker._id}/private-details`, {}, 'GET')
       .then((data) => {
         if (data.worker) {
@@ -487,6 +511,8 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
 
     const body = {
       fullName: form.fullName.trim(),
+      designation: form.designation,
+      workLocation: form.workLocation || null,
       fatherOrHusbandName: form.fatherOrHusbandName.trim(),
       gender: form.gender,
       mobileNumber: form.mobileNumber.trim(),
@@ -543,6 +569,35 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
                 onChange={(e) => set('fullName', e.target.value)}
               />
             </Field>
+
+            <RemoteSelect
+              required
+              label="Designation *"
+              resource="designations"
+              firmId={firmId}
+              value={form.designation}
+              selectedLabel={worker.designation?.name}
+              onChange={(value, item) => {
+                const isSup = item?.name ? /supervisor/i.test(item.name) : false;
+                setForm((prev) => ({
+                  ...prev,
+                  designation: value,
+                  isSupervisor: isSup || prev.isSupervisor,
+                }));
+              }}
+            />
+
+            <RemoteSelect
+              label={isOffice ? 'Office Location / Department' : 'Work Location / Shed'}
+              resource="work-locations"
+              firmId={firmId}
+              value={form.workLocation}
+              selectedLabel={currentLocationName}
+              onChange={(value, item) => {
+                set('workLocation', value);
+                if (item?.name) setCurrentLocationName(item.name);
+              }}
+            />
 
             <Field label="Mobile Number">
               <input
@@ -635,9 +690,8 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
 
           <div className="rounded-md bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600 flex flex-wrap items-center justify-between gap-1">
             <span>
-              <strong className="font-semibold">Firm:</strong> {worker.firm?.name} ·{' '}
-              <strong className="font-semibold">Designation:</strong> {worker.designation?.name} ·{' '}
-              <strong className="font-semibold">Joined:</strong> {worker.dateOfJoining}
+              <strong className="font-semibold">Firm:</strong> {worker.firm?.name || '—'} ·{' '}
+              <strong className="font-semibold">Joined:</strong> {worker.dateOfJoining || '—'}
             </span>
           </div>
 

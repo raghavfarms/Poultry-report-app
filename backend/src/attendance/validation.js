@@ -114,7 +114,7 @@ export function workerPayload(body, create = false) {
   fields(body, [
     'fullName', 'fatherOrHusbandName', 'gender', 'mobileNumber', 'address', 'photographUrl',
     'dateOfJoining', 'designation', 'isSupervisor', 'active', 'leavingDate', 'inactiveReason',
-    'remarks', 'referenceName', 'referenceMobile', 'aadhaarNumber', 'bankDetails', ...(create ? ['firmId', 'initialDeployment'] : []),
+    'remarks', 'referenceName', 'referenceMobile', 'aadhaarNumber', 'bankDetails', 'workLocation', 'reason', ...(create ? ['firmId', 'initialDeployment'] : []),
   ]);
   const result = {};
   if (create) result.firm = objectId(body.firmId, 'Firm');
@@ -125,6 +125,9 @@ export function workerPayload(body, create = false) {
     result.dateOfJoining = null;
   }
   if (create || body.designation !== undefined) result.designation = objectId(body.designation, 'Designation');
+  if (body.workLocation !== undefined) {
+    result.workLocation = body.workLocation ? objectId(body.workLocation, 'Work location') : null;
+  }
   for (const key of ['fatherOrHusbandName', 'address', 'inactiveReason', 'remarks', 'referenceName']) {
     if (body[key] !== undefined) result[key] = text(body[key], key, key === 'address' || key === 'inactiveReason' || key === 'remarks' ? 1000 : 120);
   }
