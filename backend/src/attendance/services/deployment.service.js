@@ -96,8 +96,9 @@ export async function createInitialRecord(user, worker, data, session) {
       active: true,
       $or: [{ isSupervisor: true }, { designation: { $in: desigIds } }],
     }).session(session).lean();
-    if (!supervisor) throw badRequest('Select an active supervisor belonging to this firm.');
-    if (data.effectiveFrom < deploymentInstant(supervisor.dateOfJoining)) throw badRequest('Deployment cannot start before the supervisor’s joining date.');
+    if (supervisor.dateOfJoining && data.effectiveFrom < deploymentInstant(supervisor.dateOfJoining, 'Supervisor joining date')) {
+      throw badRequest('Deployment cannot start before the supervisor’s joining date.');
+    }
   }
   const [record] = await WorkerDeployment.create([{
     worker: worker._id, firm: worker.firm, workLocation: location._id, designation: designation._id,
@@ -206,9 +207,16 @@ export async function transferWorker(user, id, body = {}) {
     let supervisor = null;
     if (resolvedSupervisorId) {
       if (String(resolvedSupervisorId) === String(worker._id)) throw badRequest('A worker cannot supervise themselves.');
-      supervisor = await Worker.findOne({ _id: resolvedSupervisorId, firm: targetFirmId, active: true, isSupervisor: true }).session(session).lean();
+      const supervisorDesignations = await Designation.find({ firm: targetFirmId, name: /supervisor/i }).select('_id').lean();
+      const desigIds = supervisorDesignations.map((d) => d._id);
+      supervisor = await Worker.findOne({
+        _id: resolvedSupervisorId,
+        firm: targetFirmId,
+        active: true,
+        $or: [{ isSupervisor: true }, { designation: { $in: desigIds } }],
+      }).session(session).lean();
       if (!supervisor) throw badRequest('Selected supervisor is invalid or inactive in target firm.');
-      if (effectiveFrom < deploymentInstant(supervisor.dateOfJoining)) {
+      if (supervisor.dateOfJoining && effectiveFrom < deploymentInstant(supervisor.dateOfJoining, 'Supervisor joining date')) {
         throw badRequest('Deployment cannot start before the supervisor’s joining date.');
       }
     }
