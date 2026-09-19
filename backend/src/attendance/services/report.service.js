@@ -10,6 +10,43 @@ import { indiaDateString, formatWorkedHours, autoCutExpiredSessions } from './at
 import { notFoundError, badRequest } from '../../utils/http.js';
 
 /**
+ * Calculates a sorting rank for work locations ensuring:
+ * 1. Laying Sheds (1, 2, 3...) appear first
+ * 2. Brood Sheds (1, 2, 3...) appear second
+ * 3. Other production sheds appear third
+ * 4. Miscellaneous units (Feed Mill, Guard Room, Cold Room, Office, etc.) appear last
+ * 5. Explicit user-defined `order > 0` is prioritized within each tier
+ */
+export function getWorkLocationSortRank(name, type, order) {
+  const lower = String(name || '').toLowerCase().trim();
+  if (!lower || lower === 'unassigned') return 999999;
+
+  const numMatch = lower.match(/\d+/);
+  const num = numMatch ? parseInt(numMatch[0], 10) : 0;
+
+  const isLaying = lower.includes('laying');
+  const isBrood = lower.includes('brood') || lower.includes('chick');
+  const isShed = type === 'SHED' || lower.includes('shed') || isLaying || isBrood;
+  const ord = Number(order) || 0;
+
+  if (isLaying) {
+    return 1000 + (ord > 0 ? ord : num);
+  }
+  if (isBrood) {
+    return 2000 + (ord > 0 ? ord : num);
+  }
+  if (isShed) {
+    return 3000 + (ord > 0 ? ord : num);
+  }
+
+  // Miscellaneous / non-shed locations (Feed Mill, Guard Room, etc.)
+  if (ord > 0) {
+    return 10000 + ord;
+  }
+  return 20000;
+}
+
+/**
  * Generates daily muster roll register for a firm on a specific date.
  * Includes all deployed workers, marking them as ON_DUTY, COMPLETED, or ABSENT.
  */
@@ -49,8 +86,8 @@ export async function getDailyAttendanceReport(user, query = {}) {
   // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
   await autoCutExpiredSessions(firmObjectId, now);
 
-  // 3. Parallel fetch of workers, deployments, and attendance sessions
-  const [workers, deployments, sessions] = await Promise.all([
+  // 3. Parallel fetch of workers, deployments, attendance sessions, and active work locations
+  const [workers, deployments, sessions, workLocations] = await Promise.all([
     Worker.find({ firm: firmObjectId, active: true })
       .select('fullName workerCode designation dateOfJoining createdAt')
       .populate('designation', 'name')
@@ -65,7 +102,18 @@ export async function getDailyAttendanceReport(user, query = {}) {
       .select('worker workerCodeSnapshot workerNameSnapshot workLocation workLocationNameSnapshot designationNameSnapshot supervisorNameSnapshot dutyIn dutyOut workedMinutes status inLocation outLocation remarks inEvent lunchOut lunchIn lunchMinutes onLunch')
       .populate('inEvent', 'source')
       .lean(),
+
+    WorkLocation.find({ firm: firmObjectId, active: true })
+      .select('name type order')
+      .lean(),
   ]);
+
+  const locationById = new Map();
+  const locationByName = new Map();
+  for (const loc of workLocations) {
+    if (loc._id) locationById.set(String(loc._id), loc);
+    if (loc.name) locationByName.set(loc.name.toLowerCase().trim(), loc);
+  }
 
   const deploymentByWorker = new Map();
   for (const dep of deployments) {
@@ -112,6 +160,12 @@ export async function getDailyAttendanceReport(user, query = {}) {
     const designationName = latestSession?.designationNameSnapshot || worker.designation?.name || deployment?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
 
+    const matchedLoc = (workLocationId && locationById.get(workLocationId))
+      || locationByName.get(workLocationName.toLowerCase().trim())
+      || null;
+    const workLocationType = matchedLoc?.type || (workLocationName.toLowerCase().includes('shed') ? 'SHED' : 'MISCELLANEOUS');
+    const workLocationOrder = matchedLoc?.order ?? 0;
+
     // Filter by workLocation if requested
     if (query.workLocationId && workLocationId !== String(query.workLocationId)) {
       continue;
@@ -144,26 +198,25 @@ export async function getDailyAttendanceReport(user, query = {}) {
         } else {
           dayWorkedMinutes += (sess.workedMinutes || 0);
         }
-        if (sess.dutyOut) {
-          if (!dutyOut || new Date(sess.dutyOut) > new Date(dutyOut)) {
-            dutyOut = sess.dutyOut;
-          }
-        }
       }
 
       if (hasOpenSession) {
         status = 'ON_DUTY';
         onDutyCount++;
-        dutyOut = null; // Still on duty
-      } else if (dayWorkedMinutes >= 475) {
-        status = 'COMPLETED';
-        completedCount++;
-      } else if (dayWorkedMinutes >= 240) {
-        status = 'HALF_DAY';
-        halfDayCount++;
       } else {
-        status = 'ABSENT';
-        absentCount++;
+        const lastSession = workerSessions[workerSessions.length - 1];
+        dutyOut = lastSession.dutyOut || null;
+
+        if (dayWorkedMinutes >= 475) {
+          status = 'COMPLETED';
+          completedCount++;
+        } else if (dayWorkedMinutes >= 240) {
+          status = 'HALF_DAY';
+          halfDayCount++;
+        } else {
+          status = 'ABSENT';
+          absentCount++;
+        }
       }
       totalWorkedMinutes += dayWorkedMinutes;
     } else {
@@ -186,6 +239,8 @@ export async function getDailyAttendanceReport(user, query = {}) {
       workerName: worker.fullName,
       workLocationId,
       workLocationName,
+      workLocationType,
+      workLocationOrder,
       designationName,
       supervisorName,
       dutyIn,
@@ -205,8 +260,14 @@ export async function getDailyAttendanceReport(user, query = {}) {
     });
   }
 
-  // Sort daily records shed-wise (natural alphanumeric sort by workLocationName, then workerName)
+  // Sort daily records shed-wise:
+  // Laying Sheds (1, 2...) -> Brood Sheds (1, 2...) -> Other Sheds -> Miscellaneous units -> Unassigned
+  // Within the same location, sorted alphabetically by workerName.
   rows.sort((a, b) => {
+    const rankA = getWorkLocationSortRank(a.workLocationName, a.workLocationType, a.workLocationOrder);
+    const rankB = getWorkLocationSortRank(b.workLocationName, b.workLocationType, b.workLocationOrder);
+    if (rankA !== rankB) return rankA - rankB;
+
     const shedA = a.workLocationName || 'Unassigned';
     const shedB = b.workLocationName || 'Unassigned';
     const locComp = shedA.localeCompare(shedB, undefined, { numeric: true, sensitivity: 'base' });

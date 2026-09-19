@@ -110,4 +110,42 @@ export function getDefaultFirmId(firms = [], currentId = '') {
   return target ? (target._id || target) : '';
 }
 
+/**
+ * Calculates a sorting rank for work locations ensuring:
+ * 1. Laying Sheds (1, 2, 3...) appear first
+ * 2. Brood Sheds (1, 2, 3...) appear second
+ * 3. Other production sheds appear third
+ * 4. Miscellaneous units (Feed Mill, Guard Room, Cold Room, Office, etc.) appear last
+ * 5. Explicit user-defined `order > 0` is prioritized within each tier
+ */
+export function getWorkLocationSortRank(name, type, order) {
+  const lower = String(name || '').toLowerCase().trim();
+  if (!lower || lower === 'unassigned') return 999999;
+
+  const numMatch = lower.match(/\d+/);
+  const num = numMatch ? parseInt(numMatch[0], 10) : 0;
+
+  const isLaying = lower.includes('laying');
+  const isBrood = lower.includes('brood') || lower.includes('chick');
+  const isShed = type === 'SHED' || lower.includes('shed') || isLaying || isBrood;
+  const ord = Number(order) || 0;
+
+  if (isLaying) {
+    return 1000 + (ord > 0 ? ord : num);
+  }
+  if (isBrood) {
+    return 2000 + (ord > 0 ? ord : num);
+  }
+  if (isShed) {
+    return 3000 + (ord > 0 ? ord : num);
+  }
+
+  // Miscellaneous / non-shed locations (Feed Mill, Guard Room, etc.)
+  if (ord > 0) {
+    return 10000 + ord;
+  }
+  return 20000;
+}
+
+
 

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
-import { attendancePath, saveAttendance } from '../services/adminApi.js';
+import { attendancePath, saveAttendance, getWorkLocationSortRank } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 
 function getTodayString() {
@@ -100,7 +100,16 @@ export default function DailyRegisterView({
       return;
     }
     api(attendancePath('work-locations', { firmId, active: true, limit: 100 }))
-      .then((res) => setWorkLocations(res.items || []))
+      .then((res) => {
+        const items = res.items || [];
+        items.sort((a, b) => {
+          const rankA = getWorkLocationSortRank(a.name, a.type, a.order);
+          const rankB = getWorkLocationSortRank(b.name, b.type, b.order);
+          if (rankA !== rankB) return rankA - rankB;
+          return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+        });
+        setWorkLocations(items);
+      })
       .catch(() => setWorkLocations([]));
   }, [firmId]);
 
@@ -138,14 +147,33 @@ export default function DailyRegisterView({
 
   const records = useMemo(() => {
     const list = data?.records ? [...data.records] : [];
+    const locMap = new Map();
+    for (const loc of workLocations) {
+      if (loc._id) locMap.set(String(loc._id), loc);
+      if (loc.name) locMap.set(loc.name.toLowerCase().trim(), loc);
+    }
+
     return list.sort((a, b) => {
-      const shedA = a.workLocationName || 'Unassigned';
-      const shedB = b.workLocationName || 'Unassigned';
-      const locComp = shedA.localeCompare(shedB, undefined, { numeric: true, sensitivity: 'base' });
+      const locA = (a.workLocationId && locMap.get(String(a.workLocationId)))
+        || locMap.get((a.workLocationName || '').toLowerCase().trim())
+        || { name: a.workLocationName, type: a.workLocationType, order: a.workLocationOrder };
+      const locB = (b.workLocationId && locMap.get(String(b.workLocationId)))
+        || locMap.get((b.workLocationName || '').toLowerCase().trim())
+        || { name: b.workLocationName, type: b.workLocationType, order: b.workLocationOrder };
+
+      const nameA = a.workLocationName || locA.name || 'Unassigned';
+      const nameB = b.workLocationName || locB.name || 'Unassigned';
+
+      const rankA = getWorkLocationSortRank(nameA, locA.type, locA.order);
+      const rankB = getWorkLocationSortRank(nameB, locB.type, locB.order);
+      if (rankA !== rankB) return rankA - rankB;
+
+      const locComp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
       if (locComp !== 0) return locComp;
+
       return (a.workerName || '').localeCompare(b.workerName || '', undefined, { sensitivity: 'base' });
     });
-  }, [data?.records]);
+  }, [data?.records, workLocations]);
 
   const [autoCuttingWorkerId, setAutoCuttingWorkerId] = useState(null);
   const [autoCutNotice, setAutoCutNotice] = useState('');

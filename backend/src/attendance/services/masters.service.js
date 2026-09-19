@@ -15,6 +15,7 @@ import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInitialRecord, initialDeploymentPayload } from './deployment.service.js';
+import { getWorkLocationSortRank } from './report.service.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 import { firmScope, sortFirms } from '../authorization.js';
 import { masterPayload, workerPayload, objectId, pagination, searchFilter, validateWorkerDates } from '../validation.js';
@@ -115,7 +116,15 @@ export async function listMasters(kind, user, query) {
     { path: 'firm', select: 'name code active' },
     ...(kind === 'work-locations' ? [{ path: 'supervisor', select: 'fullName workerCode active' }] : []),
   ]);
-  if (kind === 'work-locations') result.items = result.items.map(locationWithCapacity);
+  if (kind === 'work-locations') {
+    result.items = result.items.map(locationWithCapacity);
+    result.items.sort((a, b) => {
+      const rankA = getWorkLocationSortRank(a.name, a.type, a.order);
+      const rankB = getWorkLocationSortRank(b.name, b.type, b.order);
+      if (rankA !== rankB) return rankA - rankB;
+      return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }
   return result;
 }
 

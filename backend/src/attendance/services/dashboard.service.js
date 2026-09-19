@@ -8,6 +8,7 @@ import AttendanceEvent from '../models/AttendanceEvent.js';
 import { firmScope, sortFirms } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
 import { indiaDateString, formatWorkedHours } from './attendance.service.js';
+import { getWorkLocationSortRank } from './report.service.js';
 import { notFoundError, badRequest } from '../../utils/http.js';
 
 /**
@@ -81,6 +82,14 @@ export async function getLiveDashboardData(user, query = {}) {
       .sort({ name: 1 })
       .lean(),
   ]);
+
+  // Sort work locations: Laying Sheds (1, 2...) -> Brood Sheds (1, 2...) -> Other Sheds -> Miscellaneous -> Unassigned
+  workLocations.sort((a, b) => {
+    const rankA = getWorkLocationSortRank(a.name, a.type, a.order);
+    const rankB = getWorkLocationSortRank(b.name, b.type, b.order);
+    if (rankA !== rankB) return rankA - rankB;
+    return (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' });
+  });
 
   // 4. Classify sessions & compute KPIs
   const onDutySessions = sessions.filter((s) => s.status === 'PRESENT');
