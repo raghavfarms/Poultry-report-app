@@ -192,7 +192,7 @@ export default function MonthlySummaryView({
   return (
     <div className="space-y-1.5 sm:space-y-2">
       {/* Secondary Filters Bar - Ultra-Slim Single Row */}
-      <div className="rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
+      <div className="rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs no-print print:hidden">
         <div className="grid grid-cols-2 gap-1.5 items-center">
           {/* Location / Department Filter */}
           <div>
@@ -239,7 +239,7 @@ export default function MonthlySummaryView({
       {notice && <Alert type="success">{notice}</Alert>}
 
       {/* Worker count & export actions strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 py-1.5 px-2 text-xs shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 rounded-lg border border-slate-200 bg-slate-50/90 py-1.5 px-2 text-xs shadow-2xs no-print print:hidden">
         <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-700 whitespace-nowrap shrink-0">
           <span>Total staff:</span>
           <span className="font-black text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">{totalWorkers}</span>
@@ -298,7 +298,7 @@ export default function MonthlySummaryView({
       </div>
 
       {/* Status Legend */}
-      <div className="flex flex-wrap items-center gap-1.5 text-xs px-1 text-slate-500">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs px-1 text-slate-500 no-print print:hidden">
         <span className="font-semibold text-[10px] uppercase tracking-wider">Legend:</span>
         <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200/50">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> P (Full Day)
@@ -317,7 +317,7 @@ export default function MonthlySummaryView({
       {/* Monthly Attendance Calendar Matrix Table */}
       <div ref={reportRef} className="report-export-content overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
         {/* Printable/Export Header */}
-        <div className="pdf-print-header hidden p-2 border-b border-slate-200 bg-slate-50">
+        <div className="pdf-print-header hidden print:block p-2 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
@@ -343,37 +343,37 @@ export default function MonthlySummaryView({
           </div>
         ) : (
           <div className="attendance-month-matrix overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll" tabIndex={0} role="region" aria-label="Monthly attendance matrix; scroll horizontally to see all days">
-            <table className="attendance-month-table w-full text-left text-xs border-collapse">
-              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <table className="attendance-month-table w-full text-left text-xs border-collapse print:text-[7.5px] print:w-full print:table-fixed">
+              <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)] print:table-header-group">
                 <tr>
-                  <th className="sticky top-0 left-0 z-30 bg-slate-50 px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] whitespace-nowrap">
+                  <th className="sticky top-0 left-0 z-30 bg-slate-50 px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] whitespace-nowrap print:static print:shadow-none print:px-1 print:py-0.5 print:w-20">
                     Worker
                   </th>
-                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap">Designation</th>
-                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap">Shed</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap print:px-1 print:py-0.5 print:w-16">Designation</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap print:px-1 print:py-0.5 print:w-16">Shed</th>
                   {daysArray.map((d) => (
-                    <th key={d} className="sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 whitespace-nowrap">
+                    <th key={d} className="sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 print:min-w-0 print:w-3.5 print:px-0 print:py-0.5 whitespace-nowrap">
                       {Number(d)}
                     </th>
                   ))}
-                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap">Present</th>
-                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap">Absent</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap print:px-1 print:py-0.5 print:w-10">Present</th>
+                  <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap print:px-1 print:py-0.5 print:w-10">Absent</th>
                   {canEdit && <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap no-print print:hidden" data-html2canvas-ignore="true">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {records.map((r) => (
-                  <tr key={r.workerId} className="hover:bg-slate-50/60 group">
-                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] font-semibold text-slate-900 whitespace-nowrap">
+                  <tr key={r.workerId} className="hover:bg-slate-50/60 group print:break-inside-avoid">
+                    <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 transition-colors px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] font-semibold text-slate-900 whitespace-nowrap print:static print:shadow-none print:px-1 print:py-0.5">
                       <div>
-                        <p className="truncate max-w-[130px]">{r.workerName}</p>
-                        <p className="text-[10px] text-slate-400">{r.workerCode}</p>
+                        <p className="truncate max-w-[130px] print:max-w-[80px] print:text-[8px]">{r.workerName}</p>
+                        <p className="text-[10px] print:text-[6.5px] text-slate-400">{r.workerCode}</p>
                       </div>
                     </td>
-                    <td className="px-2.5 py-1.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                    <td className="px-2.5 py-1.5 print:px-1 print:py-0.5 text-[11px] print:text-[7.5px] font-medium text-slate-600 whitespace-nowrap truncate print:max-w-[65px]">
                       {r.designationName || '—'}
                     </td>
-                    <td className="px-2.5 py-1.5 text-[11px] font-medium text-slate-600 whitespace-nowrap">
+                    <td className="px-2.5 py-1.5 print:px-1 print:py-0.5 text-[11px] print:text-[7.5px] font-medium text-slate-600 whitespace-nowrap truncate print:max-w-[65px]">
                       {r.workLocationName}
                     </td>
 
@@ -387,18 +387,18 @@ export default function MonthlySummaryView({
                       else if (code === 'A') cellClass = 'bg-rose-50 text-rose-600 font-medium';
 
                       return (
-                        <td key={d} className="px-0.5 py-0.5 text-center whitespace-nowrap">
-                          <span className={`inline-block w-5 rounded py-0.5 text-[10px] ${cellClass}`}>
+                        <td key={d} className="px-0.5 py-0.5 print:px-0 print:py-0 text-center whitespace-nowrap">
+                          <span className={`inline-block w-5 print:w-3.5 rounded py-0.5 print:py-0 text-[10px] print:text-[6.5px] ${cellClass}`}>
                             {code}
                           </span>
                         </td>
                       );
                     })}
 
-                    <td className="px-2.5 py-1.5 text-center font-bold text-emerald-800 whitespace-nowrap">
+                    <td className="px-2.5 py-1.5 print:px-0.5 print:py-0.5 text-center font-bold text-emerald-800 whitespace-nowrap print:text-[7.5px]">
                       {r.totalDaysPresent} d
                     </td>
-                    <td className="px-2.5 py-1.5 text-center font-bold text-rose-700 whitespace-nowrap">
+                    <td className="px-2.5 py-1.5 print:px-0.5 print:py-0.5 text-center font-bold text-rose-700 whitespace-nowrap print:text-[7.5px]">
                       {r.totalDaysAbsent ?? Object.values(r.days || {}).filter((code) => code === 'A').length} d
                     </td>
                     {canEdit && <td className="px-2.5 py-1.5 text-center whitespace-nowrap no-print print:hidden" data-html2canvas-ignore="true">{editActions(r)}</td>}
