@@ -26,8 +26,8 @@ const schema = new mongoose.Schema({
 // This flag means the interval has no end; effective-at queries use dates, not this flag.
 schema.virtual('active').get(function () { return this.effectiveTo == null; });
 schema.pre('validate', function () {
-  if (this.effectiveTo && this.effectiveTo <= this.effectiveFrom) {
-    this.invalidate('effectiveTo', 'Deployment end must be after its start.');
+  if (this.effectiveTo && this.effectiveTo < this.effectiveFrom) {
+    this.invalidate('effectiveTo', 'Deployment end must be on or after its start.');
   }
 });
 schema.index({ worker: 1, effectiveFrom: -1, _id: -1 });

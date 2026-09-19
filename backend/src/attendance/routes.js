@@ -138,7 +138,10 @@ router.use((error, req, res, next) => {
   if (error.name === 'CastError') return res.status(400).json({ message: 'An attendance field has an invalid value.' });
   if (error.name === 'VersionError') return res.status(409).json({ message: 'This record changed. Refresh and retry.' });
   if (error.code === 11000) return res.status(409).json({ message: 'This name or worker ID already exists. Inactive records also reserve their names and IDs.' });
-  if (error.name === 'ValidationError') return res.status(400).json({ message: 'Please check the attendance fields and try again.' });
+  if (error.name === 'ValidationError') {
+    const msg = error.errors ? Object.values(error.errors).map((e) => e.message).join(' ') : error.message;
+    return res.status(400).json({ message: msg || 'Please check the attendance fields and try again.' });
+  }
   if (error.status && error.status >= 400 && error.status < 500) return res.status(error.status).json({ message: error.message });
   console.error('Attendance request failed:', error.name || 'Error');
   res.status(500).json({ message: 'Unable to process attendance. Please retry.' });
