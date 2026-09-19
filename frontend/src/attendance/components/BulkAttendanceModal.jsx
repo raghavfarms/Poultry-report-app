@@ -10,7 +10,8 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
   const [attendanceMap, setAttendanceMap] = useState({}); // workerId -> 'P' | 'HD' | 'A'
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState(null); // 'save' | 'next' | null
+  const isSaving = Boolean(savingAction);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -36,6 +37,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
 
   // Quick Action: Batch mark all workers
   const markAll = (status) => {
+    if (isSaving) return;
     setAttendanceMap((prev) => {
       const next = { ...prev };
       workers.forEach((w) => {
@@ -47,6 +49,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
 
   // Toggle single worker status
   const setWorkerStatus = (id, status) => {
+    if (isSaving) return;
     setAttendanceMap((prev) => ({ ...prev, [id]: status }));
   };
 
@@ -80,7 +83,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
       return;
     }
 
-    setSaving(true);
+    setSavingAction(advanceNextDay ? 'next' : 'save');
     setError('');
     setNotice('');
 
@@ -117,12 +120,12 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
     } catch (err) {
       setError(err.message || 'Failed to save bulk attendance.');
     } finally {
-      setSaving(false);
+      setSavingAction(null);
     }
   };
 
   return (
-    <Dialog title="⚡ Bulk Daily Muster Entry" onClose={onClose} busy={saving} maxWidth="max-w-2xl">
+    <Dialog title="⚡ Bulk Daily Muster Entry" onClose={onClose} busy={isSaving} maxWidth="max-w-2xl">
       <div className="space-y-2">
         {error && <Alert type="error">{error}</Alert>}
         {notice && <Alert type="success">{notice}</Alert>}
@@ -136,6 +139,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
               <input
                 type="date"
                 value={date}
+                disabled={isSaving}
                 onChange={(e) => setDate(e.target.value)}
                 className={`${inputClass} !min-h-7.5 !h-7.5 !py-0 !px-2 text-xs font-bold text-slate-900 bg-white rounded-lg w-full sm:w-auto`}
               />
@@ -149,21 +153,24 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
               <button
                 type="button"
                 onClick={() => markAll('P')}
-                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer"
+                disabled={isSaving}
+                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
               >
                 All P
               </button>
               <button
                 type="button"
                 onClick={() => markAll('HD')}
-                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors cursor-pointer"
+                disabled={isSaving}
+                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
               >
                 All HD
               </button>
               <button
                 type="button"
                 onClick={() => markAll('A')}
-                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 rounded-md transition-colors cursor-pointer"
+                disabled={isSaving}
+                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
               >
                 All A
               </button>
@@ -176,6 +183,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
               type="text"
               placeholder="Search worker…"
               value={search}
+              disabled={isSaving}
               onChange={(e) => setSearch(e.target.value)}
               className={`${inputClass} !min-h-7 !h-7 !py-0 !px-2 text-xs rounded-md bg-white w-full sm:w-48`}
             />
@@ -233,12 +241,13 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
                       <button
                         type="button"
                         onClick={() => setWorkerStatus(w._id, 'P')}
+                        disabled={isSaving}
                         title="Present (Full Day)"
                         className={`min-w-10 sm:min-w-14 h-7.5 sm:h-7 px-2 text-xs font-black rounded-md transition-all cursor-pointer whitespace-nowrap ${
                           currentStatus === 'P'
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'text-slate-600 hover:text-emerald-800 hover:bg-emerald-50'
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         P
                       </button>
@@ -247,12 +256,13 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
                       <button
                         type="button"
                         onClick={() => setWorkerStatus(w._id, 'HD')}
+                        disabled={isSaving}
                         title="Half-Day (4 Hours)"
                         className={`min-w-10 sm:min-w-14 h-7.5 sm:h-7 px-2 text-xs font-black rounded-md transition-all cursor-pointer whitespace-nowrap ${
                           currentStatus === 'HD'
                             ? 'bg-amber-500 text-white shadow-xs'
                             : 'text-slate-600 hover:text-amber-800 hover:bg-amber-50'
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         HD
                       </button>
@@ -261,12 +271,13 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
                       <button
                         type="button"
                         onClick={() => setWorkerStatus(w._id, 'A')}
+                        disabled={isSaving}
                         title="Absent"
                         className={`min-w-10 sm:min-w-14 h-7.5 sm:h-7 px-2 text-xs font-black rounded-md transition-all cursor-pointer whitespace-nowrap ${
                           currentStatus === 'A'
                             ? 'bg-rose-600 text-white shadow-xs'
                             : 'text-slate-600 hover:text-rose-800 hover:bg-rose-50'
-                        }`}
+                        } disabled:opacity-50`}
                       >
                         A
                       </button>
@@ -281,7 +292,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
         {/* Footer: Mobile-first Stacked / Flex Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <p className="text-[10px] sm:text-[11px] text-slate-400 order-2 sm:order-1 text-center sm:text-left">
-            Tip: Click <strong className="text-slate-600 font-bold">Save & Next Day</strong> to rapidly advance dates.
+            Tip: Click <strong className="text-slate-600 font-bold">Save & Next ➡️</strong> to rapidly advance dates.
           </p>
 
           <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 order-1 sm:order-2">
@@ -289,25 +300,39 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
               type="button"
               className={`${secondaryButton} !min-h-8 !h-8 !px-2.5 text-xs font-bold whitespace-nowrap text-center justify-center`}
               onClick={onClose}
-              disabled={saving}
+              disabled={isSaving}
             >
               Close
             </button>
             <button
               type="button"
               onClick={() => handleSave(false)}
-              disabled={saving || loading || !workers.length}
-              className={`${secondaryButton} !min-h-8 !h-8 !px-2.5 !bg-slate-700 !text-white hover:!bg-slate-800 text-xs font-bold whitespace-nowrap text-center justify-center`}
+              disabled={isSaving || loading || !workers.length}
+              className={`${secondaryButton} !min-h-8 !h-8 !px-2.5 !bg-slate-700 !text-white hover:!bg-slate-800 text-xs font-bold whitespace-nowrap text-center justify-center disabled:opacity-60`}
             >
-              {saving ? 'Saving…' : 'Save'}
+              {savingAction === 'save' ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Saving…
+                </span>
+              ) : (
+                'Save'
+              )}
             </button>
             <button
               type="button"
               onClick={() => handleSave(true)}
-              disabled={saving || loading || !workers.length}
-              className={`${primaryButton} !min-h-8 !h-8 !px-2.5 !bg-emerald-600 hover:!bg-emerald-700 !text-white text-xs font-bold whitespace-nowrap text-center justify-center`}
+              disabled={isSaving || loading || !workers.length}
+              className={`${primaryButton} !min-h-8 !h-8 !px-2.5 !bg-emerald-600 hover:!bg-emerald-700 !text-white text-xs font-bold whitespace-nowrap text-center justify-center disabled:opacity-60`}
             >
-              {saving ? 'Saving…' : 'Next ➡️'}
+              {savingAction === 'next' ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Saving…
+                </span>
+              ) : (
+                'Save & Next ➡️'
+              )}
             </button>
           </div>
         </div>

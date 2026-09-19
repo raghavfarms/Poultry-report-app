@@ -930,39 +930,85 @@ export async function recordBulkDayAttendance(user, payload = {}) {
   const firm = await Firm.findById(firmObjectId).lean();
   if (!firm) throw notFoundError('Firm not found.');
 
+  const lookupDate = new Date(`${date}T12:00:00+05:30`);
+  const inTimeStr = defaultDutyIn || '08:00';
+  const outTimeDefaultStr = defaultDutyOut || '17:00';
+  const dutyInDate = new Date(`${date}T${inTimeStr}:00+05:30`);
+  const dutyOutFullDate = new Date(`${date}T${outTimeDefaultStr}:00+05:30`);
+  const dutyOutHalfDate = new Date(`${date}T12:00:00+05:30`);
+
+  const validRecords = records.filter(
+    (item) => item && item.workerId && ['P', 'HD', 'A'].includes(item.status)
+  );
+
+  if (validRecords.length === 0) {
+    return { success: true, updatedCount: 0, date };
+  }
+
+  const workerObjectIds = validRecords.map((r) => objectId(r.workerId, 'Worker'));
+
+  // Batch query: workers, deployments, and existing sessions in parallel
+  const [workers, allDeployments, existingSessions] = await Promise.all([
+    Worker.find({ _id: { $in: workerObjectIds }, active: true }).lean(),
+    WorkerDeployment.find({ worker: { $in: workerObjectIds } }).sort({ effectiveFrom: 1 }).lean(),
+    AttendanceSession.find({ worker: { $in: workerObjectIds }, date }).lean(),
+  ]);
+
+  const workerMap = new Map(workers.map((w) => [String(w._id), w]));
+  const existingSessionsMap = new Map(existingSessions.map((s) => [String(s.worker), s]));
+
+  const deploymentsByWorker = new Map();
+  for (const dep of allDeployments) {
+    const wId = String(dep.worker);
+    if (!deploymentsByWorker.has(wId)) deploymentsByWorker.set(wId, []);
+    deploymentsByWorker.get(wId).push(dep);
+  }
+
+  function getDeploymentForWorker(wId) {
+    const deps = deploymentsByWorker.get(wId) || [];
+    if (!deps.length) return null;
+    const effective = deps
+      .filter((d) => {
+        const from = d.effectiveFrom ? new Date(d.effectiveFrom) : null;
+        const to = d.effectiveTo ? new Date(d.effectiveTo) : null;
+        return (!from || from <= lookupDate) && (!to || to > lookupDate);
+      })
+      .sort((a, b) => new Date(b.effectiveFrom || 0) - new Date(a.effectiveFrom || 0))[0];
+    return effective || deps[0];
+  }
+
+  const absentWorkerIds = [];
+  const eventsToInsert = [];
+  const sessionBulkOps = [];
+  const now = new Date();
   let updatedCount = 0;
 
-  for (const item of records) {
+  for (const item of validRecords) {
     const { workerId, status } = item;
-    if (!workerId || !['P', 'HD', 'A'].includes(status)) continue;
+    const worker = workerMap.get(String(workerId));
+    if (!worker) continue;
 
-    const worker = await Worker.findById(objectId(workerId, 'Worker')).lean();
-    if (!worker || !worker.active) continue;
-
-    const lookupDate = new Date(`${date}T12:00:00+05:30`);
-    let deployment = await findEffectiveDeployment(worker._id, lookupDate);
-    if (!deployment) {
-      deployment = await WorkerDeployment.findOne({ worker: worker._id })
-        .sort({ effectiveFrom: 1 })
-        .lean();
-    }
-    if (!deployment) continue;
-
-    // Handle Absent (A): Remove any existing attendance session for this date
     if (status === 'A') {
-      await AttendanceSession.deleteMany({ worker: worker._id, date });
+      absentWorkerIds.push(worker._id);
       continue;
     }
 
-    const inTimeStr = defaultDutyIn || '08:00';
-    const outTimeStr = status === 'HD' ? '12:00' : (defaultDutyOut || '17:00');
-    const workedMinutes = status === 'HD' ? 240 : 480;
+    const deployment = getDeploymentForWorker(String(workerId));
+    if (!deployment) continue;
 
-    const dutyInDate = new Date(`${date}T${inTimeStr}:00+05:30`);
-    const dutyOutDate = new Date(`${date}T${outTimeStr}:00+05:30`);
+    const isHD = status === 'HD';
+    const dutyOutDate = isHD ? dutyOutHalfDate : dutyOutFullDate;
+    const workedMinutes = isHD ? 240 : 480;
 
-    // Create immutable audit events for IN and OUT
-    const inEvent = await AttendanceEvent.create({
+    const existingSession = existingSessionsMap.get(String(worker._id));
+    const sessionId = existingSession ? existingSession._id : new mongoose.Types.ObjectId();
+    const inEventId = new mongoose.Types.ObjectId();
+    const outEventId = new mongoose.Types.ObjectId();
+
+    // Prepare IN event
+    eventsToInsert.push({
+      _id: inEventId,
+      sessionId,
       worker: worker._id,
       workerCodeSnapshot: worker.workerCode,
       workerNameSnapshot: worker.fullName,
@@ -981,9 +1027,14 @@ export async function recordBulkDayAttendance(user, payload = {}) {
       location: { status: 'NOT_PROVIDED' },
       remarks: reason,
       recordedBy: user._id,
+      createdAt: now,
+      updatedAt: now,
     });
 
-    const outEvent = await AttendanceEvent.create({
+    // Prepare OUT event
+    eventsToInsert.push({
+      _id: outEventId,
+      sessionId,
       worker: worker._id,
       workerCodeSnapshot: worker.workerCode,
       workerNameSnapshot: worker.fullName,
@@ -1002,52 +1053,83 @@ export async function recordBulkDayAttendance(user, payload = {}) {
       location: { status: 'NOT_PROVIDED' },
       remarks: reason,
       recordedBy: user._id,
+      createdAt: now,
+      updatedAt: now,
     });
 
-    let session = await AttendanceSession.findOne({ worker: worker._id, date });
-    if (session) {
-      session.dutyIn = dutyInDate;
-      session.inEvent = inEvent._id;
-      session.dutyOut = dutyOutDate;
-      session.outEvent = outEvent._id;
-      session.workedMinutes = workedMinutes;
-      session.lunchMinutes = 0;
-      session.onLunch = false;
-      session.status = 'DUTY_COMPLETED';
-      session.remarks = reason;
-      await session.save();
+    if (existingSession) {
+      sessionBulkOps.push({
+        updateOne: {
+          filter: { _id: sessionId },
+          update: {
+            $set: {
+              dutyIn: dutyInDate,
+              inEvent: inEventId,
+              dutyOut: dutyOutDate,
+              outEvent: outEventId,
+              workedMinutes,
+              lunchMinutes: 0,
+              onLunch: false,
+              status: 'DUTY_COMPLETED',
+              remarks: reason,
+              updatedAt: now,
+            },
+            $inc: { __v: 1 },
+          },
+        },
+      });
     } else {
-      session = await AttendanceSession.create({
-        worker: worker._id,
-        workerCodeSnapshot: worker.workerCode,
-        workerNameSnapshot: worker.fullName,
-        firm: deployment.firm,
-        firmNameSnapshot: deployment.firmNameSnapshot || firm.name,
-        workLocation: deployment.workLocation,
-        workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
-        designation: deployment.designation,
-        designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
-        supervisor: deployment.supervisor || null,
-        supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
-        date,
-        dutyIn: dutyInDate,
-        inEvent: inEvent._id,
-        dutyOut: dutyOutDate,
-        outEvent: outEvent._id,
-        lunchMinutes: 0,
-        workedMinutes,
-        status: 'DUTY_COMPLETED',
-        remarks: reason,
+      sessionBulkOps.push({
+        insertOne: {
+          document: {
+            _id: sessionId,
+            worker: worker._id,
+            workerCodeSnapshot: worker.workerCode,
+            workerNameSnapshot: worker.fullName,
+            firm: deployment.firm,
+            firmNameSnapshot: deployment.firmNameSnapshot || firm.name,
+            workLocation: deployment.workLocation,
+            workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
+            designation: deployment.designation,
+            designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
+            supervisor: deployment.supervisor || null,
+            supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
+            date,
+            dutyIn: dutyInDate,
+            inEvent: inEventId,
+            dutyOut: dutyOutDate,
+            outEvent: outEventId,
+            lunchMinutes: 0,
+            workedMinutes,
+            status: 'DUTY_COMPLETED',
+            remarks: reason,
+            createdAt: now,
+            updatedAt: now,
+            __v: 0,
+          },
+        },
       });
     }
 
-    inEvent.sessionId = session._id;
-    outEvent.sessionId = session._id;
-    await inEvent.save();
-    await outEvent.save();
-
     updatedCount++;
   }
+
+  // Execute in parallel bulk writes
+  const dbPromises = [];
+
+  if (absentWorkerIds.length > 0) {
+    dbPromises.push(AttendanceSession.deleteMany({ worker: { $in: absentWorkerIds }, date }));
+  }
+
+  if (eventsToInsert.length > 0) {
+    dbPromises.push(AttendanceEvent.insertMany(eventsToInsert, { ordered: false }));
+  }
+
+  if (sessionBulkOps.length > 0) {
+    dbPromises.push(AttendanceSession.bulkWrite(sessionBulkOps, { ordered: false }));
+  }
+
+  await Promise.all(dbPromises);
 
   // Record audit log entry
   await AttendanceAuditLog.create({
