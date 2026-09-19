@@ -15,25 +15,58 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  // 1. Fetch active workers for this firm
+  // 1. Fetch active workers and existing saved attendance for the selected date
   useEffect(() => {
-    if (!firmId) return;
+    if (!firmId || !date) return;
+    let isMounted = true;
     setLoading(true);
     setError('');
 
-    api(attendancePath('workers', { firmId, active: true, limit: 200 }))
-      .then((res) => {
-        const list = res.items || [];
-        setWorkers(list);
-        const initial = {};
-        list.forEach((w) => {
-          initial[w._id] = 'P';
+    Promise.all([
+      api(attendancePath('workers', { firmId, active: true, limit: 300 })),
+      api(attendancePath('sessions', { firmId, date, limit: 500 })),
+    ])
+      .then(([workersRes, sessionsRes]) => {
+        if (!isMounted) return;
+        const workerList = workersRes.items || [];
+        setWorkers(workerList);
+
+        const savedSessions = sessionsRes.items || [];
+        const sessionMap = new Map();
+        for (const s of savedSessions) {
+          const wId = String(s.worker?._id || s.worker);
+          sessionMap.set(wId, s);
+        }
+
+        const map = {};
+        workerList.forEach((w) => {
+          const s = sessionMap.get(String(w._id));
+          if (s) {
+            if (s.status === 'ABSENT') {
+              map[w._id] = 'A';
+            } else if (s.status === 'DUTY_COMPLETED' && s.workedMinutes >= 240 && s.workedMinutes < 475) {
+              map[w._id] = 'HD';
+            } else {
+              map[w._id] = 'P';
+            }
+          } else {
+            // Not recorded yet for this date: default to P
+            map[w._id] = 'P';
+          }
         });
-        setAttendanceMap(initial);
+        setAttendanceMap(map);
       })
-      .catch((err) => setError(err.message || 'Failed to load workers.'))
-      .finally(() => setLoading(false));
-  }, [firmId]);
+      .catch((err) => {
+        if (isMounted) setError(err.message || 'Failed to load attendance data.');
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [firmId, date]);
 
   // Quick Action: Batch mark all workers
   const markAll = (status) => {
@@ -110,7 +143,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
 
       if (advanceNextDay) {
         const currentParts = date.split('-').map(Number);
-        const nextDateObj = new Date(currentParts[0], currentParts[1] - 1, currentParts[2] + 1);
+        const nextDateObj = new Date(currentParts[0], currentParts[1] - 1, currentParts[2] + 1, 12, 0, 0);
         const nextDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(nextDateObj);
         setDate(nextDateStr);
         setNotice(successMsg + ` Now on ${nextDateStr}.`);

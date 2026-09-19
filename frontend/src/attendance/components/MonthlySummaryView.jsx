@@ -403,9 +403,7 @@ export default function MonthlySummaryView({
       />}
       {showBulkModal && <BulkAttendanceModal
         firmId={firmId}
-        initialDate={month === getCurrentMonthString()
-          ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
-          : month + '-01'}
+        initialDate={`${month}-01`}
         onClose={() => setShowBulkModal(false)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}
