@@ -22,3 +22,11 @@ router.post('/service-reset/:firmId/:assetId', requireFirmAccess, resetService);
 router.put('/:firmId/:date', requireFirmAccess, saveEntry);
 
 export default router;
+
+
+
+
+
+
+
+

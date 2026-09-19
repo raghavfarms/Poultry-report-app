@@ -977,7 +977,6 @@ export async function recordBulkDayAttendance(user, payload = {}) {
     return effective || deps[0];
   }
 
-  const absentWorkerIds = [];
   const eventsToInsert = [];
   const sessionBulkOps = [];
   const now = new Date();
@@ -988,20 +987,76 @@ export async function recordBulkDayAttendance(user, payload = {}) {
     const worker = workerMap.get(String(workerId));
     if (!worker) continue;
 
-    if (status === 'A') {
-      absentWorkerIds.push(worker._id);
-      continue;
-    }
-
     const deployment = getDeploymentForWorker(String(workerId));
     if (!deployment) continue;
+
+    const existingSession = existingSessionsMap.get(String(worker._id));
+    const sessionId = existingSession ? existingSession._id : new mongoose.Types.ObjectId();
+
+    // Handle ABSENT (A) explicitly in AttendanceSession
+    if (status === 'A') {
+      if (existingSession) {
+        sessionBulkOps.push({
+          updateOne: {
+            filter: { _id: sessionId },
+            update: {
+              $set: {
+                dutyIn: null,
+                inEvent: null,
+                dutyOut: null,
+                outEvent: null,
+                workedMinutes: 0,
+                lunchMinutes: 0,
+                onLunch: false,
+                status: 'ABSENT',
+                remarks: reason || 'Bulk muster roll entry (Absent)',
+                updatedAt: now,
+              },
+              $inc: { __v: 1 },
+            },
+          },
+        });
+      } else {
+        sessionBulkOps.push({
+          insertOne: {
+            document: {
+              _id: sessionId,
+              worker: worker._id,
+              workerCodeSnapshot: worker.workerCode,
+              workerNameSnapshot: worker.fullName,
+              firm: deployment.firm,
+              firmNameSnapshot: deployment.firmNameSnapshot || firm.name,
+              workLocation: deployment.workLocation,
+              workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
+              designation: deployment.designation,
+              designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
+              supervisor: deployment.supervisor || null,
+              supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
+              date,
+              dutyIn: null,
+              inEvent: null,
+              dutyOut: null,
+              outEvent: null,
+              lunchMinutes: 0,
+              workedMinutes: 0,
+              status: 'ABSENT',
+              remarks: reason || 'Bulk muster roll entry (Absent)',
+              createdAt: now,
+              updatedAt: now,
+              __v: 0,
+            },
+          },
+        });
+      }
+
+      updatedCount++;
+      continue;
+    }
 
     const isHD = status === 'HD';
     const dutyOutDate = isHD ? dutyOutHalfDate : dutyOutFullDate;
     const workedMinutes = isHD ? 240 : 480;
 
-    const existingSession = existingSessionsMap.get(String(worker._id));
-    const sessionId = existingSession ? existingSession._id : new mongoose.Types.ObjectId();
     const inEventId = new mongoose.Types.ObjectId();
     const outEventId = new mongoose.Types.ObjectId();
 
@@ -1116,10 +1171,6 @@ export async function recordBulkDayAttendance(user, payload = {}) {
 
   // Execute in parallel bulk writes
   const dbPromises = [];
-
-  if (absentWorkerIds.length > 0) {
-    dbPromises.push(AttendanceSession.deleteMany({ worker: { $in: absentWorkerIds }, date }));
-  }
 
   if (eventsToInsert.length > 0) {
     dbPromises.push(AttendanceEvent.insertMany(eventsToInsert, { ordered: false }));

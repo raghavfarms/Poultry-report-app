@@ -14,8 +14,8 @@ const schema = new mongoose.Schema({
   supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'AttendanceWorker', default: null },
   supervisorNameSnapshot: { type: String, default: '' },
   date: { type: String, required: true, index: true }, // YYYY-MM-DD in Asia/Kolkata
-  dutyIn: { type: Date, required: true },
-  inEvent: { type: mongoose.Schema.Types.ObjectId, ref: 'AttendanceEvent', required: true },
+  dutyIn: { type: Date, default: null },
+  inEvent: { type: mongoose.Schema.Types.ObjectId, ref: 'AttendanceEvent', default: null },
   inLocation: { type: attendanceLocationSchema, default: () => ({ status: 'NOT_PROVIDED' }) },
   dutyOut: { type: Date, default: null },
   outEvent: { type: mongoose.Schema.Types.ObjectId, ref: 'AttendanceEvent', default: null },

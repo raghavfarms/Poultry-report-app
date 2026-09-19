@@ -119,3 +119,31 @@ export default function TransportEntryForm({ entryId, initialVehicleId, initialD
 
   </form>;
 }
+
+
+  /*
+     const  [ count  , setcount ]=useState(0)
+
+     export deafult function(){
+     
+      function  handleclick(){
+         setcount(count+1)
+      }
+
+        return (
+        
+           <h1>Counters thaat update together</h1>
+
+           < MyButton  count={count }  onclick={handleClick}>
+            < MyButton  count ={count } onclick={handlClick} >
+        
+        )
+     }
+
+
+      function MyButton){
+       
+       
+       }
+  
+  */
