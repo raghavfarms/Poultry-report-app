@@ -88,7 +88,14 @@ export async function createInitialRecord(user, worker, data, session) {
   let supervisor = null;
   if (supervisorId) {
     if (String(supervisorId) === String(worker._id)) throw badRequest('A worker cannot supervise themselves.');
-    supervisor = await Worker.findOne({ _id: supervisorId, firm: worker.firm, active: true, isSupervisor: true }).session(session).lean();
+    const supervisorDesignations = await Designation.find({ firm: worker.firm, name: /supervisor/i }).select('_id').lean();
+    const desigIds = supervisorDesignations.map((d) => d._id);
+    supervisor = await Worker.findOne({
+      _id: supervisorId,
+      firm: worker.firm,
+      active: true,
+      $or: [{ isSupervisor: true }, { designation: { $in: desigIds } }],
+    }).session(session).lean();
     if (!supervisor) throw badRequest('Select an active supervisor belonging to this firm.');
     if (data.effectiveFrom < deploymentInstant(supervisor.dateOfJoining)) throw badRequest('Deployment cannot start before the supervisor’s joining date.');
   }

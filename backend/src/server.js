@@ -108,6 +108,24 @@ async function start() {
     console.error('Head Office auto-seed note:', err.message);
   }
 
+  // 4. Sync workers whose designation includes 'supervisor' to have isSupervisor: true
+  try {
+    const Designation = (await import('./attendance/models/Designation.js')).default;
+    const Worker = (await import('./attendance/models/Worker.js')).default;
+    const supervisorDesigs = await Designation.find({ name: /supervisor/i }).select('_id').lean();
+    if (supervisorDesigs.length > 0) {
+      const updated = await Worker.updateMany(
+        { designation: { $in: supervisorDesigs.map((d) => d._id) }, isSupervisor: { $ne: true } },
+        { $set: { isSupervisor: true } }
+      );
+      if (updated.modifiedCount > 0) {
+        console.log(`✅ Synced ${updated.modifiedCount} supervisor worker(s) to isSupervisor: true.`);
+      }
+    }
+  } catch (err) {
+    console.error('Supervisor sync note:', err.message);
+  }
+
   app.listen(port, () => console.log(`API listening on http://localhost:${port}`));
 }
 

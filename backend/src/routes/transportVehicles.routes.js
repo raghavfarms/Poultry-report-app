@@ -10,3 +10,4 @@ router.patch('/:vehicleId', adminOnly, updateVehicle);
 router.delete('/:vehicleId', adminOnly, removeVehicle);
 router.patch('/:vehicleId/restore', adminOnly, restoreVehicle);
 export default router;
+

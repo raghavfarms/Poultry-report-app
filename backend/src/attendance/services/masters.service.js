@@ -75,8 +75,16 @@ async function validDesignation(id, firm) {
 }
 
 async function validSupervisor(id, firm) {
-  if (id && !await Worker.exists({ _id: id, firm, active: true, isSupervisor: true })) {
-    throw badRequest('Select an active supervisor belonging to this firm.');
+  if (id) {
+    const supervisorDesignations = await Designation.find({ firm, name: /supervisor/i }).select('_id').lean();
+    const desigIds = supervisorDesignations.map((d) => d._id);
+    const exists = await Worker.exists({
+      _id: id,
+      firm,
+      active: true,
+      $or: [{ isSupervisor: true }, { designation: { $in: desigIds } }],
+    });
+    if (!exists) throw badRequest('Select an active supervisor belonging to this firm.');
   }
 }
 
@@ -210,7 +218,16 @@ export async function listWorkers(user, query) {
   if (query.designation !== undefined) filter.designation = objectId(query.designation, 'Designation');
   if (query.isSupervisor !== undefined) {
     if (!['true', 'false'].includes(query.isSupervisor)) throw badRequest('Supervisor filter must be true or false.');
-    filter.isSupervisor = query.isSupervisor === 'true';
+    if (query.isSupervisor === 'true') {
+      const supervisorDesignations = await Designation.find({ name: /supervisor/i }).select('_id').lean();
+      const desigIds = supervisorDesignations.map((d) => d._id);
+      filter.$or = [
+        { isSupervisor: true },
+        { designation: { $in: desigIds } },
+      ];
+    } else {
+      filter.isSupervisor = false;
+    }
   }
   return pageResult(Worker, filter, query, { fullName: 1, _id: 1 }, workerPopulation);
 }
@@ -259,6 +276,15 @@ export async function createWorker(user, body) {
     ...workerPayload({ ...workerBody, fullName }, true),
     ...(userId ? { userId } : {}),
   };
+
+  const designationDoc = await Designation.findById(data.designation).lean();
+  const isSupervisorByDesig = designationDoc && /supervisor/i.test(designationDoc.name);
+  if (body.isSupervisor !== undefined) {
+    data.isSupervisor = Boolean(body.isSupervisor);
+  } else if (isSupervisorByDesig) {
+    data.isSupervisor = true;
+  }
+
   const initial = initialDeploymentPayload(body.initialDeployment, data.dateOfJoining);
   await validDesignation(data.designation, data.firm);
   validateWorkerDates({ active: true, ...data });
@@ -285,6 +311,16 @@ export async function updateWorker(user, id, body) {
   const worker = await Worker.findOne({ _id: objectId(id, 'Worker'), ...firmScope(user) });
   if (!worker) throw notFoundError('Worker not found.');
   await activeFirm(user, worker.firm);
+
+  if (body.isSupervisor !== undefined) {
+    data.isSupervisor = Boolean(body.isSupervisor);
+  } else if (data.designation !== undefined) {
+    const desig = await Designation.findById(data.designation).lean();
+    if (desig && /supervisor/i.test(desig.name)) {
+      data.isSupervisor = true;
+    }
+  }
+
   if (((data.designation !== undefined && String(data.designation) !== String(worker.designation)) ||
        (data.dateOfJoining !== undefined && data.dateOfJoining !== worker.dateOfJoining)) &&
       await WorkerDeployment.exists({ worker: worker._id })) {

@@ -109,6 +109,7 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
     address: '',
     dateOfJoining: '',
     designation: '',
+    isSupervisor: false,
     referenceName: '',
     remarks: '',
     workLocation: '',
@@ -161,7 +162,7 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
       address: form.address.trim(),
       dateOfJoining: form.dateOfJoining || null,
       designation: form.designation,
-      isSupervisor: false,
+      isSupervisor: Boolean(form.isSupervisor),
       referenceName: form.referenceName.trim(),
       remarks: form.remarks.trim(),
       initialDeployment: {
@@ -230,7 +231,14 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
               resource="designations"
               firmId={firmId}
               value={form.designation}
-              onChange={(value) => set('designation', value)}
+              onChange={(value, item) => {
+                const isSup = item?.name ? /supervisor/i.test(item.name) : false;
+                setForm((prev) => ({
+                  ...prev,
+                  designation: value,
+                  isSupervisor: isSup,
+                }));
+              }}
             />
 
             <Field label="Date of Joining (Optional)">
@@ -416,6 +424,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
     gender: worker.gender || 'NOT_SPECIFIED',
     mobileNumber: worker.mobileNumber || '',
     address: worker.address || '',
+    isSupervisor: worker.isSupervisor || /supervisor/i.test(worker.designation?.name || ''),
     active: worker.active ?? true,
     leavingDate: worker.leavingDate || '',
     inactiveReason: worker.inactiveReason || '',
@@ -482,7 +491,7 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
       gender: form.gender,
       mobileNumber: form.mobileNumber.trim(),
       address: form.address.trim(),
-      isSupervisor: worker.isSupervisor ?? false,
+      isSupervisor: Boolean(form.isSupervisor),
       active: form.active,
       leavingDate: form.active ? null : form.leavingDate || null,
       inactiveReason: form.active ? '' : form.inactiveReason.trim(),
@@ -1310,7 +1319,7 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
                           </span>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
-                          {!isOffice && worker.isSupervisor && (
+                          {!isOffice && (worker.isSupervisor || /supervisor/i.test(worker.designation?.name || '')) && (
                             <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-800 leading-none">
                               Sup
                             </span>
@@ -1434,7 +1443,7 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
                       </td>
                       {!isOffice && (
                         <td data-label="Role" className={cellClass}>
-                          {worker.isSupervisor ? (
+                          {worker.isSupervisor || /supervisor/i.test(worker.designation?.name || '') ? (
                             <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">
                               Supervisor
                             </span>
