@@ -316,6 +316,23 @@ export default function MonthlySummaryView({
 
       {/* Monthly Attendance Calendar Matrix Table */}
       <div ref={reportRef} className="report-export-content overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+        {/* Printable/Export Header */}
+        <div className="pdf-print-header hidden p-2 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                {currentFirm?.name || 'Monthly Attendance Register'}
+              </h2>
+              <p className="text-[10px] text-slate-500 font-semibold">
+                Month: {month} · Total Staff: {totalWorkers} · Generated: {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(new Date())}
+              </p>
+            </div>
+            <div className="text-[9px] font-bold text-slate-400">
+              P = Present | HD = Half Day | OD = On Duty | A = Absent
+            </div>
+          </div>
+        </div>
+
         {loadingData ? (
           <div className="py-12 text-center">
             <Spinner label="Loading monthly attendance matrix…" />
@@ -326,7 +343,7 @@ export default function MonthlySummaryView({
           </div>
         ) : (
           <div className="attendance-month-matrix overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll" tabIndex={0} role="region" aria-label="Monthly attendance matrix; scroll horizontally to see all days">
-            <table className="w-full min-w-[850px] text-left text-xs border-collapse">
+            <table className="attendance-month-table w-full text-left text-xs border-collapse">
               <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                 <tr>
                   <th className="sticky top-0 left-0 z-30 bg-slate-50 px-2.5 py-1.5 shadow-[1px_0_0_#e2e8f0] whitespace-nowrap">
@@ -341,7 +358,7 @@ export default function MonthlySummaryView({
                   ))}
                   <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap">Present</th>
                   <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap">Absent</th>
-                  {canEdit && <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap" data-html2canvas-ignore="true">Action</th>}
+                  {canEdit && <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 text-center whitespace-nowrap no-print print:hidden" data-html2canvas-ignore="true">Action</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -384,7 +401,7 @@ export default function MonthlySummaryView({
                     <td className="px-2.5 py-1.5 text-center font-bold text-rose-700 whitespace-nowrap">
                       {r.totalDaysAbsent ?? Object.values(r.days || {}).filter((code) => code === 'A').length} d
                     </td>
-                    {canEdit && <td className="px-2.5 py-1.5 text-center whitespace-nowrap" data-html2canvas-ignore="true">{editActions(r)}</td>}
+                    {canEdit && <td className="px-2.5 py-1.5 text-center whitespace-nowrap no-print print:hidden" data-html2canvas-ignore="true">{editActions(r)}</td>}
                   </tr>
                 ))}
               </tbody>

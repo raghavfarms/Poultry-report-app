@@ -320,17 +320,26 @@ select {
 .report-export-content.pdf-exporting .sticky-action {
   display: none !important;
 }
-.report-export-content.pdf-exporting .report-scroll {
+.report-export-content.pdf-exporting .report-scroll,
+.report-export-content.pdf-exporting .attendance-month-matrix,
+.report-export-content.pdf-exporting [class*="max-h-"] {
+  max-height: none !important;
   overflow: visible !important;
+  height: auto !important;
 }
 .report-export-content.pdf-exporting .report-table th:first-child,
-.report-export-content.pdf-exporting .report-table td:first-child {
-  position: static;
+.report-export-content.pdf-exporting .report-table td:first-child,
+.report-export-content.pdf-exporting .attendance-month-table th:first-child,
+.report-export-content.pdf-exporting .attendance-month-table td:first-child {
+  position: static !important;
+  box-shadow: none !important;
 }
 .report-export-content.pdf-exporting .transport-report-table th,
 .report-export-content.pdf-exporting .transport-report-table td,
 .report-export-content.pdf-exporting .attendance-table th,
 .report-export-content.pdf-exporting .attendance-table td,
+.report-export-content.pdf-exporting .attendance-month-table th,
+.report-export-content.pdf-exporting .attendance-month-table td,
 .report-export-content.pdf-exporting table th,
 .report-export-content.pdf-exporting table td {
   position: static !important;
@@ -342,29 +351,36 @@ select {
 .report-export-content.pdf-exporting .pdf-print-header {
   display: block !important;
 }
-.report-export-content.pdf-exporting .attendance-table thead th {
+.report-export-content.pdf-exporting .attendance-table thead th,
+.report-export-content.pdf-exporting .attendance-month-table thead th {
   background-color: #f1f5f9 !important;
   color: #1e293b !important;
 }
-.report-export-content.pdf-exporting .attendance-table tbody tr {
+.report-export-content.pdf-exporting .attendance-table tbody tr,
+.report-export-content.pdf-exporting .attendance-month-table tbody tr {
   background-color: #ffffff !important;
 }
 @media print {
   @page {
     size: landscape;
-    margin: 8mm;
+    margin: 5mm;
   }
   aside,
   .no-print,
-  button {
+  button,
+  [data-html2canvas-ignore="true"] {
     display: none !important;
   }
   main {
     margin: 0 !important;
     padding: 0 !important;
   }
-  .report-scroll {
+  .report-scroll,
+  .attendance-month-matrix,
+  [class*="max-h-"] {
+    max-height: none !important;
     overflow: visible !important;
+    height: auto !important;
   }
   .transport-report-table {
     min-width: 100%;
@@ -386,6 +402,60 @@ select {
   .report-table tr {
     break-inside: avoid;
   }
+  /* Monthly Attendance Matrix Print Styles */
+  .attendance-month-table {
+    width: 100% !important;
+    min-width: 100% !important;
+    font-size: 7.5px !important;
+    table-layout: fixed !important;
+  }
+  .attendance-month-table thead {
+    display: table-header-group !important;
+  }
+  .attendance-month-table tr {
+    break-inside: avoid !important;
+  }
+  .attendance-month-table th,
+  .attendance-month-table td {
+    padding: 1.5px 1px !important;
+    white-space: nowrap !important;
+    border-color: #cbd5e1 !important;
+    vertical-align: middle !important;
+  }
+  .attendance-month-table th:first-child,
+  .attendance-month-table td:first-child {
+    position: static !important;
+    box-shadow: none !important;
+    width: 90px !important;
+    max-width: 90px !important;
+  }
+  .attendance-month-table th:first-child p,
+  .attendance-month-table td:first-child p {
+    font-size: 8px !important;
+    max-width: 90px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .attendance-month-table th:nth-child(2),
+  .attendance-month-table td:nth-child(2) {
+    width: 60px !important;
+    max-width: 60px !important;
+    font-size: 7.5px !important;
+  }
+  .attendance-month-table th:nth-child(3),
+  .attendance-month-table td:nth-child(3) {
+    width: 60px !important;
+    max-width: 60px !important;
+    font-size: 7.5px !important;
+  }
+  .attendance-month-table td span {
+    width: 13px !important;
+    font-size: 6.5px !important;
+    padding: 0 !important;
+    display: inline-block !important;
+    text-align: center !important;
+    line-height: 14px !important;
+  }
   .overflow-x-auto {
     overflow: visible !important;
   }
@@ -395,5 +465,10 @@ select {
   th.sticky,
   td.sticky {
     position: static !important;
+    box-shadow: none !important;
+  }
+  .pdf-print-header {
+    display: block !important;
   }
 }
+

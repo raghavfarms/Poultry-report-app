@@ -64,9 +64,17 @@ export async function exportReportToPdf(element, options = {}) {
       useCORS: true,
       backgroundColor: "#ffffff",
       logging: false,
-      windowWidth: Math.max(element.scrollWidth, 1200),
+      windowWidth: Math.max(element.scrollWidth, 1400),
       onclone: (clonedDoc) => {
         sanitizeClonedDoc(clonedDoc);
+        // Ensure all scroll containers and max-height constraints are completely removed in clone
+        clonedDoc
+          .querySelectorAll('.report-scroll, .attendance-month-matrix, [class*="max-h-"]')
+          .forEach((el) => {
+            el.style.maxHeight = "none";
+            el.style.height = "auto";
+            el.style.overflow = "visible";
+          });
       },
     });
 
