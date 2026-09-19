@@ -157,7 +157,7 @@ export default function FaceAttendancePage() {
               setLocationStatus(mapped);
             }
           },
-          { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+          { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
         );
       } catch {}
     }
@@ -278,15 +278,15 @@ export default function FaceAttendancePage() {
         return;
       }
 
-      // Scan every 250ms if not actively submitting an attendance transaction, no modal, and no active result
-      if (timestamp - lastScanTime > 250 && !processingRef.current && !activeResult && !showTransferModal) {
+      // Scan every 160ms (~6 FPS) if not actively submitting an attendance transaction, no modal, and no active result
+      if (timestamp - lastScanTime > 160 && !processingRef.current && !activeResult && !showTransferModal) {
         lastScanTime = timestamp;
 
         try {
-          const { faces, bestMatch } = await detectAndRecognizeFaces(
+          const { faces, bestMatch, ambiguousMatch } = await detectAndRecognizeFaces(
             videoRef.current,
             enrolledWorkers,
-            0.42
+            0.40
           );
           // Discard frames from an old firm, date, mode, or stopped camera.
           if (cancelled) return;
@@ -320,14 +320,20 @@ export default function FaceAttendancePage() {
             } else {
               setStatusPill(`Verifying: ${bestMatch.worker.fullName}... hold still`);
             }
+          } else if (ambiguousMatch) {
+            // Two enrolled workers have very similar face distances!
+            // Reject to avoid marking the wrong person's attendance.
+            matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
+            setStatusPill('⚠️ Similar face detected · Look directly into camera');
           } else {
-            // Face detected but distance > 0.42 (Not matched to any registered worker)
+            // Face detected but distance > 0.40 (Not matched to any registered worker)
             matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
             handleUnknownFace();
           }
         } catch (e) {
           // Catch frame errors gracefully
         }
+
       }
 
       if (!cancelled) loopRef.current = requestAnimationFrame(scan);
@@ -348,21 +354,24 @@ export default function FaceAttendancePage() {
     setStatusPill(`Recognized: ${worker.fullName} (${worker.workerCode})`);
 
     try {
-      // 1. Resolve Location: prefer pre-warmed / watched fresh location
+      // 1. Resolve Location: prefer pre-warmed / watched fresh location (up to 5 mins fresh)
       let loc = latestLocationRef.current;
       const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
-        (Date.now() - new Date(loc.capturedAt).getTime() < 60000);
+        (Date.now() - new Date(loc.capturedAt).getTime() < 300000);
 
       if (!isFresh) {
         try {
-          loc = await captureLocation({ timeoutMs: 6000 });
-          latestLocationRef.current = loc;
-          setLocationStatus(loc.status || 'CAPTURED');
+          // Fast timeout (1500ms) with cached position fallback so attendance is not blocked
+          loc = await captureLocation({ timeoutMs: 1500, maximumAge: 120000 });
           if (loc?.status === 'CAPTURED') {
+            latestLocationRef.current = loc;
+            setLocationStatus('CAPTURED');
             setLocationDetails({ accuracy: Math.round(loc.accuracyMetres || 0), lat: loc.latitude, lon: loc.longitude });
+          } else if (latestLocationRef.current?.status === 'CAPTURED') {
+            loc = latestLocationRef.current;
           }
         } catch {
-          loc = loc || { status: 'UNAVAILABLE' };
+          loc = latestLocationRef.current || { status: 'UNAVAILABLE' };
         }
       }
 

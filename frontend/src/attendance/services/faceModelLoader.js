@@ -118,42 +118,57 @@ export async function detectFaceForEnrolment(input) {
   };
 }
 
-export async function detectAndRecognizeFaces(input, enrolledWorkers = [], threshold = 0.42) {
+export async function detectAndRecognizeFaces(input, enrolledWorkers = [], threshold = 0.40) {
   const faceapi = await getFaceApi();
   await loadFaceModels();
 
-  // Higher resolution inputSize 416 provides precise feature landmarks, separating similar oval faces
+  // Optimized inputSize 320 provides fast real-time performance on mobile while maintaining accurate landmarks
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.55 }))
+    .detectAllFaces(input, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.50 }))
     .withFaceLandmarks(true)
     .withFaceDescriptors();
 
   if (!detections || detections.length === 0) {
-    return { faces: [], bestMatch: null };
+    return { faces: [], bestMatch: null, ambiguousMatch: null };
   }
 
   const recognized = detections.map((det) => {
     const queryDesc = det.descriptor;
     let bestWorker = null;
     let minDistance = 1.0;
+    let secondBestWorker = null;
+    let secondMinDistance = 1.0;
 
     for (const enrolled of enrolledWorkers) {
       if (!enrolled.descriptor || enrolled.descriptor.length !== 128) continue;
       const dist = faceapi.euclideanDistance(queryDesc, enrolled.descriptor);
       if (dist < minDistance) {
+        // Demote previous best to second best
+        secondMinDistance = minDistance;
+        secondBestWorker = bestWorker;
         minDistance = dist;
         bestWorker = enrolled;
+      } else if (dist < secondMinDistance) {
+        secondMinDistance = dist;
+        secondBestWorker = enrolled;
       }
     }
 
-    // Strict threshold (<= 0.42) ensures only the real registered person matches
-    const matched = bestWorker && minDistance <= threshold;
+    // Ambiguity guard: If 2 workers have near-identical distances (gap < 0.04),
+    // do NOT mark attendance for the wrong person! Require a clearer angle.
+    const isAmbiguous = bestWorker && secondBestWorker && (secondMinDistance - minDistance < 0.04) && (minDistance <= threshold);
+
+    // Strict threshold (<= 0.40) and must not be ambiguous between two similar workers
+    const matched = bestWorker && minDistance <= threshold && !isAmbiguous;
     return {
       box: det.detection.box,
       score: det.detection.score,
       matched,
+      isAmbiguous,
       worker: matched ? bestWorker : null,
+      ambiguousCandidates: isAmbiguous ? [bestWorker, secondBestWorker] : [],
       distance: minDistance,
+      margin: secondMinDistance - minDistance,
       confidence: Math.max(0, Math.min(100, Math.round((1 - minDistance) * 100))),
     };
   });
@@ -163,9 +178,13 @@ export async function detectAndRecognizeFaces(input, enrolledWorkers = [], thres
   validMatches.sort((a, b) => a.distance - b.distance);
   const bestMatch = validMatches.length > 0 ? validMatches[0] : null;
 
+  const ambiguousMatch = recognized.find((r) => r.isAmbiguous) || null;
+
   return {
     faces: recognized,
     bestMatch,
+    ambiguousMatch,
   };
 }
+
 
