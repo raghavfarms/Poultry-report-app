@@ -110,14 +110,16 @@ function Sidebar({ open, close }) {
                   <NavLink to="/admin/transport" className={linkClass}>
                     <span>🚚</span>Transport Vehicles
                   </NavLink>
-                  <NavLink to="/admin/medicine/master" className={linkClass}>
-                    <span>💊</span>Medicine Master
-                  </NavLink>
                 </>
               )}
               <NavLink to="/admin/attendance" className={linkClass}>
                 <span>👤</span>Attendance Admin
               </NavLink>
+              {["admin", "developer"].includes(user?.role) && (
+                <NavLink to="/admin/medicine/master" className={linkClass}>
+                  <span>💊</span>Medicine Master
+                </NavLink>
+              )}
             </>
           )}
         </nav>
