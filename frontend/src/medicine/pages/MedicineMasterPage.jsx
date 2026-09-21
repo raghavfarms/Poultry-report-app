@@ -6,6 +6,7 @@ import{
     updateMedicineApi,
     toggleMedicineStatusApi,
 } from '../api/medicineApi.js'
+import SupplierMasterPage from './SupplierMasterPage.jsx';
 
 const CATEGORIES=['FEED_MEDICINE','GENERAL_MEDICINE','VACCINATION'];
 const UNITS = ['Bottle', 'Litre', 'ml', 'Kg', 'Gram', 'Tablet', 'Dose', 'Packet', 'Vial', 'Other'];
@@ -24,8 +25,10 @@ const INITIAL_FORM = {
 
 export default function MedicineMasterPage(){
 
-// state variable 
+// tab state
+const [activeTab, setActiveTab] = useState('medicines');
 
+// state variable 
 const [medicines,setMedicines]=useState([]);
 const [loading, setLoading]=useState(true);
 const [error,setError]=useState('');
@@ -152,8 +155,38 @@ const loadMedicines= async ()=>{
   // Now comes the return statement INSIDE the component:
   return (
     <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
-      {/* 1. Header Section */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm">
+      {/* Top Tab Navigation */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          type="button"
+          onClick={() => setActiveTab('medicines')}
+          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+            activeTab === 'medicines'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>💊</span> Medicine Catalog
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('suppliers')}
+          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+            activeTab === 'suppliers'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>🏭</span> Suppliers
+        </button>
+      </div>
+
+      {activeTab === 'suppliers' ? (
+        <SupplierMasterPage />
+      ) : (
+        <>
+          {/* 1. Header Section */}
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Medicine Master</h1>
           <p className="text-xs sm:text-sm text-slate-500">Manage medicine catalog, specifications, and stock alert levels</p>
@@ -527,6 +560,8 @@ const loadMedicines= async ()=>{
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

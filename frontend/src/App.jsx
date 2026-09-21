@@ -47,15 +47,23 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="reports/medicine" element={<MedicineMasterPage />} />
+        <Route path="reports/medicine" element={<ComingSoonPage />} />
         <Route
           path="reports/:slug"
           element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
         />
+
+        {/* Administration: Master Data (Admin & Developer Only) */}
         <Route
-         path="medicine/master" 
-         element={<MedicineMasterPage />} />
-         
+          path="admin/medicine/master"
+          element={
+            <ProtectedRoute admin>
+              <MedicineMasterPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="admin/medicine" element={<Navigate to="/admin/medicine/master" replace />} />
+        <Route path="medicine/master" element={<Navigate to="/admin/medicine/master" replace />} />
         <Route
           path="admin/assets"
           element={
