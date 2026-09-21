@@ -6,10 +6,9 @@ export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
-  ["bird-stock", "Bird Stock", "🐔"],
+  ["medicine", "Medicine Report", "💊"],
   ["egg-stock", "Egg Stock", "🥚"],
   ["hatching-egg", "Hatching Egg Summary", "◉"],
-  ["medicine", "Medicine Requirement", "✚"],
   ["packing", "Packing Material", "□"],
   ["vermicompost", "Vermicompost", "♻"],
   ["feed-production", "Feed Production", "◫"],
@@ -43,13 +42,13 @@ function Sidebar({ open, close }) {
             return slug === "attendance";
           }
           if (slug === "attendance") return hasAttendanceAccess;
-          return ["diesel", "transport"].includes(slug);
+          return ["diesel", "transport", "medicine"].includes(slug);
         });
     
 
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive ? "bg-emerald-800 font-semibold text-white" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"}`;
+    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive ? "bg-emerald-600 font-semibold text-white" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"}`;
   return (
     <>
       {open && (
@@ -115,6 +114,9 @@ function Sidebar({ open, close }) {
               )}
               <NavLink to="/admin/attendance" className={linkClass}>
                 <span>👤</span>Attendance Admin
+              </NavLink>
+              <NavLink to="/medicine/master" className={linkClass}>
+                <span>💊</span>Medicine Report
               </NavLink>
             </>
           )}

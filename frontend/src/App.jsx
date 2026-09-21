@@ -12,6 +12,7 @@ import AttendanceAdminPage from "./pages/AttendanceAdminPage.jsx";
 import AttendanceReportPage from "./attendance/pages/AttendanceReportPage.jsx";
 import FaceAttendancePage from "./attendance/pages/FaceAttendancePage.jsx";
 import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.jsx";
+import MedicineMasterPage from "./medicine/pages/MedicineMasterPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
@@ -46,10 +47,15 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="reports/medicine" element={<MedicineMasterPage />} />
         <Route
           path="reports/:slug"
           element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
         />
+        <Route
+         path="medicine/master" 
+         element={<MedicineMasterPage />} />
+         
         <Route
           path="admin/assets"
           element={

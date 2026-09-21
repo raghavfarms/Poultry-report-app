@@ -36,7 +36,7 @@ export const inputClass =
 export const compactInputClass =
   "min-h-7 h-7 w-full rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200 disabled:bg-slate-100 disabled:text-slate-500";
 export const primaryButton =
-  "inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50";
 export const secondaryButton =
   "inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-900 transition hover:bg-slate-50 disabled:opacity-50";
 
