@@ -104,6 +104,55 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
   const header = cell + " bg-[#dce9df] font-bold whitespace-nowrap";
   const overallAvg = cycleFuel > 0 ? (cycleDistance / cycleFuel).toFixed(2) : "\u2014";
 
+  const fuelLevels = useMemo(() => {
+    const chrono = [...sortedRows].reverse();
+    const map = new Map();
+    let prevClosingFull = null;
+    let prevClosingReading = null;
+
+    for (const row of chrono) {
+      const isJourneyComplete = Boolean(
+        row.complete &&
+        row.closingReading != null &&
+        row.closingReading !== "" &&
+        Number(row.closingReading) > 0
+      );
+      const isIdle = isJourneyComplete &&
+        Number(row.openingReading) === Number(row.closingReading) &&
+        !Number(row.fill1Liters || 0) &&
+        !Number(row.fill2Liters || 0);
+
+      let openingKnownFull = false;
+      if (prevClosingFull != null && prevClosingReading != null) {
+        openingKnownFull = prevClosingFull && Number(prevClosingReading) === Number(row.openingReading);
+      } else {
+        openingKnownFull = row.openingFull !== false;
+      }
+
+      const openingFuel = openingKnownFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
+
+      let closingFuel = null;
+      let closingKnownFull = false;
+      if (isJourneyComplete) {
+        if (row.isFull) {
+          closingKnownFull = true;
+          closingFuel = Number(row.tankCapacity ?? vehicle.tankCapacity);
+        } else if (isIdle && openingKnownFull) {
+          closingKnownFull = true;
+          closingFuel = openingFuel;
+        }
+        prevClosingFull = closingKnownFull;
+        prevClosingReading = Number(row.closingReading);
+      } else {
+        prevClosingFull = null;
+        prevClosingReading = null;
+      }
+
+      map.set(row._id, { openingFuel, closingFuel });
+    }
+    return map;
+  }, [sortedRows, vehicle.tankCapacity]);
+
   return <section className="break-inside-avoid space-y-2 w-full">
     <div className="flex items-baseline gap-2 px-1">
       <h3 className="font-black text-slate-900 text-base sm:text-lg">{vehicle.name}</h3>
@@ -127,7 +176,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
         </thead>
         <tbody>
           {displayRows.map((row) => {
-            if (row.empty) return <tr key={`empty-${row.openingDate}`} className="bg-[#fff6e9]">
+            if (row.empty) return <tr key={`empty-${row.openingDate}`} className="bg-[#fff6e9] no-print">
             <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[102px] min-w-[102px]`}>{displayDate(row.openingDate)}</td>
             <td className={`${cell} ${divider} w-[76px] min-w-[76px]`}>—</td>
             <td className={cell}>—</td>
@@ -144,12 +193,9 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             <td className={cell}>—</td>
             <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>{row.openingDate === nextDate ? <button type="button" onClick={() => onAdd(vehicle._id, row.openingDate)} className={actionGreenButton}>Add</button> : "\u2014"}</td>
           </tr>;
-            const index = sortedRows.indexOf(row);
-            const previous = sortedRows[index + 1];
-            const openingKnownFull = previous
-              ? previous.complete && previous.isFull && Number(previous.closingReading) === Number(row.openingReading)
-              : row.openingFull !== false;
-            const openingFuel = openingKnownFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
+            const levels = fuelLevels.get(row._id) || {};
+            const openingFuel = levels.openingFuel;
+            const closingFuel = levels.closingFuel;
             const isStaff = ["admin", "developer"].includes(user?.role);
             const isJourneyComplete = Boolean(
               row.complete &&
@@ -157,8 +203,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               row.closingReading !== "" &&
               Number(row.closingReading) > 0
             );
-            const closingFuel = isJourneyComplete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
-            const totalFuel = openingFuel == null ? null : openingFuel + Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
+            const totalFuelFilled = Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
             const isWithin24Hours = row.editExpiresAt != null && Math.max(now, Date.now()) < row.editExpiresAt;
             // UNTIL JOURNEY IS COMPLETE, NEVER HIDE UPDATE BUTTON:
             const canEdit = isStaff || !isJourneyComplete || isWithin24Hours;
@@ -173,7 +218,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               <td className={cell}>{balance(openingFuel)}</td>
               <td className={cell}>{balance(row.fill1Liters)}{row.fill1Reading != null && <small className="block text-[9px]">@ {row.fill1Reading} km</small>}</td>
               <td className={cell}>{balance(row.fill2Liters)}{row.fill2Reading != null && <small className="block text-[9px]">@ {row.fill2Reading} km</small>}</td>
-              <td className={cell}>{balance(totalFuel)}</td>
+              <td className={cell}>{balance(totalFuelFilled)}</td>
               <td className={cell}>{balance(closingFuel)}</td>
               <td className={`${cell} ${divider} font-bold`}>{balance(row.consumedLiters)}</td>
               <td className={cell}>{balance(row.kmRun)}</td>
@@ -205,14 +250,13 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             <td className={cell}>—</td>
             <td className={cell}>{balance(sum(sortedRows, "fill1Liters"))}</td>
             <td className={cell}>{balance(sum(sortedRows, "fill2Liters"))}</td>
-            <td className={cell}>—</td>
+            <td className={cell}>{balance(sum(sortedRows, "fill1Liters") + sum(sortedRows, "fill2Liters"))}</td>
             <td className={cell}>—</td>
             <td className={`${cell} ${divider}`}>{balance(cycles.length ? sum(cycles, "consumedLiters") : null)}</td>
             <td className={cell}>{balance(sum(completedRows, "kmRun"))}</td>
             <td className={`${cell} ${divider}`}>{balance(cycles.length ? cycleDistance : null)}</td>
             <td className={`${cell} ${divider}`}>{balance(cycleFuel > 0 ? cycleDistance / cycleFuel : null)}</td>
             <td className={cell}>—</td>
-            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>—</td>
           </tr>
         </tfoot>
       </table>
