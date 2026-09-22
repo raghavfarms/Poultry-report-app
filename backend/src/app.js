@@ -12,6 +12,7 @@ import transportStationRoutes from './routes/transportStations.routes.js';
 import attendanceRoutes from './attendance/routes.js';
 import medicineRoutes from './medicine/routes/medicine.route.js'
 import supplierRoutes from './medicine/routes/supplier.route.js'
+import purchaseOrderRoutes from './medicine/routes/purchaseOrder.route.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/transport-stations', transportStationRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/medicine/masters',medicineRoutes);
 app.use('/api/medicine/suppliers', supplierRoutes);
+app.use('/api/medicine/purchase-orders', purchaseOrderRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
