@@ -8,6 +8,7 @@ import{
 } from '../api/medicineApi.js'
 import SupplierMasterPage from './SupplierMasterPage.jsx';
 import PurchaseOrderPage from './PurchaseOrderPage.jsx';
+import MedicineReceiptPage from './MedicineReceiptPage.jsx';
 
 const CATEGORIES=['FEED_MEDICINE','GENERAL_MEDICINE','VACCINATION'];
 const UNITS = ['Bottle', 'Litre', 'ml', 'Kg', 'Gram', 'Tablet', 'Dose', 'Packet', 'Vial', 'Other'];
@@ -191,12 +192,25 @@ const loadMedicines= async ()=>{
         >
           <span>📋</span> Purchase Orders (PO)
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('receipts')}
+          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+            activeTab === 'receipts'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>📥</span> Receipts & Stock (GRN)
+        </button>
       </div>
 
       {activeTab === 'suppliers' ? (
         <SupplierMasterPage />
       ) : activeTab === 'purchaseOrders' ? (
         <PurchaseOrderPage />
+      ) : activeTab === 'receipts' ? (
+        <MedicineReceiptPage />
       ) : (
         <>
           {/* 1. Header Section */}
