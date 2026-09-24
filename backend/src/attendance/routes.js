@@ -143,8 +143,8 @@ router.use((error, req, res, next) => {
     return res.status(400).json({ message: msg || 'Please check the attendance fields and try again.' });
   }
   if (error.status && error.status >= 400 && error.status < 500) return res.status(error.status).json({ message: error.message });
-  console.error('Attendance request failed:', error.name || 'Error');
-  res.status(500).json({ message: 'Unable to process attendance. Please retry.' });
+  console.error('Attendance request failed:', error.stack || error);
+  res.status(500).json({ message: error.message || 'Unable to process attendance. Please retry.' });
 });
 
 export default router;

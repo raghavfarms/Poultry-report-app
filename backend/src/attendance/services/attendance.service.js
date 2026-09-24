@@ -794,29 +794,44 @@ export async function correctAttendanceSession(user, payload = {}) {
 }
 
 export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
-  const query = { status: 'PRESENT' };
-  if (firmId) query.firm = firmId;
-  const openSessions = await AttendanceSession.find(query);
-  const todayDate = indiaDateString(now);
+  try {
+    const query = { status: 'PRESENT' };
+    if (firmId) query.firm = firmId;
+    const openSessions = await AttendanceSession.find(query);
+    const todayDate = indiaDateString(now);
 
-  let updatedCount = 0;
-  for (const session of openSessions) {
-    if (!session.dutyIn) continue;
-    const elapsedHours = (now.getTime() - session.dutyIn.getTime()) / (1000 * 60 * 60);
-    // Auto-cut if running >= 15 hours, or from a past date and running >= 12 hours
-    if (elapsedHours >= 15 || (session.date < todayDate && elapsedHours >= 12)) {
-      const { shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
-      const netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
-      session.dutyOut = new Date(session.dutyIn.getTime() + shiftMinutes * 60 * 1000);
-      session.workedMinutes = netMinutes;
-      session.status = 'DUTY_COMPLETED';
-      session.onLunch = false;
-      session.remarks = session.remarks ? `${session.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]';
-      await session.save();
-      updatedCount++;
+    let updatedCount = 0;
+    for (const session of openSessions) {
+      if (!session.dutyIn) continue;
+      const elapsedHours = (now.getTime() - session.dutyIn.getTime()) / (1000 * 60 * 60);
+      // Auto-cut if running >= 15 hours, or from a past date and running >= 12 hours
+      if (elapsedHours >= 15 || (session.date < todayDate && elapsedHours >= 12)) {
+        const { shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
+        const netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
+        try {
+          await AttendanceSession.updateOne(
+            { _id: session._id },
+            {
+              $set: {
+                dutyOut: new Date(session.dutyIn.getTime() + shiftMinutes * 60 * 1000),
+                workedMinutes: netMinutes,
+                status: 'DUTY_COMPLETED',
+                onLunch: false,
+                remarks: session.remarks ? `${session.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]',
+              },
+            }
+          );
+          updatedCount++;
+        } catch (saveErr) {
+          console.error('autoCutExpiredSessions updateOne error for session:', session._id, saveErr.message);
+        }
+      }
     }
+    return updatedCount;
+  } catch (err) {
+    console.error('autoCutExpiredSessions failed gracefully:', err.message);
+    return 0;
   }
-  return updatedCount;
 }
 
 export async function manualAutoCutSession(user, payload = {}) {

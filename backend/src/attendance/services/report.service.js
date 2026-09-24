@@ -368,9 +368,12 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
       { $match: { firm: firmObjectId, entityType: 'ATTENDANCE_SESSION', action: 'CORRECTION',
         'newValue.date': { $gte: targetMonth + '-01', $lte: targetMonth + '-' + String(daysInMonth).padStart(2, '0') } } },
       { $group: { _id: '$worker', count: { $sum: 1 } } },
-    ]),
+    ]).catch((err) => {
+      console.warn('AttendanceAuditLog aggregate error:', err?.message);
+      return [];
+    }),
   ]);
-  const editCounts = new Map(correctionCounts.map(item => [String(item._id), item.count]));
+  const editCounts = new Map((correctionCounts || []).map(item => [String(item._id), item.count]));
 
   const deploymentByWorker = new Map();
   for (const dep of deployments) {
@@ -411,7 +414,9 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
     if (query.search) {
       const term = query.search.trim().toLowerCase();
-      if (!worker.fullName.toLowerCase().includes(term) && !worker.workerCode.toLowerCase().includes(term)) {
+      const matchesName = String(worker.fullName || '').toLowerCase().includes(term);
+      const matchesCode = String(worker.workerCode || '').toLowerCase().includes(term);
+      if (!matchesName && !matchesCode) {
         continue;
       }
     }

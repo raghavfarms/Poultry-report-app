@@ -982,6 +982,7 @@ export default function MedicineAdjustmentPage() {
                 <div className="p-2 bg-rose-50 border border-rose-200 text-rose-800 rounded text-xs font-semibold">
                   ⚠ {error}
                 </div>
+
               )}
 
               {/* Farm & Medicine */}
@@ -1173,7 +1174,7 @@ export default function MedicineAdjustmentPage() {
                 className="text-slate-400 hover:text-slate-600 text-lg font-bold leading-none"
               >
                 ✕
-                
+
               </button>
             </div>
 
