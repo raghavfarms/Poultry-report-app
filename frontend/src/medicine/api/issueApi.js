@@ -44,3 +44,4 @@ export async function createIssueApi(issueData) {
 export async function fetchIssueById(id) {
   return await api(`/medicine/issues/${id}`);
 }
+

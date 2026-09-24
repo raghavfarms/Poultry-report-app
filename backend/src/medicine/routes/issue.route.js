@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../../middleware/auth.js';
+import { protect } from '../../middleware/auth.js';
 import {
   getFefoRecommendations,
   createIssue,
@@ -10,7 +10,7 @@ import {
 const router = express.Router();
 
 // All routes require authentication
-router.use(authenticate);
+router.use(protect);
 
 // 1. FEFO Recommendation Engine (MUST be placed before /:id)
 router.get('/fefo-recommendations', getFefoRecommendations);
@@ -21,3 +21,4 @@ router.post('/', createIssue);
 router.get('/:id', getIssueById);
 
 export default router;
+
