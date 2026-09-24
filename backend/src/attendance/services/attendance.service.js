@@ -1118,6 +1118,12 @@ export async function recordBulkDayAttendance(user, payload = {}) {
           filter: { _id: sessionId },
           update: {
             $set: {
+              workLocation: deployment.workLocation,
+              workLocationNameSnapshot: deployment.workLocationNameSnapshot || 'Main Shed',
+              designation: deployment.designation,
+              designationNameSnapshot: deployment.designationNameSnapshot || 'Worker',
+              supervisor: deployment.supervisor || null,
+              supervisorNameSnapshot: deployment.supervisorNameSnapshot || '',
               dutyIn: dutyInDate,
               inEvent: inEventId,
               dutyOut: dutyOutDate,

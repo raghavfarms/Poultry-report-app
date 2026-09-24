@@ -63,7 +63,7 @@ export async function getLiveDashboardData(user, query = {}) {
       .lean(),
 
     WorkerDeployment.find({ firm: firmObjectId, effectiveTo: null })
-      .select('worker workLocation designation supervisor effectiveFrom')
+      .select('worker workLocation designation designationNameSnapshot supervisor effectiveFrom')
       .lean(),
 
     AttendanceSession.find({ firm: firmObjectId, date: targetDate })
@@ -128,6 +128,11 @@ export async function getLiveDashboardData(user, query = {}) {
   }
 
   const workerMap = new Map(activeWorkers.map((w) => [String(w._id), w]));
+  const locationMap = new Map();
+  for (const loc of workLocations) {
+    if (loc._id) locationMap.set(String(loc._id), String(loc._id));
+    if (loc.name) locationMap.set(loc.name.toLowerCase().trim(), String(loc._id));
+  }
 
   // Map of wId -> { weight, status, workLocationId, isSupervisor, isFemale, isSecurity, workerName }
   const workerDailyAttendance = new Map();
@@ -170,13 +175,18 @@ export async function getLiveDashboardData(user, query = {}) {
 
     const latestSession = wSessions[wSessions.length - 1];
     const dep = deploymentMap.get(wId);
-    const workLocationId = latestSession?.workLocation
-      ? String(latestSession.workLocation)
-      : (dep?.workLocation ? String(dep.workLocation) : null);
+    let workLocationId = dep?.workLocation
+      ? String(dep.workLocation)
+      : (latestSession?.workLocation ? String(latestSession.workLocation) : null);
 
-    const desig = (latestSession?.designationNameSnapshot || w?.designation?.name || dep?.designationNameSnapshot || '').toLowerCase();
+    if (workLocationId && !locationMap.has(workLocationId) && latestSession?.workLocationNameSnapshot) {
+      const byName = locationMap.get(latestSession.workLocationNameSnapshot.toLowerCase().trim());
+      if (byName) workLocationId = byName;
+    }
+
+    const desig = (w?.designation?.name || dep?.designationNameSnapshot || latestSession?.designationNameSnapshot || '').toLowerCase();
     const isSecurity = desig.includes('security');
-    const isSupervisor = !isSecurity && (w?.isSupervisor || desig.includes('supervisor'));
+    const isSupervisor = !isSecurity && (w?.isSupervisor || desig.includes('supervisor') || desig.includes('incharge') || desig.includes('in-charge'));
     const isFemale = !isSecurity && !isSupervisor && (w?.gender === 'FEMALE');
 
     workerDailyAttendance.set(wId, {

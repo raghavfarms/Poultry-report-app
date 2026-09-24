@@ -157,7 +157,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
     const latestSession = workerSessions[workerSessions.length - 1];
     const workLocationId = latestSession?.workLocation ? String(latestSession.workLocation) : (deployment?.workLocation ? String(deployment.workLocation) : null);
     const workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'Unassigned';
-    const designationName = latestSession?.designationNameSnapshot || worker.designation?.name || deployment?.designationNameSnapshot || '—';
+    const designationName = worker.designation?.name || latestSession?.designationNameSnapshot || deployment?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
 
     const matchedLoc = (workLocationId && locationById.get(workLocationId))
