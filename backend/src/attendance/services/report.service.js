@@ -155,10 +155,14 @@ export async function getDailyAttendanceReport(user, query = {}) {
     }
 
     const latestSession = workerSessions[workerSessions.length - 1];
-    const workLocationId = latestSession?.workLocation ? String(latestSession.workLocation) : (deployment?.workLocation ? String(deployment.workLocation) : null);
-    const workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'Unassigned';
     const designationName = worker.designation?.name || latestSession?.designationNameSnapshot || deployment?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
+    const isSecurity = /security/i.test(designationName);
+
+    let workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'None';
+    if (workLocationName === 'Unassigned' || (isSecurity && !workLocationId)) {
+      workLocationName = 'None';
+    }
 
     const matchedLoc = (workLocationId && locationById.get(workLocationId))
       || locationByName.get(workLocationName.toLowerCase().trim())

@@ -388,7 +388,22 @@ export async function updateWorker(user, id, body) {
       depChanged = true;
     }
 
-    if (locDoc && String(currentDep.workLocation) !== String(locDoc._id)) {
+    const effectiveDesigName = desigDoc?.name || currentDep.designationNameSnapshot || '';
+    const isDesigSecurity = /security/i.test(effectiveDesigName);
+
+    if (data.workLocation === null || (isDesigSecurity && (body.workLocation === '' || body.workLocation === null))) {
+      if (currentDep.workLocation !== null || (currentDep.workLocationNameSnapshot && currentDep.workLocationNameSnapshot !== 'None')) {
+        oldValues.workLocationId = currentDep.workLocation;
+        oldValues.workLocationName = currentDep.workLocationNameSnapshot;
+        currentDep.workLocation = null;
+        currentDep.workLocationNameSnapshot = 'None';
+        currentDep.supervisor = null;
+        currentDep.supervisorNameSnapshot = '';
+        newValues.workLocationId = null;
+        newValues.workLocationName = 'None';
+        depChanged = true;
+      }
+    } else if (locDoc && String(currentDep.workLocation) !== String(locDoc._id)) {
       oldValues.workLocationId = currentDep.workLocation;
       oldValues.workLocationName = currentDep.workLocationNameSnapshot;
       currentDep.workLocation = locDoc._id;
@@ -472,7 +487,7 @@ export async function updateWorker(user, id, body) {
         console.warn('Audit log creation note:', auditErr.message);
       }
     }
-  } else if (locDoc) {
+  } else if (locDoc || /security/i.test(desigDoc?.name || worker.designation?.name || '')) {
     // No active deployment found, create initial or correction deployment
     try {
       const firmDoc = await Firm.findById(worker.firm).select('name').lean();
@@ -481,13 +496,13 @@ export async function updateWorker(user, id, body) {
       await WorkerDeployment.create({
         worker: worker._id,
         firm: worker.firm,
-        workLocation: locDoc._id,
+        workLocation: locDoc?._id || null,
         designation: desig?._id || worker.designation,
-        supervisor: locDoc.supervisor || null,
+        supervisor: locDoc?.supervisor || null,
         workerCodeSnapshot: worker.workerCode,
         workerNameSnapshot: data.fullName || worker.fullName,
         firmNameSnapshot: firmDoc?.name || '',
-        workLocationNameSnapshot: locDoc.name,
+        workLocationNameSnapshot: locDoc?.name || 'None',
         designationNameSnapshot: desig?.name || '',
         supervisorNameSnapshot: '',
         allocationType: hasInitial ? 'CORRECTION' : 'INITIAL',

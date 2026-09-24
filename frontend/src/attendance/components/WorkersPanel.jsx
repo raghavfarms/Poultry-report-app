@@ -127,6 +127,7 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
 
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
+  const [isSecurity, setIsSecurity] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -167,7 +168,7 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
       referenceName: form.referenceName.trim(),
       remarks: form.remarks.trim(),
       initialDeployment: {
-        workLocation: form.workLocation,
+        workLocation: form.workLocation || null,
         supervisor: form.supervisor || null,
         effectiveFrom: form.effectiveFrom || form.dateOfJoining || todayDate,
         reason: form.reason.trim() || 'Initial deployment',
@@ -234,10 +235,13 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
               value={form.designation}
               onChange={(value, item) => {
                 const isSup = item?.name ? /supervisor/i.test(item.name) : false;
+                const isSec = item?.name ? /security/i.test(item.name) : false;
+                setIsSecurity(isSec);
                 setForm((prev) => ({
                   ...prev,
                   designation: value,
                   isSupervisor: isSup,
+                  ...(isSec ? { workLocation: '' } : {}),
                 }));
               }}
             />
@@ -337,7 +341,10 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
           <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/30 p-2 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
-                {isOffice ? 'Office Location / Department' : 'Initial Deployment'} <span className="font-normal text-emerald-700">(Mandatory)</span>
+                {isOffice ? 'Office Location / Department' : 'Initial Deployment'}{' '}
+                <span className="font-normal text-emerald-700">
+                  {isSecurity ? '(Optional / None for Security)' : '(Mandatory)'}
+                </span>
               </span>
               <span className="text-[10px] text-slate-400">Starting location</span>
             </div>
@@ -349,18 +356,18 @@ function CreateWorkerModal({ firmId, isOffice = false, onClose, onSaved }) {
                   resource="work-locations"
                   firmId={firmId}
                   value={form.workLocation}
-                  onChange={(value) => set('workLocation', value)}
+                  onChange={(value) => set('workLocation', value || '')}
                 />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                 <RemoteSelect
-                  required
-                  label="Work Location *"
+                  required={!isSecurity}
+                  label={isSecurity ? 'Work Location (Optional / None)' : 'Work Location *'}
                   resource="work-locations"
                   firmId={firmId}
                   value={form.workLocation}
-                  onChange={(value) => set('workLocation', value)}
+                  onChange={(value) => set('workLocation', value || '')}
                 />
                 <RemoteSelect
                   label="Assigned Supervisor"
@@ -422,6 +429,8 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
   const firmId = worker.firm?._id || (typeof worker.firm === 'string' ? worker.firm : '');
   const initialDesignationId = worker.designation?._id || (typeof worker.designation === 'string' ? worker.designation : '');
   const isOffice = worker.firm?.code === 'OFFICE' || /office/i.test(worker.firm?.name || '');
+  const isSecurityWorker = /security/i.test(worker.designation?.name || '');
+  const [isSecurity, setIsSecurity] = useState(isSecurityWorker);
 
   const [form, setForm] = useState({
     fullName: worker.fullName || '',
@@ -463,8 +472,14 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
           const locName = res.deployment.workLocationNameSnapshot || loc?.name || '';
           if (locId) {
             set('workLocation', locId);
-            setCurrentLocationName(locName);
+            setCurrentLocationName(locName || 'None');
+          } else {
+            set('workLocation', '');
+            setCurrentLocationName('None');
           }
+        } else {
+          set('workLocation', '');
+          setCurrentLocationName('None');
         }
       })
       .catch(() => {});
@@ -579,23 +594,27 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
               selectedLabel={worker.designation?.name}
               onChange={(value, item) => {
                 const isSup = item?.name ? /supervisor/i.test(item.name) : false;
+                const isSec = item?.name ? /security/i.test(item.name) : false;
+                setIsSecurity(isSec);
                 setForm((prev) => ({
                   ...prev,
                   designation: value,
                   isSupervisor: isSup || prev.isSupervisor,
+                  ...(isSec ? { workLocation: '' } : {}),
                 }));
+                if (isSec) setCurrentLocationName('None');
               }}
             />
 
             <RemoteSelect
-              label={isOffice ? 'Office Location / Department' : 'Work Location / Shed'}
+              label={isOffice ? 'Office Location / Department' : isSecurity ? 'Work Location (None for Security)' : 'Work Location / Shed'}
               resource="work-locations"
               firmId={firmId}
               value={form.workLocation}
-              selectedLabel={currentLocationName}
+              selectedLabel={currentLocationName || 'None'}
               onChange={(value, item) => {
-                set('workLocation', value);
-                if (item?.name) setCurrentLocationName(item.name);
+                set('workLocation', value || '');
+                setCurrentLocationName(item?.name || 'None');
               }}
             />
 
@@ -861,7 +880,7 @@ function WorkerDetailsDrawer({ worker, version = 0, onClose, onAssignInitial, on
                 <div className="py-1"><Spinner /></div>
               ) : currentDeployment ? (
                 <div className="grid grid-cols-2 gap-x-2.5 gap-y-1">
-                  <div className="truncate"><span className="text-slate-500 font-medium">Location:</span> <span className="font-bold text-slate-800">{currentDeployment.workLocationNameSnapshot}</span></div>
+                  <div className="truncate"><span className="text-slate-500 font-medium">Location:</span> <span className="font-bold text-slate-800">{(!currentDeployment.workLocationNameSnapshot || currentDeployment.workLocationNameSnapshot === 'Unassigned') ? 'None' : currentDeployment.workLocationNameSnapshot}</span></div>
                   <div className="truncate"><span className="text-slate-500 font-medium">Supervisor:</span> <span className="font-bold text-slate-800">{currentDeployment.supervisorNameSnapshot || 'None'}</span></div>
                   <div className="truncate"><span className="text-slate-500 font-medium">Since:</span> <span className="font-medium text-slate-700">{dateTime(currentDeployment.effectiveFrom)}</span></div>
                   <div className="truncate"><span className="text-slate-500 font-medium">Reason:</span> <span className="text-slate-700">{currentDeployment.reason}</span></div>

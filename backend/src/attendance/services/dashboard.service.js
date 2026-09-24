@@ -202,6 +202,10 @@ export async function getLiveDashboardData(user, query = {}) {
 
   const deploymentCountByLocation = new Map();
   for (const dep of openDeployments) {
+    if (!dep.workLocation) continue;
+    const w = workerMap.get(String(dep.worker));
+    const desig = (w?.designation?.name || dep.designationNameSnapshot || '').toLowerCase();
+    if (desig.includes('security')) continue;
     const locKey = String(dep.workLocation);
     deploymentCountByLocation.set(locKey, (deploymentCountByLocation.get(locKey) || 0) + 1);
   }
