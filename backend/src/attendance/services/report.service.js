@@ -19,7 +19,7 @@ import { notFoundError, badRequest } from '../../utils/http.js';
  */
 export function getWorkLocationSortRank(name, type, order) {
   const lower = String(name || '').toLowerCase().trim();
-  if (!lower || lower === 'unassigned') return 999999;
+  if (!lower || lower === 'unassigned' || lower === 'none' || lower === '—') return 999999;
 
   const numMatch = lower.match(/\d+/);
   const num = numMatch ? parseInt(numMatch[0], 10) : 0;
@@ -155,6 +155,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
     }
 
     const latestSession = workerSessions[workerSessions.length - 1];
+    const workLocationId = latestSession?.workLocation ? String(latestSession.workLocation) : (deployment?.workLocation ? String(deployment.workLocation) : null);
     const designationName = worker.designation?.name || latestSession?.designationNameSnapshot || deployment?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
     const isSecurity = /security/i.test(designationName);
@@ -164,10 +165,11 @@ export async function getDailyAttendanceReport(user, query = {}) {
       workLocationName = 'None';
     }
 
+    const cleanLocName = String(workLocationName || '').toLowerCase().trim();
     const matchedLoc = (workLocationId && locationById.get(workLocationId))
-      || locationByName.get(workLocationName.toLowerCase().trim())
+      || (cleanLocName && locationByName.get(cleanLocName))
       || null;
-    const workLocationType = matchedLoc?.type || (workLocationName.toLowerCase().includes('shed') ? 'SHED' : 'MISCELLANEOUS');
+    const workLocationType = matchedLoc?.type || (cleanLocName.includes('shed') ? 'SHED' : 'MISCELLANEOUS');
     const workLocationOrder = matchedLoc?.order ?? 0;
 
     // Filter by workLocation if requested
@@ -391,10 +393,13 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
   for (const worker of workers) {
     const workerIdStr = String(worker._id);
-    const deployment = deploymentByWorker.get(workerIdStr);
-    const workLocationId = deployment?.workLocation ? String(deployment.workLocation) : null;
-    const workLocationName = deployment?.workLocationNameSnapshot || 'Unassigned';
     const designationName = worker.designation?.name || deployment?.designationNameSnapshot || '—';
+    const isSecurity = /security/i.test(designationName);
+    const workLocationId = deployment?.workLocation ? String(deployment.workLocation) : null;
+    let workLocationName = deployment?.workLocationNameSnapshot || 'None';
+    if (workLocationName === 'Unassigned' || (isSecurity && !workLocationId)) {
+      workLocationName = 'None';
+    }
 
     const effectiveJoining = worker.dateOfJoining
       || (deployment?.effectiveFrom ? indiaDateString(deployment.effectiveFrom) : null)

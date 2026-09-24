@@ -120,7 +120,7 @@ export function getDefaultFirmId(firms = [], currentId = '') {
  */
 export function getWorkLocationSortRank(name, type, order) {
   const lower = String(name || '').toLowerCase().trim();
-  if (!lower || lower === 'unassigned') return 999999;
+  if (!lower || lower === 'unassigned' || lower === 'none' || lower === '—') return 999999;
 
   const numMatch = lower.match(/\d+/);
   const num = numMatch ? parseInt(numMatch[0], 10) : 0;
