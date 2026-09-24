@@ -396,6 +396,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
   for (const worker of workers) {
     const workerIdStr = String(worker._id);
+    const deployment = deploymentByWorker.get(workerIdStr);
     const designationName = worker.designation?.name || deployment?.designationNameSnapshot || '—';
     const isSecurity = /security/i.test(designationName);
     const workLocationId = deployment?.workLocation ? String(deployment.workLocation) : null;
