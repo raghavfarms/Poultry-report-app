@@ -345,112 +345,177 @@ export default function MedicineIssuePage() {
             No medicine issues found matching criteria.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                  <th className="py-2.5 px-3">Issue # & Date</th>
-                  <th className="py-2.5 px-3">Farm & Target Shed</th>
-                  <th className="py-2.5 px-3">Medicine & Deducted Batch</th>
-                  <th className="py-2.5 px-3 text-right">Issued Qty</th>
-                  <th className="py-2.5 px-3">Purpose & Dosage</th>
-                  <th className="py-2.5 px-3">Recipient & Issuer</th>
-                  <th className="py-2.5 px-3 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {issues.map((iss) => (
-                  <tr key={iss._id} className="hover:bg-slate-50/70 transition">
-                    {/* Issue # & Date */}
-                    <td className="py-2.5 px-3">
-                      <span className="font-mono font-bold text-emerald-700">
-                        {iss.issueNumber}
-                      </span>
-                      <div className="text-[10px] text-slate-500">{iss.issueDate}</div>
-                    </td>
-
-                    {/* Farm & Shed */}
-                    <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-800">
-                        {iss.farm?.name || 'Unknown Farm'}
-                      </div>
-                      <div className="text-[11px] text-slate-600 font-medium">
-                        📍 {iss.shed} {iss.flockNumber ? `• ${iss.flockNumber}` : ''}
-                      </div>
-                      {iss.birdCount > 0 && (
-                        <div className="text-[10px] text-slate-400">
-                          {iss.birdCount.toLocaleString()} birds
-                          {iss.birdAgeDays > 0 ? ` (Age: ${iss.birdAgeDays}d)` : ''}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Medicine & Batch */}
-                    <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-800">
-                        {iss.medicine?.name}
-                      </div>
-                      <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1.5 mt-0.5">
-                        <span className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded text-[10px]">
-                          Batch: {iss.batchNumber}
-                        </span>
-                        {iss.batch?.expiryDate && (
-                          <span className="text-[10px] text-slate-400">
-                            Exp: {iss.batch.expiryDate}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Issued Qty */}
-                    <td className="py-2.5 px-3 text-right">
-                      <span className="font-mono font-bold text-slate-900 text-sm">
-                        {iss.issuedQuantity}
-                      </span>{' '}
-                      <span className="text-[10px] text-slate-500 font-medium">
-                        {iss.unit}
-                      </span>
-                    </td>
-
-                    {/* Purpose & Dosage */}
-                    <td className="py-2.5 px-3 max-w-[200px]">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                          PURPOSE_BADGES[iss.purpose] || PURPOSE_BADGES.OTHER
-                        }`}
-                      >
-                        {iss.purpose?.replace(/_/g, ' ')}
-                      </span>
-                      {iss.dosageInstructions && (
-                        <div className="text-[11px] text-slate-600 truncate mt-0.5" title={iss.dosageInstructions}>
-                          💊 {iss.dosageInstructions}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Recipient & Issuer */}
-                    <td className="py-2.5 px-3">
-                      <div className="font-medium text-slate-700">{iss.issuedTo}</div>
-                      <div className="text-[10px] text-slate-400">
-                        By: {iss.issuedBy?.name || iss.issuedBy?.username}
-                      </div>
-                    </td>
-
-                    {/* Action */}
-                    <td className="py-2.5 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDetailIssue(iss)}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition"
-                      >
-                        Details
-                      </button>
-                    </td>
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                    <th className="py-2.5 px-3">Issue # & Date</th>
+                    <th className="py-2.5 px-3">Farm & Target Shed</th>
+                    <th className="py-2.5 px-3">Medicine & Deducted Batch</th>
+                    <th className="py-2.5 px-3 text-right">Issued Qty</th>
+                    <th className="py-2.5 px-3">Purpose & Dosage</th>
+                    <th className="py-2.5 px-3">Recipient & Issuer</th>
+                    <th className="py-2.5 px-3 text-center">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {issues.map((iss) => (
+                    <tr key={iss._id} className="hover:bg-slate-50/70 transition">
+                      {/* Issue # & Date */}
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono font-bold text-emerald-700">
+                          {iss.issueNumber}
+                        </span>
+                        <div className="text-[10px] text-slate-500">{iss.issueDate}</div>
+                      </td>
+
+                      {/* Farm & Shed */}
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-slate-800">
+                          {iss.farm?.name || 'Unknown Farm'}
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-medium">
+                          📍 {iss.shed} {iss.flockNumber ? `• ${iss.flockNumber}` : ''}
+                        </div>
+                        {iss.birdCount > 0 && (
+                          <div className="text-[10px] text-slate-400">
+                            {iss.birdCount.toLocaleString()} birds
+                            {iss.birdAgeDays > 0 ? ` (Age: ${iss.birdAgeDays}d)` : ''}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Medicine & Batch */}
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-slate-800">
+                          {iss.medicine?.name}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1.5 mt-0.5">
+                          <span className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded text-[10px]">
+                            Batch: {iss.batchNumber}
+                          </span>
+                          {iss.batch?.expiryDate && (
+                            <span className="text-[10px] text-slate-400">
+                              Exp: {iss.batch.expiryDate}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Issued Qty */}
+                      <td className="py-2.5 px-3 text-right">
+                        <span className="font-mono font-bold text-slate-900 text-sm">
+                          {iss.issuedQuantity}
+                        </span>{' '}
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {iss.unit}
+                        </span>
+                      </td>
+
+                      {/* Purpose & Dosage */}
+                      <td className="py-2.5 px-3 max-w-[200px]">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            PURPOSE_BADGES[iss.purpose] || PURPOSE_BADGES.OTHER
+                          }`}
+                        >
+                          {iss.purpose?.replace(/_/g, ' ')}
+                        </span>
+                        {iss.dosageInstructions && (
+                          <div className="text-[11px] text-slate-600 truncate mt-0.5" title={iss.dosageInstructions}>
+                            💊 {iss.dosageInstructions}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Recipient & Issuer */}
+                      <td className="py-2.5 px-3">
+                        <div className="font-medium text-slate-700">{iss.issuedTo}</div>
+                        <div className="text-[10px] text-slate-400">
+                          By: {iss.issuedBy?.name || iss.issuedBy?.username}
+                        </div>
+                      </td>
+
+                      {/* Action */}
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDetailIssue(iss)}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 transition"
+                        >
+                          Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="sm:hidden divide-y divide-slate-100">
+              {issues.map((iss) => (
+                <div key={iss._id} className="p-3 space-y-2 text-xs">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-mono font-bold text-emerald-700">{iss.issueNumber}</span>
+                      <div className="text-[10px] text-slate-400">{iss.issueDate}</div>
+                    </div>
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        PURPOSE_BADGES[iss.purpose] || PURPOSE_BADGES.OTHER
+                      }`}
+                    >
+                      {iss.purpose?.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Medicine</span>
+                      <span className="font-semibold text-slate-800">{iss.medicine?.name}</span>
+                      <div className="text-[10px] text-slate-500 font-mono">Batch: {iss.batchNumber}</div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Target Shed</span>
+                      <span className="font-semibold text-slate-800">📍 {iss.shed}</span>
+                      {iss.flockNumber && <div className="text-[10px] text-slate-500">{iss.flockNumber}</div>}
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Farm</span>
+                      <span className="font-medium text-slate-700">{iss.farm?.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Issued To</span>
+                      <span className="font-medium text-slate-700">{iss.issuedTo}</span>
+                    </div>
+                  </div>
+
+                  {iss.dosageInstructions && (
+                    <div className="text-[11px] text-blue-800 bg-blue-50/70 p-1.5 rounded border border-blue-100">
+                      💊 {iss.dosageInstructions}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center pt-1 border-t border-slate-50">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Quantity Issued</span>
+                      <span className="font-extrabold text-sm text-slate-900">{iss.issuedQuantity} {iss.unit}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetailIssue(iss)}
+                      className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-300 transition"
+                    >
+                      View Voucher
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

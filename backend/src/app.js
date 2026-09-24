@@ -15,6 +15,7 @@ import supplierRoutes from './medicine/routes/supplier.route.js'
 import purchaseOrderRoutes from './medicine/routes/purchaseOrder.route.js';
 import receiptRoutes from './medicine/routes/receipt.route.js';
 import issueRoutes from './medicine/routes/issue.route.js';
+import adjustmentRoutes from './medicine/routes/adjustment.route.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -41,6 +42,7 @@ app.use('/api/medicine/suppliers', supplierRoutes);
 app.use('/api/medicine/purchase-orders', purchaseOrderRoutes);
 app.use('/api/medicine/receipts', receiptRoutes);
 app.use('/api/medicine/issues', issueRoutes);
+app.use('/api/medicine/adjustments', adjustmentRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

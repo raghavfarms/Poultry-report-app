@@ -184,7 +184,7 @@ export default function PurchaseOrderPage() {
         </div>
         <button
           onClick={handleOpenCreateModal}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg shadow-xs transition flex items-center justify-center gap-1.5"
+          className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg shadow-xs transition flex items-center justify-center gap-1.5"
         >
           <span className="text-sm leading-none">+</span> Create Purchase Order
         </button>

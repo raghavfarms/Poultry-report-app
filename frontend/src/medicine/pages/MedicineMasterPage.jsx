@@ -10,6 +10,7 @@ import SupplierMasterPage from './SupplierMasterPage.jsx';
 import PurchaseOrderPage from './PurchaseOrderPage.jsx';
 import MedicineReceiptPage from './MedicineReceiptPage.jsx';
 import MedicineIssuePage from './MedicineIssuePage.jsx';
+import MedicineAdjustmentPage from './MedicineAdjustmentPage.jsx';
 
 const CATEGORIES=['FEED_MEDICINE','GENERAL_MEDICINE','VACCINATION'];
 const UNITS = ['Bottle', 'Litre', 'ml', 'Kg', 'Gram', 'Tablet', 'Dose', 'Packet', 'Vial', 'Other'];
@@ -158,12 +159,12 @@ const loadMedicines= async ()=>{
   // Now comes the return statement INSIDE the component:
   return (
     <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
-      {/* Top Tab Navigation */}
-      <div className="flex border-b border-slate-200 gap-6">
+      {/* Top Tab Navigation (Mobile Responsive with smooth horizontal scroll) */}
+      <div className="flex border-b border-slate-200 gap-2 sm:gap-6 overflow-x-auto no-scrollbar scrollbar-none pb-0 -mx-3 px-3 sm:mx-0 sm:px-0">
         <button
           type="button"
           onClick={() => setActiveTab('medicines')}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
             activeTab === 'medicines'
               ? 'border-emerald-600 text-emerald-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -174,7 +175,7 @@ const loadMedicines= async ()=>{
         <button
           type="button"
           onClick={() => setActiveTab('suppliers')}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
             activeTab === 'suppliers'
               ? 'border-emerald-600 text-emerald-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -185,7 +186,7 @@ const loadMedicines= async ()=>{
         <button
           type="button"
           onClick={() => setActiveTab('purchaseOrders')}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
             activeTab === 'purchaseOrders'
               ? 'border-emerald-600 text-emerald-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -196,7 +197,7 @@ const loadMedicines= async ()=>{
         <button
           type="button"
           onClick={() => setActiveTab('receipts')}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
             activeTab === 'receipts'
               ? 'border-emerald-600 text-emerald-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -207,13 +208,24 @@ const loadMedicines= async ()=>{
         <button
           type="button"
           onClick={() => setActiveTab('issues')}
-          className={`pb-3 text-sm font-bold border-b-2 transition flex items-center gap-2 ${
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
             activeTab === 'issues'
               ? 'border-emerald-600 text-emerald-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           }`}
         >
           <span>💉</span> Issues & Consumption (FEFO)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('adjustments')}
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
+            activeTab === 'adjustments'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>🔄</span> Returns & Adjustments
         </button>
       </div>
 
@@ -225,6 +237,8 @@ const loadMedicines= async ()=>{
         <MedicineReceiptPage />
       ) : activeTab === 'issues' ? (
         <MedicineIssuePage />
+      ) : activeTab === 'adjustments' ? (
+        <MedicineAdjustmentPage />
       ) : (
         <>
           {/* 1. Header Section */}

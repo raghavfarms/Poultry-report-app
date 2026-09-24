@@ -224,12 +224,12 @@ export default function MedicineReceiptPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {/* Sub-tab toggle buttons */}
           <div className="bg-slate-100 p-0.5 rounded-lg flex text-xs font-semibold">
             <button
               onClick={() => setSubTab('receipts')}
-              className={`px-3 py-1.5 rounded-md transition ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition text-center ${
                 subTab === 'receipts'
                   ? 'bg-white text-emerald-800 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -239,7 +239,7 @@ export default function MedicineReceiptPage() {
             </button>
             <button
               onClick={() => setSubTab('batches')}
-              className={`px-3 py-1.5 rounded-md transition ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-md transition text-center ${
                 subTab === 'batches'
                   ? 'bg-white text-emerald-800 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -251,7 +251,7 @@ export default function MedicineReceiptPage() {
 
           <button
             onClick={handleOpenCreate}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg shadow-xs transition flex items-center justify-center gap-1.5"
+            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3 py-2 rounded-lg shadow-xs transition flex items-center justify-center gap-1.5"
           >
             <span className="text-sm leading-none">+</span> New Receipt
           </button>
@@ -324,7 +324,9 @@ export default function MedicineReceiptPage() {
               No delivery receipts found. Click <strong>+ New Receipt</strong> to record arriving medicine.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Desktop Table View */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-700">
                 <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
                   <tr>
@@ -391,9 +393,76 @@ export default function MedicineReceiptPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Mobile Cards View */}
+            <div className="sm:hidden divide-y divide-slate-100">
+              {receipts.map((rcp) => (
+                <div key={rcp._id} className="p-3 space-y-2 text-xs">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-mono font-bold text-slate-900">{rcp.receiptNumber}</span>
+                      <div className="text-[10px] text-slate-400">{new Date(rcp.createdAt).toLocaleDateString()}</div>
+                    </div>
+                    <span
+                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                        STATUS_BADGES[rcp.status] || 'bg-slate-100'
+                      }`}
+                    >
+                      {rcp.status === 'PENDING_STORE_VERIFICATION' ? 'Pending Store' : rcp.status.replace('_', ' ')}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Medicine</span>
+                      <span className="font-semibold text-slate-800">{rcp.medicine?.name}</span>
+                      <div className="text-[10px] text-emerald-700 font-mono font-bold">Batch: {rcp.batchNumber}</div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Supplier</span>
+                      <span className="font-medium text-slate-700">{rcp.supplier?.name}</span>
+                      {rcp.purchaseOrder && (
+                        <div className="text-[10px] text-blue-600 font-bold">{rcp.purchaseOrder.poNumber}</div>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Farm</span>
+                      <span className="font-medium text-slate-700">{rcp.farm?.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Expiry</span>
+                      <span className="font-mono font-medium text-slate-700">{rcp.expiryDate}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">Qty (Recv / Acc)</span>
+                      <span className="font-bold text-slate-800">{rcp.receivedQuantity}</span>
+                      <span className="text-slate-400"> / </span>
+                      <span className="text-emerald-700 font-bold">{rcp.storeAcceptedQuantity || 0}</span>
+                      <span className="text-[10px] text-slate-400 ml-1">{rcp.unit}</span>
+                    </div>
+                    <div>
+                      {rcp.status === 'PENDING_STORE_VERIFICATION' ? (
+                        <button
+                          onClick={() => handleOpenAccept(rcp)}
+                          className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition"
+                        >
+                          Verify & Accept
+                        </button>
+                      ) : (
+                        <span className="text-xs font-semibold text-emerald-700">✓ In Stock</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    )}
 
       {/* 3B. VIEW 2: LIVE BATCH INVENTORY */}
       {subTab === 'batches' && (
@@ -405,56 +474,107 @@ export default function MedicineReceiptPage() {
               No live batch inventory found. Accept delivery receipts to add stock here.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
-                <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                  <tr>
-                    <th className="py-2.5 px-3">Medicine</th>
-                    <th className="py-2.5 px-3">Batch Number</th>
-                    <th className="py-2.5 px-3">Farm</th>
-                    <th className="py-2.5 px-3">Supplier</th>
-                    <th className="py-2.5 px-3 text-center">Expiry Date</th>
-                    <th className="py-2.5 px-3 text-center">Shelf Life Status</th>
-                    <th className="py-2.5 px-3 text-right">Available Stock</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {batches.map((b) => (
-                    <tr key={b._id} className="hover:bg-slate-50/75 transition">
-                      <td className="py-2 px-3">
-                        <div className="font-bold text-slate-900">{b.medicine?.name}</div>
-                        <div className="text-[10px] text-slate-400">{b.medicine?.code} • {b.medicine?.category?.replace('_', ' ')}</div>
-                      </td>
-                      <td className="py-2 px-3">
-                        <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                          {b.batchNumber}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-slate-700 font-medium">{b.farm?.name}</td>
-                      <td className="py-2 px-3 text-slate-600">{b.supplier?.name}</td>
-                      <td className="py-2 px-3 text-center font-mono font-medium text-slate-800">{b.expiryDate}</td>
-                      <td className="py-2 px-3 text-center">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                            EXPIRY_BADGES[b.expiryAlert] || 'bg-slate-100'
-                          }`}
-                        >
-                          {b.daysRemaining <= 0
-                            ? 'EXPIRED'
-                            : `${b.daysRemaining} days left`}
-                        </span>
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <div className="font-extrabold text-sm text-emerald-700">
-                          {b.quantityAvailable} <span className="text-[11px] font-normal text-slate-500">{b.unit}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-400">Orig: {b.initialQuantity}</div>
-                      </td>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Medicine</th>
+                      <th className="py-2.5 px-3">Batch Number</th>
+                      <th className="py-2.5 px-3">Farm</th>
+                      <th className="py-2.5 px-3">Supplier</th>
+                      <th className="py-2.5 px-3 text-center">Expiry Date</th>
+                      <th className="py-2.5 px-3 text-center">Shelf Life Status</th>
+                      <th className="py-2.5 px-3 text-right">Available Stock</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {batches.map((b) => (
+                      <tr key={b._id} className="hover:bg-slate-50/75 transition">
+                        <td className="py-2 px-3">
+                          <div className="font-bold text-slate-900">{b.medicine?.name}</div>
+                          <div className="text-[10px] text-slate-400">{b.medicine?.code} • {b.medicine?.category?.replace('_', ' ')}</div>
+                        </td>
+                        <td className="py-2 px-3">
+                          <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            {b.batchNumber}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-slate-700 font-medium">{b.farm?.name}</td>
+                        <td className="py-2 px-3 text-slate-600">{b.supplier?.name}</td>
+                        <td className="py-2 px-3 text-center font-mono font-medium text-slate-800">{b.expiryDate}</td>
+                        <td className="py-2 px-3 text-center">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                              EXPIRY_BADGES[b.expiryAlert] || 'bg-slate-100'
+                            }`}
+                          >
+                            {b.daysRemaining <= 0
+                              ? 'EXPIRED'
+                              : `${b.daysRemaining} days left`}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <div className="font-extrabold text-sm text-emerald-700">
+                            {b.quantityAvailable} <span className="text-[11px] font-normal text-slate-500">{b.unit}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">Orig: {b.initialQuantity}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards View */}
+              <div className="sm:hidden divide-y divide-slate-100">
+                {batches.map((b) => (
+                  <div key={b._id} className="p-3 space-y-2 text-xs">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-sm">{b.medicine?.name}</h3>
+                        <span className="text-[10px] text-slate-400">{b.medicine?.code} • {b.medicine?.category?.replace('_', ' ')}</span>
+                      </div>
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                          EXPIRY_BADGES[b.expiryAlert] || 'bg-slate-100'
+                        }`}
+                      >
+                        {b.daysRemaining <= 0 ? 'EXPIRED' : `${b.daysRemaining}d left`}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Batch</span>
+                        <span className="font-mono font-bold text-slate-800">{b.batchNumber}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Farm</span>
+                        <span className="font-medium text-slate-700">{b.farm?.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Supplier</span>
+                        <span className="font-medium text-slate-700 truncate block">{b.supplier?.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Expiry Date</span>
+                        <span className="font-mono font-medium text-slate-700">{b.expiryDate}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-50">
+                      <span className="text-[10px] text-slate-400">Original Inward: {b.initialQuantity} {b.unit}</span>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 block">Available</span>
+                        <span className="font-extrabold text-sm text-emerald-700">{b.quantityAvailable} {b.unit}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
