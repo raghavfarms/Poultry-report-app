@@ -1,26 +1,31 @@
 import mongoose from 'mongoose';
 
-const reference = (ref, required = true) => ({ type: mongoose.Schema.Types.ObjectId, ref, required, immutable: true });
+const reference = (ref, required = true, immutable = false) => ({
+  type: mongoose.Schema.Types.ObjectId,
+  ref,
+  required,
+  ...(immutable ? { immutable: true } : {}),
+});
 const schema = new mongoose.Schema({
-  worker: reference('AttendanceWorker'),
-  firm: reference('Firm'),
-  workLocation: reference('AttendanceWorkLocation'),
-  designation: reference('AttendanceDesignation'),
-  supervisor: { ...reference('AttendanceWorker', false), default: null },
+  worker: reference('AttendanceWorker', true, true),
+  firm: reference('Firm', true, true),
+  workLocation: reference('AttendanceWorkLocation', true, false),
+  designation: reference('AttendanceDesignation', true, false),
+  supervisor: { ...reference('AttendanceWorker', false, false), default: null },
   workerCodeSnapshot: { type: String, required: true, immutable: true },
-  workerNameSnapshot: { type: String, required: true, immutable: true },
+  workerNameSnapshot: { type: String, required: true },
   firmNameSnapshot: { type: String, required: true, immutable: true },
-  workLocationNameSnapshot: { type: String, required: true, immutable: true },
-  designationNameSnapshot: { type: String, required: true, immutable: true },
-  supervisorNameSnapshot: { type: String, default: '', immutable: true },
+  workLocationNameSnapshot: { type: String, required: true },
+  designationNameSnapshot: { type: String, required: true },
+  supervisorNameSnapshot: { type: String, default: '' },
   allocationType: {
     type: String, enum: ['INITIAL', 'PERMANENT', 'SHED_TRANSFER', 'FARM_TRANSFER', 'CORRECTION'],
-    required: true, immutable: true,
+    required: true,
   },
-  effectiveFrom: { type: Date, required: true, immutable: true },
+  effectiveFrom: { type: Date, required: true },
   effectiveTo: { type: Date, default: null },
-  reason: { type: String, required: true, maxlength: 1000, immutable: true },
-  createdBy: reference('User'),
+  reason: { type: String, required: true, maxlength: 1000 },
+  createdBy: reference('User', true, true),
 }, { timestamps: true, optimisticConcurrency: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
 // This flag means the interval has no end; effective-at queries use dates, not this flag.

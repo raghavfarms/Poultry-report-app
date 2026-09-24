@@ -744,11 +744,11 @@ function EditWorkerModal({ worker, onClose, onSaved }) {
   );
 }
 
-function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) {
+function WorkerDetailsDrawer({ worker, version = 0, onClose, onAssignInitial, onEnrolFace, onEdit }) {
   const [tab, setTab] = useState('profile');
-  const deploymentState = useAttendanceData(attendancePath(`workers/${worker._id}/deployment`));
-  const historyState = useAttendanceData(tab === 'history' ? attendancePath(`workers/${worker._id}/deployments`) : null);
-  const privateState = useAttendanceData(tab === 'private' ? attendancePath(`workers/${worker._id}/private-details`) : null);
+  const deploymentState = useAttendanceData(attendancePath(`workers/${worker._id}/deployment`), version);
+  const historyState = useAttendanceData(tab === 'history' ? attendancePath(`workers/${worker._id}/deployments`) : null, version);
+  const privateState = useAttendanceData(tab === 'private' ? attendancePath(`workers/${worker._id}/private-details`) : null, version);
 
   const currentDeployment = deploymentState.data?.deployment;
 
@@ -774,18 +774,32 @@ function WorkerDetailsDrawer({ worker, onClose, onAssignInitial, onEnrolFace }) 
               </p>
             </div>
           </div>
-          {!currentDeployment && worker.active && (
-            <button
-              type="button"
-              className={`${primaryButton} !min-h-6 !h-6 !px-2 text-[10px] font-bold rounded shrink-0`}
-              onClick={() => {
-                onClose();
-                onAssignInitial(worker);
-              }}
-            >
-              + Assign
-            </button>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            {onEdit && (
+              <button
+                type="button"
+                className={`${secondaryButton} !min-h-6 !h-6 !px-2 text-[10px] font-bold rounded`}
+                onClick={() => {
+                  onClose();
+                  onEdit(worker);
+                }}
+              >
+                ✎ Edit
+              </button>
+            )}
+            {!currentDeployment && worker.active && (
+              <button
+                type="button"
+                className={`${primaryButton} !min-h-6 !h-6 !px-2 text-[10px] font-bold rounded`}
+                onClick={() => {
+                  onClose();
+                  onAssignInitial(worker);
+                }}
+              >
+                + Assign
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tab Headers - Compact 3-tab layout that fits on mobile without scrollbar */}
@@ -1610,7 +1624,8 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
           onClose={() => setEditing(null)}
           onSaved={(msg) => {
             setEditing(null);
-            onChanged(msg);
+            setLocalRevision((r) => r + 1);
+            if (typeof onChanged === 'function') onChanged(msg);
           }}
         />
       )}
@@ -1618,9 +1633,11 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
       {detailsWorker && (
         <WorkerDetailsDrawer
           worker={detailsWorker}
+          version={`${revision}-${localRevision}`}
           onClose={() => setDetailsWorker(null)}
           onAssignInitial={(w) => setAssigningInitial(w)}
           onEnrolFace={(w) => setEnrollingFaceWorker(w)}
+          onEdit={(w) => setEditing(w)}
         />
       )}
 

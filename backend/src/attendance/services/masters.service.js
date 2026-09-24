@@ -368,7 +368,11 @@ export async function updateWorker(user, id, body) {
   }
 
   // Synchronize active deployment if designation, workLocation, or worker name changed
-  const currentDep = await WorkerDeployment.findOne({ worker: worker._id, effectiveTo: null });
+  const currentDep = await WorkerDeployment.findOne({
+    worker: worker._id,
+    $or: [{ effectiveTo: null }, { effectiveTo: { $gt: new Date() } }],
+  }).sort({ effectiveFrom: -1, createdAt: -1, _id: -1 });
+
   if (currentDep) {
     let depChanged = false;
     const oldValues = {};
@@ -391,6 +395,12 @@ export async function updateWorker(user, id, body) {
       currentDep.workLocationNameSnapshot = locDoc.name;
       newValues.workLocationId = locDoc._id;
       newValues.workLocationName = locDoc.name;
+
+      if (locDoc.supervisor) {
+        const supWorker = await Worker.findById(locDoc.supervisor).select('fullName').lean();
+        currentDep.supervisor = locDoc.supervisor;
+        currentDep.supervisorNameSnapshot = supWorker?.fullName || '';
+      }
       depChanged = true;
     }
 
@@ -400,8 +410,46 @@ export async function updateWorker(user, id, body) {
     }
 
     if (depChanged) {
-      await currentDep.save();
+      // 1. Direct MongoDB update to guarantee persistence
+      await WorkerDeployment.updateOne(
+        { _id: currentDep._id },
+        {
+          $set: {
+            designation: currentDep.designation,
+            designationNameSnapshot: currentDep.designationNameSnapshot,
+            workLocation: currentDep.workLocation,
+            workLocationNameSnapshot: currentDep.workLocationNameSnapshot,
+            supervisor: currentDep.supervisor,
+            supervisorNameSnapshot: currentDep.supervisorNameSnapshot,
+            workerNameSnapshot: currentDep.workerNameSnapshot,
+          },
+        }
+      );
 
+      // 2. Synchronize today's open attendance session if one exists
+      try {
+        const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        await AttendanceSession.updateMany(
+          { worker: worker._id, date: todayDate },
+          {
+            $set: {
+              workLocation: currentDep.workLocation,
+              workLocationNameSnapshot: currentDep.workLocationNameSnapshot,
+              designation: currentDep.designation,
+              designationNameSnapshot: currentDep.designationNameSnapshot,
+              workerNameSnapshot: currentDep.workerNameSnapshot,
+              ...(currentDep.supervisor ? {
+                supervisor: currentDep.supervisor,
+                supervisorNameSnapshot: currentDep.supervisorNameSnapshot,
+              } : {}),
+            },
+          }
+        );
+      } catch (sessionSyncErr) {
+        console.warn('Session sync note:', sessionSyncErr.message);
+      }
+
+      // 3. Create immutable audit log
       try {
         const firmDoc = await Firm.findById(worker.firm).select('name').lean();
         await AttendanceAuditLog.create({
@@ -425,15 +473,16 @@ export async function updateWorker(user, id, body) {
       }
     }
   } else if (locDoc) {
-    // No active deployment found, create initial deployment
+    // No active deployment found, create initial or correction deployment
     try {
       const firmDoc = await Firm.findById(worker.firm).select('name').lean();
       const desig = desigDoc || await Designation.findById(data.designation || worker.designation).lean();
+      const hasInitial = await WorkerDeployment.exists({ worker: worker._id, allocationType: 'INITIAL' });
       await WorkerDeployment.create({
         worker: worker._id,
         firm: worker.firm,
         workLocation: locDoc._id,
-        designation: desig._id,
+        designation: desig?._id || worker.designation,
         supervisor: locDoc.supervisor || null,
         workerCodeSnapshot: worker.workerCode,
         workerNameSnapshot: data.fullName || worker.fullName,
@@ -441,10 +490,10 @@ export async function updateWorker(user, id, body) {
         workLocationNameSnapshot: locDoc.name,
         designationNameSnapshot: desig?.name || '',
         supervisorNameSnapshot: '',
-        allocationType: 'INITIAL',
+        allocationType: hasInitial ? 'CORRECTION' : 'INITIAL',
         effectiveFrom: worker.dateOfJoining ? new Date(`${worker.dateOfJoining}T00:00:00+05:30`) : new Date(),
         effectiveTo: null,
-        reason: 'Initial deployment via worker edit',
+        reason: 'Deployment via worker edit',
         createdBy: user._id,
       });
     } catch (createDepErr) {
