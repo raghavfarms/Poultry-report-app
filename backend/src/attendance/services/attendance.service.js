@@ -809,12 +809,10 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
     for (const session of openSessions) {
       if (!session.dutyIn) continue;
       const elapsedHours = (now.getTime() - session.dutyIn.getTime()) / (1000 * 60 * 60);
-      const { isNightShift, shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
-      // Night shifts cross midnight into morning and must remain open for morning punch-out (up to 14-15 hours).
-      // Day shifts auto-cut if running >= 12 hours or past-date unclosed.
-      const shouldAutoCut = isNightShift
-        ? (elapsedHours >= 15 || (session.date < todayDate && elapsedHours >= 14))
-        : (elapsedHours >= 12 || session.date < todayDate);
+      const { shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
+      // Auto-cut threshold is 15 hours for both day and night shifts.
+      // Workers with 10-12 hour shifts (such as night guards) remain active and open until 15 hours have elapsed.
+      const shouldAutoCut = elapsedHours >= 15;
 
       if (shouldAutoCut) {
         const netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
@@ -827,7 +825,7 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
                 workedMinutes: netMinutes,
                 status: 'DUTY_COMPLETED',
                 onLunch: false,
-                remarks: session.remarks ? `${session.remarks}; [Auto-Cut: 8hr shift completed]` : '[Auto-Cut: 8hr shift completed]',
+                remarks: session.remarks ? `${session.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]',
               },
             }
           );
