@@ -63,8 +63,6 @@ export default function DailyRegisterView({
   setDate: propSetDate,
 }) {
   const { user } = useAuth();
-  const isEligibleDate = useMemo(() => isTodayOrYesterday(date), [date]);
-  const canReset = ['admin', 'developer'].includes(user?.role) && isEligibleDate;
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());
@@ -74,6 +72,9 @@ export default function DailyRegisterView({
   const setFirmId = propSetFirmId || setInternalFirmId;
   const date = propDate !== undefined ? propDate : internalDate;
   const setDate = propSetDate || setInternalDate;
+
+  const isEligibleDate = useMemo(() => isTodayOrYesterday(date), [date]);
+  const canReset = ['admin', 'developer'].includes(user?.role) && isEligibleDate;
 
   const [workLocations, setWorkLocations] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('');
