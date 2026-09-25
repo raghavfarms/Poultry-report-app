@@ -257,10 +257,10 @@ export default function DailyRegisterView({
               type="button"
               disabled={isCutting || isResetting}
               onClick={() => handleResetSession(r)}
-              className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Mistaken check-in? Click to reset/delete this session."
+              className="inline-flex items-center justify-center w-5.5 h-5.5 rounded-md bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-300 text-xs font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Mistaken check-in? Click to reset this session."
             >
-              <span>{isResetting ? '…' : '↺ Reset'}</span>
+              <span>{isResetting ? '…' : '↺'}</span>
             </button>
           )}
           {renderMiniMapLink(r)}
@@ -279,10 +279,10 @@ export default function DailyRegisterView({
             type="button"
             disabled={isResetting}
             onClick={() => handleResetSession(r)}
-            className="ml-1 inline-flex items-center gap-0.5 rounded bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 text-[10px] font-bold transition cursor-pointer disabled:opacity-50"
+            className="ml-1 inline-flex items-center justify-center w-5.5 h-5.5 rounded bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 hover:border-rose-300 text-xs font-bold transition cursor-pointer disabled:opacity-50"
             title="Reset this session (e.g. mistaken punch or auto-cut, so worker can check in again)"
           >
-            <span>{isResetting ? '…' : '↺ Reset'}</span>
+            <span>{isResetting ? '…' : '↺'}</span>
           </button>
         )}
         {renderMiniMapLink(r)}
