@@ -60,8 +60,9 @@ export function RemoteSelect({
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const debounced = useDebounced(search);
+  const isFirmValid = Boolean(firmId && firmId !== 'all');
   const state = useAttendanceData(
-    firmId
+    isFirmValid
       ? attendancePath(resource, {
           firmId,
           active: true,
@@ -102,7 +103,7 @@ export function RemoteSelect({
             items.find((item) => item._id === e.target.value)
           )
         }
-        disabled={!firmId || state.loading}
+        disabled={!isFirmValid || state.loading}
       >
         <option value="">
           {state.loading ? 'Loading…' : required ? 'Select an option' : 'None'}

@@ -153,7 +153,7 @@ export async function listDeployments(user, query, workerId) {
   if (workerId !== undefined) filter.worker = await requireVisibleWorker(user, workerId);
   else if (query.workerId !== undefined) filter.worker = await requireVisibleWorker(user, query.workerId);
   for (const key of ['workLocation', 'designation', 'supervisor']) {
-    if (query[key] !== undefined) filter[key] = objectId(query[key], key);
+    if (query[key] && query[key] !== 'all') filter[key] = objectId(query[key], key);
   }
   if (query.at !== undefined) Object.assign(filter, effectiveAtFilter(deploymentInstant(query.at, 'Lookup date/time')));
   const [items, total] = await Promise.all([

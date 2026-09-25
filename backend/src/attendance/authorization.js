@@ -2,7 +2,8 @@ import { objectId } from './validation.js';
 
 // Attendance honours assigned firms for supervisors/staff. Admins and developers have access to all firms.
 export function firmScope(user, requestedFirm) {
-  const firm = requestedFirm === undefined ? undefined : objectId(requestedFirm, 'Firm');
+  const isAllOrEmpty = !requestedFirm || requestedFirm === 'all' || requestedFirm === 'null' || requestedFirm === 'undefined';
+  const firm = isAllOrEmpty ? undefined : objectId(requestedFirm, 'Firm');
   if (['developer', 'admin'].includes(user.role)) return firm ? { firm } : {};
   const permitted = (user.firms || []).map((id) => String(id._id || id));
   if (firm && !permitted.includes(String(firm))) {

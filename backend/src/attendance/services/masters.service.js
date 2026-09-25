@@ -225,7 +225,7 @@ export function publicWorker(worker) {
 
 export async function listWorkers(user, query) {
   const filter = { ...firmScope(user, query.firmId), ...searchFilter(query, ['fullName', 'workerCode', 'mobileNumber', 'referenceName']) };
-  if (query.designation !== undefined) filter.designation = objectId(query.designation, 'Designation');
+  if (query.designation && query.designation !== 'all') filter.designation = objectId(query.designation, 'Designation');
   if (query.isSupervisor !== undefined) {
     if (!['true', 'false'].includes(query.isSupervisor)) throw badRequest('Supervisor filter must be true or false.');
     if (query.isSupervisor === 'true') {
@@ -252,6 +252,9 @@ export async function getWorker(user, id, sensitive = false) {
 }
 
 export async function listRegisteredUsers(user, query) {
+  if (!query.firmId || query.firmId === 'all') {
+    return { items: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } };
+  }
   const firm = await activeFirm(user, objectId(query.firmId, 'Firm'));
   const linked = await Worker.distinct('userId');
   const filter = { active: true, firms: firm._id, _id: { $nin: linked }, ...searchFilter({ search: query.search }, ['name', 'email']) };

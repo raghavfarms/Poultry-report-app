@@ -98,11 +98,13 @@ export function setStoredAttendanceFirm(firmId) {
   } catch {}
 }
 
-export function getDefaultFirmId(firms = [], currentId = '') {
+export function getDefaultFirmId(firms = [], currentId = '', allowAll = false) {
   const stored = getStoredAttendanceFirm();
   const candidate = currentId || stored;
-  if (candidate && (candidate === 'all' || firms.some((f) => String(f._id || f) === String(candidate)))) {
-    return candidate;
+  if (candidate) {
+    if (allowAll && candidate === 'all') return 'all';
+    const match = firms.find((f) => String(f._id || f) === String(candidate));
+    if (match) return match._id || match;
   }
   const raghav = firms.find((f) => /raghav/i.test(f?.name || (typeof f === 'string' ? f : '')));
   const nonOffice = firms.find((f) => f?.code !== 'OFFICE' && !/office/i.test(f?.name || (typeof f === 'string' ? f : '')));

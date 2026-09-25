@@ -99,16 +99,17 @@ export default function DeploymentPanel({ firmId, revision }) {
   const [supervisor, setSupervisor] = useState('');
   const [worker, setWorker] = useState('');
 
+  const isFirmValid = Boolean(firmId && firmId !== 'all');
   const workersState = useAttendanceData(
-    firmId ? attendancePath('workers', { firmId, active: true, limit: 100 }) : null,
+    isFirmValid ? attendancePath('workers', { firmId, active: true, limit: 100 }) : null,
     revision
   );
   const locationsState = useAttendanceData(
-    firmId ? attendancePath('work-locations', { firmId, active: true, limit: 100 }) : null,
+    isFirmValid ? attendancePath('work-locations', { firmId, active: true, limit: 100 }) : null,
     revision
   );
   const supervisorsState = useAttendanceData(
-    firmId ? attendancePath('workers', { firmId, active: true, isSupervisor: true, limit: 100 }) : null,
+    isFirmValid ? attendancePath('workers', { firmId, active: true, isSupervisor: true, limit: 100 }) : null,
     revision
   );
 
@@ -124,7 +125,9 @@ export default function DeploymentPanel({ firmId, revision }) {
 
   const now = useMemo(() => new Date().toISOString(), [revision]);
   const state = useAttendanceData(
-    attendancePath('deployments', { firmId, workLocation: location, supervisor, workerId: worker, at: now, page, limit }),
+    isFirmValid
+      ? attendancePath('deployments', { firmId, workLocation: location, supervisor, workerId: worker, at: now, page, limit })
+      : null,
     revision
   );
   const change = (setter, value) => { setter(value); setPage(1); };

@@ -1151,8 +1151,10 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
 
+  const isFirmValid = Boolean(firmId && firmId !== 'all');
+
   const designationsState = useAttendanceData(
-    firmId ? attendancePath('designations', { firmId, active: true, limit: 100 }) : null
+    isFirmValid ? attendancePath('designations', { firmId, active: true, limit: 100 }) : null
   );
   const designations = designationsState.data?.items || [];
 
@@ -1173,15 +1175,17 @@ export default function WorkersPanel({ firmId, firms = [], revision, onChanged }
 
   const debouncedSearch = useDebounced(search);
   const state = useAttendanceData(
-    attendancePath('workers', {
-      firmId,
-      search: debouncedSearch,
-      designation,
-      isSupervisor: supervisorFilter === '' ? undefined : supervisorFilter === 'true',
-      active,
-      page,
-      limit,
-    }),
+    isFirmValid
+      ? attendancePath('workers', {
+          firmId,
+          search: debouncedSearch,
+          designation,
+          isSupervisor: supervisorFilter === '' ? undefined : supervisorFilter === 'true',
+          active,
+          page,
+          limit,
+        })
+      : null,
     `${revision}-${localRevision}`
   );
 

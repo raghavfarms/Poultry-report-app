@@ -20,7 +20,7 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
   }, [firmId]);
 
   const loadAuditLogs = useCallback(() => {
-    if (!activeFirmId) return;
+    if (!activeFirmId || activeFirmId === 'all') return;
     setLoading(true);
     setError('');
 

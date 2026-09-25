@@ -68,7 +68,7 @@ export default function MonthlySummaryView({
 
   // 2. Load active work locations for selected firm
   useEffect(() => {
-    if (!firmId) {
+    if (!firmId || firmId === 'all') {
       setWorkLocations([]);
       return;
     }
@@ -79,7 +79,7 @@ export default function MonthlySummaryView({
 
   // 3. Fetch Monthly Summary data
   const loadMonthlySummary = useCallback(() => {
-    if (!firmId) return;
+    if (!firmId || firmId === 'all') return;
     setLoadingData(true);
     const params = { firmId, month };
     if (selectedLocation) params.workLocationId = selectedLocation;

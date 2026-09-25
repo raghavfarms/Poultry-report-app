@@ -250,8 +250,11 @@ export default function GeofencePanel({ firmId, firms = [], revision, onChanged 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const isFirmValid = Boolean(firmId && firmId !== 'all');
   const state = useAttendanceData(
-    attendancePath('geofences', { firmId, search: useDebounced(search), active, page, limit }),
+    isFirmValid
+      ? attendancePath('geofences', { firmId, search: useDebounced(search), active, page, limit })
+      : null,
     revision
   );
 

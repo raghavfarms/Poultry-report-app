@@ -95,7 +95,7 @@ export default function DailyRegisterView({
 
   // 2. Load active work locations for selected firm
   useEffect(() => {
-    if (!firmId) {
+    if (!firmId || firmId === 'all') {
       setWorkLocations([]);
       return;
     }
@@ -115,7 +115,7 @@ export default function DailyRegisterView({
 
   // 3. Fetch Daily Register data
   const loadRegister = useCallback(() => {
-    if (!firmId) return;
+    if (!firmId || firmId === 'all') return;
     setLoadingData(true);
     const params = { firmId, date };
     if (selectedLocation) params.workLocationId = selectedLocation;

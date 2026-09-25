@@ -29,8 +29,11 @@ export default function AttendanceAdminPage() {
       .then(({ firms: list = [] }) => {
         const sorted = sortFirmsOrder(list);
         setFirms(sorted);
-        const defId = getDefaultFirmId(sorted);
-        if (defId) setFirmId(defId);
+        const defId = getDefaultFirmId(sorted, '', false);
+        if (defId) {
+          setFirmId(defId);
+          setStoredAttendanceFirm(defId);
+        }
       })
       .catch((err) => setError(err.message || 'Failed to load firms.'))
       .finally(() => setLoadingFirms(false));
@@ -38,7 +41,7 @@ export default function AttendanceAdminPage() {
 
   // Load firm bird capacity summary
   useEffect(() => {
-    if (!firmId) {
+    if (!firmId || firmId === 'all') {
       setCapacityData(null);
       return;
     }
@@ -53,7 +56,7 @@ export default function AttendanceAdminPage() {
     setTimeout(() => setNotice(''), 6000);
   };
 
-  const activeFirm = firms.find((f) => f._id === firmId);
+  const activeFirm = firms.find((f) => String(f._id) === String(firmId));
 
   return (
     <div className="attendance-page space-y-4">
@@ -167,47 +170,51 @@ export default function AttendanceAdminPage() {
       </div>
 
       {/* Tab Panels */}
-      {tab === 'workers' && (
-        <WorkersPanel key={firmId} firmId={firmId} firms={firms} revision={revision} onChanged={handleChanged} />
-      )}
+      {!loadingFirms && firmId && firmId !== 'all' && (
+        <>
+          {tab === 'workers' && (
+            <WorkersPanel key={firmId} firmId={firmId} firms={firms} revision={revision} onChanged={handleChanged} />
+          )}
 
-      {tab === 'deployments' && canTransferOrDeploy && (
-        <DeploymentPanel key={firmId} firmId={firmId} revision={revision} />
-      )}
+          {tab === 'deployments' && canTransferOrDeploy && (
+            <DeploymentPanel key={firmId} firmId={firmId} revision={revision} />
+          )}
 
-      {tab === 'geofences' && (
-        <GeofencePanel
-          key={`${firmId}-${tab}`}
-          firmId={firmId}
-          firms={firms}
-          revision={revision}
-          onChanged={handleChanged}
-        />
-      )}
+          {tab === 'geofences' && (
+            <GeofencePanel
+              key={`${firmId}-${tab}`}
+              firmId={firmId}
+              firms={firms}
+              revision={revision}
+              onChanged={handleChanged}
+            />
+          )}
 
-      {tab === 'work-locations' && (
-        <MastersPanel
-          key={`${firmId}-${tab}`}
-          kind="work-locations"
-          firmId={firmId}
-          firms={firms}
-          revision={revision}
-          onChanged={handleChanged}
-        />
-      )}
+          {tab === 'work-locations' && (
+            <MastersPanel
+              key={`${firmId}-${tab}`}
+              kind="work-locations"
+              firmId={firmId}
+              firms={firms}
+              revision={revision}
+              onChanged={handleChanged}
+            />
+          )}
 
-      {tab === 'designations' && (
-        <MastersPanel
-          kind="designations"
-          firmId={firmId}
-          firms={firms}
-          revision={revision}
-          onChanged={handleChanged}
-        />
-      )}
+          {tab === 'designations' && (
+            <MastersPanel
+              kind="designations"
+              firmId={firmId}
+              firms={firms}
+              revision={revision}
+              onChanged={handleChanged}
+            />
+          )}
 
-      {tab === 'audit' && (
-        <AuditLogPanel key={firmId} firmId={firmId} firms={firms} />
+          {tab === 'audit' && (
+            <AuditLogPanel key={firmId} firmId={firmId} firms={firms} />
+          )}
+        </>
       )}
     </div>
   );

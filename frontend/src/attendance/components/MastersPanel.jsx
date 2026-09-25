@@ -215,7 +215,11 @@ export default function MastersPanel({ kind, firmId, firms = [], revision, onCha
   const [error, setError] = useState('');
   const isLocation = kind === 'work-locations';
   const currentFirm = firms.find((f) => String(f._id) === String(firmId));
-  const state = useAttendanceData(attendancePath(kind, { firmId, search: useDebounced(search), active, page, limit }), revision);
+  const isFirmValid = Boolean(firmId && firmId !== 'all');
+  const state = useAttendanceData(
+    isFirmValid ? attendancePath(kind, { firmId, search: useDebounced(search), active, page, limit }) : null,
+    revision
+  );
   const isOfficeFirm = currentFirm?.code === 'OFFICE' || /office/i.test(currentFirm?.name || '') || Boolean(state.data?.items?.some((it) => it.firm?.code === 'OFFICE' || /office/i.test(it.firm?.name || '')));
 
   async function toggle(item) {

@@ -30,7 +30,7 @@ export async function getLiveDashboardData(user, query = {}) {
 
   // 2. Resolve target firm with strict permission scoping
   let firmId = query.firmId;
-  if (!firmId) {
+  if (!firmId || firmId === 'all') {
     if (user.role === 'developer') {
       const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
       if (allActive[0]) firmId = String(allActive[0]._id);
