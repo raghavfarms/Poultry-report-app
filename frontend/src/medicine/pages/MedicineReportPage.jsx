@@ -43,6 +43,12 @@ export default function MedicineReportPage() {
   const [flockCostingData, setFlockCostingData] = useState(null);
   const [loadingCosting, setLoadingCosting] = useState(false);
 
+  // WhatsApp Share State
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [whatsAppText, setWhatsAppText] = useState('');
+  const [whatsAppPhone, setWhatsAppPhone] = useState('');
+  const [copied, setCopied] = useState(false);
+
   const printRef = useRef(null);
 
   // 1. Load Dashboard KPIs & Expiry Radar
@@ -172,6 +178,111 @@ export default function MedicineReportPage() {
   const radar = stats?.expiryRadar || {};
   const lowStock = stats?.lowStockAlerts || [];
 
+  // Generate WhatsApp formatted text
+  const generateWhatsAppReport = (reportType = subView) => {
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const farmLabel = selectedFarm ? `${selectedFarm} Farm` : 'All Stores / Central Inventory';
+
+    let msg = '';
+
+    if (reportType === 'radar') {
+      msg = `🚨 *RAGHAV FARMS — MEDICINE EXPIRY ALERT* 🚨\n`;
+      msg += `📅 *Date:* ${today}\n`;
+      msg += `📍 *Store:* ${farmLabel}\n\n`;
+
+      msg += `🔴 *Expired Batches:* ${radar.expiredCount || 0}\n`;
+      if ((radar.expired || []).length > 0) {
+        radar.expired.slice(0, 5).forEach((b) => {
+          msg += `  • *${b.medicineName}* (Batch: ${b.batchNumber}) — ${b.quantityAvailable} ${b.unit} [Expired: ${b.expiryDate}]\n`;
+        });
+        if (radar.expired.length > 5) msg += `  • ...and ${radar.expired.length - 5} more expired batches\n`;
+      }
+
+      msg += `\n🟠 *Expiring in ≤ 30 Days (Urgent FEFO):* ${radar.critical30Count || 0}\n`;
+      if ((radar.critical30 || []).length > 0) {
+        radar.critical30.slice(0, 5).forEach((b) => {
+          msg += `  • *${b.medicineName}* (Batch: ${b.batchNumber}) — ${b.quantityAvailable} ${b.unit} (Exp: ${b.expiryDate}, ${b.daysLeft}d left)\n`;
+        });
+        if (radar.critical30.length > 5) msg += `  • ...and ${radar.critical30.length - 5} more batches\n`;
+      }
+
+      msg += `\n🟡 *Caution (31–60 Days):* ${radar.caution60Count || 0} batches\n`;
+      msg += `🟢 *Safe Stock (> 60 Days):* ${radar.safeCount || 0} batches\n\n`;
+      msg += `⚠️ *Action:* Issue 30-day batches immediately under FEFO. Remove expired vials from circulation.`;
+    } else if (reportType === 'alerts') {
+      msg = `🚨 *RAGHAV FARMS — MEDICINE REORDER ALERTS* 🚨\n`;
+      msg += `📅 *Date:* ${today}\n`;
+      msg += `📍 *Store:* ${farmLabel}\n\n`;
+      msg += `⚠️ *Medicines At or Below Reorder Level:* ${lowStock.length}\n\n`;
+      lowStock.forEach((m) => {
+        const deficit = Math.max(0, (m.reorderLevel || m.minimumStock || 0) - m.currentStock);
+        msg += `• *${m.name}* (${m.code}):\n`;
+        msg += `  Available: ${m.currentStock} ${m.unit} | Min Level: ${m.reorderLevel || m.minimumStock} ${m.unit}\n`;
+        msg += `  *Shortfall:* +${deficit} ${m.unit} needed (${m.status.replace('_', ' ')})\n\n`;
+      });
+      msg += `📦 *Action:* Create Purchase Order (PO) to replenish stock.`;
+    } else if (reportType === 'flockCosting' && flockCostingData) {
+      const overall = flockCostingData.overall || {};
+      msg = `💰 *RAGHAV FARMS — FLOCK MEDICINE COST & ROI REPORT* 💰\n`;
+      msg += `📅 *Date:* ${today}\n`;
+      msg += `📍 *Store:* ${farmLabel}\n\n`;
+      msg += `📊 *Summary Overview:*\n`;
+      msg += `• Total Flocks: ${overall.totalFlocks || 0}\n`;
+      msg += `• Total Birds Treated: ${(overall.grandTotalBirds || 0).toLocaleString('en-IN')}\n`;
+      msg += `• Total Medicine Spend: ₹${(overall.grandTotalCost || 0).toLocaleString('en-IN')}\n`;
+      msg += `• *Average Cost Per Bird:* ₹${overall.overallCostPerBird || 0}\n\n`;
+
+      msg += `🐔 *Flock Breakdown:*\n`;
+      (flockCostingData.flocks || []).slice(0, 6).forEach((f) => {
+        msg += `• *${f.flockNumber}* (${f.shed}): ${f.birdCount > 0 ? f.birdCount.toLocaleString('en-IN') : 0} birds | Spend: ₹${f.totalEstimatedCost.toLocaleString('en-IN')} | *₹${f.costPerBird}/bird*\n`;
+      });
+    } else {
+      // General inventory status
+      msg = `📋 *RAGHAV FARMS — DAILY MEDICINE INVENTORY REPORT* 📋\n`;
+      msg += `📅 *Date:* ${today}\n`;
+      msg += `📍 *Store:* ${farmLabel}\n\n`;
+      msg += `📦 *Current Stock:*\n`;
+      msg += `• Catalog Medicines: ${summary.totalMedicines || 0}\n`;
+      msg += `• Total Units in Stock: ${(summary.totalAvailableUnits || 0).toLocaleString('en-IN')}\n`;
+      msg += `• Active Batches: ${summary.totalBatches || 0}\n`;
+      msg += `• Reorder Alerts: ${summary.lowStockCount || 0} items low\n\n`;
+      msg += `⏳ *Expiry Radar:*\n`;
+      msg += `• 🔴 Expired: ${radar.expiredCount || 0} batches\n`;
+      msg += `• 🟠 ≤ 30 Days: ${radar.critical30Count || 0} batches\n`;
+      msg += `• 🟡 31–60 Days: ${radar.caution60Count || 0} batches\n`;
+      msg += `• 🟢 Safe: ${radar.safeCount || 0} batches\n`;
+    }
+
+    msg += `\n_Generated via Poultry Report Management System_`;
+    return msg;
+  };
+
+  const handleOpenWhatsApp = (specificType) => {
+    const text = generateWhatsAppReport(specificType || subView);
+    setWhatsAppText(text);
+    setCopied(false);
+    setIsWhatsAppModalOpen(true);
+  };
+
+  const handleSendWhatsApp = () => {
+    const encoded = encodeURIComponent(whatsAppText);
+    const cleanPhone = whatsAppPhone.replace(/\D/g, '');
+    let url = '';
+    if (cleanPhone) {
+      const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+      url = `https://wa.me/${fullPhone}?text=${encoded}`;
+    } else {
+      url = `https://wa.me/?text=${encoded}`;
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleCopyWhatsApp = () => {
+    navigator.clipboard.writeText(whatsAppText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   return (
     <div ref={printRef} className="space-y-4 sm:space-y-6">
       {/* 1. Header & Quick Controls */}
@@ -207,6 +318,16 @@ export default function MedicineReportPage() {
             title="Print or Save as PDF"
           >
             <span>🖨️</span> Print / PDF
+          </button>
+
+          {/* Share to WhatsApp Button */}
+          <button
+            type="button"
+            onClick={() => handleOpenWhatsApp()}
+            className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+            title="Share Formatted Report via WhatsApp"
+          >
+            <span>💬</span> Share WhatsApp
           </button>
 
           {/* Refresh Button */}
@@ -380,6 +501,23 @@ export default function MedicineReportPage() {
       {/* 4. SUB-VIEW: Expiry Radar */}
       {subView === 'radar' && (
         <div className="space-y-4">
+          {/* Subview Header with Quick WhatsApp Share */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <div>
+              <h2 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <span>⏳</span> Proactive Expiry Timeline (FEFO Distribution)
+              </h2>
+              <p className="text-[11px] text-slate-500">Action items sorted by shelf-life criticality for stock issuance</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenWhatsApp('radar')}
+              className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+            >
+              <span>💬</span> Share Expiry Radar
+            </button>
+          </div>
+
           {/* Expiry Overview Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
             <div className="p-2 bg-rose-50 border border-rose-200 rounded-lg text-center">
@@ -571,7 +709,7 @@ export default function MedicineReportPage() {
       {/* 5. SUB-VIEW: Low Stock & Reorder Alerts */}
       {subView === 'alerts' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="bg-amber-50 px-3.5 py-3 border-b border-amber-200 flex justify-between items-center">
+          <div className="bg-amber-50 px-3.5 py-3 border-b border-amber-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
             <div>
               <h2 className="text-xs sm:text-sm font-bold text-amber-950 flex items-center gap-1.5">
                 <span>🚨</span> Low Stock & Reorder Threshold Trigger ({lowStock.length})
@@ -580,6 +718,15 @@ export default function MedicineReportPage() {
                 Medicines where farm stock has fallen to or below the configured reorder level
               </p>
             </div>
+            {lowStock.length > 0 && (
+              <button
+                type="button"
+                onClick={() => handleOpenWhatsApp('alerts')}
+                className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+              >
+                <span>💬</span> Share Reorder Alerts
+              </button>
+            )}
           </div>
 
           {loadingStats ? (
@@ -1033,7 +1180,7 @@ export default function MedicineReportPage() {
 
           {/* Flock Details Table & Cards */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+            <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
                   <span>💰</span> Flock-by-Flock Treatment Expenditure & Cost per Bird
@@ -1042,6 +1189,15 @@ export default function MedicineReportPage() {
                   Detailed health investment analysis per flock lifecycle
                 </p>
               </div>
+              {flockCostingData && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenWhatsApp('flockCosting')}
+                  className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+                >
+                  <span>💬</span> Share Costing
+                </button>
+              )}
             </div>
 
             {loadingCosting ? (
@@ -1143,6 +1299,131 @@ export default function MedicineReportPage() {
           }
         }}
       />
+
+      {/* WhatsApp Share Modal */}
+      {isWhatsAppModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">💬</span>
+                <div>
+                  <h3 className="font-bold text-sm">Share Report on WhatsApp</h3>
+                  <p className="text-[10px] text-emerald-100">Send formatted farm updates & alerts instantly</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppModalOpen(false)}
+                className="text-white/80 hover:text-white text-lg font-bold p-1 rounded-lg hover:bg-emerald-700/50 transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-3.5">
+              {/* Quick Format Switcher */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1.5">
+                  Select Report Format:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'summary', label: '📋 Summary' },
+                    { id: 'radar', label: '⏳ Expiry Radar' },
+                    { id: 'alerts', label: '🚨 Reorders' },
+                    { id: 'flockCosting', label: '💰 Costing & ROI' },
+                  ].map((fmt) => (
+                    <button
+                      key={fmt.id}
+                      type="button"
+                      onClick={() => setWhatsAppText(generateWhatsAppReport(fmt.id))}
+                      className="px-2 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 hover:text-emerald-800 transition text-center cursor-pointer"
+                    >
+                      {fmt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recipient Phone (Optional) */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide block mb-1">
+                  Recipient Phone Number (Optional):
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    placeholder="Enter 10-digit number or leave blank to choose in WhatsApp"
+                    value={whatsAppPhone}
+                    onChange={(e) => setWhatsAppPhone(e.target.value)}
+                    maxLength={10}
+                    className="w-full pl-11 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 focus:bg-white"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Leave blank to pick any contact or farm group inside WhatsApp.
+                </p>
+              </div>
+
+              {/* WhatsApp Chat Speech Bubble Preview */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+                    Message Preview:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopyWhatsApp}
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                  >
+                    {copied ? '✓ Copied!' : '📋 Copy Text'}
+                  </button>
+                </div>
+                <div className="relative bg-[#efeae2] p-3 rounded-xl border border-slate-300">
+                  <div className="bg-[#e7ffdb] rounded-lg p-2.5 shadow-2xs border border-emerald-200 max-h-52 overflow-y-auto font-mono text-[11px] text-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+                    {whatsAppText}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={handleCopyWhatsApp}
+                className="px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>{copied ? '✓' : '📋'}</span>
+                {copied ? 'Copied to Clipboard' : 'Copy Text'}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsWhatsAppModalOpen(false)}
+                  className="px-3 py-2 text-slate-500 hover:text-slate-700 font-semibold text-xs rounded-lg transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendWhatsApp}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>🚀</span> Open in WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
