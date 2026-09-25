@@ -20,6 +20,7 @@ export default function MonthlySummaryView({
 }) {
   const { user } = useAuth();
   const canEdit = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge', 'security'].includes(user?.role);
+  const canBulkApply = ['admin', 'developer'].includes(user?.role);
   const [editingWorker, setEditingWorker] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [notice, setNotice] = useState('');
@@ -247,7 +248,7 @@ export default function MonthlySummaryView({
 
         {/* Action Buttons: Export PDF, CSV, Print & Bulk Entry */}
         <div className="flex items-center gap-1 overflow-x-auto py-0.5 shrink-0">
-          {canEdit && (
+          {canBulkApply && (
             <button
               type="button"
               onClick={() => setShowBulkModal(true)}
@@ -418,7 +419,7 @@ export default function MonthlySummaryView({
         onClose={() => setEditingWorker(null)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}
-      {showBulkModal && <BulkAttendanceModal
+      {canBulkApply && showBulkModal && <BulkAttendanceModal
         firmId={firmId}
         initialDate={`${month}-01`}
         onClose={() => setShowBulkModal(false)}
