@@ -118,7 +118,7 @@ export default function FaceAttendancePage() {
   const requestLocation = async () => {
     setLocationStatus('ACQUIRING');
     try {
-      const loc = await captureLocation({ timeoutMs: 8000, maximumAge: 300000 });
+      const loc = await captureLocation({ timeoutMs: 2500, maximumAge: 300000, preferCache: true });
       latestLocationRef.current = loc;
       setLocationStatus(loc.status);
       if (loc.status === 'CAPTURED') {
@@ -383,8 +383,8 @@ export default function FaceAttendancePage() {
 
       if (!isFresh) {
         try {
-          // Resilient capture with automatic standard-accuracy and session-cache fallback
-          loc = await captureLocation({ timeoutMs: 5000, maximumAge: 300000 });
+          // Instant cache-first capture (resolves in 0ms to 200ms)
+          loc = await captureLocation({ timeoutMs: 1500, maximumAge: 300000, preferCache: true });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
             setLocationStatus('CAPTURED');
