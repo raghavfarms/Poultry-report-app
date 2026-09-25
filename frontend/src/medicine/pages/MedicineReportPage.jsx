@@ -6,6 +6,7 @@ import {
   fetchFlockCosting,
 } from '../api/reportApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
+import { api } from '../../api/client.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
 
 export default function MedicineReportPage() {
@@ -17,6 +18,7 @@ export default function MedicineReportPage() {
   const [loadingStats, setLoadingStats] = useState(true);
   const [statsError, setStatsError] = useState('');
   const [selectedFarm, setSelectedFarm] = useState('');
+  const [firms, setFirms] = useState([]);
 
   // Traceability State
   const [searchBatch, setSearchBatch] = useState('');
@@ -69,12 +71,23 @@ export default function MedicineReportPage() {
     }
   };
 
+  // Load registered firms/farms list for dropdown filter
+  const loadFirms = async () => {
+    try {
+      const data = await api('/firms');
+      setFirms(data.firms || []);
+    } catch (err) {
+      console.error('Failed to load firms:', err);
+    }
+  };
+
   // 3. Load Stock Movement Audit Ledger
   const loadLedger = async (page = 1) => {
     try {
       setLoadingLedger(true);
       const data = await fetchStockLedger({
         ...ledgerFilters,
+        farm: selectedFarm,
         page,
         limit: 25,
       });
@@ -100,7 +113,11 @@ export default function MedicineReportPage() {
     } finally {
       setLoadingCosting(false);
     }
-  };
+  };  
+
+  useEffect(() => {
+    loadFirms();
+  }, []);  // console.log("Medicine.spot()")
 
   useEffect(() => {
     loadStats();
@@ -196,8 +213,11 @@ export default function MedicineReportPage() {
             className="flex-1 sm:flex-none h-8 px-2.5 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
           >
             <option value="">All Farms / Stores</option>
-            <option value="Raghav">Raghav Farm</option>
-            <option value="Sanjana">Sanjana Farm</option>
+            {firms.map((f) => (
+              <option key={f._id} value={f._id}>
+                {f.name}
+              </option>
+            ))}
           </select>
 
           {/* Export PDF Button */}

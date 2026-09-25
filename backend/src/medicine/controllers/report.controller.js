@@ -1,9 +1,43 @@
+import mongoose from 'mongoose';
 import MedicineMaster from '../models/MedicineMaster.js';
 import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
 import MedicineIssue from '../models/MedicineIssue.js';
 import MedicineReceipt from '../models/MedicineReceipt.js';
+import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
+
+/**
+ * Safely resolves a farm parameter to an ObjectId.
+ * Supports:
+ * 1. 24-character hexadecimal ObjectId string
+ * 2. Firm name or code (case-insensitive lookup, e.g. "Sanjana", "Raghav")
+ */
+async function resolveFarmId(farmQuery) {
+  if (!farmQuery) return null;
+  const trimmed = String(farmQuery).trim();
+  if (mongoose.Types.ObjectId.isValid(trimmed) && String(new mongoose.Types.ObjectId(trimmed)) === trimmed) {
+    return new mongoose.Types.ObjectId(trimmed);
+  }
+
+  // Lookup firm by name or code
+  const firm = await Firm.findOne({
+    $or: [
+      { name: new RegExp(`^${trimmed}$`, 'i') },
+      { name: new RegExp(`^${trimmed}`, 'i') },
+      { code: trimmed.toUpperCase() },
+    ],
+  })
+    .select('_id')
+    .lean();
+
+  if (firm) {
+    return firm._id;
+  }
+
+  // Fallback: return a dummy ObjectId to avoid crashing with CastError while matching 0 results
+  return new mongoose.Types.ObjectId();
+}
 
 /**
  * 1. GET Dashboard Stats & Expiry Radar
@@ -12,7 +46,10 @@ import { badRequest, notFoundError } from '../../utils/http.js';
 export async function getDashboardStats(req, res) {
   const { farm } = req.query;
   const matchFilter = {};
-  if (farm) matchFilter.farm = farm;
+  if (farm) {
+    const farmId = await resolveFarmId(farm);
+    if (farmId) matchFilter.farm = farmId;
+  }
 
   // 1. Fetch all catalog medicines for reorder & minimum stock comparisons
   const medicines = await MedicineMaster.find({ active: true }).lean();
@@ -187,10 +224,14 @@ export async function getBatchTraceability(req, res) {
  * Filterable transaction history for accounting & audits
  */
 export async function getStockLedger(req, res) {
-  const { medicine, transactionType, startDate, endDate, limit = 50, page = 1 } = req.query;
+  const { medicine, transactionType, startDate, endDate, farm, limit = 50, page = 1 } = req.query;
   const filter = {};
   if (medicine) filter.medicine = medicine;
   if (transactionType) filter.transactionType = transactionType;
+  if (farm) {
+    const farmId = await resolveFarmId(farm);
+    if (farmId) filter.farm = farmId;
+  }
   if (startDate || endDate) {
     filter.createdAt = {};
     if (startDate) filter.createdAt.$gte = new Date(startDate);
@@ -228,7 +269,10 @@ export async function getStockLedger(req, res) {
 export async function getFlockCostingReport(req, res) {
   const { farm, startDate, endDate } = req.query;
   const filter = {};
-  if (farm) filter.farm = farm;
+  if (farm) {
+    const farmId = await resolveFarmId(farm);
+    if (farmId) filter.farm = farmId;
+  }
   if (startDate || endDate) {
     filter.issueDate = {};
     if (startDate) filter.issueDate.$gte = startDate;

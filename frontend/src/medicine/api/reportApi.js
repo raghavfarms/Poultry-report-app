@@ -31,6 +31,7 @@ export async function fetchStockLedger(params = {}) {
   const query = new URLSearchParams();
   if (params.medicine) query.append('medicine', params.medicine);
   if (params.transactionType) query.append('transactionType', params.transactionType);
+  if (params.farm) query.append('farm', params.farm);
   if (params.startDate) query.append('startDate', params.startDate);
   if (params.endDate) query.append('endDate', params.endDate);
   if (params.page) query.append('page', params.page);
