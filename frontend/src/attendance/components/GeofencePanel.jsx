@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert, Field, inputClass, primaryButton, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath, saveAttendance } from '../services/adminApi.js';
+import { captureLocation } from '../services/captureLocation.js';
 import { useAttendanceData, useDebounced, LoadState, Pager, Dialog, Status, panelClass, cellClass } from './AdminUi.jsx';
 
 function GeofenceForm({ item, firmId, firms = [], onClose, onSaved }) {
@@ -22,32 +23,43 @@ function GeofenceForm({ item, firmId, firms = [], onClose, onSaved }) {
 
   const set = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  function detectCurrentLocation() {
-    if (!navigator.geolocation) {
-      setGpsNotice('Geolocation is not supported by your browser.');
-      return;
+  async function detectCurrentLocation(silent = false) {
+    const isSilent = silent === true;
+    if (!isSilent) {
+      setDetectingGps(true);
+      setGpsNotice('📡 Fetching live GPS coordinates…');
     }
-    setDetectingGps(true);
-    setGpsNotice('Detecting GPS location…');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setDetectingGps(false);
-        const lat = pos.coords.latitude.toFixed(6);
-        const lon = pos.coords.longitude.toFixed(6);
+    try {
+      const loc = await captureLocation({ timeoutMs: 3000, maximumAge: 60000, preferCache: false });
+      if (loc && loc.status === 'CAPTURED' && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+        const lat = Number(loc.latitude).toFixed(6);
+        const lon = Number(loc.longitude).toFixed(6);
         setForm((prev) => ({
           ...prev,
           latitude: lat,
           longitude: lon,
         }));
-        setGpsNotice(`📍 Captured! Accuracy: ±${Math.round(pos.coords.accuracy)}m`);
-      },
-      (err) => {
-        setDetectingGps(false);
-        setGpsNotice(`GPS Error: ${err.message || 'Unable to fetch position'}`);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+        setGpsNotice(`📍 Live GPS Applied: ${lat}, ${lon} (±${Math.round(loc.accuracyMetres || 0)}m)`);
+      } else {
+        if (!isSilent) {
+          setGpsNotice(`⚠️ ${loc?.status || 'Unable to fetch position'}. You can also enter coordinates manually.`);
+        }
+      }
+    } catch (err) {
+      if (!isSilent) {
+        setGpsNotice(`⚠️ GPS Error: ${err.message || 'Unable to fetch position'}`);
+      }
+    } finally {
+      if (!isSilent) setDetectingGps(false);
+    }
   }
+
+  // Auto-fill live coordinates if creating a new geofence location and coordinates are empty
+  useEffect(() => {
+    if (!item && !form.latitude && !form.longitude) {
+      detectCurrentLocation(true);
+    }
+  }, []);
 
   async function save(e) {
     e.preventDefault();
@@ -123,7 +135,7 @@ function GeofenceForm({ item, firmId, firms = [], onClose, onSaved }) {
               </span>
               <button
                 type="button"
-                onClick={detectCurrentLocation}
+                onClick={() => detectCurrentLocation(false)}
                 disabled={detectingGps}
                 className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 bg-white hover:bg-sky-100 border border-sky-300 rounded-md px-2.5 py-1 shadow-2xs transition active:scale-95 cursor-pointer"
               >

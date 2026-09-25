@@ -28,6 +28,57 @@ router.post('/worker/punch', protect, async (req, res) => {
   res.json(await workerAuthService.recordWorkerSelfPunch(req.user, req.body));
 });
 
+// Instant public network location resolution endpoint (server-side IP geolocation)
+// Used by Face Scanner, Worker Portal, and Admin Geofence modal when client-side GPS/Brave is restricted
+router.get('/network-location', async (req, res) => {
+  try {
+    let clientIp = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket.remoteAddress || '';
+    if (typeof clientIp === 'string') {
+      clientIp = clientIp.split(',')[0].trim();
+    }
+    if (!clientIp || clientIp === '::1' || clientIp === '127.0.0.1' || clientIp.startsWith('192.168.') || clientIp.startsWith('10.') || clientIp.startsWith('172.16.')) {
+      clientIp = '';
+    }
+
+    const targetUrl = clientIp ? `https://ipwho.is/${clientIp}` : 'https://ipwho.is/';
+    const response = await fetch(targetUrl, { signal: AbortSignal.timeout(2000) });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.success !== false && Number.isFinite(data.latitude) && Number.isFinite(data.longitude)) {
+        return res.json({
+          status: 'CAPTURED',
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracyMetres: 250,
+          source: 'SERVER_NETWORK',
+          city: data.city || '',
+          capturedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch {}
+
+  try {
+    const response = await fetch('http://ip-api.com/json/', { signal: AbortSignal.timeout(1800) });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.status === 'success' && Number.isFinite(data.lat) && Number.isFinite(data.lon)) {
+        return res.json({
+          status: 'CAPTURED',
+          latitude: data.lat,
+          longitude: data.lon,
+          accuracyMetres: 350,
+          source: 'SERVER_NETWORK',
+          city: data.city || '',
+          capturedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch {}
+
+  res.json({ status: 'UNAVAILABLE' });
+});
+
 // Staff-operated kiosk & administration endpoints
 router.use(protect, attendanceStaffOnly);
 router.use((req, res, next) => {

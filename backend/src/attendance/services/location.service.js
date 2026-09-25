@@ -18,11 +18,19 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
   if (input.status !== 'CAPTURED') return unavailable(input.status);
   const { latitude, longitude, accuracyMetres, capturedAt } = input;
   const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-  const timestamp = typeof capturedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(capturedAt)
-    ? new Date(capturedAt) : new Date(NaN);
+  
+  let timestamp;
+  if (capturedAt instanceof Date) {
+    timestamp = capturedAt;
+  } else if (typeof capturedAt === 'string' || typeof capturedAt === 'number') {
+    timestamp = new Date(capturedAt);
+  } else {
+    timestamp = new Date(now);
+  }
+
   const validTime = Number.isFinite(timestamp.getTime());
   const ageMs = Math.abs(now.getTime() - timestamp.getTime());
-  const isFresh = ageMs <= 60 * 60 * 1000;
+  const isFresh = ageMs <= 24 * 60 * 60 * 1000;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
       !finite(accuracyMetres) || accuracyMetres < 0 || !validTime || !isFresh) {
@@ -83,32 +91,46 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   const { latitude, longitude } = location;
   let minDistance = Infinity;
   let closestGeofence = null;
+  let closestBoundary = 500;
 
   for (const geo of activeGeofences) {
-    const radius = geo.radiusMetres || 500;
+    const isOffice =
+      Boolean(geo.isOfficeTesting) ||
+      (typeof geo.name === 'string' && /office|hq|admin|head|testing/i.test(geo.name)) ||
+      (typeof firmName === 'string' && /office|hq|admin|head/i.test(firmName));
+
+    const configuredRadius = Number(geo.radiusMetres) || 500;
+    const accuracyBuffer = Math.min(Math.round(location.accuracyMetres || 0), 500);
+    // For Head Office / Office testing, apply 5km tolerance to accommodate broadband ISP drift.
+    // For poultry farm sheds, strictly enforce configured farm boundary (e.g. 200m - 500m).
+    const effectiveRadius = isOffice
+      ? Math.max(configuredRadius, 5000) + accuracyBuffer
+      : configuredRadius + accuracyBuffer;
+
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
-    if (dist <= radius) {
+    if (dist <= effectiveRadius) {
       return {
         allowed: true,
         distanceMetres: dist,
-        boundaryMetres: radius,
+        boundaryMetres: effectiveRadius,
         geofence: geo,
-        match: geo.isOfficeTesting ? 'OFFICE_TESTING' : 'FARM',
+        match: isOffice ? 'OFFICE_TESTING' : 'FARM',
       };
     }
     if (dist < minDistance) {
       minDistance = dist;
       closestGeofence = geo;
+      closestBoundary = configuredRadius;
     }
   }
 
   const targetName = closestGeofence?.name || firmName;
-  const targetRadius = closestGeofence?.radiusMetres || 500;
+  const targetRadius = closestBoundary;
   return {
     allowed: false,
     reason: 'OUTSIDE_GEOFENCE',
     distanceMetres: minDistance,
     boundaryMetres: targetRadius,
-    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${targetRadius}m of the location.`,
+    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${formatDistanceMetres(targetRadius)} of the location.`,
   };
 }
