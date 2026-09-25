@@ -4,6 +4,7 @@ import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath, saveAttendance, getWorkLocationSortRank } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 function getTodayString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -50,6 +51,8 @@ export default function DailyRegisterView({
   date: propDate,
   setDate: propSetDate,
 }) {
+  const { user } = useAuth();
+  const canReset = ['admin', 'developer'].includes(user?.role);
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());
@@ -176,6 +179,7 @@ export default function DailyRegisterView({
   }, [data?.records, workLocations]);
 
   const [autoCuttingWorkerId, setAutoCuttingWorkerId] = useState(null);
+  const [resettingSessionId, setResettingSessionId] = useState(null);
   const [autoCutNotice, setAutoCutNotice] = useState('');
 
   const handleAutoCut = async (r) => {
@@ -203,12 +207,36 @@ export default function DailyRegisterView({
     }
   };
 
+  const handleResetSession = async (r) => {
+    const confirmed = window.confirm(
+      `Reset attendance for ${r.workerName} on ${date}?\n\nThis will reset this attendance session so they can check in fresh tonight.`
+    );
+    if (!confirmed) return;
+
+    setResettingSessionId(r.sessionId);
+    setError('');
+    setAutoCutNotice('');
+    try {
+      const res = await api(attendancePath(`sessions/${r.sessionId}`), {
+        method: 'DELETE',
+      });
+      setAutoCutNotice(res.message || `Session for ${r.workerName} reset successfully.`);
+      setTimeout(() => setAutoCutNotice(''), 4000);
+      loadRegister();
+    } catch (err) {
+      setError(err.message || 'Failed to reset attendance session.');
+    } finally {
+      setResettingSessionId(null);
+    }
+  };
+
   const renderAutoCutColumn = (r) => {
     if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
       return <span className="text-slate-300">—</span>;
     }
 
     const isOnDuty = r.status === 'ON_DUTY' || r.onLunch;
+    const isResetting = resettingSessionId === r.sessionId;
 
     if (isOnDuty) {
       const isCutting = autoCuttingWorkerId === r.workerId;
@@ -216,7 +244,7 @@ export default function DailyRegisterView({
         <div className="inline-flex items-center justify-center gap-1.5">
           <button
             type="button"
-            disabled={isCutting}
+            disabled={isCutting || isResetting}
             onClick={() => handleAutoCut(r)}
             className="inline-flex items-center gap-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
             title="Worker did not scan face on OUT? Click to auto-cut duty out."
@@ -224,6 +252,17 @@ export default function DailyRegisterView({
             <span>✂️</span>
             <span>{isCutting ? 'Cutting…' : 'Auto Cut'}</span>
           </button>
+          {canReset && r.sessionId && (
+            <button
+              type="button"
+              disabled={isCutting || isResetting}
+              onClick={() => handleResetSession(r)}
+              className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Mistaken check-in? Click to reset/delete this session."
+            >
+              <span>{isResetting ? '…' : '↺ Reset'}</span>
+            </button>
+          )}
           {renderMiniMapLink(r)}
         </div>
       );
@@ -235,6 +274,17 @@ export default function DailyRegisterView({
           <span>✓</span>
           <span>Out</span>
         </span>
+        {canReset && r.sessionId && (
+          <button
+            type="button"
+            disabled={isResetting}
+            onClick={() => handleResetSession(r)}
+            className="ml-1 inline-flex items-center gap-0.5 rounded bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 text-[10px] font-bold transition cursor-pointer disabled:opacity-50"
+            title="Reset this session (e.g. mistaken punch or auto-cut, so worker can check in again)"
+          >
+            <span>{isResetting ? '…' : '↺ Reset'}</span>
+          </button>
+        )}
         {renderMiniMapLink(r)}
       </div>
     );
@@ -327,6 +377,7 @@ export default function DailyRegisterView({
       </div>
 
       {error && <Alert type="error">{error}</Alert>}
+      {autoCutNotice && <Alert type="success">{autoCutNotice}</Alert>}
 
       {/* KPI Badges Strip + Quick Export Actions */}
       <div className="flex items-center justify-between gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/90 py-1 px-1.5 text-xs shadow-2xs">
