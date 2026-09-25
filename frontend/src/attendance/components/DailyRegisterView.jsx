@@ -10,6 +10,17 @@ function getTodayString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 }
 
+function isTodayOrYesterday(dateStr) {
+  if (!dateStr) return false;
+  const todayStr = getTodayString();
+  if (dateStr === todayStr) return true;
+
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const prev = new Date(Date.UTC(y, m - 1, d - 1));
+  const yesterdayStr = prev.toISOString().slice(0, 10);
+  return dateStr === yesterdayStr;
+}
+
 function formatLunchBreak(minutes) {
   if (!minutes || minutes <= 0) return null;
   const hrs = Math.floor(minutes / 60);
@@ -52,7 +63,8 @@ export default function DailyRegisterView({
   setDate: propSetDate,
 }) {
   const { user } = useAuth();
-  const canReset = ['admin', 'developer'].includes(user?.role);
+  const isEligibleDate = useMemo(() => isTodayOrYesterday(date), [date]);
+  const canReset = ['admin', 'developer'].includes(user?.role) && isEligibleDate;
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());

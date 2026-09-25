@@ -33,9 +33,10 @@ export function getAutoCutShiftDetails(dutyIn) {
   if (!dutyIn) return { isNightShift: false, shiftHours: 8, shiftMinutes: 480 };
   const inDate = new Date(dutyIn);
   const inHour = Number(new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false }).format(inDate));
-  // Check-ins from 5:00 PM (17:00) to 5:00 AM (05:00) IST are 12-hour night shifts!
+  // Check-ins from 5:00 PM (17:00) to 5:00 AM (05:00) IST are night shifts
   const isNightShift = inHour >= 17 || inHour < 5;
-  const shiftHours = isNightShift ? 12 : 8;
+  // Both day and night shifts follow the 8-hour duty rule (480 minutes)
+  const shiftHours = 8;
   const shiftMinutes = shiftHours * 60;
   return { isNightShift, shiftHours, shiftMinutes };
 }
@@ -199,11 +200,15 @@ export async function recordAttendance(user, payload = {}, options = {}) {
     }).sort({ dutyOut: -1 }).session(dbSession);
 
     const MIN_AUTO_DUTY_OUT_MS = 15 * 60 * 1000; // 15 mins minimum between IN and auto-OUT
+    const COOLDOWN_AFTER_OUT_MS = 30 * 60 * 1000; // 30 mins duplicate protection after DUTY_OUT
+    const elapsedSinceOutMs = completedTodaySession?.dutyOut
+      ? Math.max(0, now.getTime() - completedTodaySession.dutyOut.getTime())
+      : Infinity;
 
     // Auto-resolve event type if LUNCH or AUTO:
     if (resolvedEventType === 'LUNCH') {
       if (!openSession) {
-        if (completedTodaySession) {
+        if (completedTodaySession && elapsedSinceOutMs < COOLDOWN_AFTER_OUT_MS) {
           const outTime = new Intl.DateTimeFormat('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(completedTodaySession.dutyOut);
           throw conflictError(`2 times not allowed: Worker ${worker.fullName} has already completed duty today (Marked OUT at ${outTime}).`);
         }
@@ -223,7 +228,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
           }
           resolvedEventType = 'DUTY_OUT';
         }
-      } else if (completedTodaySession) {
+      } else if (completedTodaySession && elapsedSinceOutMs < COOLDOWN_AFTER_OUT_MS) {
         const outTime = new Intl.DateTimeFormat('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(completedTodaySession.dutyOut);
         throw conflictError(`2 times not allowed: Worker ${worker.fullName} has already completed duty today (Marked OUT at ${outTime}). Duplicate attendance not allowed.`);
       } else {
@@ -241,7 +246,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         throw conflictError(`2 times not allowed: Worker ${worker.fullName} is already marked IN since ${inTime}. Mark DUTY_OUT before checking in again.`);
       }
 
-      if (completedTodaySession) {
+      if (completedTodaySession && elapsedSinceOutMs < COOLDOWN_AFTER_OUT_MS) {
         const outTime = new Intl.DateTimeFormat('en-IN', { timeStyle: 'short', timeZone: 'Asia/Kolkata' }).format(completedTodaySession.dutyOut);
         throw conflictError(`2 times not allowed: Worker ${worker.fullName} has already completed duty today (Marked OUT at ${outTime}). Duplicate IN not allowed.`);
       }
@@ -804,9 +809,14 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
     for (const session of openSessions) {
       if (!session.dutyIn) continue;
       const elapsedHours = (now.getTime() - session.dutyIn.getTime()) / (1000 * 60 * 60);
-      // Auto-cut if running >= 15 hours, or from a past date and running >= 12 hours
-      if (elapsedHours >= 15 || (session.date < todayDate && elapsedHours >= 12)) {
-        const { shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
+      const { isNightShift, shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
+      // Night shifts cross midnight into morning and must remain open for morning punch-out (up to 14-15 hours).
+      // Day shifts auto-cut if running >= 12 hours or past-date unclosed.
+      const shouldAutoCut = isNightShift
+        ? (elapsedHours >= 15 || (session.date < todayDate && elapsedHours >= 14))
+        : (elapsedHours >= 12 || session.date < todayDate);
+
+      if (shouldAutoCut) {
         const netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
         try {
           await AttendanceSession.updateOne(
@@ -817,7 +827,7 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
                 workedMinutes: netMinutes,
                 status: 'DUTY_COMPLETED',
                 onLunch: false,
-                remarks: session.remarks ? `${session.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]',
+                remarks: session.remarks ? `${session.remarks}; [Auto-Cut: 8hr shift completed]` : '[Auto-Cut: 8hr shift completed]',
               },
             }
           );
@@ -918,6 +928,53 @@ export async function manualAutoCutSession(user, payload = {}) {
     success: true,
     message: `${sessionDoc.workerNameSnapshot} auto-cut completed (${formatWorkedHours(netWorkedMinutes)} logged).`,
     session: sessionDoc,
+  };
+}
+
+export async function deleteAttendanceSession(user, sessionId) {
+  const sessionDoc = await AttendanceSession.findById(objectId(sessionId, 'Session'));
+  if (!sessionDoc) throw notFoundError('Attendance session not found.');
+  firmScope(user, sessionDoc.firm);
+
+  // Enforce business rule: only allow reset for today or yesterday
+  const todayStr = indiaDateString();
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const yesterdayStr = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+  if (sessionDoc.date !== todayStr && sessionDoc.date !== yesterdayStr) {
+    throw badRequest('Attendance sessions can only be reset for today or yesterday.');
+  }
+
+  // Record audit log entry
+  await AttendanceAuditLog.create([{
+    firm: sessionDoc.firm,
+    firmNameSnapshot: sessionDoc.firmNameSnapshot,
+    worker: sessionDoc.worker,
+    workerCodeSnapshot: sessionDoc.workerCodeSnapshot,
+    workerNameSnapshot: sessionDoc.workerNameSnapshot,
+    entityType: 'ATTENDANCE_SESSION',
+    entityId: sessionDoc._id,
+    action: 'CORRECTION',
+    previousValue: {
+      date: sessionDoc.date,
+      dutyIn: sessionDoc.dutyIn,
+      dutyOut: sessionDoc.dutyOut,
+      workedMinutes: sessionDoc.workedMinutes,
+      status: sessionDoc.status,
+      remarks: sessionDoc.remarks,
+    },
+    newValue: null,
+    reason: 'Mistaken session reset by administrator',
+    performedBy: user._id,
+    performedByName: user.fullName || user.username || user.name || 'Admin',
+    performedByRole: user.role,
+  }]);
+
+  await AttendanceEvent.deleteMany({ sessionId: sessionDoc._id });
+  await AttendanceSession.deleteOne({ _id: sessionDoc._id });
+
+  return {
+    success: true,
+    message: `Attendance session for ${sessionDoc.workerNameSnapshot} on ${sessionDoc.date} has been reset.`,
   };
 }
 

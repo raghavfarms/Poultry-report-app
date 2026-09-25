@@ -7,6 +7,7 @@ import User from '../models/User.js';
 import * as service from './services/masters.service.js';
 import * as deploymentService from './services/deployment.service.js';
 import * as attendanceService from './services/attendance.service.js';
+import { deleteAttendanceSession } from './services/attendance.service.js';
 import * as faceService from './services/face.service.js';
 import * as photoService from './services/photo.service.js';
 import * as dashboardService from './services/dashboard.service.js';
@@ -122,7 +123,7 @@ router.get('/sessions', async (req, res) => res.json(await attendanceService.lis
 router.post('/sessions/correct', async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
 router.post('/sessions/auto-cut', async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
 router.post('/sessions/bulk-day', adminOnly, async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
-router.delete('/sessions/:id', adminOnly, async (req, res) => res.json(await attendanceService.deleteAttendanceSession(req.user, req.params.id)));
+router.delete('/sessions/:id', adminOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
 
 // Dashboard
 router.get('/dashboard/live', async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));
