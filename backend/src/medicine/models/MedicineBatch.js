@@ -26,11 +26,11 @@ const medicineBatchSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Original supplier of this batch
+    // Original supplier of this batch (optional for internal HO transfers)
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Supplier',
-      required: [true, 'Supplier is required'],
+      default: null,
     },
 
     // The Receipt that originally brought this batch into the farm

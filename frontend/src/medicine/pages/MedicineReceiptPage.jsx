@@ -9,6 +9,7 @@ import { fetchPurchaseOrders } from '../api/purchaseOrderApi.js';
 import { fetchSuppliers } from '../api/supplierApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
+import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
 
 const STATUS_BADGES = {
   PENDING_STORE_VERIFICATION: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -46,6 +47,7 @@ export default function MedicineReceiptPage() {
 
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [acceptingReceipt, setAcceptingReceipt] = useState(null); // For Store Acceptance Modal
   const [submitting, setSubmitting] = useState(false);
 
@@ -694,9 +696,18 @@ export default function MedicineReceiptPage() {
 
                 {/* Batch & Expiry Details */}
                 <div className="border border-slate-200 rounded-lg p-2.5 bg-slate-50 space-y-2">
-                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block">
-                    Physical Batch Details
-                  </span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide block">
+                      Physical Batch Details
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerOpen(true)}
+                      className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-[10px] rounded transition flex items-center gap-1 shadow-2xs"
+                    >
+                      <span>📷</span> Scan Label / Barcode
+                    </button>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div>
@@ -858,6 +869,16 @@ export default function MedicineReceiptPage() {
           </div>
         </div>
       )}
+
+      {/* Barcode / Label Camera Scanner Modal */}
+      <MedicineBarcodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onDetected={(scanned) => {
+          if (scanned.batchNumber) setFormBatchNumber(scanned.batchNumber);
+          if (scanned.expiryDate) setFormExpiryDate(scanned.expiryDate);
+        }}
+      />
     </div>
   );
 }

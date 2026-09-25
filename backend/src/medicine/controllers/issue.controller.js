@@ -107,6 +107,10 @@ export async function createIssue(req, res) {
       medicineId,
       batchId,
       farmId,
+      destinationType = 'SHED',
+      feedMillBatchNumber,
+      feedType,
+      targetSheds,
       shed,
       flockNumber,
       birdCount,
@@ -119,9 +123,11 @@ export async function createIssue(req, res) {
       remarks,
     } = req.body;
 
+    const actualShed = destinationType === 'FEED_MILL' ? (shed?.trim() || 'Feed Mill') : shed?.trim();
+
     // 1. Basic validation
-    if (!medicineId || !batchId || !farmId || !shed || !issuedQuantity || !issuedTo) {
-      return badRequest(res, 'Medicine, Batch, Farm, Shed, Quantity, and Recipient are required');
+    if (!medicineId || !batchId || !farmId || !actualShed || !issuedQuantity || !issuedTo) {
+      return badRequest(res, 'Medicine, Batch, Farm, Location/Shed, Quantity, and Recipient are required');
     }
 
     const qty = Number(issuedQuantity);
@@ -198,13 +204,17 @@ export async function createIssue(req, res) {
       batch: batch._id,
       batchNumber: batch.batchNumber,
       farm: farm._id,
-      shed: shed.trim(),
+      destinationType,
+      feedMillBatchNumber: feedMillBatchNumber?.trim() || '',
+      feedType: feedType || 'GROWER',
+      targetSheds: targetSheds?.trim() || '',
+      shed: actualShed,
       flockNumber: flockNumber?.trim() || '',
       birdCount: Number(birdCount) || 0,
       birdAgeDays: Number(birdAgeDays) || 0,
       issuedQuantity: qty,
       unit: medicine.unit,
-      purpose: purpose || 'TREATMENT',
+      purpose: purpose || (destinationType === 'FEED_MILL' ? 'FEED_ADDITIVE' : 'TREATMENT'),
       dosageInstructions: dosageInstructions?.trim() || '',
       issuedTo: issuedTo.trim(),
       issuedBy: req.user._id,
@@ -212,6 +222,10 @@ export async function createIssue(req, res) {
     });
 
     // 7. Write Immutable Audit Trail to MedicineTransaction
+    const locRemark = destinationType === 'FEED_MILL'
+      ? `Issued to Feed Mill (Batch: ${feedMillBatchNumber || 'Direct'}, Feed: ${feedType || 'GROWER'}, Target: ${targetSheds || 'Sheds'})`
+      : `Issued to ${actualShed} (${purpose || 'TREATMENT'})`;
+
     await MedicineTransaction.create({
       transactionType: 'ISSUE_OUTWARD',
       medicine: medicine._id,
@@ -224,7 +238,7 @@ export async function createIssue(req, res) {
       referenceModel: 'MedicineIssue',
       referenceId: newIssue._id,
       performedBy: req.user._id,
-      remarks: `Issued to ${shed.trim()} (${purpose || 'TREATMENT'}). Recipient: ${issuedTo.trim()}${
+      remarks: `${locRemark}. Recipient: ${issuedTo.trim()}${
         dosageInstructions ? ` • Dosage: ${dosageInstructions.trim()}` : ''
       }`,
     });

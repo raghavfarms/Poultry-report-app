@@ -48,6 +48,10 @@ export default function MedicineIssuePage() {
   const [formFarm, setFormFarm] = useState('');
   const [formMedicine, setFormMedicine] = useState('');
   const [formBatch, setFormBatch] = useState('');
+  const [formDestinationType, setFormDestinationType] = useState('SHED'); // 'SHED' | 'FEED_MILL'
+  const [formFeedBatch, setFormFeedBatch] = useState('');
+  const [formFeedType, setFormFeedType] = useState('GROWER');
+  const [formTargetSheds, setFormTargetSheds] = useState('');
   const [formShed, setFormShed] = useState('');
   const [formFlock, setFormFlock] = useState('');
   const [formBirdCount, setFormBirdCount] = useState('');
@@ -144,6 +148,10 @@ export default function MedicineIssuePage() {
     setFormFarm(firms[0]?._id || '');
     setFormMedicine(medicines[0]?._id || '');
     setFormBatch('');
+    setFormDestinationType('SHED');
+    setFormFeedBatch('');
+    setFormFeedType('GROWER');
+    setFormTargetSheds('');
     setFormShed('');
     setFormFlock('');
     setFormBirdCount('');
@@ -180,12 +188,16 @@ export default function MedicineIssuePage() {
         medicineId: formMedicine,
         batchId: formBatch,
         farmId: formFarm,
-        shed: formShed,
+        destinationType: formDestinationType,
+        feedMillBatchNumber: formFeedBatch,
+        feedType: formFeedType,
+        targetSheds: formTargetSheds,
+        shed: formDestinationType === 'FEED_MILL' ? (formShed || 'Feed Mill') : formShed,
         flockNumber: formFlock,
         birdCount: formBirdCount ? Number(formBirdCount) : 0,
         birdAgeDays: formBirdAgeDays ? Number(formBirdAgeDays) : 0,
         issuedQuantity: Number(formQty),
-        purpose: formPurpose,
+        purpose: formDestinationType === 'FEED_MILL' ? 'FEED_ADDITIVE' : formPurpose,
         dosageInstructions: formDosage,
         issuedTo: formIssuedTo,
         issueDate: formIssueDate,
@@ -371,20 +383,30 @@ export default function MedicineIssuePage() {
                         <div className="text-[10px] text-slate-500">{iss.issueDate}</div>
                       </td>
 
-                      {/* Farm & Shed */}
+                      {/* Farm & Shed / Destination */}
                       <td className="py-2.5 px-3">
                         <div className="font-semibold text-slate-800">
                           {iss.farm?.name || 'Unknown Farm'}
                         </div>
-                        <div className="text-[11px] text-slate-600 font-medium">
-                          📍 {iss.shed} {iss.flockNumber ? `• ${iss.flockNumber}` : ''}
+                        <div className="text-[11px] text-slate-600 font-medium mt-0.5">
+                          {iss.destinationType === 'FEED_MILL' ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              <span>🌾</span> Feed Mill: {iss.feedMillBatchNumber || 'Batch'} ({iss.feedType || 'Feed'})
+                            </span>
+                          ) : (
+                            <span>📍 {iss.shed} {iss.flockNumber ? `• ${iss.flockNumber}` : ''}</span>
+                          )}
                         </div>
-                        {iss.birdCount > 0 && (
+                        {iss.destinationType === 'FEED_MILL' && iss.targetSheds ? (
+                          <div className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                            Targets: {iss.targetSheds}
+                          </div>
+                        ) : iss.birdCount > 0 ? (
                           <div className="text-[10px] text-slate-400">
                             {iss.birdCount.toLocaleString()} birds
                             {iss.birdAgeDays > 0 ? ` (Age: ${iss.birdAgeDays}d)` : ''}
                           </div>
-                        )}
+                        ) : null}
                       </td>
 
                       {/* Medicine & Batch */}
@@ -671,66 +693,166 @@ export default function MedicineIssuePage() {
                 )}
               </div>
 
-              {/* Row 2: Target Shed & Flock */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                    Target Shed / Pen *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Shed 1, Brooder Shed A"
-                    value={formShed}
-                    onChange={(e) => setFormShed(e.target.value)}
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                    Flock # (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Flock 2026-B"
-                    value={formFlock}
-                    onChange={(e) => setFormFlock(e.target.value)}
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Row 3: Bird Count & Bird Age */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                    Birds Treated (Count)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 10000"
-                    value={formBirdCount}
-                    onChange={(e) => setFormBirdCount(e.target.value)}
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                    Bird Age (Days)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 14 (Day 14 vaccine)"
-                    value={formBirdAgeDays}
-                    onChange={(e) => setFormBirdAgeDays(e.target.value)}
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  />
+              {/* Destination Selector: Bird Shed vs Feed Mill */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                  Issue Destination *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormDestinationType('SHED');
+                      if (formPurpose === 'FEED_ADDITIVE') setFormPurpose('TREATMENT');
+                    }}
+                    className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      formDestinationType === 'SHED'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🏠</span> Bird Shed / Flock
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormDestinationType('FEED_MILL');
+                      setFormPurpose('FEED_ADDITIVE');
+                      if (!formShed) setFormShed('Feed Mill');
+                    }}
+                    className={`py-1.5 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      formDestinationType === 'FEED_MILL'
+                        ? 'bg-amber-50 border-amber-500 text-amber-900 shadow-2xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>🏭</span> Feed Mill Batch
+                  </button>
                 </div>
               </div>
+
+              {formDestinationType === 'SHED' ? (
+                <>
+                  {/* Row 2: Target Shed & Flock */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Target Shed / Pen *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Shed 1, Brooder Shed A"
+                        value={formShed}
+                        onChange={(e) => setFormShed(e.target.value)}
+                        className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Flock # (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Flock 2026-B"
+                        value={formFlock}
+                        onChange={(e) => setFormFlock(e.target.value)}
+                        className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Bird Count & Bird Age */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Birds Treated (Count)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 10000"
+                        value={formBirdCount}
+                        onChange={(e) => setFormBirdCount(e.target.value)}
+                        className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Bird Age (Days)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 14 (Day 14 vaccine)"
+                        value={formBirdAgeDays}
+                        onChange={(e) => setFormBirdAgeDays(e.target.value)}
+                        className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* FEED MILL WORKFLOW INPUTS */
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2.5">
+                  <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
+                    <span>🌾</span> Feed Mill Mixing Parameters
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Feed Production Batch # *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. FM-2026-BATCH-08"
+                        value={formFeedBatch}
+                        onChange={(e) => setFormFeedBatch(e.target.value)}
+                        className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs bg-white focus:ring-1 focus:ring-amber-500 focus:outline-none uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                        Feed Type *
+                      </label>
+                      <select
+                        value={formFeedType}
+                        onChange={(e) => setFormFeedType(e.target.value)}
+                        className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs bg-white focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                      >
+                        <option value="PRE_STARTER">Pre-Starter Mash/Crumbs</option>
+                        <option value="STARTER">Starter Feed</option>
+                        <option value="GROWER">Grower Feed</option>
+                        <option value="FINISHER">Finisher Feed</option>
+                        <option value="LAYER_MASH">Layer Mash</option>
+                        <option value="BREEDER_MASH">Breeder Mash</option>
+                        <option value="OTHER">Other Feed Blend</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                      Destination Target Sheds / BPs
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Shed 1, Shed 2, Shed 3 (Flock 2026-A)"
+                      value={formTargetSheds}
+                      onChange={(e) => setFormTargetSheds(e.target.value)}
+                      className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs bg-white focus:ring-1 focus:ring-amber-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Specifies which sheds or flocks will consume this medicated feed mix
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Row 4: Quantity to Issue & Purpose */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">

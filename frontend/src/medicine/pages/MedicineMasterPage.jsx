@@ -11,6 +11,8 @@ import PurchaseOrderPage from './PurchaseOrderPage.jsx';
 import MedicineReceiptPage from './MedicineReceiptPage.jsx';
 import MedicineIssuePage from './MedicineIssuePage.jsx';
 import MedicineAdjustmentPage from './MedicineAdjustmentPage.jsx';
+import MedicineReportPage from './MedicineReportPage.jsx';
+import MedicineDispatchPage from './MedicineDispatchPage.jsx';
 
 const CATEGORIES=['FEED_MEDICINE','GENERAL_MEDICINE','VACCINATION'];
 const UNITS = ['Bottle', 'Litre', 'ml', 'Kg', 'Gram', 'Tablet', 'Dose', 'Packet', 'Vial', 'Other'];
@@ -227,6 +229,28 @@ const loadMedicines= async ()=>{
         >
           <span>🔄</span> Returns & Adjustments
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('reports')}
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
+            activeTab === 'reports'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>📊</span> Analytics & Reports
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('dispatches')}
+          className={`shrink-0 whitespace-nowrap pb-2.5 sm:pb-3 text-xs sm:text-sm font-bold border-b-2 transition flex items-center gap-1.5 sm:gap-2 ${
+            activeTab === 'dispatches'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span>🚚</span> HO Dispatches & Gate
+        </button>
       </div>
 
       {activeTab === 'suppliers' ? (
@@ -239,6 +263,10 @@ const loadMedicines= async ()=>{
         <MedicineIssuePage />
       ) : activeTab === 'adjustments' ? (
         <MedicineAdjustmentPage />
+      ) : activeTab === 'reports' ? (
+        <MedicineReportPage />
+      ) : activeTab === 'dispatches' ? (
+        <MedicineDispatchPage />
       ) : (
         <>
           {/* 1. Header Section */}

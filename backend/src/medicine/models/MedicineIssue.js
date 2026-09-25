@@ -52,10 +52,39 @@ const medicineIssueSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Shed name/number where medicine is consumed (e.g. 'Shed 1', 'Shed 2')
+    // Issue Destination: SHED (Direct to bird shed) or FEED_MILL (Mix into feed batch)
+    destinationType: {
+      type: String,
+      enum: ['SHED', 'FEED_MILL'],
+      default: 'SHED',
+      index: true,
+    },
+
+    // Feed Mill Production Batch Number (e.g. 'FM-BATCH-2026-08')
+    feedMillBatchNumber: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    // Feed Type (Pre-Starter, Starter, Grower, Finisher, Layer Mash)
+    feedType: {
+      type: String,
+      enum: ['PRE_STARTER', 'STARTER', 'GROWER', 'FINISHER', 'LAYER_MASH', 'BREEDER_MASH', 'OTHER'],
+      default: 'GROWER',
+    },
+
+    // Comma-separated target sheds / BPs for the manufactured feed
+    targetSheds: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+
+    // Shed name/number where medicine is consumed (e.g. 'Shed 1', 'Shed 2', or 'Feed Mill')
     shed: {
       type: String,
-      required: [true, 'Target shed is required'],
+      required: [true, 'Target shed or location is required'],
       trim: true,
       index: true,
     },
@@ -105,6 +134,7 @@ const medicineIssueSchema = new mongoose.Schema(
           'GROWTH_SUPPLEMENT',
           'WATER_SANITIZATION',
           'BIOSECURITY',
+          'FEED_ADDITIVE',
           'OTHER',
         ],
         message: '{VALUE} is not a valid issue purpose',
