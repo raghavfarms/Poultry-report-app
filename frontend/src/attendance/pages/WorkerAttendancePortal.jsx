@@ -226,7 +226,7 @@ export default function WorkerAttendancePortal() {
     try {
       let location = null;
       try {
-        location = await captureLocation();
+        location = await captureLocation({ timeoutMs: 5000, maximumAge: 300000 });
       } catch (locErr) {
         console.warn('Location capture error (proceeding):', locErr);
       }

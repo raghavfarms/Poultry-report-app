@@ -18,17 +18,24 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
   if (input.status !== 'CAPTURED') return unavailable(input.status);
   const { latitude, longitude, accuracyMetres, capturedAt } = input;
   const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-  const timestamp = typeof capturedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(capturedAt)
-    ? new Date(capturedAt) : new Date(NaN);
+  let timestamp;
+  if (capturedAt instanceof Date) {
+    timestamp = capturedAt;
+  } else if (typeof capturedAt === 'string' || typeof capturedAt === 'number') {
+    timestamp = new Date(capturedAt);
+  } else {
+    timestamp = new Date(NaN);
+  }
   const validTime = Number.isFinite(timestamp.getTime());
   const ageMs = Math.abs(now.getTime() - timestamp.getTime());
-  const isFresh = ageMs <= 60 * 60 * 1000;
+  const isFresh = ageMs <= 2 * 60 * 60 * 1000;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
-      !finite(accuracyMetres) || accuracyMetres < 0 || !validTime || !isFresh) {
+      !validTime || !isFresh) {
     return unavailable('INVALID');
   }
-  return { status: 'CAPTURED', latitude, longitude, accuracyMetres, capturedAt: timestamp };
+  const safeAccuracy = finite(accuracyMetres) && accuracyMetres >= 0 ? accuracyMetres : 50;
+  return { status: 'CAPTURED', latitude, longitude, accuracyMetres: safeAccuracy, capturedAt: timestamp };
 }
 
 export function attendanceLocationReport(location) {
@@ -87,7 +94,9 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   for (const geo of activeGeofences) {
     const radius = geo.radiusMetres || 500;
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
-    if (dist <= radius) {
+    // Allow standard GPS accuracy tolerance (up to 200m) to accommodate Wi-Fi/cellular triangulation jitter
+    const effectiveRadius = radius + Math.min(Math.max(location.accuracyMetres || 0, 0), 200);
+    if (dist <= effectiveRadius) {
       return {
         allowed: true,
         distanceMetres: dist,

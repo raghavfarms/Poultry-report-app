@@ -118,7 +118,7 @@ export default function FaceAttendancePage() {
   const requestLocation = async () => {
     setLocationStatus('ACQUIRING');
     try {
-      const loc = await captureLocation({ timeoutMs: 10000 });
+      const loc = await captureLocation({ timeoutMs: 8000, maximumAge: 300000 });
       latestLocationRef.current = loc;
       setLocationStatus(loc.status);
       if (loc.status === 'CAPTURED') {
@@ -132,8 +132,13 @@ export default function FaceAttendancePage() {
   useEffect(() => {
     requestLocation();
 
-    if (globalThis.navigator?.geolocation?.watchPosition) {
+    function startWatch(highAccuracy = true) {
+      if (!globalThis.navigator?.geolocation?.watchPosition) return;
       try {
+        if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
             const { latitude, longitude, accuracy } = position.coords || {};
@@ -152,19 +157,33 @@ export default function FaceAttendancePage() {
             }
           },
           (error) => {
-            const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[error?.code] || 'UNAVAILABLE';
+            const code = error?.code;
+            if (highAccuracy && (code === 2 || code === 3)) {
+              // High accuracy (satellite GPS) timed out or is unavailable on this device (e.g. desktop/laptop or indoors).
+              // Automatically fall back to standard accuracy watch so location is captured via Wi-Fi/cellular network.
+              startWatch(false);
+              return;
+            }
+            const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[code] || 'UNAVAILABLE';
             if (!latestLocationRef.current || latestLocationRef.current.status !== 'CAPTURED') {
               setLocationStatus(mapped);
             }
           },
-          { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
+          {
+            enableHighAccuracy: highAccuracy,
+            maximumAge: highAccuracy ? 60000 : 300000,
+            timeout: highAccuracy ? 6000 : 12000,
+          }
         );
       } catch {}
     }
 
+    startWatch(true);
+
     return () => {
       if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
     };
   }, []);
@@ -248,6 +267,9 @@ export default function FaceAttendancePage() {
     setActiveResult(null);
     setStatusPill('Ready · Scanning face...');
     processingRef.current = false;
+    if (locationStatus !== 'CAPTURED') {
+      requestLocation();
+    }
   }
 
   // Handle detected face that is not registered/enrolled
@@ -361,8 +383,8 @@ export default function FaceAttendancePage() {
 
       if (!isFresh) {
         try {
-          // Fast timeout (1500ms) with cached position fallback so attendance is not blocked
-          loc = await captureLocation({ timeoutMs: 1500, maximumAge: 120000 });
+          // Resilient capture with automatic standard-accuracy and session-cache fallback
+          loc = await captureLocation({ timeoutMs: 5000, maximumAge: 300000 });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
             setLocationStatus('CAPTURED');
