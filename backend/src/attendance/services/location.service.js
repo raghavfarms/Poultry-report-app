@@ -92,17 +92,24 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   let closestGeofence = null;
 
   for (const geo of activeGeofences) {
-    const radius = geo.radiusMetres || 500;
+    const isOffice = geo.isOfficeTesting ||
+      geo.name?.toLowerCase().includes('office') ||
+      firmName?.toLowerCase().includes('office');
+
+    // Office/desk workers connect via city broadband/Wi-Fi where ISP gateways drift a few km.
+    // Ensure a realistic boundary for office testing & head office (minimum 5 km or configured radius).
+    const baseRadius = isOffice ? Math.max(geo.radiusMetres || 500, 5000) : (geo.radiusMetres || 500);
+    const accuracyBuffer = Math.min(Math.max(location.accuracyMetres || 0, 0), 500);
+    const effectiveRadius = baseRadius + accuracyBuffer;
+
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
-    // Allow standard GPS accuracy tolerance (up to 200m) to accommodate Wi-Fi/cellular triangulation jitter
-    const effectiveRadius = radius + Math.min(Math.max(location.accuracyMetres || 0, 0), 200);
     if (dist <= effectiveRadius) {
       return {
         allowed: true,
         distanceMetres: dist,
-        boundaryMetres: radius,
+        boundaryMetres: baseRadius,
         geofence: geo,
-        match: geo.isOfficeTesting ? 'OFFICE_TESTING' : 'FARM',
+        match: isOffice ? 'OFFICE_TESTING' : 'FARM',
       };
     }
     if (dist < minDistance) {
@@ -112,12 +119,15 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   }
 
   const targetName = closestGeofence?.name || firmName;
-  const targetRadius = closestGeofence?.radiusMetres || 500;
+  const isOfficeClosest = closestGeofence?.isOfficeTesting ||
+    closestGeofence?.name?.toLowerCase().includes('office') ||
+    firmName?.toLowerCase().includes('office');
+  const targetRadius = isOfficeClosest ? Math.max(closestGeofence?.radiusMetres || 500, 5000) : (closestGeofence?.radiusMetres || 500);
   return {
     allowed: false,
     reason: 'OUTSIDE_GEOFENCE',
     distanceMetres: minDistance,
     boundaryMetres: targetRadius,
-    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${targetRadius}m of the location.`,
+    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${formatDistanceMetres(targetRadius)} of the location.`,
   };
 }
