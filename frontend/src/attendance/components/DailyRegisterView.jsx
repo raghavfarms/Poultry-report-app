@@ -299,8 +299,8 @@ export default function DailyRegisterView({
             >
               <option value="ALL">All Staff</option>
               <option value="ON_DUTY">On Duty Now</option>
-              <option value="COMPLETED">{"Full Day (>= 7h 55m)"}</option>
-              <option value="HALF_DAY">{"Half Day (4h–7h 55m)"}</option>
+              <option value="COMPLETED">{"Full Day (>= 8h)"}</option>
+              <option value="HALF_DAY">{"Half Day (4h–8h)"}</option>
               <option value="ABSENT">{"Absent (< 4h)"}</option>
             </select>
           </div>

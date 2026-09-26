@@ -213,7 +213,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
         const lastSession = workerSessions[workerSessions.length - 1];
         dutyOut = lastSession.dutyOut || null;
 
-        if (dayWorkedMinutes >= 475) {
+        if (dayWorkedMinutes >= 480) {
           status = 'COMPLETED';
           completedCount++;
         } else if (dayWorkedMinutes >= 240) {
@@ -449,11 +449,11 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
         if (isOpen && fullDateStr === todayDate) {
           days[dayStr] = 'OD'; // On duty right now
           presentDays += 1;
-        } else if (isOpen || dayMinutes >= 475) {
-          days[dayStr] = 'P'; // Full day (>= 7 hrs 55 mins or auto-cut)
+        } else if (isOpen || dayMinutes >= 480) {
+          days[dayStr] = 'P'; // Full day (>= 8 hrs or auto-cut)
           presentDays += 1;
         } else if (dayMinutes >= 240) {
-          days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 7 hrs 55 mins)
+          days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 8 hrs)
           presentDays += 0.5;
           absentDays += 0.5;
         } else {

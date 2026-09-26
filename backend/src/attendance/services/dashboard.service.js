@@ -160,7 +160,7 @@ export async function getLiveDashboardData(user, query = {}) {
     if (hasOpenSession) {
       weight = 1.0;
       status = 'ON_DUTY';
-    } else if (dayWorkedMinutes >= 475) {
+    } else if (dayWorkedMinutes >= 480) {
       weight = 1.0;
       status = 'COMPLETED';
     } else if (dayWorkedMinutes >= 240) {
