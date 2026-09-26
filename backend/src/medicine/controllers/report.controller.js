@@ -60,7 +60,7 @@ export async function getDashboardStats(req, res) {
     quantityAvailable: { $gt: 0 },
     status: { $in: ['AVAILABLE', 'EXPIRED'] }
   })
-    .populate('medicine', 'code name unit category minimumStock reorderLevel')
+    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName')
     .populate('supplier', 'name code')
     .lean();
 
@@ -93,6 +93,7 @@ const batchSummary = {
       _id: b._id,
       batchNumber: b.batchNumber,
       medicineName: b.medicine?.name || 'Unknown',
+      medicineAlias: b.medicine?.aliasName || '',
       medicineCode: b.medicine?.code || '—',
       unit: b.medicine?.unit || 'units',
       quantityAvailable: b.quantityAvailable,
@@ -176,9 +177,9 @@ export async function getBatchTraceability(req, res) {
   const batch = await MedicineBatch.findOne({
     batchNumber: batchNumber.trim().toUpperCase()
   })
-    .populate('medicine', 'code name category unit')
+    .populate('medicine', 'code name category unit aliasName')
     .populate('supplier', 'code name contactPerson mobile')
-    .populate('receipt', 'receiptNumber invoiceNumber challanNumber receiptDate acceptedAt verifiedBy')
+    .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
     .lean();
   if (!batch) {
     throw notFoundError(`Batch '${batchNumber}' was not found in the system.`);
@@ -189,7 +190,6 @@ export async function getBatchTraceability(req, res) {
     .sort({ issueDate: -1, createdAt: -1 })
     .lean();
 
-
   // 3. Fetch all ledger transactions for this batch (immutable timeline)
   const transactions = await MedicineTransaction.find({ batch: batch._id })
     .populate('performedBy', 'name role')
@@ -199,9 +199,10 @@ export async function getBatchTraceability(req, res) {
   const shedBreakdown = {};
   let totalIssuedQty = 0;
   for (const iss of issues) {
-    totalIssuedQty += iss.quantity;
+    const qty = iss.issuedQuantity || 0;
+    totalIssuedQty += qty;
     const shedKey = iss.shed || 'General/Store';
-    shedBreakdown[shedKey] = (shedBreakdown[shedKey] || 0) + iss.quantity;
+    shedBreakdown[shedKey] = (shedBreakdown[shedKey] || 0) + qty;
   }
   res.json({
     success: true,
@@ -213,7 +214,7 @@ export async function getBatchTraceability(req, res) {
       transactionsCount: transactions.length
     },
     timeline: {
-      receipt: batch.receipt,
+      receipt: batch.firstReceipt,
       issues,
       transactions
     }
@@ -244,7 +245,7 @@ export async function getStockLedger(req, res) {
   const skip = (Number(page) - 1) * Number(limit);
   const [transactions, total] = await Promise.all([
     MedicineTransaction.find(filter)
-      .populate('medicine', 'code name unit')
+      .populate('medicine', 'code name unit aliasName')
       .populate('batch', 'batchNumber expiryDate')
       .populate('performedBy', 'name role')
       .sort({ createdAt: -1 })
@@ -281,7 +282,7 @@ export async function getFlockCostingReport(req, res) {
 
   // Fetch all issues matching filter with medicine details
   const issues = await MedicineIssue.find(filter)
-    .populate('medicine', 'code name unit category')
+    .populate('medicine', 'code name unit category aliasName')
     .populate('farm', 'name code')
     .lean();
 
@@ -324,6 +325,7 @@ export async function getFlockCostingReport(req, res) {
     if (!flock.medicines[medName]) {
       flock.medicines[medName] = {
         name: medName,
+        aliasName: iss.medicine?.aliasName || '',
         code: iss.medicine?.code || '',
         quantity: 0,
         unit: iss.unit || 'units',

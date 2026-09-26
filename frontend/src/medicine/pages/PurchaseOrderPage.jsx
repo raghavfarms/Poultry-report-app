@@ -517,7 +517,7 @@ export default function PurchaseOrderPage() {
                             <option value="">Select Medicine *</option>
                             {medicines.map((m) => (
                               <option key={m._id} value={m._id}>
-                                {m.name} ({m.code}) — {m.unit}
+                                {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code}) — {m.unit}
                               </option>
                             ))}
                           </select>
@@ -688,7 +688,14 @@ export default function PurchaseOrderPage() {
                     {selectedPo.items?.map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1 px-2">
-                          <div className="font-bold text-slate-800 text-[11px]">{item.medicine?.name}</div>
+                          <div className="font-bold text-slate-800 text-[11px]">
+                            {item.medicine?.name}
+                            {item.medicine?.aliasName && (
+                              <span className="ml-1 text-[9px] font-normal text-slate-500">
+                                ({item.medicine.aliasName})
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[9px] text-slate-400">{item.medicine?.code}</div>
                         </td>
                         <td className="py-1 px-1.5 text-center font-semibold text-[11px]">

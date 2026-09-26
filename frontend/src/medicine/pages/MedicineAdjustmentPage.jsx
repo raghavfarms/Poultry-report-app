@@ -351,7 +351,7 @@ export default function MedicineAdjustmentPage() {
             <option value="">All Medicines</option>
             {medicines.map((m) => (
               <option key={m._id} value={m._id}>
-                {m.name} ({m.code})
+                {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code})
               </option>
             ))}
           </select>
@@ -423,6 +423,11 @@ export default function MedicineAdjustmentPage() {
                         <td className="py-2.5 px-3">
                           <div className="font-semibold text-slate-800">
                             {adj.medicine?.name}
+                            {adj.medicine?.aliasName && (
+                              <span className="ml-1 text-[11px] font-normal text-slate-500">
+                                ({adj.medicine.aliasName})
+                              </span>
+                            )}
                           </div>
                           <span className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded text-[10px] font-mono text-slate-600">
                             Batch: {adj.batchNumber}
@@ -499,7 +504,10 @@ export default function MedicineAdjustmentPage() {
                     <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
                       <div>
                         <span className="text-[10px] text-slate-400 uppercase font-semibold block">Medicine</span>
-                        <span className="font-semibold text-slate-800">{adj.medicine?.name}</span>
+                        <span className="font-semibold text-slate-800">
+                          {adj.medicine?.name}
+                          {adj.medicine?.aliasName && ` (${adj.medicine.aliasName})`}
+                        </span>
                         <div className="text-[10px] text-slate-500 font-mono">Batch: {adj.batchNumber}</div>
                       </div>
                       <div>
@@ -596,7 +604,9 @@ export default function MedicineAdjustmentPage() {
                   >
                     <option value="">Select Medicine...</option>
                     {medicines.map((m) => (
-                      <option key={m._id} value={m._id}>{m.name} ({m.code})</option>
+                      <option key={m._id} value={m._id}>
+                        {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -823,7 +833,9 @@ export default function MedicineAdjustmentPage() {
                   >
                     <option value="">Select Medicine...</option>
                     {medicines.map((m) => (
-                      <option key={m._id} value={m._id}>{m.name} ({m.code})</option>
+                      <option key={m._id} value={m._id}>
+                        {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1011,7 +1023,9 @@ export default function MedicineAdjustmentPage() {
                   >
                     <option value="">Select Medicine...</option>
                     {medicines.map((m) => (
-                      <option key={m._id} value={m._id}>{m.name} ({m.code})</option>
+                      <option key={m._id} value={m._id}>
+                        {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1206,6 +1220,7 @@ export default function MedicineAdjustmentPage() {
                   <span className="text-slate-400 block text-[10px]">Medicine</span>
                   <span className="font-semibold text-slate-800">
                     {selectedDetail.medicine?.name}
+                    {selectedDetail.medicine?.aliasName && ` (${selectedDetail.medicine.aliasName})`}
                   </span>
                 </div>
                 <div>

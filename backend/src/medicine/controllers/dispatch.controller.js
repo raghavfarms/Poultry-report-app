@@ -106,7 +106,7 @@ export async function getDispatches(req, res) {
 
     const dispatches = await MedicineDispatch.find(filter)
       .populate('destinationFarm', 'name code')
-      .populate('items.medicine', 'code name unit')
+      .populate('items.medicine', 'code name unit aliasName')
       .populate('dispatchedBy', 'name role')
       .populate('gateArrival.securityGuard', 'name role')
       .populate('storeAcceptance.storekeeper', 'name role')

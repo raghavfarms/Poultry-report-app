@@ -110,7 +110,7 @@ export async function createReturnInward(req, res) {
     });
 
     const populated = await MedicineAdjustment.findById(newAdj._id)
-      .populate('medicine', 'name code unit')
+      .populate('medicine', 'name code unit aliasName')
       .populate('farm', 'name code')
       .populate('adjustedBy', 'username name');
 
@@ -235,7 +235,7 @@ export async function createStockAdjustment(req, res) {
     });
 
     const populated = await MedicineAdjustment.findById(newAdj._id)
-      .populate('medicine', 'name code unit')
+      .populate('medicine', 'name code unit aliasName')
       .populate('farm', 'name code')
       .populate('adjustedBy', 'username name');
 
@@ -339,7 +339,7 @@ export async function createDisposal(req, res) {
     });
 
     const populated = await MedicineAdjustment.findById(newAdj._id)
-      .populate('medicine', 'name code unit')
+      .populate('medicine', 'name code unit aliasName')
       .populate('farm', 'name code')
       .populate('adjustedBy', 'username name');
 
@@ -404,7 +404,7 @@ export async function getAdjustments(req, res) {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('medicine', 'name code unit category')
+        .populate('medicine', 'name code unit category aliasName')
         .populate('batch', 'batchNumber expiryDate quantityAvailable status')
         .populate('farm', 'name code')
         .populate('adjustedBy', 'username name')
@@ -436,7 +436,7 @@ export async function getAdjustmentById(req, res) {
   try {
     const { id } = req.params;
     const adjustment = await MedicineAdjustment.findById(id)
-      .populate('medicine', 'name code unit category')
+      .populate('medicine', 'name code unit category aliasName')
       .populate('batch', 'batchNumber manufacturingDate expiryDate quantityAvailable status')
       .populate('farm', 'name code')
       .populate('adjustedBy', 'username name email');

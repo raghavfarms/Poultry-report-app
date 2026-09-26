@@ -94,7 +94,7 @@ export async function createReceipt(req, res) {
     receivedBy: req.user._id,
   });
 
-  await receipt.populate('medicine', 'code name unit category');
+  await receipt.populate('medicine', 'code name unit category aliasName');
   await receipt.populate('supplier', 'code name mobile');
   await receipt.populate('farm', 'code name');
   if (receipt.purchaseOrder) {
@@ -230,7 +230,7 @@ export async function getReceipts(req, res) {
   }
 
   const receipts = await MedicineReceipt.find(filter)
-    .populate('medicine', 'code name unit category')
+    .populate('medicine', 'code name unit category aliasName')
     .populate('supplier', 'code name mobile')
     .populate('farm', 'code name')
     .populate('purchaseOrder', 'poNumber status')
@@ -256,7 +256,7 @@ export async function getBatchStock(req, res) {
   if (status) filter.status = status;
 
   const batches = await MedicineBatch.find(filter)
-    .populate('medicine', 'code name unit category minimumStock reorderLevel')
+    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName')
     .populate('farm', 'code name')
     .populate('supplier', 'code name')
     .sort({ expiryDate: 1 }) // Sorted by earliest expiry date (FEFO preview!)

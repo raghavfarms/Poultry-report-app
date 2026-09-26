@@ -453,7 +453,13 @@ export default function MedicineReportPage() {
                       <tr key={b._id} className="hover:bg-rose-50/30 transition">
                         <td className="py-2 px-3 font-bold text-slate-900">{b.batchNumber}</td>
                         <td className="py-2 px-3 font-semibold text-slate-800">
-                          {b.medicineName} <span className="text-slate-400 font-normal">({b.medicineCode})</span>
+                          {b.medicineName}
+                          {b.medicineAlias && (
+                            <span className="ml-1 text-[11px] font-normal text-slate-500">
+                              ({b.medicineAlias})
+                            </span>
+                          )}
+                          <span className="text-slate-400 font-normal"> ({b.medicineCode})</span>
                         </td>
                         <td className="py-2 px-3 text-right font-black text-rose-700">
                           {b.quantityAvailable} {b.unit}
@@ -478,7 +484,10 @@ export default function MedicineReportPage() {
                         Expired {Math.abs(b.daysLeft)}d ago
                       </span>
                     </div>
-                    <div className="text-xs font-semibold text-slate-700">{b.medicineName}</div>
+                    <div className="text-xs font-semibold text-slate-700">
+                      {b.medicineName}
+                      {b.medicineAlias && ` (${b.medicineAlias})`}
+                    </div>
                     <div className="flex justify-between text-[11px] text-slate-500 pt-1">
                       <span>Stock: <strong className="text-rose-700">{b.quantityAvailable} {b.unit}</strong></span>
                       <span>Expiry: {b.expiryDate}</span>
@@ -526,7 +535,13 @@ export default function MedicineReportPage() {
                         <tr key={b._id} className="hover:bg-slate-50/75 transition">
                           <td className="py-2 px-3 font-bold text-slate-900">{b.batchNumber}</td>
                           <td className="py-2 px-3 font-semibold text-slate-800">
-                            {b.medicineName} <span className="text-slate-400 font-normal">({b.medicineCode})</span>
+                            {b.medicineName}
+                            {b.medicineAlias && (
+                              <span className="ml-1 text-[11px] font-normal text-slate-500">
+                                ({b.medicineAlias})
+                              </span>
+                            )}
+                            <span className="text-slate-400 font-normal"> ({b.medicineCode})</span>
                           </td>
                           <td className="py-2 px-3 text-right font-black text-slate-800">
                             {b.quantityAvailable} {b.unit}
@@ -565,7 +580,10 @@ export default function MedicineReportPage() {
                           {b.daysLeft}d left
                         </span>
                       </div>
-                      <div className="text-xs font-semibold text-slate-800">{b.medicineName}</div>
+                      <div className="text-xs font-semibold text-slate-800">
+                        {b.medicineName}
+                        {b.medicineAlias && ` (${b.medicineAlias})`}
+                      </div>
                       <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1">
                         <span>Stock: <strong className="text-slate-800">{b.quantityAvailable} {b.unit}</strong></span>
                         <button
@@ -630,7 +648,14 @@ export default function MedicineReportPage() {
                       return (
                         <tr key={m._id} className="hover:bg-slate-50/75 transition">
                           <td className="py-2 px-3 font-bold text-slate-900">{m.code}</td>
-                          <td className="py-2 px-3 font-semibold text-slate-800">{m.name}</td>
+                          <td className="py-2 px-3 font-semibold text-slate-800">
+                            {m.name}
+                            {m.aliasName && (
+                              <span className="ml-1 text-[11px] font-normal text-slate-500">
+                                ({m.aliasName})
+                              </span>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-slate-500 text-[11px]">{m.category}</td>
                           <td className="py-2 px-3 text-right font-black text-rose-700">
                             {m.currentStock} {m.unit}
@@ -664,7 +689,10 @@ export default function MedicineReportPage() {
                 {lowStock.map((m) => (
                   <div key={m._id} className="p-3 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="font-bold text-xs text-slate-900">{m.name}</span>
+                      <span className="font-bold text-xs text-slate-900">
+                        {m.name}
+                        {m.aliasName && ` (${m.aliasName})`}
+                      </span>
                       <span
                         className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                           m.status === 'OUT_OF_STOCK'
@@ -740,7 +768,10 @@ export default function MedicineReportPage() {
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Batch Number</span>
                   <div className="text-sm font-black text-slate-900 mt-0.5">{traceData.batch?.batchNumber}</div>
-                  <div className="text-[11px] text-slate-500">{traceData.batch?.medicine?.name}</div>
+                  <div className="text-[11px] text-slate-500">
+                    {traceData.batch?.medicine?.name}
+                    {traceData.batch?.medicine?.aliasName && ` (${traceData.batch.medicine.aliasName})`}
+                  </div>
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Supplier</span>
@@ -844,7 +875,9 @@ export default function MedicineReportPage() {
               >
                 <option value="">All Medicines</option>
                 {medicines.map((m) => (
-                  <option key={m._id} value={m._id}>{m.name} ({m.code})</option>
+                  <option key={m._id} value={m._id}>
+                    {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code})
+                  </option>
                 ))}
               </select>
 
@@ -905,7 +938,13 @@ export default function MedicineReportPage() {
                             {new Date(tx.createdAt).toLocaleString('en-IN')}
                           </td>
                           <td className="py-2 px-3 font-semibold text-slate-800">
-                            {tx.medicine?.name || '—'} <span className="text-slate-400 font-normal">({tx.medicine?.code})</span>
+                            {tx.medicine?.name || '—'}
+                            {tx.medicine?.aliasName && (
+                              <span className="ml-1 text-[11px] font-normal text-slate-500">
+                                ({tx.medicine.aliasName})
+                              </span>
+                            )}
+                            <span className="text-slate-400 font-normal"> ({tx.medicine?.code})</span>
                           </td>
                           <td className="py-2 px-3 font-bold text-slate-900">{tx.batch?.batchNumber || '—'}</td>
                           <td className="py-2 px-3 text-center">
@@ -960,7 +999,10 @@ export default function MedicineReportPage() {
                           {tx.transactionType}
                         </span>
                       </div>
-                      <div className="text-xs font-semibold text-slate-800">{tx.medicine?.name}</div>
+                      <div className="text-xs font-semibold text-slate-800">
+                        {tx.medicine?.name}
+                        {tx.medicine?.aliasName && ` (${tx.medicine.aliasName})`}
+                      </div>
                       <div className="flex justify-between items-center text-xs pt-1">
                         <span
                           className={`font-black ${
@@ -1103,7 +1145,7 @@ export default function MedicineReportPage() {
                             <div className="flex flex-wrap gap-1 max-w-[280px]">
                               {f.medicinesList.map((m, mi) => (
                                 <span key={mi} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-semibold text-slate-700">
-                                  {m.name}: {m.quantity} {m.unit}
+                                  {m.name}{m.aliasName ? ` (${m.aliasName})` : ''}: {m.quantity} {m.unit}
                                 </span>
                               ))}
                             </div>
@@ -1140,7 +1182,7 @@ export default function MedicineReportPage() {
                       <div className="flex flex-wrap gap-1 pt-1">
                         {f.medicinesList.map((m, mi) => (
                           <span key={mi} className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[9px] font-semibold">
-                            {m.name}: {m.quantity} {m.unit}
+                            {m.name}{m.aliasName ? ` (${m.aliasName})` : ''}: {m.quantity} {m.unit}
                           </span>
                         ))}
                       </div>

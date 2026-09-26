@@ -305,7 +305,7 @@ export default function MedicineIssuePage() {
             <option value="">All Medicines</option>
             {medicines.map((m) => (
               <option key={m._id} value={m._id}>
-                {m.name} ({m.code})
+                {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code})
               </option>
             ))}
           </select>
@@ -413,6 +413,11 @@ export default function MedicineIssuePage() {
                       <td className="py-2.5 px-3">
                         <div className="font-semibold text-slate-800">
                           {iss.medicine?.name}
+                          {iss.medicine?.aliasName && (
+                            <span className="ml-1 text-[11px] font-normal text-slate-500">
+                              ({iss.medicine.aliasName})
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] font-mono text-slate-600 flex items-center gap-1.5 mt-0.5">
                           <span className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded text-[10px]">
@@ -497,7 +502,10 @@ export default function MedicineIssuePage() {
                   <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-semibold block">Medicine</span>
-                      <span className="font-semibold text-slate-800">{iss.medicine?.name}</span>
+                      <span className="font-semibold text-slate-800">
+                        {iss.medicine?.name}
+                        {iss.medicine?.aliasName && ` (${iss.medicine.aliasName})`}
+                      </span>
                       <div className="text-[10px] text-slate-500 font-mono">Batch: {iss.batchNumber}</div>
                     </div>
                     <div>
@@ -605,7 +613,7 @@ export default function MedicineIssuePage() {
                     <option value="">Select Medicine...</option>
                     {medicines.map((m) => (
                       <option key={m._id} value={m._id}>
-                        {m.name} ({m.code}) — {m.unit}
+                        {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code}) — {m.unit}
                       </option>
                     ))}
                   </select>

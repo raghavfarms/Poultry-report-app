@@ -245,7 +245,7 @@ export async function createIssue(req, res) {
 
     // Populate and return
     const populatedIssue = await MedicineIssue.findById(newIssue._id)
-      .populate('medicine', 'name code unit category')
+      .populate('medicine', 'name code unit category aliasName')
       .populate('farm', 'name code')
       .populate('issuedBy', 'username name email');
 
@@ -323,7 +323,7 @@ export async function getIssues(req, res) {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('medicine', 'code name unit category')
+        .populate('medicine', 'code name unit category aliasName')
         .populate('batch', 'batchNumber expiryDate quantityAvailable status')
         .populate('farm', 'name code')
         .populate('issuedBy', 'username name')
@@ -355,7 +355,7 @@ export async function getIssueById(req, res) {
   try {
     const { id } = req.params;
     const issue = await MedicineIssue.findById(id)
-      .populate('medicine', 'code name unit category manufacturer')
+      .populate('medicine', 'code name unit category manufacturer aliasName')
       .populate('batch', 'batchNumber manufacturingDate expiryDate quantityAvailable status')
       .populate('farm', 'name code')
       .populate('issuedBy', 'username name email');

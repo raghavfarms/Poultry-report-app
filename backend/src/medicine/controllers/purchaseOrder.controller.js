@@ -87,7 +87,7 @@ export async function createPurchaseOrder(req, res) {
 
   // Populate supplier and medicine info for the response
   await purchaseOrder.populate('supplier', 'code name contactPerson mobile');
-  await purchaseOrder.populate('items.medicine', 'code name unit category');
+  await purchaseOrder.populate('items.medicine', 'code name unit category aliasName');
 
   res.status(201).json({
     success: true,
@@ -117,7 +117,7 @@ export async function getPurchaseOrders(req, res) {
 
   const purchaseOrders = await PurchaseOrder.find(filter)
     .populate('supplier', 'code name contactPerson mobile')
-    .populate('items.medicine', 'code name unit category')
+    .populate('items.medicine', 'code name unit category aliasName')
     .populate('createdBy', 'name email')
     .sort({ createdAt: -1 })
     .lean();
@@ -158,7 +158,7 @@ export async function getPurchaseOrders(req, res) {
 export async function getPurchaseOrderById(req, res) {
   const po = await PurchaseOrder.findById(req.params.id)
     .populate('supplier', 'code name contactPerson mobile email address gstin')
-    .populate('items.medicine', 'code name unit category manufacturer')
+    .populate('items.medicine', 'code name unit category manufacturer aliasName')
     .populate('createdBy', 'name email')
     .populate('updatedBy', 'name email')
     .lean();

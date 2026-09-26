@@ -350,7 +350,14 @@ export default function MedicineReceiptPage() {
                         <div className="text-[10px] text-slate-400">{new Date(rcp.createdAt).toLocaleDateString()}</div>
                       </td>
                       <td className="py-2 px-3">
-                        <div className="font-semibold text-slate-800">{rcp.medicine?.name}</div>
+                        <div className="font-semibold text-slate-800">
+                          {rcp.medicine?.name}
+                          {rcp.medicine?.aliasName && (
+                            <span className="ml-1 text-[10px] font-normal text-slate-500">
+                              ({rcp.medicine.aliasName})
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-emerald-700 font-mono font-bold">Batch: {rcp.batchNumber}</div>
                       </td>
                       <td className="py-2 px-3">
@@ -417,7 +424,10 @@ export default function MedicineReceiptPage() {
                   <div className="grid grid-cols-2 gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-semibold block">Medicine</span>
-                      <span className="font-semibold text-slate-800">{rcp.medicine?.name}</span>
+                      <span className="font-semibold text-slate-800">
+                        {rcp.medicine?.name}
+                        {rcp.medicine?.aliasName && ` (${rcp.medicine.aliasName})`}
+                      </span>
                       <div className="text-[10px] text-emerald-700 font-mono font-bold">Batch: {rcp.batchNumber}</div>
                     </div>
                     <div>
@@ -495,7 +505,14 @@ export default function MedicineReceiptPage() {
                     {batches.map((b) => (
                       <tr key={b._id} className="hover:bg-slate-50/75 transition">
                         <td className="py-2 px-3">
-                          <div className="font-bold text-slate-900">{b.medicine?.name}</div>
+                          <div className="font-bold text-slate-900">
+                            {b.medicine?.name}
+                            {b.medicine?.aliasName && (
+                              <span className="ml-1 text-[11px] font-normal text-slate-500">
+                                ({b.medicine.aliasName})
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[10px] text-slate-400">{b.medicine?.code} • {b.medicine?.category?.replace('_', ' ')}</div>
                         </td>
                         <td className="py-2 px-3">
@@ -535,7 +552,14 @@ export default function MedicineReceiptPage() {
                   <div key={b._id} className="p-3 space-y-2 text-xs">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-slate-900 text-sm">{b.medicine?.name}</h3>
+                        <h3 className="font-bold text-slate-900 text-sm">
+                          {b.medicine?.name}
+                          {b.medicine?.aliasName && (
+                            <span className="ml-1 text-xs font-normal text-slate-500">
+                              ({b.medicine.aliasName})
+                            </span>
+                          )}
+                        </h3>
                         <span className="text-[10px] text-slate-400">{b.medicine?.code} • {b.medicine?.category?.replace('_', ' ')}</span>
                       </div>
                       <span
@@ -638,7 +662,9 @@ export default function MedicineReceiptPage() {
                     >
                       <option value="">Select Medicine</option>
                       {medicines.map((m) => (
-                        <option key={m._id} value={m._id}>{m.name} ({m.code}) — {m.unit}</option>
+                        <option key={m._id} value={m._id}>
+                          {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code}) — {m.unit}
+                        </option>
                       ))}
                     </select>
                   </div>

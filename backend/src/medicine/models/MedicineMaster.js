@@ -8,12 +8,12 @@ const medicineSchema=new mongoose.Schema({
      // uppercase true ensures 'med-001'  is saved as MED-001
 
 
-     code:{
+      code:{
         type:String,
-        required:[true,'Medicine code is required'],
-        trim:true ,  // "MED-011 "  convert "MED-011"    reomve space 
+        trim:true,
         uppercase:true,
         unique:true,
+        sparse:true, // Allows multiple documents without breaking unique index
         maxlength:30
       },
 
@@ -28,24 +28,29 @@ const medicineSchema=new mongoose.Schema({
 
       // Medicine Category
 
+      aliasName:{
+        type:String,
+        trim:true,
+        default:'',
+        maxlength:120,
+      },
+
+
+
+
+
       category:{
       type: String ,
       required: [true,'Category is required'],
-      enum:{
-        values:['FEED_MEDICINE','GENERAL_MEDICINE','VACCINATION'],
-        message:'{VALUE} is not a valid medicine category',
-       },
+       trim: true,
       },
 
        //  unit of Measurement (e.g  bottle,litre,tablet)
 
-        unit :{
-            type: String,
-            required:[true,'unit of measurement is required'],
-            enum:{
-                values:['Bottle','Litre','ml','Kg','Gram','Tablet','Dose','Packet','Vial', 'Other'],
-                message:'{VALUE} is not valid unit',
-            },
+        unit: {
+          type: String,
+          required: [true, 'Unit of measurement is required'],
+          trim: true,
         },
 
         // Manufacturer/ Brand Name (Optional)
