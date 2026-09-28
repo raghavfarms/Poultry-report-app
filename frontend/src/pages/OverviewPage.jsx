@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import DieselReports from "../components/DieselReports.jsx";
 import TransportPage from "./TransportPage.jsx";
 import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
-import WorkerAttendancePortal from "../attendance/pages/WorkerAttendancePortal.jsx";
+import { canAccessModule } from "../utils/moduleAccess.js";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -22,15 +22,17 @@ export default function OverviewPage() {
     return () => query.removeEventListener("change", update);
   }, []);
 
-  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
-  const isSecurity = user?.role === "security";
+  const visibleModules = modules.filter(([slug]) =>
+    canAccessModule(user, slug) &&
+    (["diesel", "transport", "attendance"].includes(slug) || user?.role === "developer")
+  );
 
   if (desktop)
     return (
       <div className="space-y-6">
-        {!isSecurity && <DieselReports compact />}
-        {!isSecurity && <TransportPage />}
-        {hasAttendanceAccess && <AttendanceReportPage />}
+        {canAccessModule(user, "diesel") && <DieselReports compact />}
+        {canAccessModule(user, "transport") && <TransportPage />}
+        {canAccessModule(user, "attendance") && <AttendanceReportPage />}
         {user?.role === "developer" && (
           <section>
             <h2 className="mb-4 text-xl font-black text-slate-900">
@@ -73,14 +75,7 @@ export default function OverviewPage() {
           Select a report to open or close it.
         </p>
       </div>
-      {(user?.role === "developer"
-        ? modules
-        : modules.filter(([slug]) => {
-            if (user?.role === "security") return slug === "attendance";
-            if (slug === "attendance") return hasAttendanceAccess;
-            return ["diesel", "transport"].includes(slug);
-          })
-      ).map(([slug, label, icon]) => {
+      {visibleModules.map(([slug, label, icon]) => {
         const expanded = openReport === slug;
         const panelId = `report-panel-${slug}`;
         return (

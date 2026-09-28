@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { canAccessModule } from "../utils/moduleAccess.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export const modules = [
@@ -37,13 +38,7 @@ function Sidebar({ open, close }) {
   const isAdminOrDev = ["admin", "developer"].includes(user?.role);
   const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
   const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
-  const visibleModules =
-    user?.role === "developer"
-      ? modules
-      : modules.filter(([slug]) => {
-          if (isAdminOrDev) return true;
-          return user?.allowedModules?.includes(slug);
-        });
+  const visibleModules = modules.filter(([slug]) => canAccessModule(user, slug));
     
 
 

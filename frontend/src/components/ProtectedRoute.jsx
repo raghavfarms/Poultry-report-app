@@ -1,3 +1,4 @@
+import { canAccessModule } from "../utils/moduleAccess.js";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { Spinner } from "./Ui.jsx";
@@ -21,7 +22,7 @@ export default function ProtectedRoute({
   if (admin && !isAdminOrDev) return <Navigate to="/" replace />;
   if (developer && user.role !== "developer") return <Navigate to="/" replace />;
 
-  if (module && !user.allowedModules?.includes(module)) {
+  if (module && !canAccessModule(user, module)) {
     return <Navigate to="/" replace />;
   }
 

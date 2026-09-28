@@ -38,6 +38,13 @@ export async function protect(req, res, next) {
   }
 }
 
+export function requireModuleAccess(module) {
+  return (req, res, next) => {
+    if (['admin', 'developer'].includes(req.user?.role) || req.user?.allowedModules?.includes(module)) return next();
+    return res.status(403).json({ message: 'You do not have access to this report module.' });
+  };
+}
+
 export function masterOnly(permission) {
   return (req, res, next) => {
     if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.[permission] === true) return next();
