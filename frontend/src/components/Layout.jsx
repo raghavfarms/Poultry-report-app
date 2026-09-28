@@ -3,6 +3,12 @@ import { NavLink, Outlet } from "react-router-dom";
 import { canAccessReport } from "../utils/moduleAccess.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+export const AVAILABLE_MODULES = [
+  ["diesel", "Diesel Consumption", "⛽"],
+  ["transport", "Transport Report", "🚚"],
+  ["attendance", "Attendance", "👤"],
+];
+
 export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],

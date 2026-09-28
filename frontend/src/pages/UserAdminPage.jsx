@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { api } from "../api/client.js";
 import { Alert, Field, inputClass, primaryButton, secondaryButton, Spinner } from "../components/Ui.jsx";
-import { modules } from "../components/Layout.jsx";
+import { AVAILABLE_MODULES } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const DEFAULT_ROLES = [
