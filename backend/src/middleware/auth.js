@@ -38,6 +38,22 @@ export async function protect(req, res, next) {
   }
 }
 
+export function attendanceEditOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    req.user?.permissions?.attendance_edit === true
+  )) return next();
+  return res.status(403).json({ message: 'Edit Attendance permission is required.' });
+}
+
+export function attendanceReportsOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    req.user?.permissions?.attendance_report === true
+  )) return next();
+  return res.status(403).json({ message: 'Monthly Attendance Report permission is required.' });
+}
+
 export function requireModuleAccess(module) {
   return (req, res, next) => {
     if (['admin', 'developer'].includes(req.user?.role) || req.user?.allowedModules?.includes(module)) return next();

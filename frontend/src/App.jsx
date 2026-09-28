@@ -13,15 +13,12 @@ import UserAdminPage from "./pages/UserAdminPage.jsx";
 import AttendanceReportPage from "./attendance/pages/AttendanceReportPage.jsx";
 import FaceAttendancePage from "./attendance/pages/FaceAttendancePage.jsx";
 import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.jsx";
+import { canAccessReport } from "./utils/moduleAccess.js";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
   const { user } = useAuth();
-  if (
-    ["admin", "developer"].includes(user?.role) ||
-    user?.permissions?.attendance_report ||
-    user?.allowedModules?.includes("attendance")
-  ) {
+  if (canAccessReport(user, "attendance")) {
     return <AttendanceReportPage />;
   }
   return <Navigate to="/" replace />;

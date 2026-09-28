@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
+import { protect, requireModuleAccess, attendanceEditOnly, attendanceReportsOnly, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
 import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
 import User from '../models/User.js';
@@ -38,8 +38,8 @@ router.use((req, res, next) => {
 
 // Supervisor scoped endpoints
 router.get('/supervisor/workers', async (req, res) => res.json(await supervisorService.supervisorWorkers(req.user, req.query)));
-router.get('/supervisor/sessions', async (req, res) => res.json(await supervisorService.supervisorSessions(req.user, req.query)));
-router.post('/supervisor/sessions/correct', async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
+router.get('/supervisor/sessions', requireModuleAccess('attendance'), async (req, res) => res.json(await supervisorService.supervisorSessions(req.user, req.query)));
+router.post('/supervisor/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
 
 // Master data & firms
 router.get('/firms', async (req, res) => {
@@ -117,20 +117,20 @@ router.get('/face-descriptors', async (req, res) => res.json(await faceService.l
 
 // Live Attendance Tracking & Events
 router.get('/workers/:id/status', async (req, res) => res.json(await attendanceService.getWorkerAttendanceStatus(req.user, req.params.id, req.query.at ? new Date(req.query.at) : undefined)));
-router.get('/events', async (req, res) => res.json(await attendanceService.listAttendanceEvents(req.user, req.query)));
+router.get('/events', requireModuleAccess('attendance'), async (req, res) => res.json(await attendanceService.listAttendanceEvents(req.user, req.query)));
 router.post('/events', async (req, res) => res.status(201).json(await attendanceService.recordAttendance(req.user, req.body)));
-router.get('/sessions', async (req, res) => res.json(await attendanceService.listAttendanceSessions(req.user, req.query)));
-router.post('/sessions/correct', async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
-router.post('/sessions/auto-cut', async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
+router.get('/sessions', requireModuleAccess('attendance'), async (req, res) => res.json(await attendanceService.listAttendanceSessions(req.user, req.query)));
+router.post('/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
+router.post('/sessions/auto-cut', attendanceEditOnly, async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
 router.post('/sessions/bulk-day', adminOnly, async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
 router.delete('/sessions/:id', adminOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
 
 // Dashboard
-router.get('/dashboard/live', async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));
+router.get('/dashboard/live', requireModuleAccess('attendance'), async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));
 
 // Reports
-router.get('/reports/daily', async (req, res) => res.json(await reportService.getDailyAttendanceReport(req.user, req.query)));
-router.get('/reports/monthly', async (req, res) => res.json(await reportService.getMonthlyAttendanceSummary(req.user, req.query)));
+router.get('/reports/daily', requireModuleAccess('attendance'), async (req, res) => res.json(await reportService.getDailyAttendanceReport(req.user, req.query)));
+router.get('/reports/monthly', attendanceReportsOnly, async (req, res) => res.json(await reportService.getMonthlyAttendanceSummary(req.user, req.query)));
 
 // Audit Logs
 router.get('/audit-logs', attendanceAdminOnly, async (req, res) => res.json(await auditService.listAuditLogs(req.user, req.query)));

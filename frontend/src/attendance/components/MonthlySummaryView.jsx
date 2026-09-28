@@ -4,6 +4,7 @@ import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui
 import { attendancePath } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { canEditAttendance } from '../../utils/moduleAccess.js';
 import AttendanceCorrectionModal from './AttendanceCorrectionModal.jsx';
 import BulkAttendanceModal from './BulkAttendanceModal.jsx';
 
@@ -19,7 +20,7 @@ export default function MonthlySummaryView({
   setMonth: propSetMonth,
 }) {
   const { user } = useAuth();
-  const canEdit = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge', 'security'].includes(user?.role);
+  const canEdit = canEditAttendance(user);
   const canBulkApply = ['admin', 'developer'].includes(user?.role);
   const [editingWorker, setEditingWorker] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -410,7 +411,7 @@ export default function MonthlySummaryView({
           </div>
         )}
       </div>
-      {editingWorker && <AttendanceCorrectionModal
+      {canEdit && editingWorker && <AttendanceCorrectionModal
         worker={editingWorker}
         supervisor={user?.role === 'supervisor'}
         initialDate={month === getCurrentMonthString()

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import DieselReports from "../components/DieselReports.jsx";
 import TransportPage from "./TransportPage.jsx";
 import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
-import { canAccessModule } from "../utils/moduleAccess.js";
+import { canAccessReport } from "../utils/moduleAccess.js";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -23,16 +23,25 @@ export default function OverviewPage() {
   }, []);
 
   const visibleModules = modules.filter(([slug]) =>
-    canAccessModule(user, slug) &&
+    canAccessReport(user, slug) &&
     (["diesel", "transport", "attendance"].includes(slug) || user?.role === "developer")
   );
+
+  if (visibleModules.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+        <h1 className="text-xl font-bold text-slate-900">All Reports</h1>
+        <p className="text-sm text-slate-600">No reports are enabled for your account.</p>
+      </div>
+    );
+  }
 
   if (desktop)
     return (
       <div className="space-y-6">
-        {canAccessModule(user, "diesel") && <DieselReports compact />}
-        {canAccessModule(user, "transport") && <TransportPage />}
-        {canAccessModule(user, "attendance") && <AttendanceReportPage />}
+        {canAccessReport(user, "diesel") && <DieselReports compact />}
+        {canAccessReport(user, "transport") && <TransportPage />}
+        {canAccessReport(user, "attendance") && <AttendanceReportPage />}
         {user?.role === "developer" && (
           <section>
             <h2 className="mb-4 text-xl font-black text-slate-900">

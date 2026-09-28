@@ -26,9 +26,9 @@ export function assertSupervisedDeployment(supervisor, worker, deployment) {
 
 export async function correctionActor(user, worker, deployment) {
   firmScope(user, deployment.firm);
-  if (['admin', 'developer', 'security', 'farm_incharge'].includes(user.role)) return user;
-  if (['admin', 'developer', 'office', 'security', 'farm_incharge'].includes(user.role)) return user;
-  if (!['supervisor', 'worker'].includes(user.role)) throw forbiddenError('Attendance editing access is required.');
+  if (['admin', 'developer'].includes(user.role)) return user;
+  if (!user.permissions?.attendance_edit) throw forbiddenError('Edit Attendance permission is required.');
+  if (!['supervisor', 'worker'].includes(user.role)) return user;
   const supervisor = await supervisorIdentity(user);
   assertSupervisedDeployment(supervisor, worker, deployment);
   return { _id: supervisor.userId, name: supervisor.fullName, role: 'supervisor' };
