@@ -25,12 +25,16 @@ export async function getUsers(req, res) {
             attendance_scan: true,
             attendance_report: true,
             worker_master: true,
+            asset_master: true,
+            transport_master: true,
             attendance_admin_master: true,
           }
         : {
             attendance_scan: u.permissions?.attendance_scan ?? true,
             attendance_report: u.permissions?.attendance_report ?? false,
             worker_master: u.permissions?.worker_master ?? true,
+            asset_master: u.permissions?.asset_master ?? false,
+            transport_master: u.permissions?.transport_master ?? false,
             attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
           },
     };
@@ -69,6 +73,8 @@ export async function createUser(req, res) {
     attendance_scan: req.body.permissions?.attendance_scan ?? roleDoc?.permissions?.attendance_scan ?? true,
     attendance_report: req.body.permissions?.attendance_report ?? roleDoc?.permissions?.attendance_report ?? false,
     worker_master: req.body.permissions?.worker_master ?? roleDoc?.permissions?.worker_master ?? true,
+    asset_master: req.body.permissions?.asset_master ?? roleDoc?.permissions?.asset_master ?? false,
+    transport_master: req.body.permissions?.transport_master ?? roleDoc?.permissions?.transport_master ?? false,
     attendance_admin_master: req.body.permissions?.attendance_admin_master ?? roleDoc?.permissions?.attendance_admin_master ?? false,
   };
 
@@ -128,6 +134,8 @@ export async function updateUser(req, res) {
       attendance_scan: req.body.permissions.attendance_scan ?? user.permissions.attendance_scan,
       attendance_report: req.body.permissions.attendance_report ?? user.permissions.attendance_report,
       worker_master: req.body.permissions.worker_master ?? user.permissions.worker_master,
+      asset_master: req.body.permissions.asset_master ?? user.permissions.asset_master,
+      transport_master: req.body.permissions.transport_master ?? user.permissions.transport_master,
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? user.permissions.attendance_admin_master,
     };
   }

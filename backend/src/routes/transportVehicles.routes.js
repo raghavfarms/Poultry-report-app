@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import { adminOnly, protect } from '../middleware/auth.js';
+import { masterOnly, protect } from '../middleware/auth.js';
 import { createVehicle, getVehicles, removeVehicle, restoreVehicle, updateVehicle } from '../controllers/transportVehicles.controller.js';
 
 const router = Router();
 router.use(protect);
 router.get('/', getVehicles);
-router.post('/', adminOnly, createVehicle);
-router.patch('/:vehicleId', adminOnly, updateVehicle);
-router.delete('/:vehicleId', adminOnly, removeVehicle);
-router.patch('/:vehicleId/restore', adminOnly, restoreVehicle);
+router.post('/', masterOnly('transport_master'), createVehicle);
+router.patch('/:vehicleId', masterOnly('transport_master'), updateVehicle);
+router.delete('/:vehicleId', masterOnly('transport_master'), removeVehicle);
+router.patch('/:vehicleId/restore', masterOnly('transport_master'), restoreVehicle);
 export default router;
 

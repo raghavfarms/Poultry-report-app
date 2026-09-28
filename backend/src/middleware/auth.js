@@ -38,6 +38,13 @@ export async function protect(req, res, next) {
   }
 }
 
+export function masterOnly(permission) {
+  return (req, res, next) => {
+    if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.[permission] === true) return next();
+    return res.status(403).json({ message: 'Master access is required.' });
+  };
+}
+
 export function adminOnly(req, res, next) {
   if (!['admin', 'developer'].includes(req.user?.role)) {
     return res.status(403).json({ message: 'Admin access is required.' });

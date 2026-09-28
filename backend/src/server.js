@@ -194,6 +194,32 @@ async function start() {
     const Role = (await import('./models/Role.js')).default;
     const defaultRoles = [
       {
+        name: 'Administrator',
+        code: 'admin',
+        description: 'Full system administration, user management, and firm configuration',
+        allowedModules: ['diesel', 'transport', 'attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_admin_master: true,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Developer',
+        code: 'developer',
+        description: 'System developer with unrestricted access and debugging tools',
+        allowedModules: ['diesel', 'transport', 'attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_admin_master: true,
+        },
+        isSystem: true,
+      },
+      {
         name: 'Head Office',
         code: 'office',
         description: 'Office staff with full report & operational visibility',

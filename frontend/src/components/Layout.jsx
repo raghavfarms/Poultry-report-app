@@ -35,6 +35,8 @@ export const moduleIconStyles = {
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
   const isAdminOrDev = ["admin", "developer"].includes(user?.role);
+  const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
+  const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
   const visibleModules =
     user?.role === "developer"
       ? modules
@@ -95,7 +97,7 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
+          {(canManageAssets || canManageTransport || isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
@@ -105,13 +107,17 @@ function Sidebar({ open, close }) {
                   <NavLink to="/admin/users" className={linkClass}>
                     <span>👥</span>Users & Roles
                   </NavLink>
+                </>
+              )}
+              {canManageAssets && (
                   <NavLink to="/admin/assets" className={linkClass}>
                     <span>⚙</span>Firms & Assets
                   </NavLink>
+              )}
+              {canManageTransport && (
                   <NavLink to="/admin/transport" className={linkClass}>
                     <span>🚚</span>Transport Vehicles
                   </NavLink>
-                </>
               )}
               {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
                 <NavLink to="/admin/attendance" className={linkClass}>

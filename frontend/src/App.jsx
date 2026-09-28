@@ -80,7 +80,7 @@ export default function App() {
         <Route
           path="admin/assets"
           element={
-            <ProtectedRoute admin>
+            <ProtectedRoute permission="asset_master">
               <AssetAdminPage />
             </ProtectedRoute>
           }
@@ -88,7 +88,7 @@ export default function App() {
         <Route
           path="admin/transport"
           element={
-            <ProtectedRoute admin>
+            <ProtectedRoute permission="transport_master">
               <TransportAdminPage />
             </ProtectedRoute>
           }

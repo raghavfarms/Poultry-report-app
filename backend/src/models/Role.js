@@ -10,6 +10,8 @@ const roleSchema = new mongoose.Schema(
       default: ['attendance'],
     },
     permissions: {
+      asset_master: { type: Boolean, default: false },
+      transport_master: { type: Boolean, default: false },
       attendance_scan: { type: Boolean, default: false },
       attendance_report: { type: Boolean, default: false },
       worker_master: { type: Boolean, default: false },

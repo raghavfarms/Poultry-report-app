@@ -20,12 +20,16 @@ const publicUser = (user) => {
           attendance_scan: true,
           attendance_report: true,
           worker_master: true,
+          asset_master: true,
+          transport_master: true,
           attendance_admin_master: true,
         }
       : {
           attendance_scan: user.permissions?.attendance_scan ?? true,
           attendance_report: user.permissions?.attendance_report ?? false,
           worker_master: user.permissions?.worker_master ?? true,
+          asset_master: user.permissions?.asset_master ?? false,
+          transport_master: user.permissions?.transport_master ?? false,
           attendance_admin_master: user.permissions?.attendance_admin_master ?? false,
         },
   };
