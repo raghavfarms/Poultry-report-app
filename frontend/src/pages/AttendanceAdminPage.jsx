@@ -11,7 +11,8 @@ import { attendancePath, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFi
 
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
-  const canTransferOrDeploy = ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
+  const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const canTransferOrDeploy = isAdminOrDev;
 
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState('');
@@ -21,6 +22,13 @@ export default function AttendanceAdminPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
+
+  // Keep non-admin/dev users strictly on the workers master tab
+  useEffect(() => {
+    if (!isAdminOrDev && tab !== 'workers') {
+      setTab('workers');
+    }
+  }, [isAdminOrDev, tab]);
 
   // Load authorized firms for attendance
   useEffect(() => {
@@ -67,7 +75,9 @@ export default function AttendanceAdminPage() {
             Attendance Administration
           </p>
           <h1 className="mt-0.5 text-xl font-black text-slate-900 sm:text-2xl">
-            {activeFirm?.code === 'OFFICE' ? 'Staff & Office Management' : 'Worker & Shed Management'}
+            {activeFirm?.code === 'OFFICE'
+              ? (isAdminOrDev ? 'Staff & Office Management' : 'Staff Management')
+              : (isAdminOrDev ? 'Worker & Shed Management' : 'Worker Management')}
           </h1>
         </div>
 
@@ -107,7 +117,7 @@ export default function AttendanceAdminPage() {
       )}
 
       {/* Bird Capacity Summary Widget (Farms Only) */}
-      {capacityData?.firms?.[0] && activeFirm?.code !== 'OFFICE' && (
+      {isAdminOrDev && capacityData?.firms?.[0] && activeFirm?.code !== 'OFFICE' && (
         <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/70 to-cyan-50/40 p-4 shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -144,15 +154,19 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation: Only admin and developer see other masters. Other roles only see Workers. */}
       <div className="attendance-tabs no-print border-b border-slate-200">
         {[
           ['workers', activeFirm?.code === 'OFFICE' ? '👤 Employees' : '👤 Workers'],
-          ...(canTransferOrDeploy ? [['deployments', '📍 Deployments']] : []),
-          ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
-          ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
-          ['designations', '🏷️ Designations'],
-          ['audit', '📜 Audit History'],
+          ...(isAdminOrDev
+            ? [
+                ['deployments', '📍 Deployments'],
+                ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
+                ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
+                ['designations', '🏷️ Designations'],
+                ['audit', '📜 Audit History'],
+              ]
+            : []),
         ].map(([key, label]) => (
           <button
             key={key}
@@ -176,11 +190,11 @@ export default function AttendanceAdminPage() {
             <WorkersPanel key={firmId} firmId={firmId} firms={firms} revision={revision} onChanged={handleChanged} />
           )}
 
-          {tab === 'deployments' && canTransferOrDeploy && (
+          {tab === 'deployments' && isAdminOrDev && (
             <DeploymentPanel key={firmId} firmId={firmId} revision={revision} />
           )}
 
-          {tab === 'geofences' && (
+          {tab === 'geofences' && isAdminOrDev && (
             <GeofencePanel
               key={`${firmId}-${tab}`}
               firmId={firmId}
@@ -190,7 +204,7 @@ export default function AttendanceAdminPage() {
             />
           )}
 
-          {tab === 'work-locations' && (
+          {tab === 'work-locations' && isAdminOrDev && (
             <MastersPanel
               key={`${firmId}-${tab}`}
               kind="work-locations"
@@ -201,7 +215,7 @@ export default function AttendanceAdminPage() {
             />
           )}
 
-          {tab === 'designations' && (
+          {tab === 'designations' && isAdminOrDev && (
             <MastersPanel
               kind="designations"
               firmId={firmId}
@@ -211,7 +225,7 @@ export default function AttendanceAdminPage() {
             />
           )}
 
-          {tab === 'audit' && (
+          {tab === 'audit' && isAdminOrDev && (
             <AuditLogPanel key={firmId} firmId={firmId} firms={firms} />
           )}
         </>
