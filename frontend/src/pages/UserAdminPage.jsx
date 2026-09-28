@@ -165,7 +165,7 @@ function renderAllowedMasters(permissions = {}, role) {
   if (unrestricted || permissions.transport_master) allowed.push("Transport Vehicles & Stations");
   if (unrestricted || permissions.attendance_scan) allowed.push("Camera Scan");
   if (unrestricted || permissions.worker_master) allowed.push("Worker Master");
-  if (unrestricted || permissions.attendance_admin_master) allowed.push("Attendance Masters");
+  if (unrestricted || permissions.attendance_admin_master) allowed.push("Attendance Master");
   if (unrestricted || permissions.attendance_report) allowed.push("Monthly Attendance Report");
 
   if (allowed.length === 0) {
@@ -396,12 +396,20 @@ export default function UserAdminPage() {
     setError("");
     Promise.all([
       api("/users"),
-      api("/firms"),
+      api("/firms?includeOffice=true"),
       api("/roles").catch(() => ({ roles: DEFAULT_ROLES })),
     ])
       .then(([{ users = [] }, { firms = [] }, roleData]) => {
         setUsers(users);
-        setFirms(firms);
+        const allFirmsMap = new Map(firms.map((f) => [String(f._id), f]));
+        users.forEach((u) => {
+          (u.firms || []).forEach((f) => {
+            if (typeof f === "object" && f._id && !allFirmsMap.has(String(f._id))) {
+              allFirmsMap.set(String(f._id), f);
+            }
+          });
+        });
+        setFirms(Array.from(allFirmsMap.values()));
         if (roleData?.roles && roleData.roles.length > 0) {
           setRoles(roleData.roles);
         }
@@ -493,10 +501,10 @@ export default function UserAdminPage() {
 
   const toggleUserFirm = (firmId) => {
     setUserForm((prev) => {
-      const exists = prev.firms.includes(firmId);
+      const exists = prev.firms.some((id) => String(id?._id || id) === String(firmId));
       const next = exists
-        ? prev.firms.filter((id) => id !== firmId)
-        : [...prev.firms, firmId];
+        ? prev.firms.filter((id) => String(id?._id || id) !== String(firmId))
+        : [...prev.firms, String(firmId)];
       return { ...prev, firms: next };
     });
   };
@@ -958,7 +966,7 @@ export default function UserAdminPage() {
                       <th className="px-4 py-3.5">ROLE</th>
                       <th className="px-4 py-3.5">ASSIGNED FARMS</th>
                       <th className="px-4 py-3.5">ALLOWED MODULES</th>
-                      <th className="px-4 py-3.5">ALL MASTERS & PERMISSIONS</th>
+                      <th className="px-4 py-3.5">MASTER</th>
                       <th className="px-4 py-3.5">STATUS</th>
                       <th className="px-5 py-3.5 text-right">ACTION</th>
                     </tr>
@@ -1141,7 +1149,7 @@ export default function UserAdminPage() {
                     <tr>
                       <th className="px-5 py-3.5">ROLE</th>
                       <th className="px-4 py-3.5">DEFAULT MODULES</th>
-                      <th className="px-4 py-3.5">ALL MASTERS & PERMISSIONS</th>
+                      <th className="px-4 py-3.5">MASTER</th>
                       <th className="px-4 py-3.5">STATUS</th>
                       <th className="px-5 py-3.5 text-right">ACTION</th>
                     </tr>
@@ -1305,11 +1313,11 @@ export default function UserAdminPage() {
                 </label>
                 <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2">
                   {firms.map((f) => {
-                    const checked = userForm.firms.includes(f._id);
+                    const checked = userForm.firms.some((id) => String(id?._id || id) === String(f._id));
                     return (
                       <label
                         key={f._id}
-                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer transition ${
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer transition select-none ${
                           checked
                             ? "border-emerald-300 bg-emerald-50 text-emerald-800 font-semibold"
                             : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -1339,7 +1347,7 @@ export default function UserAdminPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5">
-                  {modules.map((m) => {
+                  {AVAILABLE_MODULES.map((m) => {
                     const slug = Array.isArray(m) ? m[0] : m.slug;
                     const label = Array.isArray(m) ? m[1] : m.label;
                     const checked = userForm.allowedModules.includes(slug);
@@ -1365,7 +1373,7 @@ export default function UserAdminPage() {
               {/* All Masters Access Permissions - Compact 2-col Grid */}
               <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-2.5 space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700">
-                  All Masters Access &amp; Permissions
+                  Master Access
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
                   {[["attendance_edit", "Edit Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
@@ -1419,7 +1427,7 @@ export default function UserAdminPage() {
                       onChange={() => toggleUserPermission("attendance_admin_master")}
                       className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
                     />
-                    <span className="truncate text-xs">Attendance Masters</span>
+                    <span className="truncate text-xs">Attendance Master</span>
                   </label>
 
                   <label
@@ -1522,7 +1530,7 @@ export default function UserAdminPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5">
-                  {modules.map((m) => {
+                  {AVAILABLE_MODULES.map((m) => {
                     const slug = Array.isArray(m) ? m[0] : m.slug;
                     const label = Array.isArray(m) ? m[1] : m.label;
                     const checked = roleForm.allowedModules.includes(slug);
@@ -1548,7 +1556,7 @@ export default function UserAdminPage() {
               {/* Default Master Permissions - Compact 2-col Grid */}
               <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-2.5 space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700">
-                  Default All Masters Access
+                  Default Master Access
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
                   {[["attendance_edit", "Edit Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
@@ -1602,7 +1610,7 @@ export default function UserAdminPage() {
                       onChange={() => toggleRolePermission("attendance_admin_master")}
                       className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
                     />
-                    <span className="truncate text-xs">Attendance Masters</span>
+                    <span className="truncate text-xs">Attendance Master</span>
                   </label>
 
                   <label

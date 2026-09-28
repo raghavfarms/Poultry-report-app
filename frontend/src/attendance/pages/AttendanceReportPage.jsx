@@ -72,10 +72,15 @@ export default function AttendanceReportPage() {
         const sorted = sortFirmsOrder(list);
         setFirms(sorted);
         const stored = getStoredAttendanceFirm();
-        if (stored) {
+        if (sorted.length === 1) {
+          setFirmId(sorted[0]._id);
+          setStoredAttendanceFirm(sorted[0]._id);
+        } else if (stored) {
           if (stored === 'all' || sorted.some((f) => String(f._id) === String(stored))) {
             setFirmId(stored);
           }
+        } else if (sorted.length > 0) {
+          setFirmId('all');
         }
       })
       .catch(() => {})
@@ -91,6 +96,7 @@ export default function AttendanceReportPage() {
   }, []);
 
   const visibleFirms = useMemo(() => {
+    if (firms.length === 1) return firms;
     if (!firmId || firmId === 'all') {
       // "All Firms" combines real poultry farms (Raghav, Sanjana), excluding Office
       return firms.filter((f) => f.code !== 'OFFICE');
@@ -190,9 +196,11 @@ export default function AttendanceReportPage() {
                       setStoredAttendanceFirm(val);
                     }}
                   >
-                    <option value="all">
-                      All Firms
-                    </option>
+                    {firms.length > 1 && (
+                      <option value="all">All Firms</option>
+                    )}
+
+
                     {firms.map((f) => (
                       <option key={f._id} value={f._id}>
                         {f.name}

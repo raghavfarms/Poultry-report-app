@@ -28,7 +28,12 @@ export default function DieselReports({ compact = false, showHeading = true }) {
 
   useEffect(() => {   //  Loading firms -- this run once when the component opens 
     api("/firms")
-      .then(({ firms }) => setFirms(firms))
+      .then(({ firms = [] }) => {
+        setFirms(firms);
+        if (firms.length === 1) {
+          setFirmFilter(firms[0]._id);
+        }
+      })
       .catch((err) => setError(err.message));
   }, []);  // []  means runs only once when the component is mounted
 
@@ -129,7 +134,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
           value={firmFilter}
           onChange={(e) => setFirmFilter(e.target.value)} // changing the selection updates FirmFilter ,which causes report to reload 
         >
-          <option value="all">All firms</option>
+          {firms.length > 1 && <option value="all">All firms</option>}
           {firms.map((firm) => (
             <option key={firm._id} value={firm._id}>
               {firm.name}
