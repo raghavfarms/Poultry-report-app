@@ -34,16 +34,13 @@ export const moduleIconStyles = {
 
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
-  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
+  const isAdminOrDev = ["admin", "developer"].includes(user?.role);
   const visibleModules =
     user?.role === "developer"
       ? modules
       : modules.filter(([slug]) => {
-          if (user?.role === "security") {
-            return slug === "attendance";
-          }
-          if (slug === "attendance") return hasAttendanceAccess;
-          return ["diesel", "transport"].includes(slug);
+          if (isAdminOrDev) return true;
+          return user?.allowedModules?.includes(slug);
         });
     
 
@@ -98,13 +95,16 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {["admin", "developer","office","supervisor","farm_incharge"].includes(user?.role) && (
+          {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
               </p>
-              {["admin", "developer"].includes(user?.role) && (
+              {isAdminOrDev && (
                 <>
+                  <NavLink to="/admin/users" className={linkClass}>
+                    <span>👥</span>Users & Roles
+                  </NavLink>
                   <NavLink to="/admin/assets" className={linkClass}>
                     <span>⚙</span>Firms & Assets
                   </NavLink>
@@ -113,9 +113,11 @@ function Sidebar({ open, close }) {
                   </NavLink>
                 </>
               )}
-              <NavLink to="/admin/attendance" className={linkClass}>
-                <span>👤</span>Attendance Admin
-              </NavLink>
+              {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
+                <NavLink to="/admin/attendance" className={linkClass}>
+                  <span>👤</span>Attendance Admin
+                </NavLink>
+              )}
             </>
           )}
         </nav>

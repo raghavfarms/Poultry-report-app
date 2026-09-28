@@ -59,8 +59,71 @@ async function start() {
 
     await User.updateMany(
       { role: { $in: ['admin', 'developer'] } },
-      { $addToSet: { firms: officeFirm._id } }
+      {
+        $addToSet: { firms: officeFirm._id },
+        $set: {
+          allowedModules: ['diesel', 'transport', 'attendance'],
+          permissions: {
+            attendance_scan: true,
+            attendance_report: true,
+            worker_master: true,
+            attendance_admin_master: true,
+          },
+        },
+      }
     );
+
+    // 3b. Sync missing permissions and allowedModules for all existing registered users
+    const allExistingUsers = await User.find({}).lean();
+    for (const u of allExistingUsers) {
+      const needsModules = !u.allowedModules || u.allowedModules.length === 0;
+      const needsPermissions = !u.permissions || u.permissions.attendance_scan === undefined;
+      if (needsModules || needsPermissions) {
+        let defaultModules = ['diesel', 'transport', 'attendance'];
+        let defaultPerms = {
+          attendance_scan: true,
+          attendance_report: false,
+          worker_master: true,
+          attendance_admin_master: false,
+        };
+
+        if (['admin', 'developer'].includes(u.role)) {
+          defaultModules = ['diesel', 'transport', 'attendance'];
+          defaultPerms = {
+            attendance_scan: true,
+            attendance_report: true,
+            worker_master: true,
+            attendance_admin_master: true,
+          };
+        } else if (u.role === 'security') {
+          defaultModules = ['attendance'];
+          defaultPerms = {
+            attendance_scan: true,
+            attendance_report: false,
+            worker_master: false,
+            attendance_admin_master: false,
+          };
+        } else if (['office', 'farm_incharge'].includes(u.role)) {
+          defaultModules = ['diesel', 'transport', 'attendance'];
+          defaultPerms = {
+            attendance_scan: true,
+            attendance_report: true,
+            worker_master: true,
+            attendance_admin_master: false,
+          };
+        }
+
+        await User.updateOne(
+          { _id: u._id },
+          {
+            $set: {
+              ...(needsModules ? { allowedModules: defaultModules } : {}),
+              ...(needsPermissions ? { permissions: defaultPerms } : {}),
+            },
+          }
+        );
+      }
+    }
 
     const adminUser = await User.findOne({ role: { $in: ['developer', 'admin'] } }).lean();
     const Designation = (await import('./attendance/models/Designation.js')).default;
@@ -124,6 +187,76 @@ async function start() {
     }
   } catch (err) {
     console.error('Supervisor sync note:', err.message);
+  }
+
+  // 5. Ensure Default Roles exist
+  try {
+    const Role = (await import('./models/Role.js')).default;
+    const defaultRoles = [
+      {
+        name: 'Head Office',
+        code: 'office',
+        description: 'Office staff with full report & operational visibility',
+        allowedModules: ['diesel', 'transport', 'attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Farm Incharge',
+        code: 'farm_incharge',
+        description: 'Farm Incharge with attendance registers and worker master',
+        allowedModules: ['attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Supervisor',
+        code: 'supervisor',
+        description: 'Farm supervisor for attendance and worker enrolment',
+        allowedModules: ['attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Security',
+        code: 'security',
+        description: 'Gate security personnel for face attendance scanning only',
+        allowedModules: ['attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: false,
+          worker_master: false,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+    ];
+
+    for (const r of defaultRoles) {
+      await Role.findOneAndUpdate(
+        { code: r.code },
+        { $setOnInsert: r },
+        { upsert: true, new: true }
+      );
+    }
+    console.log('✅ Default roles verified (Head Office, Farm Incharge, Supervisor, Security).');
+  } catch (err) {
+    console.error('Role auto-seed note:', err.message);
   }
 
   app.listen(port, () => console.log(`API listening on http://localhost:${port}`));

@@ -229,10 +229,18 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
                           <span className="text-slate-600">
                             {log.previousValue?.workLocationName || '—'}
                           </span>
-                        ) : log.previousValue ? (
+                        ) : (log.previousValue?.designationName || log.previousValue?.workLocationName) ? (
+                          <span className="text-xs text-slate-600">
+                            {[log.previousValue?.designationName, log.previousValue?.workLocationName].filter(Boolean).join(' • ') || '—'}
+                          </span>
+                        ) : (log.previousValue?.dutyIn !== undefined || log.previousValue?.dutyOut !== undefined) ? (
                           <span className="font-mono text-[11px]">
                             {log.previousValue.dutyIn ? new Date(log.previousValue.dutyIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'} →{' '}
                             {log.previousValue.dutyOut ? new Date(log.previousValue.dutyOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                          </span>
+                        ) : log.previousValue ? (
+                          <span className="text-xs text-slate-600">
+                            {typeof log.previousValue === 'object' ? Object.values(log.previousValue).filter(v => typeof v === 'string').join(', ') || '—' : String(log.previousValue)}
                           </span>
                         ) : (
                           <span className="text-slate-400">None (New Entry)</span>
@@ -243,10 +251,18 @@ export default function AuditLogPanel({ firmId, firms = [] }) {
                           <span className="text-emerald-800">
                             {log.newValue?.workLocationName || '—'}
                           </span>
-                        ) : log.newValue ? (
+                        ) : (log.newValue?.designationName || log.newValue?.workLocationName) ? (
+                          <span className="text-xs text-emerald-800 font-semibold">
+                            {[log.newValue?.designationName, log.newValue?.workLocationName].filter(Boolean).join(' • ') || '—'}
+                          </span>
+                        ) : (log.newValue?.dutyIn !== undefined || log.newValue?.dutyOut !== undefined) ? (
                           <span className="font-mono text-[11px] text-emerald-800">
                             {log.newValue.dutyIn ? new Date(log.newValue.dutyIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'} →{' '}
                             {log.newValue.dutyOut ? new Date(log.newValue.dutyOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                          </span>
+                        ) : log.newValue ? (
+                          <span className="text-xs text-emerald-800 font-semibold">
+                            {typeof log.newValue === 'object' ? Object.values(log.newValue).filter(v => typeof v === 'string').join(', ') || '—' : String(log.newValue)}
                           </span>
                         ) : (
                           <span className="text-slate-400">—</span>

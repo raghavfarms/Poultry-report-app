@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, adminOnly } from '../middleware/auth.js';
+import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
 import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
 import User from '../models/User.js';
@@ -77,13 +77,13 @@ router.get('/registered-users', async (req, res) => res.json(await service.listR
 
 for (const kind of ['designations', 'work-locations', 'geofences']) {
   router.get(`/${kind}`, async (req, res) => res.json(await service.listMasters(kind, req.user, req.query)));
-  router.post(`/${kind}`, attendanceAdminOnly, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
+  router.post(`/${kind}`, attendanceFullMasterOnly, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
   router.get(`/${kind}/:id`, async (req, res) => {
     const item = await service.getMaster(kind, req.user, req.params.id);
     res.json({ item: kind === 'work-locations' ? service.locationWithCapacity(item) : item });
   });
-  router.patch(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
-  router.delete(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json(await service.deleteMaster(kind, req.user, req.params.id)));
+  router.patch(`/${kind}/:id`, attendanceFullMasterOnly, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
+  router.delete(`/${kind}/:id`, attendanceFullMasterOnly, async (req, res) => res.json(await service.deleteMaster(kind, req.user, req.params.id)));
 }
 
 // Deployments

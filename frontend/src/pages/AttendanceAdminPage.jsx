@@ -12,7 +12,9 @@ import { attendancePath, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFi
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
-  const canTransferOrDeploy = isAdminOrDev;
+  const canAccessFullMasters = isAdminOrDev || Boolean(user?.permissions?.attendance_admin_master);
+  const canAccessWorkers = isAdminOrDev || Boolean(user?.permissions?.worker_master) || ['office', 'supervisor', 'farm_incharge'].includes(user?.role);
+  const canTransferOrDeploy = canAccessFullMasters;
 
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState('');
@@ -23,12 +25,12 @@ export default function AttendanceAdminPage() {
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
 
-  // Keep non-admin/dev users strictly on the workers master tab
+  // Keep users without full master permission strictly on the workers tab
   useEffect(() => {
-    if (!isAdminOrDev && tab !== 'workers') {
+    if (!canAccessFullMasters && tab !== 'workers') {
       setTab('workers');
     }
-  }, [isAdminOrDev, tab]);
+  }, [canAccessFullMasters, tab]);
 
   // Load authorized firms for attendance
   useEffect(() => {
@@ -158,7 +160,7 @@ export default function AttendanceAdminPage() {
       <div className="attendance-tabs no-print border-b border-slate-200">
         {[
           ['workers', activeFirm?.code === 'OFFICE' ? '👤 Employees' : '👤 Workers'],
-          ...(isAdminOrDev
+          ...(canAccessFullMasters
             ? [
                 ['deployments', '📍 Deployments'],
                 ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],

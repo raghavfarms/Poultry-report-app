@@ -9,6 +9,7 @@ import AssetAdminPage from "./pages/AssetAdminPage.jsx";
 import TransportPage from "./pages/TransportPage.jsx";
 import TransportAdminPage from "./pages/TransportAdminPage.jsx";
 import AttendanceAdminPage from "./pages/AttendanceAdminPage.jsx";
+import UserAdminPage from "./pages/UserAdminPage.jsx";
 import AttendanceReportPage from "./attendance/pages/AttendanceReportPage.jsx";
 import FaceAttendancePage from "./attendance/pages/FaceAttendancePage.jsx";
 import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.jsx";
@@ -16,7 +17,11 @@ import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
   const { user } = useAuth();
-  if (["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role)) {
+  if (
+    ["admin", "developer"].includes(user?.role) ||
+    user?.permissions?.attendance_report ||
+    user?.allowedModules?.includes("attendance")
+  ) {
     return <AttendanceReportPage />;
   }
   return <Navigate to="/" replace />;
@@ -26,7 +31,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/setup" element={<SetupPage />} />
       <Route
         element={
@@ -36,12 +41,26 @@ export default function App() {
         }
       >
         <Route index element={<OverviewPage />} />
-        <Route path="reports/diesel" element={<DieselPage />} />
-        <Route path="reports/transport" element={<TransportPage />} />
+        <Route
+          path="reports/diesel"
+          element={
+            <ProtectedRoute module="diesel">
+              <DieselPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/transport"
+          element={
+            <ProtectedRoute module="transport">
+              <TransportPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="reports/attendance"
           element={
-            <ProtectedRoute attendanceStaff>
+            <ProtectedRoute module="attendance">
               <AttendancePageRoute />
             </ProtectedRoute>
           }
@@ -49,6 +68,14 @@ export default function App() {
         <Route
           path="reports/:slug"
           element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
+        />
+        <Route
+          path="admin/users"
+          element={
+            <ProtectedRoute admin>
+              <UserAdminPage />
+            </ProtectedRoute>
+          }
         />
         <Route
           path="admin/assets"
@@ -78,7 +105,7 @@ export default function App() {
       <Route
         path="attendance/scan"
         element={
-          <ProtectedRoute attendanceStaff>
+          <ProtectedRoute permission="attendance_scan">
             <FaceAttendancePage />
           </ProtectedRoute>
         }

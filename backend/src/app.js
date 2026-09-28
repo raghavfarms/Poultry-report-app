@@ -10,6 +10,8 @@ import transportVehicleRoutes from './routes/transportVehicles.routes.js';
 import transportEntryRoutes from './routes/transportEntries.routes.js';
 import transportStationRoutes from './routes/transportStations.routes.js';
 import attendanceRoutes from './attendance/routes.js';
+import userRoutes from './routes/user.routes.js';
+import roleRoutes from './routes/role.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -22,6 +24,8 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-reporting-api' }));   // check backend is running or not with logging 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/entries', entryRoutes);

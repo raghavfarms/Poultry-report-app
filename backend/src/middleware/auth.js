@@ -46,24 +46,49 @@ export function adminOnly(req, res, next) {
 }
 
 export function attendanceStaffOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Attendance staff access is required.' });
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.allowedModules?.includes('attendance') ||
+    req.user?.permissions?.attendance_scan ||
+    req.user?.permissions?.worker_master ||
+    ['office', 'supervisor', 'security', 'farm_incharge'].includes(req.user?.role)
+  ) {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Attendance staff access is required.' });
 }
 
 export function supervisorOrAdminOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Supervisor or admin access is required.' });
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.attendance_report ||
+    ['office', 'supervisor'].includes(req.user?.role)
+  ) {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Supervisor or admin access is required.' });
 }
 
 export function attendanceAdminOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Attendance administrator access is required.' });
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.worker_master ||
+    req.user?.permissions?.attendance_admin_master ||
+    ['office', 'supervisor', 'farm_incharge'].includes(req.user?.role)
+  ) {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Worker Master access is required.' });
+}
+
+export function attendanceFullMasterOnly(req, res, next) {
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.attendance_admin_master
+  ) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Full Master Admin access is required (Geofence, Sheds, Designations).' });
 }
 
 export function developerOnly(req, res, next) {

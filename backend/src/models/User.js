@@ -7,10 +7,21 @@ const userSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ['developer', 'admin', 'supervisor', 'security', 'farm_incharge', 'office', 'user', 'labour'],
-      default: 'user',
+      required: true,
+      trim: true,
+      default: 'supervisor',
     },
     firms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true }],
+    allowedModules: {
+      type: [String],
+      default: ['attendance'],
+    },
+    permissions: {
+      attendance_scan: { type: Boolean, default: true },
+      attendance_report: { type: Boolean, default: false },
+      worker_master: { type: Boolean, default: true },
+      attendance_admin_master: { type: Boolean, default: false },
+    },
     active: { type: Boolean, default: true },
   },
   { timestamps: true },
