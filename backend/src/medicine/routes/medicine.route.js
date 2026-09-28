@@ -1,39 +1,36 @@
-
- import express from 'express'
+import express from 'express';
 import {
-    createMedicine,
-    getMedicines,
-    getMedicineById,
-    updateMedicine,
-    toggleMedicineStatus,
-}   from '../controllers/medicine.controller.js'
-import { protect } from '../../middleware/auth.js'
+  createMedicine,
+  getMedicines,
+  getMedicineById,
+  updateMedicine,
+  toggleMedicineStatus,
+  deleteCategory,
+  deleteUnit,
+  deleteMedicine,
+} from '../controllers/medicine.controller.js';
+import { protect } from '../../middleware/auth.js';
 
-const router= express.Router();
+const router = express.Router();
 
- router.use(protect);   //every single route defined below it will automatically execute protect first.
+router.use(protect);
 
- // 1 GET /api/medicine/masters  - fetch all medicines
- // 2 PUT api/medicines/masters/:id
- router.route('/').get(getMedicines)         // <-- 'protect' already ran!
-                  .post(createMedicine);         // <-- 'protect' already ran!
+// Category and Unit deletion (must be declared before /:id)
+router.delete('/categories', deleteCategory);
+router.delete('/units', deleteUnit);
 
-     // 3. GET /api/medicine/masters/:id - Fetch single medicine details
-// 4. PUT /api/medicine/masters/:id - Update medicine details
+// 1. GET all medicines, POST create new medicine
+router.route('/')
+  .get(getMedicines)
+  .post(createMedicine);
 
+// 2. GET single medicine, PUT update medicine, DELETE delete medicine
 router.route('/:id')
-             .get(getMedicineById)  // <-- 'protect' already ran!
-             .put(updateMedicine);    // <-- 'protect' already ran!
+  .get(getMedicineById)
+  .put(updateMedicine)
+  .delete(deleteMedicine);
 
-             
-// 5. PATCH /api/medicine/masters/:id/status - Toggle active/inactive
+// 3. PATCH /:id/status - Toggle active/inactive
+router.patch('/:id/status', toggleMedicineStatus);
 
- router.patch('/:id/status',toggleMedicineStatus)         // <-- 'protect' already ran!
-
-  
- export default router;
-
-
-
-
-
+export default router;

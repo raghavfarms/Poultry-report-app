@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import{
-    fetchMedicines,
-    createMedicineApi,
-    updateMedicineApi,
-    toggleMedicineStatusApi,
-    deleteCategoryApi,
-    deleteUnitApi,
-} from '../api/medicineApi.js'
+
+import { useState, useEffect } from 'react';
+import {
+  fetchMedicines,
+  createMedicineApi,
+  updateMedicineApi,
+  toggleMedicineStatusApi,
+  deleteCategoryApi,
+  deleteUnitApi,
+  deleteMedicineApi,
+} from '../api/medicineApi.js';
 import SupplierMasterPage from './SupplierMasterPage.jsx';
 import PurchaseOrderPage from './PurchaseOrderPage.jsx';
 import MedicineReceiptPage from './MedicineReceiptPage.jsx';
@@ -52,9 +54,10 @@ const [formData,setFormData]=useState(INITIAL_FORM);
 const [submitting,setSubmitting]=useState(false);
 const [isCustomCategory, setIsCustomCategory] = useState(false);
 const [isCustomUnit, setIsCustomUnit] = useState(false);
+const [openActionId, setOpenActionId] = useState(null);
 
 // Dynamic categories & units derived purely from existing medicines in database (Zero dummy data)
-const safeMedicines = Array.isArray(medicines) ? medicines : [];
+const safeMedicines = Array.isArray(medicines) ? medicines.filter(Boolean) : [];
 const availableCategories = Array.from(
   new Set(safeMedicines.map((m) => m?.category).filter(Boolean))
 );
@@ -157,6 +160,7 @@ const loadMedicines= async ()=>{
        }
 
        const payload = {
+         code: formData.code.trim().toUpperCase(),
          code: formData.code ? formData.code.trim().toUpperCase() : '',
          name: formData.name.trim(),
          aliasName: formData.aliasName ? formData.aliasName.trim() : '',
@@ -238,6 +242,23 @@ const loadMedicines= async ()=>{
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err) {
       alert(err.message || 'Failed to delete unit');
+    }
+  };
+
+  // DELETE MEDICINE
+  const handleDeleteMedicine = async (med) => {
+    if (!med) return;
+    setOpenActionId(null);
+    if (!window.confirm(`Are you sure you want to permanently delete medicine "${med.name}" (${med.code || 'No Code'})?`)) {
+      return;
+    }
+    try {
+      const res = await deleteMedicineApi(med._id);
+      setSuccessMsg(res.message || `Medicine "${med.name}" deleted successfully.`);
+      loadMedicines();
+      setTimeout(() => setSuccessMsg(''), 3500);
+    } catch (err) {
+      alert(err.message || 'Failed to delete medicine');
     }
   };
 
@@ -394,19 +415,7 @@ const loadMedicines= async ()=>{
 
         {/* Category Filter */}
         <div>
-          <div className="flex justify-between items-center mb-1">
-            <label className="block text-[11px] font-semibold text-slate-600 uppercase">Category</label>
-            {selectedCategory && (
-              <button
-                type="button"
-                onClick={() => handleDeleteCategory(selectedCategory)}
-                className="text-[11px] text-rose-500 hover:text-rose-700 font-semibold transition cursor-pointer"
-                title={`Delete category "${selectedCategory}"`}
-              >
-                🗑️ Delete "{selectedCategory}"
-              </button>
-            )}
-          </div>
+          <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">Category</label>
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -434,7 +443,7 @@ const loadMedicines= async ()=>{
       </div>
 
       {/* 3. Medicines List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         {loading ? (
           <div className="p-8 sm:p-12 text-center text-slate-500 font-medium">Loading medicines...</div>
         ) : medicines.length === 0 ? (
@@ -445,7 +454,7 @@ const loadMedicines= async ()=>{
         ) : (
           <>
             {/* Desktop / Tablet Table View (hidden on mobile) */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-x-auto min-h-[240px] pb-12">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -456,7 +465,7 @@ const loadMedicines= async ()=>{
                     <th className="py-3 px-4">Manufacturer</th>
                     <th className="py-3 px-4 text-center">Min / Reorder</th>
                     <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4 pr-6 text-right w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
@@ -488,23 +497,66 @@ const loadMedicines= async ()=>{
                           {med.active ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-right space-x-2">
-                        <button
-                          onClick={() => handleOpenEditModal(med)}
-                          className="text-blue-600 hover:text-blue-800 font-medium text-xs px-2 py-1 rounded hover:bg-blue-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(med._id, med.active)}
-                          className={`font-medium text-xs px-2 py-1 rounded ${
-                            med.active
-                              ? 'text-rose-600 hover:text-rose-800 hover:bg-rose-50'
-                              : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {med.active ? 'Deactivate' : 'Activate'}
-                        </button>
+                      <td className="py-3 px-4 pr-6 text-right">
+                        <div className="relative inline-block text-left">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenActionId(openActionId === med._id ? null : med._id);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition focus:outline-none"
+                            title="Actions"
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+
+                          {openActionId === med._id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-20 cursor-default"
+                                onClick={() => setOpenActionId(null)}
+                              />
+                              <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 text-left animate-in fade-in zoom-in-95 duration-100">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    handleOpenEditModal(med);
+                                  }}
+                                  className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-2 transition"
+                                >
+                                  <span>✏️</span> Edit Details
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    handleToggleStatus(med._id, med.active);
+                                  }}
+                                  className={`w-full px-3.5 py-2 text-xs font-semibold flex items-center gap-2 transition ${
+                                    med.active
+                                      ? 'text-amber-700 hover:bg-amber-50'
+                                      : 'text-emerald-700 hover:bg-emerald-50'
+                                  }`}
+                                >
+                                  <span>{med.active ? '⏸️' : '▶️'}</span>
+                                  {med.active ? 'Deactivate' : 'Activate'}
+                                </button>
+                                <div className="my-1 border-t border-slate-100" />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMedicine(med)}
+                                  className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition"
+                                >
+                                  <span>🗑️</span> Delete
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -528,11 +580,69 @@ const loadMedicines= async ()=>{
                         </p>
                       )}
                     </div>
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      med.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      {med.active ? 'Active' : 'Inactive'}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        med.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {med.active ? 'Active' : 'Inactive'}
+                      </span>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenActionId(openActionId === `m-${med._id}` ? null : `m-${med._id}`);
+                          }}
+                          className="p-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition focus:outline-none"
+                          title="Actions"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </button>
+                        {openActionId === `m-${med._id}` && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-20 cursor-default"
+                              onClick={() => setOpenActionId(null)}
+                            />
+                            <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 text-left">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionId(null);
+                                  handleOpenEditModal(med);
+                                }}
+                                className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition"
+                              >
+                                <span>✏️</span> Edit Details
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionId(null);
+                                  handleToggleStatus(med._id, med.active);
+                                }}
+                                className={`w-full px-3.5 py-2 text-xs font-semibold flex items-center gap-2 transition ${
+                                  med.active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'
+                                }`}
+                              >
+                                <span>{med.active ? '⏸️' : '▶️'}</span>
+                                {med.active ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <div className="my-1 border-t border-slate-100" />
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMedicine(med)}
+                                className="w-full px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition"
+                              >
+                                <span>🗑️</span> Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
@@ -606,78 +716,66 @@ const loadMedicines= async ()=>{
 
               {/* Row 1: Code */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Medicine Code
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">
+                  Medicine Code <span className="text-slate-400 font-normal lowercase">(optional, auto-generated if blank)</span>
                 </label>
                 <input
                   type="text"
                   disabled={Boolean(editingId)}
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  placeholder="Auto-generated if blank (e.g. MED-001)"
-                  className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 focus:outline-none"
+                  placeholder="e.g. MED-001 (or leave blank)"
+                  className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs uppercase focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 focus:outline-none"
                 />
               </div>
 
-              {/* Row 2: Medicine Name */}
+              {/* Row 2: Medicine Name (Generic / Chemical) */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Medicine Name <span className="text-rose-500">*</span>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">
+                  Medicine Name (Generic / Chemical) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Amoxicillin Trihydrate"
+                  placeholder="e.g. Amoxicillin Trihydrate 20%"
                   className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
-              {/* Row 3: Alias / Brand Name */}
+              {/* Row 3: Alias Name (Brand / Local Trade Name) */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Alias / Brand Name
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">
+                  Alias / Brand Name <span className="text-slate-400 font-normal">(Optional, e.g. Moxikem, Local Trade Name)</span>
                 </label>
                 <input
                   type="text"
                   value={formData.aliasName}
                   onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
-                  placeholder="e.g. Moxikem-500"
+                  placeholder="e.g. Moxikem-500 or Trade Name"
                   className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
-              {/* Row 4: Category */}
+              {/* Row 4: Category / Type (Dynamic Dropdown / Custom Entry) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[11px] font-semibold text-slate-600">
-                    Category <span className="text-rose-500">*</span>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                    Category / Type <span className="text-rose-500">*</span>
                   </label>
-                  <div className="flex items-center gap-2">
-                    {!isCustomCategory && formData.category && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCategory(formData.category)}
-                        className="text-[11px] text-rose-500 hover:text-rose-700 font-medium transition cursor-pointer"
-                        title={`Delete category "${formData.category}"`}
-                      >
-                        🗑️ Delete
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomCategory(!isCustomCategory);
-                        if (!isCustomCategory) {
-                          setFormData({ ...formData, category: '' });
-                        }
-                      }}
-                      className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold transition cursor-pointer"
-                    >
-                      {isCustomCategory ? '← Select existing' : '+ Add Category'}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomCategory(!isCustomCategory);
+                      if (!isCustomCategory) {
+                        setFormData({ ...formData, category: '' });
+                      }
+                    }}
+                    className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold transition cursor-pointer"
+                  >
+                    {isCustomCategory ? '← Choose from dropdown' : '+ Add New Category'}
+                  </button>
                 </div>
 
                 {isCustomCategory || availableCategories.length === 0 ? (
@@ -687,7 +785,7 @@ const loadMedicines= async ()=>{
                     autoFocus={isCustomCategory}
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="e.g. Vaccination, General, Feed"
+                    placeholder="Type new category (e.g. Vaccination, General, Feed)..."
                     className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 ) : (
@@ -715,36 +813,24 @@ const loadMedicines= async ()=>{
                 )}
               </div>
 
-              {/* Row 5: Unit */}
+              {/* Row 5: Unit of Measurement (Dynamic Dropdown / Custom Entry) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-[11px] font-semibold text-slate-600">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                     Unit of Measurement <span className="text-rose-500">*</span>
                   </label>
-                  <div className="flex items-center gap-2">
-                    {!isCustomUnit && formData.unit && (
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteUnit(formData.unit)}
-                        className="text-[11px] text-rose-500 hover:text-rose-700 font-medium transition cursor-pointer"
-                        title={`Delete unit "${formData.unit}"`}
-                      >
-                        🗑️ Delete
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomUnit(!isCustomUnit);
-                        if (!isCustomUnit) {
-                          setFormData({ ...formData, unit: '' });
-                        }
-                      }}
-                      className="text-[11px] text-emerald-600 hover:text-emerald-700 font-semibold transition cursor-pointer"
-                    >
-                      {isCustomUnit ? '← Select existing' : '+ Add Unit'}
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomUnit(!isCustomUnit);
+                      if (!isCustomUnit) {
+                        setFormData({ ...formData, unit: '' });
+                      }
+                    }}
+                    className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold transition cursor-pointer"
+                  >
+                    {isCustomUnit ? '← Choose from dropdown' : '+ Add New Unit'}
+                  </button>
                 </div>
 
                 {isCustomUnit || availableUnits.length === 0 ? (
@@ -754,7 +840,7 @@ const loadMedicines= async ()=>{
                     autoFocus={isCustomUnit}
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                    placeholder="e.g. Bottle, Vial, Litre, Kg"
+                    placeholder="Type new unit (e.g. Bottle, Vial, Litre, Kg)..."
                     className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 ) : (
@@ -784,14 +870,14 @@ const loadMedicines= async ()=>{
 
               {/* Row 6: Manufacturer */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Manufacturer
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5">
+                  Manufacturer / Brand
                 </label>
                 <input
                   type="text"
                   value={formData.manufacturer}
                   onChange={(e) => setFormData({ ...formData, manufacturer: e.target.value })}
-                  placeholder="e.g. Pfizer, Cadila"
+                  placeholder="e.g. Pfizer, Cadila (Optional)"
                   className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
@@ -799,7 +885,7 @@ const loadMedicines= async ()=>{
               {/* Row 7: Shelf Life, Min Stock, Reorder Level */}
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 truncate">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5 truncate">
                     Shelf Life (Mo)
                   </label>
                   <input
@@ -807,13 +893,13 @@ const loadMedicines= async ()=>{
                     min="0"
                     value={formData.shelfLifeMonths}
                     onChange={(e) => setFormData({ ...formData, shelfLifeMonths: e.target.value })}
-                    placeholder="Months"
+                    placeholder="e.g. 12"
                     className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 truncate">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5 truncate">
                     Min Stock
                   </label>
                   <input
@@ -821,13 +907,13 @@ const loadMedicines= async ()=>{
                     min="0"
                     value={formData.minimumStock}
                     onChange={(e) => setFormData({ ...formData, minimumStock: e.target.value })}
-                    placeholder="Qty"
+                    placeholder="e.g. 10"
                     className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 truncate">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-0.5 truncate">
                     Reorder Lvl
                   </label>
                   <input
@@ -835,7 +921,7 @@ const loadMedicines= async ()=>{
                     min="0"
                     value={formData.reorderLevel}
                     onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
-                    placeholder="Qty"
+                    placeholder="e.g. 5"
                     className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>

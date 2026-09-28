@@ -1,6 +1,9 @@
 // Medicine Master Controller
 import mongoose from 'mongoose';
 import MedicineMaster from '../models/MedicineMaster.js';
+import MedicineBatch from '../models/MedicineBatch.js';
+import MedicineReceipt from '../models/MedicineReceipt.js';
+import MedicineIssue from '../models/MedicineIssue.js';
 
 // Helper: Auto-generate sequential Medicine Code: MED-001, MED-002, etc.
 async function generateMedicineCode() {
@@ -359,3 +362,53 @@ export async function deleteUnit(req, res) {
     });
   }
 }
+
+// 8. Delete a Medicine (Hard delete if no history; prevents deletion if batches/receipts/issues exist)
+export async function deleteMedicine(req, res) {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medicine not found',
+      });
+    }
+
+    const medicine = await MedicineMaster.findById(id);
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medicine not found',
+      });
+    }
+
+    // Check if this medicine has been used in any stock batches, receipts, or issues
+    const [batchCount, receiptCount, issueCount] = await Promise.all([
+      MedicineBatch.countDocuments({ medicine: id }),
+      MedicineReceipt.countDocuments({ medicine: id }),
+      MedicineIssue.countDocuments({ medicine: id }),
+    ]);
+
+    const totalUsage = batchCount + receiptCount + issueCount;
+    if (totalUsage > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete "${medicine.name}" because it has ${batchCount} batch(es), ${receiptCount} receipt(s), and ${issueCount} issue(s) recorded in audit history. Please Deactivate it instead to preserve traceability.`,
+      });
+    }
+
+    await MedicineMaster.findByIdAndDelete(id);
+
+    return res.json({
+      success: true,
+      message: `Medicine "${medicine.name}" (${medicine.code || 'No Code'}) deleted successfully.`,
+    });
+  } catch (error) {
+    console.error('deleteMedicine error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete medicine',
+    });
+  }
+}
+

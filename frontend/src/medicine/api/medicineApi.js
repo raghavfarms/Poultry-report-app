@@ -82,3 +82,14 @@ export async function deleteUnitApi(name, reassignTo = 'Unit') {
     method: 'DELETE',
   });
 }
+
+/*
+ * 8. Delete a medicine by ID
+ * @param {string} id - Medicine _id
+ */
+export async function deleteMedicineApi(id) {
+  return await api(`/medicine/masters/${id}`, {
+    method: 'DELETE',
+  });
+}
+
