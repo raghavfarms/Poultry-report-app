@@ -27,7 +27,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
   const reportsRef = useRef(null);     // stores a reference to the report HTML that should expect 
 
   useEffect(() => {   //  Loading firms -- this run once when the component opens 
-    api("/firms")
+    api("/firms?module=diesel")
       .then(({ firms = [] }) => {
         setFirms(firms);
         if (firms.length === 1) {

@@ -126,6 +126,7 @@ const INITIAL_USER_FORM = {
   role: "supervisor",
   firms: [],
   allowedModules: ["attendance"],
+  moduleFirms: {},
   permissions: {
     attendance_scan: true,
     attendance_report: false,
@@ -427,11 +428,19 @@ export default function UserAdminPage() {
     setEditingUser(null);
     const defaultRole = roles[0]?.code || "supervisor";
     const foundRole = roles.find((r) => r.code === defaultRole);
+    const allFirmIds = firms.map((f) => f._id);
+    const initialModules = foundRole?.allowedModules || ["attendance"];
+    const initModuleFirms = {};
+    initialModules.forEach((m) => {
+      initModuleFirms[m] = [...allFirmIds];
+    });
+
     setUserForm({
       ...INITIAL_USER_FORM,
       role: defaultRole,
-      firms: firms.map((f) => f._id),
-      allowedModules: foundRole?.allowedModules || ["attendance"],
+      firms: allFirmIds,
+      allowedModules: initialModules,
+      moduleFirms: initModuleFirms,
       permissions: foundRole?.permissions || {
         attendance_scan: true,
         attendance_report: false,
@@ -451,16 +460,28 @@ export default function UserAdminPage() {
     const assignedFirmIds = Array.isArray(u.firms)
       ? u.firms.map((f) => (typeof f === "object" ? f._id : f))
       : [];
+    const activeFirms = assignedFirmIds.length ? assignedFirmIds : firms.map((f) => f._id);
+    const allowedModules = Array.isArray(u.allowedModules) && u.allowedModules.length
+      ? u.allowedModules
+      : ["attendance"];
+
+    const initModuleFirms = {};
+    allowedModules.forEach((mod) => {
+      if (u.moduleFirms && Array.isArray(u.moduleFirms[mod])) {
+        initModuleFirms[mod] = u.moduleFirms[mod].map((f) => (typeof f === "object" ? f._id : f));
+      } else {
+        initModuleFirms[mod] = [...activeFirms];
+      }
+    });
 
     setUserForm({
       name: u.name || "",
       email: u.email || "",
       password: "",
       role: u.role || "supervisor",
-      firms: assignedFirmIds.length ? assignedFirmIds : firms.map((f) => f._id),
-      allowedModules: Array.isArray(u.allowedModules) && u.allowedModules.length
-        ? u.allowedModules
-        : ["attendance"],
+      firms: activeFirms,
+      allowedModules,
+      moduleFirms: initModuleFirms,
       permissions: {
         attendance_scan: u.permissions?.attendance_scan ?? true,
         attendance_report: u.permissions?.attendance_report ?? false,
@@ -484,28 +505,48 @@ export default function UserAdminPage() {
 
   const handleRoleChangeForUser = (newRoleCode) => {
     const selectedRole = roles.find((r) => r.code === newRoleCode);
-    setUserForm((prev) => ({
-      ...prev,
-      role: newRoleCode,
-      ...(selectedRole
-        ? {
-            allowedModules: selectedRole.allowedModules || prev.allowedModules,
-            permissions: {
-              ...prev.permissions,
-              ...(selectedRole.permissions || {}),
-            },
-          }
-        : {}),
-    }));
+    setUserForm((prev) => {
+      const nextModules = selectedRole?.allowedModules || prev.allowedModules;
+      const nextModuleFirms = { ...(prev.moduleFirms || {}) };
+      nextModules.forEach((m) => {
+        if (!nextModuleFirms[m] || !nextModuleFirms[m].length) {
+          nextModuleFirms[m] = [...prev.firms];
+        }
+      });
+      return {
+        ...prev,
+        role: newRoleCode,
+        allowedModules: nextModules,
+        moduleFirms: nextModuleFirms,
+        permissions: {
+          ...prev.permissions,
+          ...(selectedRole?.permissions || {}),
+        },
+      };
+    });
   };
 
   const toggleUserFirm = (firmId) => {
     setUserForm((prev) => {
-      const exists = prev.firms.some((id) => String(id?._id || id) === String(firmId));
-      const next = exists
-        ? prev.firms.filter((id) => String(id?._id || id) !== String(firmId))
-        : [...prev.firms, String(firmId)];
-      return { ...prev, firms: next };
+      const fid = String(firmId);
+      const exists = prev.firms.some((id) => String(id?._id || id) === fid);
+      const nextFirms = exists
+        ? prev.firms.filter((id) => String(id?._id || id) !== fid)
+        : [...prev.firms, fid];
+
+      // Keep module-wise selections in sync with assigned firms
+      const nextModuleFirms = { ...(prev.moduleFirms || {}) };
+      Object.keys(nextModuleFirms).forEach((mod) => {
+        if (exists) {
+          nextModuleFirms[mod] = (nextModuleFirms[mod] || []).filter((id) => String(id?._id || id) !== fid);
+        } else {
+          if (!nextModuleFirms[mod]?.some((id) => String(id?._id || id) === fid)) {
+            nextModuleFirms[mod] = [...(nextModuleFirms[mod] || []), fid];
+          }
+        }
+      });
+
+      return { ...prev, firms: nextFirms, moduleFirms: nextModuleFirms };
     });
   };
 
@@ -515,8 +556,44 @@ export default function UserAdminPage() {
       const next = exists
         ? prev.allowedModules.filter((m) => m !== moduleSlug)
         : [...prev.allowedModules, moduleSlug];
-      return { ...prev, allowedModules: next };
+
+      const nextModuleFirms = { ...(prev.moduleFirms || {}) };
+      if (!exists && !nextModuleFirms[moduleSlug]) {
+        // If enabling a module for the first time, give all currently assigned firms
+        nextModuleFirms[moduleSlug] = [...prev.firms];
+      }
+
+      return { ...prev, allowedModules: next, moduleFirms: nextModuleFirms };
     });
+  };
+
+  const toggleModuleFirm = (moduleSlug, firmId) => {
+    setUserForm((prev) => {
+      const fid = String(firmId);
+      const currentList = prev.moduleFirms?.[moduleSlug] || [...prev.firms];
+      const exists = currentList.some((id) => String(id?._id || id) === fid);
+      const nextList = exists
+        ? currentList.filter((id) => String(id?._id || id) !== fid)
+        : [...currentList, fid];
+
+      return {
+        ...prev,
+        moduleFirms: {
+          ...(prev.moduleFirms || {}),
+          [moduleSlug]: nextList,
+        },
+      };
+    });
+  };
+
+  const setAllFirmsForModule = (moduleSlug, all = true) => {
+    setUserForm((prev) => ({
+      ...prev,
+      moduleFirms: {
+        ...(prev.moduleFirms || {}),
+        [moduleSlug]: all ? [...prev.firms] : [],
+      },
+    }));
   };
 
   const toggleUserPermission = (key) => {
@@ -554,6 +631,7 @@ export default function UserAdminPage() {
         role: userForm.role,
         firms: userForm.firms,
         allowedModules: userForm.allowedModules,
+        moduleFirms: userForm.moduleFirms,
         permissions: userForm.permissions,
       };
 
@@ -933,12 +1011,19 @@ export default function UserAdminPage() {
                               : m === "transport"
                               ? "Transport"
                               : m.charAt(0).toUpperCase() + m.slice(1);
+                          const customFirms = u.moduleFirms?.[m];
+                          const hasCustom = Array.isArray(customFirms) && customFirms.length > 0 && customFirms.length < (u.firms?.length || 0);
                           return (
                             <span
                               key={m}
-                              className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700"
+                              className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700"
                             >
-                              {modLabel}
+                              <span>{modLabel}</span>
+                              {hasCustom && (
+                                <span className="rounded bg-amber-100 px-1 text-[9px] font-bold text-amber-800">
+                                  {customFirms.length} farm{customFirms.length === 1 ? "" : "s"}
+                                </span>
+                              )}
                             </span>
                           );
                         })
@@ -1024,12 +1109,19 @@ export default function UserAdminPage() {
                                       : m === "transport"
                                       ? "Transport"
                                       : m.charAt(0).toUpperCase() + m.slice(1);
+                                  const customFirms = u.moduleFirms?.[m];
+                                  const hasCustom = Array.isArray(customFirms) && customFirms.length > 0 && customFirms.length < (u.firms?.length || 0);
                                   return (
                                     <span
                                       key={m}
-                                      className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
+                                      className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
                                     >
-                                      {modLabel}
+                                      <span>{modLabel}</span>
+                                      {hasCustom && (
+                                        <span className="rounded bg-amber-100 px-1.5 text-[10px] font-bold text-amber-800">
+                                          {customFirms.length} farm{customFirms.length === 1 ? "" : "s"}
+                                        </span>
+                                      )}
                                     </span>
                                   );
                                 })
@@ -1369,6 +1461,89 @@ export default function UserAdminPage() {
                   })}
                 </div>
               </div>
+
+              {/* Module-Wise Farm Scoping */}
+              {userForm.allowedModules.length > 0 && userForm.firms.length > 0 && (
+                <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/30 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-800">
+                        Per-Module Farm Permissions
+                      </label>
+                      <p className="text-[10px] text-slate-500">
+                        Select which farms this user can access for each module.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {userForm.allowedModules.map((slug) => {
+                      const modDef = AVAILABLE_MODULES.find((m) => (Array.isArray(m) ? m[0] : m.slug) === slug);
+                      const label = modDef ? (Array.isArray(modDef) ? modDef[1] : modDef.label) : slug;
+                      const assignedFirmsList = firms.filter((f) =>
+                        userForm.firms.some((id) => String(id?._id || id) === String(f._id))
+                      );
+                      const selectedIds = userForm.moduleFirms?.[slug] || userForm.firms;
+                      const countSelected = assignedFirmsList.filter((f) =>
+                        selectedIds.some((id) => String(id?._id || id) === String(f._id))
+                      ).length;
+
+                      return (
+                        <div key={slug} className="rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-2xs">
+                          <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
+                            <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-indigo-500"></span>
+                              {label}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                countSelected === assignedFirmsList.length
+                                  ? "bg-slate-100 text-slate-600"
+                                  : countSelected > 0
+                                  ? "bg-amber-100 text-amber-800 font-semibold"
+                                  : "bg-rose-100 text-rose-700 font-semibold"
+                              }`}>
+                                {countSelected} / {assignedFirmsList.length} farms
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAllFirmsForModule(slug, countSelected !== assignedFirmsList.length)}
+                                className="text-[10px] text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer font-medium"
+                              >
+                                {countSelected === assignedFirmsList.length ? "Clear" : "All"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            {assignedFirmsList.map((f) => {
+                              const isChecked = selectedIds.some((id) => String(id?._id || id) === String(f._id));
+                              return (
+                                <label
+                                  key={f._id}
+                                  className={`flex items-center gap-2 rounded-md border px-2 py-1 text-[11px] cursor-pointer transition select-none ${
+                                    isChecked
+                                      ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-medium"
+                                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggleModuleFirm(slug, f._id)}
+                                    className="h-3.5 w-3.5 rounded text-emerald-600 focus:ring-emerald-500"
+                                  />
+                                  <span className="truncate">{f.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* All Masters Access Permissions - Compact 2-col Grid */}
               <div className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-2.5 space-y-1.5">

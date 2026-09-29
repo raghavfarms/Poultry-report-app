@@ -17,6 +17,7 @@ export async function getUsers(req, res) {
     const isAdminOrDev = ['admin', 'developer'].includes(u.role);
     return {
       ...u,
+      moduleFirms: u.moduleFirms || {},
       allowedModules: isAdminOrDev
         ? allModules
         : (u.allowedModules?.length ? u.allowedModules : ['attendance']),
@@ -83,6 +84,10 @@ export async function createUser(req, res) {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
+  const moduleFirms = typeof req.body.moduleFirms === 'object' && req.body.moduleFirms !== null
+    ? req.body.moduleFirms
+    : (roleDoc?.moduleFirms || {});
+
   const user = await User.create({
     name,
     email,
@@ -90,6 +95,7 @@ export async function createUser(req, res) {
     role,
     firms: firmIds,
     allowedModules,
+    moduleFirms,
     permissions,
     active: true,
   });
@@ -130,6 +136,11 @@ export async function updateUser(req, res) {
 
   if (Array.isArray(req.body.allowedModules)) {
     user.allowedModules = req.body.allowedModules;
+  }
+
+  if (req.body.moduleFirms !== undefined) {
+    user.moduleFirms = req.body.moduleFirms || {};
+    user.markModified('moduleFirms');
   }
 
   if (req.body.permissions) {

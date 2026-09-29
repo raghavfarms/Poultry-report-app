@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: ['attendance'],
     },
+    moduleFirms: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     permissions: {
       attendance_edit: { type: Boolean, default: false },
       asset_master: { type: Boolean, default: false },
@@ -31,3 +35,8 @@ const userSchema = new mongoose.Schema(
 );
 
 export default mongoose.model('User', userSchema);
+
+
+ 
+
+

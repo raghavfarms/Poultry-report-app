@@ -4,8 +4,15 @@ import { objectId } from './validation.js';
 export function firmScope(user, requestedFirm) {
   const isAllOrEmpty = !requestedFirm || requestedFirm === 'all' || requestedFirm === 'null' || requestedFirm === 'undefined';
   const firm = isAllOrEmpty ? undefined : objectId(requestedFirm, 'Firm');
-  if (['developer', 'admin'].includes(user.role)) return firm ? { firm } : {};
-  const permitted = (user.firms || []).map((id) => String(id._id || id));
+  if (['developer', 'admin'].includes(user?.role)) return firm ? { firm } : {};
+
+  // Per-module firm scoping: check attendance-specific firms first, fallback to user.firms
+  const attendanceFirms = user?.moduleFirms?.attendance;
+  const allowedList = (Array.isArray(attendanceFirms) && attendanceFirms.length > 0)
+    ? attendanceFirms
+    : (user?.firms || []);
+
+  const permitted = allowedList.map((id) => String(id._id || id));
   if (firm && !permitted.includes(String(firm))) {
     const error = new Error('You do not have access to this firm.');
     error.status = 403;

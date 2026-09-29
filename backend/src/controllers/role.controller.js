@@ -84,11 +84,16 @@ export async function createRole(req, res) {
     attendance_admin_master: Boolean(req.body.permissions?.attendance_admin_master),
   };
 
+  const moduleFirms = typeof req.body.moduleFirms === 'object' && req.body.moduleFirms !== null
+    ? req.body.moduleFirms
+    : {};
+
   const role = await Role.create({
     name,
     code,
     description: String(req.body.description || '').trim(),
     allowedModules,
+    moduleFirms,
     permissions,
     isSystem: false,
     active: true,
@@ -109,6 +114,10 @@ export async function updateRole(req, res) {
   }
   if (Array.isArray(req.body.allowedModules)) {
     role.allowedModules = req.body.allowedModules;
+  }
+  if (req.body.moduleFirms !== undefined) {
+    role.moduleFirms = req.body.moduleFirms || {};
+    role.markModified('moduleFirms');
   }
   if (req.body.permissions) {
     role.permissions = {
