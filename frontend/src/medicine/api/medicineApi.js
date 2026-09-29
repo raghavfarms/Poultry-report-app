@@ -12,7 +12,8 @@ export async function fetchMedicines(params = {}) {
   const query = new URLSearchParams();
   if (params.search) query.append('search', params.search);
   if (params.category) query.append('category', params.category);
-  if (params.includeInactive) query.append('includeInactive', 'true');
+  if (params.status) query.append('status', params.status);
+  else if (params.includeInactive) query.append('includeInactive', 'true');
 
   const queryString = query.toString() ? `?${query.toString()}` : '';
   return await api(`/medicine/masters${queryString}`);

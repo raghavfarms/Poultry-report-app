@@ -114,11 +114,16 @@ export async function createMedicine(req, res) {
 // 2. GET all Medicines (with search, category filter, inactive toggle)
 export async function getMedicines(req, res) {
   try {
-    const { search, category, includeInactive } = req.query;
+    const { search, category, includeInactive, status } = req.query;
 
     const filter = {};
 
-    if (includeInactive !== 'true') {
+    if (status === 'inactive') {
+      filter.active = false;
+    } else if (status === 'all' || includeInactive === 'true') {
+      // include both active and inactive
+    } else {
+      // default: active only
       filter.active = true;
     }
 
