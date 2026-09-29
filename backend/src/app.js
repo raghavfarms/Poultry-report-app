@@ -10,14 +10,11 @@ import transportVehicleRoutes from './routes/transportVehicles.routes.js';
 import transportEntryRoutes from './routes/transportEntries.routes.js';
 import transportStationRoutes from './routes/transportStations.routes.js';
 import attendanceRoutes from './attendance/routes.js';
-import medicineRoutes from './medicine/routes/medicine.route.js'
-import supplierRoutes from './medicine/routes/supplier.route.js'
-import purchaseOrderRoutes from './medicine/routes/purchaseOrder.route.js';
+import medicineRoutes from './medicine/routes/medicine.route.js';
+import supplierRoutes from './medicine/routes/supplier.route.js';
 import receiptRoutes from './medicine/routes/receipt.route.js';
 import issueRoutes from './medicine/routes/issue.route.js';
-import adjustmentRoutes from './medicine/routes/adjustment.route.js';
 import reportRoutes from './medicine/routes/report.route.js';
-import dispatchRoutes from './medicine/routes/dispatch.route.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -39,14 +36,11 @@ app.use('/api/transport-vehicles', transportVehicleRoutes);
 app.use('/api/transport-entries', transportEntryRoutes);
 app.use('/api/transport-stations', transportStationRoutes);
 app.use('/api/attendance', attendanceRoutes);
-app.use('/api/medicine/masters',medicineRoutes);
+app.use('/api/medicine/masters', medicineRoutes);
 app.use('/api/medicine/suppliers', supplierRoutes);
-app.use('/api/medicine/purchase-orders', purchaseOrderRoutes);
 app.use('/api/medicine/receipts', receiptRoutes);
 app.use('/api/medicine/issues', issueRoutes);
-app.use('/api/medicine/adjustments', adjustmentRoutes);
 app.use('/api/medicine/reports', reportRoutes);
-app.use('/api/medicine/dispatches', dispatchRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

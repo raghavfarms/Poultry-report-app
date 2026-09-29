@@ -1,7 +1,6 @@
 import MedicineReceipt from '../models/MedicineReceipt.js';
 import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
-import PurchaseOrder from '../models/PurchaseOrder.js';
 import MedicineMaster from '../models/MedicineMaster.js';
 import Supplier from '../models/Supplier.js';
 import Firm from '../../models/Firm.js';
@@ -97,9 +96,6 @@ export async function createReceipt(req, res) {
   await receipt.populate('medicine', 'code name unit category aliasName');
   await receipt.populate('supplier', 'code name mobile');
   await receipt.populate('farm', 'code name');
-  if (receipt.purchaseOrder) {
-    await receipt.populate('purchaseOrder', 'poNumber status');
-  }
 
   res.status(201).json({
     success: true,
@@ -177,25 +173,7 @@ export async function acceptReceipt(req, res) {
     remarks: verificationRemarks || `Stock accepted via ${receipt.receiptNumber}`,
   });
 
-  // STEP C: Update Purchase Order Fulfillment (If linked to a PO)
-  if (receipt.purchaseOrder) {
-    const po = await PurchaseOrder.findById(receipt.purchaseOrder);
-    if (po) {
-      const poItem = po.items.find((item) => item.medicine.toString() === receipt.medicine.toString());
-      if (poItem) {
-        poItem.receivedQuantity = (poItem.receivedQuantity || 0) + finalAcceptedQty;
-      }
-
-      // Check if all items in PO are fully received
-      const allFulfilled = po.items.every(
-        (item) => (item.receivedQuantity || 0) >= item.orderedQuantity
-      );
-
-      po.status = allFulfilled ? 'FULFILLED' : 'PARTIALLY_RECEIVED';
-      po.updatedBy = req.user._id;
-      await po.save();
-    }
-  }
+  // STEP C: Status Update to STORE_ACCEPTED
 
   // STEP D: Update Receipt Status to STORE_ACCEPTED
   receipt.status = 'STORE_ACCEPTED';

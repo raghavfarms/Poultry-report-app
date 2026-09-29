@@ -5,7 +5,6 @@ import {
   acceptReceiptApi,
   fetchBatchStock,
 } from '../api/receiptApi.js';
-import { fetchPurchaseOrders } from '../api/purchaseOrderApi.js';
 import { fetchSuppliers } from '../api/supplierApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
@@ -70,16 +69,14 @@ export default function MedicineReceiptPage() {
   useEffect(() => {
     async function loadDropdowns() {
       try {
-        const [supData, medData, firmData, poData] = await Promise.all([
+        const [supData, medData, firmData] = await Promise.all([
           fetchSuppliers(),
           fetchMedicines({ includeInactive: false }),
           api('/firms'),
-          fetchPurchaseOrders({ status: 'ISSUED' }), // POs waiting for goods
         ]);
         setSuppliers(supData.suppliers || []);
         setMedicines(medData.medicines || []);
         setFirms(firmData.firms || []);
-        setPurchaseOrders(poData.purchaseOrders || []);
       } catch (err) {
         console.error('Failed to load dropdowns', err);
       }
