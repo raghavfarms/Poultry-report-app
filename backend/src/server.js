@@ -14,34 +14,7 @@ async function start() {
   // 1. Convert all old labour accounts to 'user'
   await User.updateMany({ role: 'labour' }, { $set: { role: 'user' } }).catch(() => {});
 
-  // 2. Ensure Sudheer account is active and converted to 'user' with correct password
-  try {
-    const firms = await Firm.find({ active: true }).select('_id').lean();
-    const firmIds = firms.map((f) => f._id);
-    const existingSudheer = await User.findOne({ email: 'sudheer@gmail.com' });
-    const passwordHash = await bcrypt.hash('Sudheer@1234', 12);
 
-    if (existingSudheer) {
-      existingSudheer.role = 'user';
-      existingSudheer.active = true;
-      existingSudheer.passwordHash = passwordHash;
-      if (!existingSudheer.firms || existingSudheer.firms.length === 0) {
-        existingSudheer.firms = firmIds;
-      }
-      await existingSudheer.save();
-    } else if (firmIds.length > 0) {
-      await User.create({
-        name: 'Sudheer',
-        email: 'sudheer@gmail.com',
-        passwordHash,
-        role: 'user',
-        firms: firmIds,
-        active: true,
-      });
-    }
-  } catch (err) {
-    console.error('Sudheer account sync note:', err.message);
-  }
 
   // 3. Ensure Head Office firm, default designations, and office location exist
   try {
