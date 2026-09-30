@@ -123,7 +123,7 @@ router.get('/sessions', requireModuleAccess('attendance'), async (req, res) => r
 router.post('/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
 router.post('/sessions/auto-cut', attendanceEditOnly, async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
 router.post('/sessions/bulk-day', adminOnly, async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
-router.delete('/sessions/:id', adminOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
+router.delete('/sessions/:id', attendanceEditOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
 
 // Dashboard
 router.get('/dashboard/live', requireModuleAccess('attendance'), async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));

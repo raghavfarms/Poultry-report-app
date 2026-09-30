@@ -138,6 +138,24 @@ export default function AttendanceCorrectionModal({ worker, initialDate, onClose
     }
   };
 
+  const handleDeleteSession = async () => {
+    if (!sessionId) return;
+    if (!window.confirm(`Are you sure you want to clear this attendance session for ${worker.fullName} on ${date}?\n\nThis will make the day vacant so a new attendance can be scanned when they arrive in the evening.`)) {
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await api(attendancePath(`sessions/${sessionId}`), { method: 'DELETE' });
+      onSuccess(`Attendance session for ${worker.fullName} on ${date} has been cleared.`);
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to clear attendance session.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Dialog title="Edit attendance" onClose={onClose} busy={submitting} maxWidth="380px">
       <div className="w-full">
@@ -164,7 +182,9 @@ export default function AttendanceCorrectionModal({ worker, initialDate, onClose
               <span className="text-[11px] text-emerald-700 animate-pulse">Checking existing session…</span>
             )}
             {!loadingExisting && sessionId && (
-              <span className="text-[11px] font-semibold text-sky-700">✓ Existing session found — editing</span>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[11px] font-semibold text-sky-700">✓ Existing session found — editing</span>
+              </div>
             )}
             {!loadingExisting && !sessionId && (
               <span className="text-[11px] text-slate-400">No session logged for this date — creating entry</span>
@@ -244,22 +264,37 @@ export default function AttendanceCorrectionModal({ worker, initialDate, onClose
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className={`${secondaryButton} !min-h-9 !px-3 !py-1 text-xs`}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || loadingExisting || Boolean(loadError)}
-              className={`${primaryButton} !min-h-9 !px-3 !py-1 text-xs`}
-            >
-              {submitting ? 'Saving…' : 'Save'}
-            </button>
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            {sessionId ? (
+              <button
+                type="button"
+                onClick={handleDeleteSession}
+                disabled={submitting}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-300 bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 hover:text-rose-800 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Remove this session so worker can take fresh attendance"
+              >
+                <span>🗑️</span>
+                <span>Clear / Vacant Session</span>
+              </button>
+            ) : <div />}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting}
+                className={`${secondaryButton} !min-h-9 !px-3 !py-1 text-xs`}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || loadingExisting || Boolean(loadError)}
+                className={`${primaryButton} !min-h-9 !px-3 !py-1 text-xs`}
+              >
+                {submitting ? 'Saving…' : 'Save'}
+              </button>
+            </div>
           </div>
         </form>
         <AttendanceEditHistory key={`${worker._id}-${date}`} workerId={worker._id} date={date} />

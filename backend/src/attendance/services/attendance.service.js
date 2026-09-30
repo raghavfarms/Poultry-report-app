@@ -32,11 +32,13 @@ export function formatWorkedHours(minutes) {
 export function getAutoCutShiftDetails(dutyIn) {
   if (!dutyIn) return { isNightShift: false, shiftHours: 8, shiftMinutes: 480 };
   const inDate = new Date(dutyIn);
-  const inHour = Number(new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false }).format(inDate));
-  // Check-ins from 5:00 PM (17:00) to 5:00 AM (05:00) IST are night shifts
+  // Calculate IST hour reliably using +5:30 offset
+  const istOffsetMs = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(inDate.getTime() + istOffsetMs);
+  const inHour = istDate.getUTCHours();
+  // Check-ins from 5:00 PM (17:00) to 5:00 AM (05:00) IST are night shifts (12-hour duty)
   const isNightShift = inHour >= 17 || inHour < 5;
-  // Both day and night shifts follow the 8-hour duty rule (480 minutes)
-  const shiftHours = 8;
+  const shiftHours = isNightShift ? 12 : 8;
   const shiftMinutes = shiftHours * 60;
   return { isNightShift, shiftHours, shiftMinutes };
 }
@@ -177,16 +179,17 @@ export async function recordAttendance(user, payload = {}, options = {}) {
 
       if (anyOpenSession && anyOpenSession.date !== todayDate) {
         const elapsedHours = (now.getTime() - anyOpenSession.dutyIn.getTime()) / (1000 * 60 * 60);
-        // If night shift started within the last 16 hours and this is an OUT scan or AUTO scan, close the night shift!
-        if (elapsedHours >= 0.25 && elapsedHours <= 16 && resolvedEventType !== 'DUTY_IN') {
+        // If an overnight shift is running and within 15 hours, ANY morning scan by this worker marks them DUTY_OUT!
+        if (elapsedHours >= 0.25 && elapsedHours < 15) {
           openSession = anyOpenSession;
-        } else {
+          resolvedEventType = 'DUTY_OUT';
+        } else if (elapsedHours >= 15) {
           anyOpenSession.status = 'DUTY_COMPLETED';
           if (!anyOpenSession.dutyOut) {
             const { shiftMinutes } = getAutoCutShiftDetails(anyOpenSession.dutyIn);
             anyOpenSession.dutyOut = new Date(anyOpenSession.dutyIn.getTime() + shiftMinutes * 60 * 1000);
             anyOpenSession.workedMinutes = Math.max(0, shiftMinutes - (anyOpenSession.lunchMinutes || 0));
-            anyOpenSession.remarks = anyOpenSession.remarks ? `${anyOpenSession.remarks}; [Auto-Cut: Missed Duty OUT]` : '[Auto-Cut: Missed Duty OUT]';
+            anyOpenSession.remarks = anyOpenSession.remarks ? `${anyOpenSession.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]';
           }
           await anyOpenSession.save({ session: dbSession });
         }
