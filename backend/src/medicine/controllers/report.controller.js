@@ -81,22 +81,36 @@ export async function getDashboardStats(req, res) {
    const medicineStockMap={};
 
    for(const b of batches){
-    totalAvailableUnits+=b.quantityAvailable;
-  // Days until expiry
+    // Auto-reconcile with actual issued records to prevent any phantom stock drops
+    const batchIssues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
+    const batchIssuedSum = batchIssues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
+    const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum);
+    if (b.quantityAvailable !== correctQty) {
+      await MedicineBatch.updateOne(
+        { _id: b._id },
+        { $set: { quantityAvailable: correctQty, status: correctQty === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+      );
+      b.quantityAvailable = correctQty;
+    }
 
-   const expDate=new Date(b.expiryDate);
-   const diffTime=expDate-now;
-   const daysLeft=Math.ceil(diffTime/(1000*60*60*24));
+    totalAvailableUnits+=b.quantityAvailable;
+    // Days until expiry
+
+    const expDate=new Date(b.expiryDate);
+    const diffTime=expDate-now;
+    const daysLeft=Math.ceil(diffTime/(1000*60*60*24));
    
- 
-const batchSummary = {
+    const batchSummary = {
       _id: b._id,
+      medicineId: b.medicine?._id?.toString() || '',
       batchNumber: b.batchNumber,
       medicineName: b.medicine?.name || 'Unknown',
       medicineAlias: b.medicine?.aliasName || '',
       medicineCode: b.medicine?.code || '—',
       unit: b.medicine?.unit || 'units',
       quantityAvailable: b.quantityAvailable,
+      reorderLevel: b.medicine?.reorderLevel || 0,
+      minimumStock: b.medicine?.minimumStock || 0,
       expiryDate: b.expiryDate,
       daysLeft,
       farm: b.farm
@@ -117,11 +131,7 @@ const batchSummary = {
     if (medId) {
       medicineStockMap[medId] = (medicineStockMap[medId] || 0) + b.quantityAvailable;
     }
-
-
-
    }
-
 
   // Identify Low Stock Medicines (Current Stock <= Reorder Level or Minimum Stock)
   const lowStockAlerts = [];
@@ -143,6 +153,21 @@ const batchSummary = {
       });
     }
   }
+
+  // Tag every batch whose medicine is at or below reorder level
+  const lowStockMedIds = new Set(lowStockAlerts.map((a) => a._id.toString()));
+  const enrichWithStockAlert = (list) => {
+    for (const item of list) {
+      if (item.medicineId && lowStockMedIds.has(item.medicineId)) {
+        item.isLowStock = true;
+        item.totalMedicineStock = medicineStockMap[item.medicineId] || 0;
+      }
+    }
+  };
+  enrichWithStockAlert(expiryRadar.expired);
+  enrichWithStockAlert(expiryRadar.critical30);
+  enrichWithStockAlert(expiryRadar.caution60);
+  enrichWithStockAlert(expiryRadar.safe);
   res.json({
     success: true,
     summary: {
@@ -160,7 +185,8 @@ const batchSummary = {
       safeCount: expiryRadar.safe.length,
       expired: expiryRadar.expired,
       critical30: expiryRadar.critical30,
-      caution60: expiryRadar.caution60
+      caution60: expiryRadar.caution60,
+      safe: expiryRadar.safe
     },
     lowStockAlerts
   });
@@ -201,13 +227,26 @@ export async function getBatchTraceability(req, res) {
   for (const iss of issues) {
     const qty = iss.issuedQuantity || 0;
     totalIssuedQty += qty;
-    const shedKey = iss.shed || 'General/Store';
+    const shedKey = iss.shed || iss.destinationName || 'General/Store';
     shedBreakdown[shedKey] = (shedBreakdown[shedKey] || 0) + qty;
   }
+
+  // Self-heal: ensure batch.quantityAvailable matches initialQuantity - totalIssuedQty
+  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty);
+  if (batch.quantityAvailable !== correctAvailable) {
+    await MedicineBatch.updateOne(
+      { _id: batch._id },
+      { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+    );
+    batch.quantityAvailable = correctAvailable;
+    batch.status = correctAvailable === 0 ? 'DEPLETED' : 'AVAILABLE';
+  }
+
   res.json({
     success: true,
     batch: {
       ...batch,
+      quantityAvailable: correctAvailable,
       totalIssued: totalIssuedQty,
       shedBreakdown,
       issuesCount: issues.length,
@@ -216,7 +255,7 @@ export async function getBatchTraceability(req, res) {
     timeline: {
       receipt: batch.firstReceipt,
       issues,
-      transactions
+      transactions     //  const [transaction,setTransaction]=useState(0);
     }
   });
 }

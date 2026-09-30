@@ -115,7 +115,7 @@ function Sidebar({ open, close }) {
               <NavLink to="/admin/attendance" className={linkClass}>
                 <span>👤</span>Attendance Admin
               </NavLink>
-              {["admin", "developer"].includes(user?.role) && (
+              {["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user?.role) && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
                   <span>💊</span>Medicine Master
                 </NavLink>
@@ -178,7 +178,7 @@ export default function Layout() {
           Daily Farm Reporting
         </span>
       </header>
-      <main className="flex-1 p-3 sm:p-4 lg:ml-72 lg:p-5">
+      <main className="flex-1 p-1.5 sm:p-4 lg:ml-72 lg:p-5">
         <Outlet />
       </main>
     </div>

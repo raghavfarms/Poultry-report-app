@@ -374,7 +374,7 @@ export default function MedicineMasterPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-3 sm:space-y-4 w-full max-w-5xl mx-auto px-0 sm:px-2">
       {/* 1. Header Section */}
       <div className="flex justify-between items-center gap-3 bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
         <div>
@@ -466,7 +466,7 @@ export default function MedicineMasterPage() {
                     <th className="py-3 px-4">Medicine Name</th>
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Unit</th>
-                    <th className="py-3 px-4 text-center">Stock Alert</th>
+                    <th className="py-3 px-4 text-center">Stock & Alert</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 pr-6 text-right w-24">Actions</th>
                   </tr>
@@ -492,13 +492,30 @@ export default function MedicineMasterPage() {
                         </td>
                         <td className="py-3 px-4 text-slate-600 font-medium">{med.unit}</td>
                         <td className="py-3 px-4 text-center">
-                          {med.reorderLevel ? (
-                            <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                              Alert &lt; {med.reorderLevel} {med.unit}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-xs">—</span>
-                          )}
+                          <div className="flex flex-col items-center gap-0.5">
+                            {med.currentStock !== undefined && (
+                              med.isLowStock ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                  <span>⚠️</span> {med.currentStock} {med.unit} (Low)
+                                </span>
+                              ) : med.currentStock === 0 ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                  <span>🔴</span> 0 {med.unit} (Out)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <span>🟢</span> {med.currentStock} {med.unit}
+                                </span>
+                              )
+                            )}
+                            {med.reorderLevel ? (
+                              <span className="text-[10px] text-amber-700 font-medium">
+                                Alert &lt; {med.reorderLevel} {med.unit}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">—</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
@@ -586,115 +603,138 @@ export default function MedicineMasterPage() {
                 return (
                   <div
                     key={med._id}
-                    className="px-3 py-2.5 hover:bg-slate-50 transition flex items-center justify-between gap-2.5"
+                    className="px-3 py-2.5 hover:bg-slate-50/80 transition space-y-1.5"
                   >
-                    {/* Left: Code, Name, Details (tap to edit) */}
-                    <div
-                      className="min-w-0 flex-1 cursor-pointer"
-                      onClick={() => handleOpenEditModal(med)}
-                      title="Tap to Edit"
-                    >
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
+                    {/* Top Row: Code, Name, Alias, Status & Actions Menu */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div
+                        className="flex items-center gap-1.5 min-w-0 flex-1 cursor-pointer"
+                        onClick={() => handleOpenEditModal(med)}
+                        title="Tap to Edit"
+                      >
+                        <span className="font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
                           {med.code}
                         </span>
                         <span className="font-bold text-xs text-slate-900 truncate">
                           {med.name}
                         </span>
                         {med.aliasName && (
-                          <span className="text-[10px] text-emerald-700 italic truncate">
+                          <span className="text-[10px] text-emerald-700 italic truncate shrink-0">
                             ({med.aliasName})
                           </span>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500">
-                        <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-medium truncate max-w-[110px]">
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
+                            med.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {med.active ? 'Active' : 'Inactive'}
+                        </span>
+
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenActionId(openActionId === `m-${med._id}` ? null : `m-${med._id}`);
+                            }}
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition focus:outline-none cursor-pointer"
+                            title="Actions"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+                          {openActionId === `m-${med._id}` && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-20 cursor-default"
+                                onClick={() => setOpenActionId(null)}
+                              />
+                              <div
+                                className={`absolute right-0 ${
+                                  isDropup ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'
+                                } w-40 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-30 text-left animate-in fade-in zoom-in-95 duration-100`}
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    handleOpenEditModal(med);
+                                  }}
+                                  className="w-full px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-2 transition cursor-pointer"
+                                >
+                                  <span>✏️</span> Edit Details
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    handleToggleStatus(med._id, med.active);
+                                  }}
+                                  className={`w-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2 transition cursor-pointer ${
+                                    med.active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'
+                                  }`}
+                                >
+                                  <span>{med.active ? '⏸️' : '▶️'}</span>
+                                  {med.active ? 'Deactivate' : 'Activate'}
+                                </button>
+                                <div className="my-1 border-t border-slate-100" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionId(null);
+                                    handleDeleteMedicine(med);
+                                  }}
+                                  className="w-full px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition cursor-pointer"
+                                >
+                                  <span>🗑️</span> Delete
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Category/Unit on Left, Live Stock & Alert Pill on Right */}
+                    <div
+                      className="flex items-center justify-between gap-2 text-[10px] cursor-pointer"
+                      onClick={() => handleOpenEditModal(med)}
+                    >
+                      <div className="flex items-center gap-1.5 text-slate-500 min-w-0">
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium truncate max-w-[120px]">
                           {med.category}
                         </span>
                         <span>•</span>
                         <span className="font-medium text-slate-600">{med.unit}</span>
-                        {med.reorderLevel ? (
-                          <>
-                            <span>•</span>
-                            <span className="text-amber-700 font-semibold">
-                              Alert &lt; {med.reorderLevel}
-                            </span>
-                          </>
-                        ) : null}
                       </div>
-                    </div>
 
-                    {/* Right: Status badge & 3-dots Menu */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold ${
-                        med.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        {med.active ? 'Active' : 'Inactive'}
-                      </span>
-
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenActionId(openActionId === `m-${med._id}` ? null : `m-${med._id}`);
-                          }}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition focus:outline-none cursor-pointer"
-                          title="Actions"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
-                        </button>
-                        {openActionId === `m-${med._id}` && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-20 cursor-default"
-                              onClick={() => setOpenActionId(null)}
-                            />
-                            <div
-                              className={`absolute right-0 ${
-                                isDropup ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'
-                              } w-40 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-30 text-left animate-in fade-in zoom-in-95 duration-100`}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionId(null);
-                                  handleOpenEditModal(med);
-                                }}
-                                className="w-full px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-700 flex items-center gap-2 transition cursor-pointer"
-                              >
-                                <span>✏️</span> Edit Details
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionId(null);
-                                  handleToggleStatus(med._id, med.active);
-                                }}
-                                className={`w-full px-3 py-1.5 text-xs font-semibold flex items-center gap-2 transition cursor-pointer ${
-                                  med.active ? 'text-amber-700 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'
-                                }`}
-                              >
-                                <span>{med.active ? '⏸️' : '▶️'}</span>
-                                {med.active ? 'Deactivate' : 'Activate'}
-                              </button>
-                              <div className="my-1 border-t border-slate-100" />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenActionId(null);
-                                  handleDeleteMedicine(med);
-                                }}
-                                className="w-full px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition cursor-pointer"
-                              >
-                                <span>🗑️</span> Delete
-                              </button>
-                            </div>
-                          </>
-                        )}
+                      {/* Right: Low Stock Alert or Live Stock Pill */}
+                      <div className="shrink-0">
+                        {med.isLowStock ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span>⚠️</span>
+                            <span>Stock: <strong>{med.currentStock} {med.unit}</strong></span>
+                            <span className="text-rose-500 font-normal">(&lt;{med.reorderLevel})</span>
+                          </span>
+                        ) : med.currentStock === 0 ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span>🔴</span> Out of Stock
+                          </span>
+                        ) : med.currentStock !== undefined ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                            <span>Stock:</span>
+                            <strong className="text-slate-900">{med.currentStock} {med.unit}</strong>
+                          </span>
+                        ) : med.reorderLevel ? (
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Alert &lt; {med.reorderLevel}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </div>

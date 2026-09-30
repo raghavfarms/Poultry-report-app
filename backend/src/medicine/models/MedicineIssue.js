@@ -154,7 +154,7 @@ const medicineIssueSchema = new mongoose.Schema(
     // Name of the recipient supervisor, flocker, or vaccinator
     issuedTo: {
       type: String,
-      required: [true, 'Recipient name/designation is required'],
+      default: 'Shed Incharge',
       trim: true,
     },
 

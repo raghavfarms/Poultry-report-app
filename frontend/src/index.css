@@ -22,16 +22,18 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-button,
-select {
-  cursor: pointer;
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  button,
+  select {
+    cursor: pointer;
+  }
 }
 @media (min-width: 1024px) {
   header.lg\:ml-72,

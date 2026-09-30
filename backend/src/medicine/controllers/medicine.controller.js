@@ -145,10 +145,41 @@ export async function getMedicines(req, res) {
       .sort({ name: 1 })
       .lean();
 
+    // Compute live current stock across batches to power low stock alerts
+    const batches = await MedicineBatch.find({
+      quantityAvailable: { $gt: 0 },
+      status: { $in: ['AVAILABLE', 'EXPIRED'] },
+    })
+      .select('medicine quantityAvailable')
+      .lean();
+
+    const stockMap = {};
+    for (const b of batches) {
+      const medId = b.medicine?.toString();
+      if (medId) {
+        stockMap[medId] = (stockMap[medId] || 0) + (b.quantityAvailable || 0);
+      }
+    }
+
+    const enrichedMedicines = medicines.map((med) => {
+      const medId = med._id.toString();
+      const currentStock = stockMap[medId] || 0;
+      const threshold = med.reorderLevel || med.minimumStock || 0;
+      const isLowStock = threshold > 0 && currentStock <= threshold;
+      const isOutOfStock = currentStock === 0;
+
+      return {
+        ...med,
+        currentStock,
+        isLowStock,
+        isOutOfStock,
+      };
+    });
+
     return res.json({
       success: true,
-      count: medicines.length,
-      medicines,
+      count: enrichedMedicines.length,
+      medicines: enrichedMedicines,
     });
   } catch (error) {
     console.error('getMedicines error:', error);
