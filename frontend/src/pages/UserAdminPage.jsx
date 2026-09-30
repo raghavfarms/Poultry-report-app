@@ -132,6 +132,7 @@ const INITIAL_USER_FORM = {
     attendance_report: false,
     worker_master: true,
     attendance_edit: false,
+    attendance_autocut: false,
     asset_master: false,
     transport_master: false,
     attendance_admin_master: false,
@@ -148,6 +149,7 @@ const INITIAL_ROLE_FORM = {
     attendance_report: false,
     worker_master: true,
     attendance_edit: false,
+    attendance_autocut: false,
     asset_master: false,
     transport_master: false,
     attendance_admin_master: false,
@@ -162,6 +164,7 @@ function renderAllowedMasters(permissions = {}, role) {
   permissions = permissions || {};
   const allowed = [];
   if (unrestricted || permissions.attendance_edit) allowed.push("Edit Attendance");
+  if (unrestricted || permissions.attendance_autocut) allowed.push("Auto Cut Attendance");
   if (unrestricted || permissions.asset_master) allowed.push("Firms & Assets");
   if (unrestricted || permissions.transport_master) allowed.push("Transport Vehicles & Stations");
   if (unrestricted || permissions.attendance_scan) allowed.push("Camera Scan");
@@ -446,6 +449,7 @@ export default function UserAdminPage() {
         attendance_report: false,
         worker_master: true,
         attendance_edit: false,
+        attendance_autocut: false,
         asset_master: false,
         transport_master: false,
         attendance_admin_master: false,
@@ -487,6 +491,7 @@ export default function UserAdminPage() {
         attendance_report: u.permissions?.attendance_report ?? false,
         worker_master: u.permissions?.worker_master ?? true,
         attendance_edit: u.permissions?.attendance_edit ?? false,
+        attendance_autocut: u.permissions?.attendance_autocut ?? false,
         asset_master: u.permissions?.asset_master ?? false,
         transport_master: u.permissions?.transport_master ?? false,
         attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
@@ -722,6 +727,7 @@ export default function UserAdminPage() {
         attendance_report: role.permissions?.attendance_report ?? false,
         worker_master: role.permissions?.worker_master ?? true,
         attendance_edit: role.permissions?.attendance_edit ?? false,
+        attendance_autocut: role.permissions?.attendance_autocut ?? false,
         asset_master: role.permissions?.asset_master ?? false,
         transport_master: role.permissions?.transport_master ?? false,
         attendance_admin_master: role.permissions?.attendance_admin_master ?? false,
@@ -1551,7 +1557,7 @@ export default function UserAdminPage() {
                   Master Access
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  {[["attendance_edit", "Edit Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
+                  {[["attendance_edit", "Edit Attendance"], ["attendance_autocut", "Auto Cut Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={Boolean(userForm.permissions[key])} onChange={() => toggleUserPermission(key)} className="h-3.5 w-3.5 rounded text-emerald-700" />
                       <span className="text-xs">{label}</span>
@@ -1734,7 +1740,7 @@ export default function UserAdminPage() {
                   Default Master Access
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  {[["attendance_edit", "Edit Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
+                  {[["attendance_edit", "Edit Attendance"], ["attendance_autocut", "Auto Cut Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={Boolean(roleForm.permissions[key])} onChange={() => toggleRolePermission(key)} className="h-3.5 w-3.5 rounded text-emerald-700" />
                       <span className="text-xs">{label}</span>

@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { protect, requireModuleAccess, attendanceEditOnly, attendanceReportsOnly, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
+import { protect, requireModuleAccess, attendanceEditOnly, attendanceAutoCutOnly, attendanceReportsOnly, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
 import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
 import User from '../models/User.js';
@@ -121,7 +121,7 @@ router.get('/events', requireModuleAccess('attendance'), async (req, res) => res
 router.post('/events', async (req, res) => res.status(201).json(await attendanceService.recordAttendance(req.user, req.body)));
 router.get('/sessions', requireModuleAccess('attendance'), async (req, res) => res.json(await attendanceService.listAttendanceSessions(req.user, req.query)));
 router.post('/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
-router.post('/sessions/auto-cut', attendanceEditOnly, async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
+router.post('/sessions/auto-cut', attendanceAutoCutOnly, async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
 router.post('/sessions/bulk-day', adminOnly, async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
 router.delete('/sessions/:id', attendanceEditOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
 

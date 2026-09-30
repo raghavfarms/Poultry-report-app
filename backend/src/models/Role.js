@@ -15,6 +15,7 @@ const roleSchema = new mongoose.Schema(
     },
     permissions: {
       attendance_edit: { type: Boolean, default: false },
+      attendance_autocut: { type: Boolean, default: false },
       asset_master: { type: Boolean, default: false },
       transport_master: { type: Boolean, default: false },
       attendance_scan: { type: Boolean, default: false },

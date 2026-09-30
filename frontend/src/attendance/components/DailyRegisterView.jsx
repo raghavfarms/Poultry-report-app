@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { canEditAttendance } from '../../utils/moduleAccess.js';
+import { canEditAttendance, canAutoCutAttendance } from '../../utils/moduleAccess.js';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
@@ -54,6 +54,7 @@ export default function DailyRegisterView({
 }) {
   const { user } = useAuth();
   const canEdit = canEditAttendance(user);
+  const canAutoCut = canAutoCutAttendance(user);
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());
@@ -208,7 +209,7 @@ export default function DailyRegisterView({
   };
 
   const renderAutoCutColumn = (r) => {
-    if (!canEdit) return renderMiniMapLink(r);
+    if (!canAutoCut) return renderMiniMapLink(r);
     if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
       return <span className="text-slate-300">—</span>;
     }

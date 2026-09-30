@@ -46,6 +46,14 @@ export function attendanceEditOnly(req, res, next) {
   return res.status(403).json({ message: 'Edit Attendance permission is required.' });
 }
 
+export function attendanceAutoCutOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    (req.user?.permissions?.attendance_autocut === true || req.user?.permissions?.attendance_edit === true)
+  )) return next();
+  return res.status(403).json({ message: 'Auto Cut permission is required.' });
+}
+
 export function attendanceReportsOnly(req, res, next) {
   if (['admin', 'developer'].includes(req.user?.role) || (
     req.user?.allowedModules?.includes('attendance') &&

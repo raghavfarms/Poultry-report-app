@@ -30,3 +30,11 @@ export function canEditAttendance(user) {
     ['admin', 'developer'].includes(user.role) || user.permissions?.attendance_edit === true
   );
 }
+
+export function canAutoCutAttendance(user) {
+  return canAccessReport(user, 'attendance') && (
+    ['admin', 'developer'].includes(user?.role) ||
+    user?.permissions?.attendance_autocut === true ||
+    user?.permissions?.attendance_edit === true
+  );
+}
