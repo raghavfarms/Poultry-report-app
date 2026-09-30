@@ -83,7 +83,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
+  // Auto-cut any sessions exceeding 15 elapsed hours threshold (never auto-cut before 15 hours regardless of date change)
   await autoCutExpiredSessions(firmObjectId, now);
 
   // 3. Parallel fetch of workers, deployments, attendance sessions, and active work locations
@@ -339,7 +339,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
+  // Auto-cut any sessions exceeding 15 elapsed hours threshold (never auto-cut before 15 hours regardless of date change)
   await autoCutExpiredSessions(firmObjectId, now);
 
   // Determine days in month

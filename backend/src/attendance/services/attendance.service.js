@@ -806,15 +806,15 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
     const query = { status: 'PRESENT' };
     if (firmId) query.firm = firmId;
     const openSessions = await AttendanceSession.find(query);
-    const todayDate = indiaDateString(now);
 
     let updatedCount = 0;
     for (const session of openSessions) {
       if (!session.dutyIn) continue;
       const elapsedHours = (now.getTime() - session.dutyIn.getTime()) / (1000 * 60 * 60);
       const { shiftMinutes } = getAutoCutShiftDetails(session.dutyIn);
-      // Auto-cut threshold is 15 hours for both day and night shifts.
-      // Workers with 10-12 hour shifts (such as night guards) remain active and open until 15 hours have elapsed.
+
+      // STRICT RULE: Never auto-cut before 15 elapsed hours, no matter whether the date changed.
+      // Workers remain open (PRESENT) across midnight / date boundaries until full 15 hours elapsed.
       const shouldAutoCut = elapsedHours >= 15;
 
       if (shouldAutoCut) {
