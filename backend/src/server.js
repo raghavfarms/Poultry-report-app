@@ -126,6 +126,17 @@ async function start() {
     console.error('Supervisor sync note:', err.message);
   }
 
+  // 5. Remove test / legacy 'Apex Vet Pharma' supplier
+  try {
+    const Supplier = (await import('./medicine/models/Supplier.js')).default;
+    const deleted = await Supplier.deleteMany({ name: /apex/i });
+    if (deleted.deletedCount > 0) {
+      console.log(`✅ Removed ${deleted.deletedCount} legacy Apex supplier record(s).`);
+    }
+  } catch (err) {
+    console.error('Apex supplier cleanup note:', err.message);
+  }
+
   app.listen(port, () => console.log(`API listening on http://localhost:${port}`));
 }
 

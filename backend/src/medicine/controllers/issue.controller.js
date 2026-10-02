@@ -39,7 +39,7 @@ export async function getFefoRecommendations(req, res) {
     const { medicineId, farmId } = req.query;
 
     if (!medicineId || !farmId) {
-      return badRequest(res, 'Both medicineId and farmId query parameters are required for FEFO suggestions');
+      throw badRequest('Both medicineId and farmId query parameters are required for FEFO suggestions');
     }
 
     // Fetch batches with available stock, strictly ordered by expiryDate ASC
@@ -48,13 +48,13 @@ export async function getFefoRecommendations(req, res) {
       farm: farmId,
       quantityAvailable: { $gt: 0 },
       status: 'AVAILABLE',
+      expiryDate: { $gte: new Date().toISOString().slice(0, 10) },
     })
       .sort({ expiryDate: 1 }) // FEFO principle: earliest expiry first
       .populate('supplier', 'name code')
       .lean();
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(new Date().toISOString().slice(0, 10));
 
     let firstEligibleFound = false;
 
@@ -93,7 +93,7 @@ export async function getFefoRecommendations(req, res) {
     });
   } catch (error) {
     console.error('getFefoRecommendations error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 }
 
@@ -127,44 +127,44 @@ export async function createIssue(req, res) {
 
     // 1. Basic validation
     if (!medicineId || !batchId || !farmId || !actualShed || !issuedQuantity || !issuedTo) {
-      return badRequest(res, 'Medicine, Batch, Farm, Location/Shed, Quantity, and Recipient are required');
+      throw badRequest('Medicine, Batch, Farm, Location/Shed, Quantity, and Recipient are required');
     }
 
     const qty = Number(issuedQuantity);
     if (isNaN(qty) || qty <= 0) {
-      return badRequest(res, 'Issued quantity must be a positive number');
+      throw badRequest('Issued quantity must be a positive number');
     }
 
     // 2. Validate Medicine
     const medicine = await MedicineMaster.findById(medicineId);
     if (!medicine || !medicine.active) {
-      return badRequest(res, 'Selected medicine is inactive or does not exist');
+      throw badRequest('Selected medicine is inactive or does not exist');
     }
 
     // 3. Validate Farm
     const farm = await Firm.findById(farmId);
     if (!farm || !farm.active) {
-      return badRequest(res, 'Selected farm is inactive or does not exist');
+      throw badRequest('Selected farm is inactive or does not exist');
     }
 
     // 4. Validate Batch
     const batch = await MedicineBatch.findById(batchId);
     if (!batch) {
-      return notFoundError(res, 'Medicine batch not found');
+      throw notFoundError('Medicine batch not found');
     }
 
     if (String(batch.medicine) !== String(medicineId) || String(batch.farm) !== String(farmId)) {
-      return badRequest(res, 'Batch does not belong to the selected medicine or farm');
+      throw badRequest('Batch does not belong to the selected medicine or farm');
     }
 
     if (batch.status !== 'AVAILABLE') {
-      return badRequest(res, `Batch is not available for issue (Status: ${batch.status})`);
+      throw badRequest(`Batch is not available for issue (Status: ${batch.status})`);
     }
 
     // Check expiry safety: Never issue expired medicine to birds
     const todayStr = new Date().toISOString().slice(0, 10);
     if (batch.expiryDate < todayStr) {
-      return badRequest(res, `Cannot issue expired medicine! Batch ${batch.batchNumber} expired on ${batch.expiryDate}`);
+      throw badRequest(`Cannot issue expired medicine! Batch ${batch.batchNumber} expired on ${batch.expiryDate}`);
     }
 
     // 5. ATOMIC Concurrency Guarded Decrement
@@ -174,6 +174,7 @@ export async function createIssue(req, res) {
         _id: batch._id,
         quantityAvailable: { $gte: qty },
         status: 'AVAILABLE',
+        expiryDate: { $gte: todayStr },
       },
       {
         $inc: { quantityAvailable: -qty },
@@ -182,9 +183,7 @@ export async function createIssue(req, res) {
     );
 
     if (!updatedBatch) {
-      return badRequest(
-        res,
-        `Insufficient stock available in Batch ${batch.batchNumber}. Available: ${batch.quantityAvailable}, Requested: ${qty}`
+      throw badRequest(`Insufficient stock available in Batch ${batch.batchNumber}. Available: ${batch.quantityAvailable}, Requested: ${qty}`
       );
     }
 
@@ -257,7 +256,7 @@ export async function createIssue(req, res) {
     });
   } catch (error) {
     console.error('createIssue error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 }
 
@@ -343,7 +342,7 @@ export async function getIssues(req, res) {
     });
   } catch (error) {
     console.error('getIssues error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 }
 
@@ -361,13 +360,13 @@ export async function getIssueById(req, res) {
       .populate('issuedBy', 'username name email');
 
     if (!issue) {
-      return notFoundError(res, 'Medicine issue record not found');
+      throw notFoundError('Medicine issue record not found');
     }
 
     return res.json({ success: true, issue });
   } catch (error) {
     console.error('getIssueById error:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 }
 

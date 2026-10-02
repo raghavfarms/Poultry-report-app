@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   fetchMedicines,
   createMedicineApi,
@@ -8,6 +8,7 @@ import {
   deleteUnitApi,
   deleteMedicineApi,
 } from '../api/medicineApi.js';
+import { fetchSuppliers, createSupplierApi } from '../api/supplierApi.js';
 
 const DEFAULT_CATEGORIES = [
   'Feed Medicine',
@@ -37,6 +38,7 @@ const INITIAL_FORM = {
   shelfLifeMonths: '',
   minimumStock: '',
   reorderLevel: '',
+  suppliers: [],
 };
 
 // Compact scrollable dropdown that shows exactly 5 items, with remaining items scrollable below
@@ -91,7 +93,7 @@ function ScrollDropdown({
             const isSelected = value === opt;
             return (
               <div
-                key={opt}
+                key={opt}   //
                 onClick={() => {
                   onChange(opt);
                   setIsOpen(false);
@@ -131,6 +133,7 @@ function ScrollDropdown({
 export default function MedicineMasterPage() {
   // Data states
   const [medicines, setMedicines] = useState([]);
+  const [allSuppliers, setAllSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -149,6 +152,8 @@ export default function MedicineMasterPage() {
     setCurrentPage(1);
   }, [search, selectedCategory, statusFilter]);
 
+   // useEffect to scr
+
   // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -158,6 +163,8 @@ export default function MedicineMasterPage() {
   const [isCustomUnit, setIsCustomUnit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [openActionId, setOpenActionId] = useState(null);
+  const [supplierInput, setSupplierInput] = useState('');
+  const [addingSupplier, setAddingSupplier] = useState(false);
 
   // Dynamic categories & units combining poultry presets with database items
   const safeMedicines = Array.isArray(medicines) ? medicines.filter(Boolean) : [];
@@ -177,7 +184,7 @@ export default function MedicineMasterPage() {
   const paginatedMedicines = medicines.slice(startIndex, startIndex + PAGE_SIZE);
 
   // Load MEDICINES FROM BACKEND
-  const loadMedicines = async () => {
+  const loadMedicines = async () => {  //  load medicines
     try {
       setLoading(true);
       setError('');
@@ -193,6 +200,14 @@ export default function MedicineMasterPage() {
       setLoading(false);
     }
   };
+
+  // Load suppliers list on mount
+  useEffect(() => {
+    fetchSuppliers().then((res) => {
+      const active = (res.suppliers || []).filter((s) => !/apex/i.test(s.name));
+      setAllSuppliers(active);
+    }).catch(() => {});
+  }, []);
 
   // Automatically fetch medicines on page load and whenever filters change
   useEffect(() => {
@@ -222,6 +237,7 @@ export default function MedicineMasterPage() {
       shelfLifeMonths: '',
       minimumStock: '',
       reorderLevel: '',
+      suppliers: [],
     });
     setIsCustomCategory(false);
     setIsCustomUnit(false);
@@ -241,10 +257,11 @@ export default function MedicineMasterPage() {
       shelfLifeMonths: med.shelfLifeMonths ?? '',
       minimumStock: med.minimumStock ?? '',
       reorderLevel: med.reorderLevel ?? '',
+      suppliers: (med.suppliers || []).map((s) => (s && s._id ? s._id : s)),
     });
     setIsCustomCategory(!availableCategories.includes(med.category));
     setIsCustomUnit(!availableUnits.includes(med.unit));
-    setShowAdvanced(Boolean(med.aliasName || med.reorderLevel || med.code));
+    setShowAdvanced(Boolean(med.aliasName || med.reorderLevel || med.code || (med.suppliers && med.suppliers.length > 0)));
     setError('');
     setIsModalOpen(true);
   };
@@ -255,6 +272,72 @@ export default function MedicineMasterPage() {
     setFormData(INITIAL_FORM);
     setIsCustomCategory(false);
     setIsCustomUnit(false);
+    setSupplierInput('');
+  };
+
+  // Map selected supplier IDs to objects with name for chip rendering
+  const selectedSuppliers = useMemo(() => {
+    return (formData.suppliers || []).map((item) => {
+      const idStr = (item?._id || item)?.toString();
+      const match = allSuppliers.find((s) => s._id.toString() === idStr);
+      if (match) return match;
+      if (typeof item === 'object' && item?.name) return item;
+      return { _id: idStr, name: item?.name || 'Supplier' };
+    });
+  }, [formData.suppliers, allSuppliers]);
+
+  // Add supplier by typing name and clicking '+'
+  const handleAddSupplier = async () => {
+    const trimmed = supplierInput.trim();
+    if (!trimmed || addingSupplier) return;
+
+    // Check if supplier already exists in allSuppliers
+    const existing = allSuppliers.find(
+      (s) => s.name.toLowerCase() === trimmed.toLowerCase()
+    );
+
+    if (existing) {
+      const alreadyAdded = (formData.suppliers || []).some(
+        (id) => (id?._id || id)?.toString() === existing._id.toString()
+      );
+      if (!alreadyAdded) {
+        setFormData((prev) => ({
+          ...prev,
+          suppliers: [...prev.suppliers, existing._id],
+        }));
+      }
+      setSupplierInput('');
+      return;
+    }
+
+    // Otherwise create the new supplier in backend
+    try {
+      setAddingSupplier(true);
+      const res = await createSupplierApi({ name: trimmed });
+      const newSup = res.supplier;
+      if (newSup) {
+        setAllSuppliers((prev) => [...prev, newSup]);
+        setFormData((prev) => ({
+          ...prev,
+          suppliers: [...prev.suppliers, newSup._id],
+        }));
+      }
+      setSupplierInput('');
+    } catch (err) {
+      alert(err.message || 'Failed to add supplier');
+    } finally {
+      setAddingSupplier(false);
+    }
+  };
+
+  // Remove supplier chip
+  const handleRemoveSupplier = (idToRemove) => {
+    setFormData((prev) => ({
+      ...prev,
+      suppliers: (prev.suppliers || []).filter(
+        (id) => (id?._id || id)?.toString() !== idToRemove.toString()
+      ),
+    }));
   };
 
   // SUBMIT FORM (CREATE OR UPDATE)
@@ -283,6 +366,7 @@ export default function MedicineMasterPage() {
         shelfLifeMonths: formData.shelfLifeMonths ? Number(formData.shelfLifeMonths) : null,
         minimumStock: formData.minimumStock !== '' ? Number(formData.minimumStock) : 0,
         reorderLevel: formData.reorderLevel !== '' ? Number(formData.reorderLevel) : 0,
+        suppliers: formData.suppliers || [],
       };
 
       if (editingId) {
@@ -360,7 +444,7 @@ export default function MedicineMasterPage() {
   const handleDeleteMedicine = async (med) => {
     if (!med) return;
     setOpenActionId(null);
-    if (!window.confirm(`Are you sure you want to permanently delete medicine "${med.name}" (${med.code || 'No Code'})?`)) {
+    if (!window.confirm(`Are you sure you want to permanently delete medicine "${med.name}" (${med.code || 'No Code'})? This will remove the medicine and any related batches/records.`)) {
       return;
     }
     try {
@@ -482,6 +566,19 @@ export default function MedicineMasterPage() {
                           {med.aliasName && (
                             <div className="text-[11px] text-emerald-700 font-medium italic mt-0.5">
                               Alias: {med.aliasName}
+                            </div>
+                          )}
+                          {med.suppliers && med.suppliers.length > 0 && (
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-1 flex-wrap">
+                              <span className="text-slate-400 text-[9px] uppercase font-bold tracking-wider">Suppliers:</span>
+                              {med.suppliers.map((s) => (
+                                <span
+                                  key={s._id || s}
+                                  className="inline-block px-1.5 py-0.2 bg-slate-100 text-slate-700 rounded text-[9px] font-medium border border-slate-200"
+                                >
+                                  {s.name || s}
+                                </span>
+                              ))}
                             </div>
                           )}
                         </td>
@@ -737,6 +834,13 @@ export default function MedicineMasterPage() {
                         ) : null}
                       </div>
                     </div>
+
+                    {med.suppliers && med.suppliers.length > 0 && (
+                      <div className="text-[9px] text-slate-500 truncate pt-0.5">
+                        <span className="text-slate-400 font-semibold uppercase tracking-wider text-[8px]">Suppliers:</span>{' '}
+                        {med.suppliers.map((s) => s.name || s).join(', ')}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -980,6 +1084,64 @@ export default function MedicineMasterPage() {
                         onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
                         className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
                       />
+                    </div>
+
+                    {/* Suppliers for this Medicine */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-0.5">
+                        Suppliers <span className="text-slate-400 font-normal">(opt)</span>
+                      </label>
+                      <div className="flex gap-1.5 items-center">
+                        <input
+                          type="text"
+                          list="medicine-suppliers-datalist"
+                          placeholder="Write supplier name & click +"
+                          value={supplierInput}
+                          onChange={(e) => setSupplierInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddSupplier();
+                            }
+                          }}
+                          className="flex-1 h-7.5 px-2 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
+                        />
+                        <datalist id="medicine-suppliers-datalist">
+                          {allSuppliers.map((s) => (
+                            <option key={s._id} value={s.name} />
+                          ))}
+                        </datalist>
+                        <button
+                          type="button"
+                          onClick={handleAddSupplier}
+                          disabled={!supplierInput.trim() || addingSupplier}
+                          className="h-7.5 px-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-md text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 shadow-2xs"
+                        >
+                          <span>+</span> {addingSupplier ? 'Adding...' : 'Add'}
+                        </button>
+                      </div>
+
+                      {/* Added Suppliers Chips */}
+                      {selectedSuppliers.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {selectedSuppliers.map((sup) => (
+                            <span
+                              key={sup._id || sup.name}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold rounded-md shadow-2xs"
+                            >
+                              <span>{sup.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSupplier(sup._id || sup.name)}
+                                className="text-emerald-500 hover:text-rose-600 font-bold text-xs ml-0.5 cursor-pointer leading-none"
+                                title="Remove supplier"
+                              >
+                                &times;
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

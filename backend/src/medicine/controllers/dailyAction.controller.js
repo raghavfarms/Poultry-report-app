@@ -6,6 +6,7 @@ import MedicineTransaction from '../models/MedicineTransaction.js';
 import Firm from '../../models/Firm.js';
 import User from '../../models/User.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
+import { validateInwardExpiry } from '../services/inwardExpiry.js';
 
 // Helper: Safely resolve User ID for audit logs and ledger transactions
 async function getActionUserId(req) {
@@ -52,8 +53,17 @@ async function generateIssueNumber() {
  */
 export async function fastInward(req, res) {
   try {
+    const receiverName = req.body.receiverName === undefined
+      ? (req.user?.name || req.user?.username || '')
+      : (typeof req.body.receiverName === 'string' ? req.body.receiverName.trim() : '');
+    if (req.body.receiverName !== undefined && (!receiverName || receiverName.length > 120)) {
+      throw badRequest('Enter a receiver name (maximum 120 characters).');
+    }
     const {
       medicineId,
+      newMedicineName,
+      newMedicineCategory,
+      newMedicineUnit,
       batchNumber,
       expiryDate,
       manufacturingDate,
@@ -65,14 +75,39 @@ export async function fastInward(req, res) {
     } = req.body;
 
     // 1. Validation
-    if (!medicineId) throw badRequest('Medicine selection is required');
+    if (!medicineId && (!newMedicineName || !newMedicineName.trim())) {
+      throw badRequest('Medicine selection or valid medicine name is required');
+    }
     if (!batchNumber || !batchNumber.trim()) throw badRequest('Batch number is required');
     if (!expiryDate) throw badRequest('Expiry date is required');
+    validateInwardExpiry(expiryDate);
     const qty = Number(quantity);
     if (!qty || qty <= 0) throw badRequest('Quantity must be greater than 0');
 
-    // 2. Fetch Medicine and Farm
-    const medicine = await MedicineMaster.findById(medicineId);
+    // 2. Fetch or Create Medicine and Farm
+    let medicine = null;
+    if (medicineId) {
+      medicine = await MedicineMaster.findById(medicineId);
+    } else if (newMedicineName && newMedicineName.trim()) {
+      const trimmedName = newMedicineName.trim();
+      // Case-insensitive match check to avoid duplicates
+      medicine = await MedicineMaster.findOne({
+        name: { $regex: new RegExp(`^${trimmedName}$`, 'i') },
+      });
+      if (!medicine) {
+        if (typeof newMedicineCategory !== 'string' || !newMedicineCategory.trim() ||
+            typeof newMedicineUnit !== 'string' || !newMedicineUnit.trim()) {
+          throw badRequest('Select a category and unit for the new medicine');
+        }
+        const userId = await getActionUserId(req);
+        medicine = await MedicineMaster.create({
+          name: trimmedName,
+          category: newMedicineCategory.trim(),
+          unit: newMedicineUnit.trim(),
+          createdBy: userId,
+        });
+      }
+    }
     if (!medicine) throw notFoundError('Medicine not found');
 
     let farm = farmId;
@@ -88,6 +123,33 @@ export async function fastInward(req, res) {
     }
 
     const cleanBatchNo = batchNumber.trim().toUpperCase();
+
+    const userId = await getActionUserId(req);
+
+    // 4. Create Receipt log for official tracking & audit
+    const receiptNumber = await generateReceiptNumber();
+    const receipt = new MedicineReceipt({
+      receiptNumber,
+      medicine: medicine._id,
+      supplier: supplierId || null,
+      farm,
+      batchNumber: cleanBatchNo,
+      manufacturingDate: manufacturingDate || null,
+      expiryDate,
+      receivedQuantity: qty,
+      unit: medicine.unit,
+      invoiceOrChallanNo: invoiceNo || '',
+      status: 'STORE_ACCEPTED', // Directly accepted into farm store!
+      verifiedAt: new Date(),
+      verifiedBy: userId,
+      storeAcceptedQuantity: qty,
+      receivedBy: userId,
+      receiverName,
+      recordedByName: req.user?.name || req.user?.username || '',
+      verificationRemarks: notes || 'Fast Inward via Scanner / Quick Action',
+    });
+
+    await receipt.validate();
 
     // 3. Find or Create MedicineBatch (At this farm)
     let batch = await MedicineBatch.findOne({
@@ -119,27 +181,7 @@ export async function fastInward(req, res) {
       });
     }
 
-    const userId = await getActionUserId(req);
-
-    // 4. Create Receipt log for official tracking & audit
-    const receiptNumber = await generateReceiptNumber();
-    const receipt = await MedicineReceipt.create({
-      receiptNumber,
-      medicine: medicine._id,
-      supplier: supplierId || null,
-      farm,
-      batchNumber: cleanBatchNo,
-      manufacturingDate: manufacturingDate || null,
-      expiryDate,
-      receivedQuantity: qty,
-      unit: medicine.unit,
-      invoiceOrChallanNo: invoiceNo || '',
-      status: 'STORE_ACCEPTED', // Directly accepted into farm store!
-      acceptedAt: new Date(),
-      acceptedBy: userId,
-      receivedBy: userId,
-      notes: notes || 'Fast Inward via Scanner / Quick Action',
-    });
+    await receipt.save();
 
     // 5. Create Ledger Transaction (Keeps reports & dashboards 100% in sync)
     await MedicineTransaction.create({
@@ -162,6 +204,7 @@ export async function fastInward(req, res) {
       message: `Successfully received ${qty} ${medicine.unit} of ${medicine.name}`,
       data: {
         batchId: batch._id,
+        medicineId: medicine._id,
         receiptNumber,
         batchNumber: cleanBatchNo,
         currentStock: batch.quantityAvailable,
@@ -169,7 +212,7 @@ export async function fastInward(req, res) {
     });
   } catch (err) {
     console.error('fastInward error:', err);
-    return res.status(err.statusCode || 500).json({
+    return res.status(err.status || err.statusCode || 500).json({
       success: false,
       message: err.message || 'Failed to process inward medicine',
     });
@@ -182,6 +225,9 @@ export async function fastInward(req, res) {
  */
 export async function fastOutward(req, res) {
   try {
+    const receiver = typeof req.body.issuedTo === 'string' ? req.body.issuedTo.trim() : '';
+    if (!receiver || receiver.length > 120) throw badRequest('Receiver name is required (maximum 120 characters)');
+    if (!req.user?._id) return res.status(401).json({ success: false, message: 'Please log in to issue medicine.' });
     const {
       medicineId,
       quantity,
@@ -196,7 +242,7 @@ export async function fastOutward(req, res) {
     if (!medicineId) throw badRequest('Medicine selection is required');
     if (!shedName || !shedName.trim()) throw badRequest('Shed name/number is required');
     const qtyToDeduct = Number(quantity);
-    if (!qtyToDeduct || qtyToDeduct <= 0) throw badRequest('Quantity must be greater than 0');
+    if (!Number.isFinite(qtyToDeduct) || qtyToDeduct <= 0) throw badRequest('Quantity must be greater than 0');
 
     // 2. Fetch Medicine
     const medicine = await MedicineMaster.findById(medicineId);
@@ -208,7 +254,8 @@ export async function fastOutward(req, res) {
     const batchFilter = {
       medicine: medicine._id,
       quantityAvailable: { $gt: 0 },
-      status: { $in: ['AVAILABLE', 'EXPIRED'] }, // Allow issuing even if soon/flagged unless depleted
+      status: 'AVAILABLE',
+      expiryDate: { $gte: new Date().toISOString().slice(0, 10) },
     };
 
     if (farmId) {
@@ -233,7 +280,7 @@ export async function fastOutward(req, res) {
     for (const b of availableBatches) {
       const issues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
       const totalIssued = issues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
-      const correctAvailable = Math.max(0, (b.initialQuantity || 0) - totalIssued);
+      const correctAvailable = Math.max(0, (b.initialQuantity || 0) - totalIssued - (b.disposedQuantity || 0));
       if (b.quantityAvailable !== correctAvailable) {
         await MedicineBatch.updateOne(
           { _id: b._id },
@@ -248,7 +295,7 @@ export async function fastOutward(req, res) {
     const totalAvailable = availableBatches.reduce((sum, b) => sum + (b.quantityAvailable || 0), 0);
     if (totalAvailable < qtyToDeduct) {
       throw badRequest(
-        `Insufficient stock for ${medicine.name}. Available: ${totalAvailable} ${medicine.unit}, Requested: ${qtyToDeduct} ${medicine.unit}`
+        `Insufficient usable stock for ${medicine.name}. Available: ${totalAvailable} ${medicine.unit}, Requested: ${qtyToDeduct} ${medicine.unit}. Expired batches cannot be issued.`
       );
     }
 
@@ -260,6 +307,7 @@ export async function fastOutward(req, res) {
       if (remaining <= 0) break;
 
       const take = Math.min(batch.quantityAvailable, remaining);
+      if (take <= 0) continue;
 
       // Ensure farm is tied to the physical batch's farm
       let batchFarmId = batch.farm?._id || batch.farm || farmId || req.user?.firm;
@@ -283,11 +331,12 @@ export async function fastOutward(req, res) {
         destinationName: shedName.trim(),
         shed: shedName.trim(), // Mandatory field in MedicineIssue schema
         purpose: 'TREATMENT',  // Mandatory field in MedicineIssue schema
-        issuedTo: req.body.issuedTo?.trim() || `${shedName.trim()} Staff`,
+        issuedTo: receiver,
         issuedQuantity: take,
         unit: medicine.unit,
         issuedBy: userId,
-        notes: notes || `Given to ${shedName.trim()}`,
+        issuedByName: req.user.name || req.user.username || '',
+        remarks: notes || `Collected by ${receiver} for ${shedName.trim()}`,
       });
 
       // 2. Create Ledger Transaction (All required fields: unit, referenceModel, referenceId, performedBy)
@@ -303,7 +352,7 @@ export async function fastOutward(req, res) {
         referenceModel: 'MedicineIssue',
         referenceId: issue._id,
         performedBy: userId,
-        remarks: `Given to ${shedName.trim()} (${take} ${medicine.unit})`,
+        remarks: `Collected by ${receiver} for ${shedName.trim()} (${take} ${medicine.unit})`,
       });
 
       // 3. Update and persist batch balance ONLY after issue & ledger succeed
@@ -329,6 +378,7 @@ export async function fastOutward(req, res) {
       data: {
         medicineName: medicine.name,
         shedName: shedName.trim(),
+        issuedTo: receiver,
         totalDeducted: qtyToDeduct,
         remainingStock: totalAvailable - qtyToDeduct,
         deductions,
@@ -336,7 +386,7 @@ export async function fastOutward(req, res) {
     });
   } catch (err) {
     console.error('fastOutward error:', err);
-    return res.status(err.statusCode || 500).json({
+    return res.status(err.status || err.statusCode || 500).json({
       success: false,
       message: err.message || 'Failed to issue medicine',
     });
@@ -387,7 +437,8 @@ export async function getTodayActivity(req, res) {
         expiryDate: r.expiryDate,
         quantity: r.receivedQuantity,
         unit: r.unit,
-        operator: r.receivedBy?.name || 'Worker',
+        operator: r.recordedByName || r.receivedBy?.name || 'Worker',
+        receiver: r.receiverName || r.receivedBy?.name || '',
         target: 'Store Cupboard',
       });
     }
@@ -402,9 +453,10 @@ export async function getTodayActivity(req, res) {
         batchNumber: i.batchNumber,
         quantity: i.issuedQuantity,
         unit: i.unit,
-        operator: i.issuedBy?.name || 'Worker',
-        target: i.destinationName || 'Shed',
-        notes: i.notes || '',
+        operator: i.issuedByName || i.issuedBy?.name || 'Worker',
+        receiver: i.issuedTo || '',
+        target: i.shed || i.destinationName || 'Shed',
+        notes: i.remarks || i.notes || '',
       });
     }
 
@@ -424,3 +476,71 @@ export async function getTodayActivity(req, res) {
     });
   }
 }
+
+/**
+ * 4. SCAN MEDICINE LABEL (Optional Cloud Vision AI Scanner)
+ * Uses Google Gemini Vision API if GEMINI_API_KEY is configured in .env.
+ * Extracts Batch Number and Expiry Date (YYYY-MM-DD) from messy handwriting in 300ms.
+ */
+export async function scanMedicineLabel(req, res) {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) {
+      return res.status(400).json({ success: false, message: 'Image base64 is required' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_VISION_API_KEY;
+    if (!apiKey) {
+      return res.json({
+        success: false,
+        message: 'No GEMINI_API_KEY configured in backend/.env. Using client-side scanner.',
+      });
+    }
+
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: 'You are an OCR extractor for medicine labels and handwritten poultry stock notes. Extract the exact Batch Number, Expiry Date (convert to YYYY-MM-DD format), and Medicine Name. Output ONLY a valid JSON object without markdown formatting: {"batchNumber": "BATCH-...", "expiryDate": "YYYY-MM-DD", "medicineName": "..."}. If not detected, return empty string for that field.'
+                },
+                {
+                  inline_data: {
+                    mime_type: 'image/jpeg',
+                    data: cleanBase64
+                  }
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
+
+    const data = await response.json();
+    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const jsonMatch = candidateText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return res.json({
+        success: true,
+        batchNumber: parsed.batchNumber || '',
+        expiryDate: parsed.expiryDate || '',
+        medicineName: parsed.medicineName || '',
+      });
+    }
+
+    return res.json({ success: false, message: 'Could not extract JSON from AI' });
+  } catch (err) {
+    console.error('scanMedicineLabel error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+}
+

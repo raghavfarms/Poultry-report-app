@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+    import mongoose from 'mongoose';
 
 const medicineBatchSchema = new mongoose.Schema(
   {
@@ -64,6 +64,13 @@ const medicineBatchSchema = new mongoose.Schema(
       required: true,
       min: [0, 'Available quantity cannot be negative'],
     },
+    disposedQuantity: { type: Number, default: 0, min: 0 },
+    disposals: [{
+      quantity: { type: Number, required: true },
+      performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      performedByName: String,
+      createdAt: { type: Date, default: Date.now },
+    }],
 
     unit: {
       type: String,

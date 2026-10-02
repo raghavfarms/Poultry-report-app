@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import MedicineCombobox from '../components/MedicineCombobox.jsx';
 import {
   fetchIssues,
   createIssueApi,
@@ -604,19 +605,12 @@ export default function MedicineIssuePage() {
                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
                     Select Medicine *
                   </label>
-                  <select
+                  <MedicineCombobox
+                    medicines={medicines}
                     value={formMedicine}
-                    onChange={(e) => setFormMedicine(e.target.value)}
+                    onChange={setFormMedicine}
                     required
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    <option value="">Select Medicine...</option>
-                    {medicines.map((m) => (
-                      <option key={m._id} value={m._id}>
-                        {m.name}{m.aliasName ? ` [${m.aliasName}]` : ''} ({m.code}) — {m.unit}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
 
@@ -1059,7 +1053,7 @@ export default function MedicineIssuePage() {
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block">Issued By</span>
-                  <strong>{selectedDetailIssue.issuedBy?.name || selectedDetailIssue.issuedBy?.username}</strong>
+                  <strong>{selectedDetailIssue.issuedByName || selectedDetailIssue.issuedBy?.name || selectedDetailIssue.issuedBy?.username}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] block">Issue Date</span>

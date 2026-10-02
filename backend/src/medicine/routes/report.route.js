@@ -1,5 +1,6 @@
 import express from 'express';
-import { protect } from '../../middleware/auth.js';
+import { protect, adminOnly } from '../../middleware/auth.js';
+import { disposeBatch } from '../controllers/disposal.controller.js';
 import {
   getDashboardStats,
   getBatchTraceability,
@@ -11,6 +12,7 @@ const router = express.Router();
 
 // All medicine report routes require authentication
 router.use(protect);
+router.post('/batches/:id/dispose', adminOnly, disposeBatch);
 
 // 1. Live KPIs, low-stock warnings, and Expiry Radar
 router.get('/dashboard-stats', getDashboardStats);

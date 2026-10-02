@@ -15,11 +15,17 @@ export async function fetchDashboardStats(params = {}) {
 /**
  * 2. Fetch Reverse Batch Traceability
  * Returns complete lifecycle: PO ➔ GRN ➔ Store Verification ➔ Issues ➔ Returns ➔ Balance
- * @param {string} batchNumber
+ * Supports search by Batch Number OR Medicine Name / Alias / Code, and optional batchId
+ * @param {string} batchQuery
+ * @param {Object} [params] - { batchId }
  */
-export async function fetchBatchTraceability(batchNumber) {
-  if (!batchNumber) throw new Error('Batch number is required');
-  return await api(`/medicine/reports/traceability/${encodeURIComponent(batchNumber.trim())}`);
+export async function fetchBatchTraceability(batchQuery, params = {}) {
+  if (!batchQuery && !params.batchId) throw new Error('Medicine name or batch number is required');
+  const query = new URLSearchParams();
+  if (params.batchId) query.append('batchId', params.batchId);
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  const paramVal = batchQuery ? encodeURIComponent(batchQuery.trim()) : 'current';
+  return await api(`/medicine/reports/traceability/${paramVal}${queryString}`);
 }
 
 /**

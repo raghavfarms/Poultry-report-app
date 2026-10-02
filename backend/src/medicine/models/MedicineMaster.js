@@ -1,6 +1,7 @@
 
 
 import mongoose from 'mongoose';
+import { nextMedicineCode } from '../services/medicineCode.js';
 
 const medicineSchema=new mongoose.Schema({
  
@@ -90,6 +91,13 @@ const medicineSchema=new mongoose.Schema({
          index:true,
      },
 
+     suppliers: [
+       {
+         type: mongoose.Schema.Types.ObjectId,
+         ref: 'Supplier',
+       },
+     ],
+
     createdBy:{
         type : mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -98,6 +106,11 @@ const medicineSchema=new mongoose.Schema({
 
 },{
     timestamps:true
+});
+
+// Both medicine entry flows share the same sequential code allocator.
+medicineSchema.pre('validate', async function () {
+  if (!this.code) this.code = await nextMedicineCode(this.constructor);
 });
 
 export default mongoose.model('MedicineMaster',medicineSchema);  

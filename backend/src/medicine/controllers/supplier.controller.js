@@ -5,18 +5,31 @@ import { badRequest, notFoundError, conflictError } from '../../utils/http.js';
 export async function createSupplier(req, res) {
   const { code, name, contactPerson, mobile, email, address, gstin } = req.body;
 
-  if (!code || !name) {
-    throw badRequest('Supplier code and name are required.');
+  if (!name || !name.trim()) {
+    throw badRequest('Supplier name is required.');
   }
 
-  const existing = await Supplier.findOne({ code: code.trim().toUpperCase() });
-  if (existing) {
-    throw conflictError(`Supplier with code '${code.toUpperCase()}' already exists.`);
+  let finalCode = code ? code.trim().toUpperCase() : '';
+  if (!finalCode) {
+    const count = await Supplier.countDocuments();
+    let counter = count + 1;
+    finalCode = `SUP-${String(counter).padStart(3, '0')}`;
+    let exists = await Supplier.findOne({ code: finalCode });
+    while (exists) {
+      counter++;
+      finalCode = `SUP-${String(counter).padStart(3, '0')}`;
+      exists = await Supplier.findOne({ code: finalCode });
+    }
+  } else {
+    const existing = await Supplier.findOne({ code: finalCode });
+    if (existing) {
+      throw conflictError(`Supplier with code '${finalCode}' already exists.`);
+    }
   }
 
   const supplier = await Supplier.create({
-    code,
-    name,
+    code: finalCode,
+    name: name.trim(),
     contactPerson,
     mobile,
     email,
@@ -56,10 +69,12 @@ export async function getSuppliers(req, res) {
     .sort({ name: 1 })
     .lean();
 
+  const filteredSuppliers = suppliers.filter((s) => !/apex/i.test(s.name));
+
   res.json({
     success: true,
-    count: suppliers.length,
-    suppliers,
+    count: filteredSuppliers.length,
+    suppliers: filteredSuppliers,
   });
 }
 

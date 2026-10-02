@@ -27,11 +27,11 @@ const medicineReceiptSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Supplier who delivered the medicine
+    // Direct farm purchases may have no supplier record.
     supplier: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Supplier',
-      required: [true, 'Supplier is required'],
+      default: null,
       index: true,
     },
 
@@ -107,6 +107,8 @@ const medicineReceiptSchema = new mongoose.Schema(
     },
 
     // Audit trail
+    receiverName: { type: String, trim: true, maxlength: 120, default: '' },
+    recordedByName: { type: String, trim: true, default: '' },
     receivedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

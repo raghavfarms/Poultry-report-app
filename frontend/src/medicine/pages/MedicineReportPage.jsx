@@ -21,6 +21,27 @@ export default function MedicineReportPage() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
   const [stockFilter, setStockFilter] = useState('ALL'); // 'ALL' | 'SAFE' | 'SOON' | 'EXPIRED' | 'LOW'
+  const [disposing, setDisposing] = useState('');
+  const [disposeError, setDisposeError] = useState('');
+  const canDispose = ['admin', 'developer'].includes(user?.role);
+  const disposeStock = async (batch) => {
+    if (disposing) return;
+    setDisposing(batch._id);
+    setDisposeError('');
+    try {
+      await api(`/medicine/reports/batches/${batch._id}/dispose`, { method: 'POST' });
+      await loadStats();
+      setTraceData(null);
+    } catch (error) { setDisposeError(error.message || 'Could not dispose stock.'); }
+    finally { setDisposing(''); }
+  };
+  const disposalButton = (batch) => canDispose && (
+    <button type="button" disabled={Boolean(disposing)} onClick={() => disposeStock(batch)}
+      aria-label={`Dispose remaining stock of ${batch.medicineName}, batch ${batch.batchNumber}`}
+      className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1 disabled:opacity-50">
+      {disposing === batch._id ? 'Disposing...' : 'Dispose stock'}
+    </button>
+  );
 
   // Batch Traceability State
   const [searchBatch, setSearchBatch] = useState('');
@@ -63,21 +84,30 @@ export default function MedicineReportPage() {
   }, [activeTab, selectedFarm]);
 
   // Handle Traceability Search
-  const handleTraceSearch = async (e) => {
+  const handleTraceSearch = async (e, queryOverride, batchIdOverride) => {
     if (e) e.preventDefault();
-    if (!searchBatch.trim()) return;
+    const query = (queryOverride !== undefined ? queryOverride : searchBatch).trim();
+    if (!query && !batchIdOverride) return;
 
     try {
       setLoadingTrace(true);
       setTraceError('');
-      setTraceData(null);
-      const data = await fetchBatchTraceability(searchBatch.trim());
+      if (!batchIdOverride) {
+        setTraceData(null);
+      }
+      const data = await fetchBatchTraceability(query, batchIdOverride ? { batchId: batchIdOverride } : {});
       setTraceData(data);
     } catch (err) {
-      setTraceError(err.message || `No history found for batch '${searchBatch}'`);
+      setTraceError(err.message || `No history found for '${query}'`);
     } finally {
       setLoadingTrace(false);
     }
+  };
+
+  const handleSelectRelatedBatch = (rb) => {
+    if (!rb) return;
+    setSearchBatch(rb.batchNumber);
+    handleTraceSearch(null, rb.batchNumber, rb._id);
   };
 
   const radar = stats?.expiryRadar || {};
@@ -220,6 +250,12 @@ export default function MedicineReportPage() {
       {/* VIEW 2: Current Stock & Expiry (Simple Visual List) */}
       {activeTab === 'stock' && (
         <div className="space-y-3">
+          {disposeError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+              ⚠️ {disposeError}
+            </div>
+          )}
+
           {/* Quick Filter Strip */}
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-2.5 items-stretch sm:items-center">
             {/* Search Input */}
@@ -229,20 +265,29 @@ export default function MedicineReportPage() {
                 value={stockSearch}
                 onChange={(e) => setStockSearch(e.target.value)}
                 placeholder="Search medicine name, code, or batch..."
-                className="w-full h-9 pl-8 pr-3 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                className="w-full h-9 pl-8 pr-8 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-slate-50/50"
               />
               <span className="absolute left-2.5 top-2.5 text-xs text-slate-400">🔍</span>
+              {stockSearch && (
+                <button
+                  type="button"
+                  onClick={() => setStockSearch('')}
+                  className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
             {/* Filter Pills */}
-            <div className="flex gap-1 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap">
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap">
               <button
                 type="button"
                 onClick={() => setStockFilter('ALL')}
-                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0 border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 border ${
                   stockFilter === 'ALL'
-                    ? 'bg-slate-200 text-slate-900 border-slate-400 shadow-2xs font-extrabold'
-                    : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                 }`}
               >
                 All ({allBatches.length})
@@ -250,10 +295,10 @@ export default function MedicineReportPage() {
               <button
                 type="button"
                 onClick={() => setStockFilter('SAFE')}
-                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                   stockFilter === 'SAFE'
-                    ? 'bg-emerald-100 text-emerald-900 border-emerald-400 shadow-2xs font-extrabold'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                 }`}
               >
                 <span>🟢</span> Safe ({radar.safeCount || 0})
@@ -261,10 +306,10 @@ export default function MedicineReportPage() {
               <button
                 type="button"
                 onClick={() => setStockFilter('SOON')}
-                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                   stockFilter === 'SOON'
-                    ? 'bg-amber-100 text-amber-900 border-amber-400 shadow-2xs font-extrabold'
-                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                    : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
                 }`}
               >
                 <span>🟡</span> Soon ({(radar.critical30Count || 0) + (radar.caution60Count || 0)})
@@ -272,10 +317,10 @@ export default function MedicineReportPage() {
               <button
                 type="button"
                 onClick={() => setStockFilter('EXPIRED')}
-                className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                   stockFilter === 'EXPIRED'
-                    ? 'bg-rose-100 text-rose-900 border-rose-400 shadow-2xs font-extrabold'
-                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                    : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
                 }`}
               >
                 <span>🔴</span> Expired ({radar.expiredCount || 0})
@@ -284,9 +329,9 @@ export default function MedicineReportPage() {
                 <button
                   type="button"
                   onClick={() => setStockFilter('LOW')}
-                  className={`px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'LOW'
-                      ? 'bg-rose-600 text-white border-rose-700 shadow-2xs font-extrabold'
+                      ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
                       : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
                   }`}
                 >
@@ -315,26 +360,28 @@ export default function MedicineReportPage() {
           {/* Batches Stock List */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             {loadingStats ? (
-              <div className="p-8 text-center text-slate-400 text-xs">Loading current stock...</div>
+              <div className="p-12 text-center text-slate-400 text-xs">Loading current stock...</div>
             ) : filteredBatches.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
-                No medicine batches match your search / filter.
+              <div className="p-12 text-center text-slate-400 text-xs space-y-1">
+                <p className="text-sm font-bold text-slate-600">No medicine batches found</p>
+                <p className="text-[11px] text-slate-400">Try changing your search query or click "All" above.</p>
               </div>
             ) : (
               <>
                 {/* Desktop Table View */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-700">
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
                       <tr>
-                        <th className="py-2.5 px-3">Medicine Name</th>
-                        <th className="py-2.5 px-3">Batch Number</th>
-                        <th className="py-2.5 px-3 text-right">Available in Cupboard</th>
-                        <th className="py-2.5 px-3">Expiry Date</th>
-                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-3 px-4 min-w-[220px]">Medicine Name</th>
+                        <th className="py-3 px-4">Batch Number</th>
+                        <th className="py-3 px-4 text-right">In Stock</th>
+                        <th className="py-3 px-4 text-center">Expiry Date</th>
+                        <th className="py-3 px-4 text-center">Shelf Status</th>
+                        <th className="py-3 px-4 text-center">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredBatches.map((b) => {
                         const isExpired = b.urgency === 'EXPIRED';
                         const isCritical = b.urgency === 'CRITICAL';
@@ -342,51 +389,86 @@ export default function MedicineReportPage() {
                         return (
                           <tr
                             key={b._id}
-                            className={`hover:bg-slate-50/80 transition ${
-                              isExpired ? 'bg-rose-50/40' : isCritical ? 'bg-orange-50/30' : ''
+                            className={`hover:bg-slate-50/80 transition-colors ${
+                              isExpired ? 'bg-rose-50/30' : isCritical ? 'bg-orange-50/25' : ''
                             }`}
                           >
-                            <td className="py-2.5 px-3">
-                              <span className="font-bold text-slate-900">{b.medicineName}</span>
-                              {b.medicineAlias && (
-                                <span className="ml-1 text-[11px] text-slate-400 font-normal">
-                                  ({b.medicineAlias})
-                                </span>
-                              )}
-                              <span className="text-slate-400 text-[10px] ml-1">[{b.medicineCode}]</span>
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-slate-900 text-sm">{b.medicineName}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                                {b.medicineAlias && (
+                                  <span className="font-medium text-slate-600">({b.medicineAlias})</span>
+                                )}
+                                {b.medicineCode && (
+                                  <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
+                                    {b.medicineCode}
+                                  </span>
+                                )}
+                              </div>
                             </td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-800">{b.batchNumber}</td>
-                            <td className="py-2.5 px-3 text-right">
+                            <td className="py-3 px-4">
+                              <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200 inline-block">
+                                {b.batchNumber}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1.5">
                                 {b.isLowStock && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 text-rose-700 border border-rose-300">
-                                    ⚠️ Low Stock {b.reorderLevel ? `(< ${b.reorderLevel})` : ''}
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                                    ⚠️ Low {b.reorderLevel ? `(< ${b.reorderLevel})` : ''}
                                   </span>
                                 )}
                                 <span className={`font-black text-sm ${b.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
                                   {b.quantityAvailable}
                                 </span>{' '}
-                                <span className="text-[10px] text-slate-500 font-medium">{b.unit}</span>
+                                <span className="text-[11px] text-slate-500 font-semibold">{b.unit}</span>
                               </div>
                             </td>
-                            <td className="py-2.5 px-3 font-medium text-slate-600">{b.expiryDate}</td>
-                            <td className="py-2.5 px-3 text-center">
+                            <td className="py-3 px-4 text-center font-mono text-xs font-medium text-slate-600">
+                              {b.expiryDate}
+                            </td>
+                            <td className="py-3 px-4 text-center">
                               {isExpired ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
                                   🔴 Expired ({Math.abs(b.daysLeft)}d ago)
                                 </span>
                               ) : isCritical ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-200">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1">
                                   🟠 Use Soon ({b.daysLeft}d left)
                                 </span>
                               ) : isCaution ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1">
                                   🟡 In 60 Days ({b.daysLeft}d)
                                 </span>
                               ) : (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
                                   🟢 Safe ({b.daysLeft}d left)
                                 </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {isExpired && canDispose ? (
+                                <button
+                                  type="button"
+                                  disabled={Boolean(disposing)}
+                                  onClick={() => disposeStock(b)}
+                                  className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
+                                >
+                                  {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab('traceability');
+                                    setSearchBatch(b.batchNumber);
+                                    handleTraceSearch(null, b.batchNumber, b._id);
+                                  }}
+                                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
+                                  title="Trace full batch journey"
+                                >
+                                  <span>🔍</span> Trace
+                                </button>
                               )}
                             </td>
                           </tr>
@@ -396,58 +478,112 @@ export default function MedicineReportPage() {
                   </table>
                 </div>
 
-                {/* Mobile Cards View */}
-                <div className="sm:hidden divide-y divide-slate-100">
+                {/* Mobile Responsive Cards View */}
+                <div className="md:hidden divide-y divide-slate-100 bg-white">
                   {filteredBatches.map((b) => {
                     const isExpired = b.urgency === 'EXPIRED';
                     const isCritical = b.urgency === 'CRITICAL';
+                    const isCaution = b.urgency === 'CAUTION';
                     return (
                       <div
                         key={b._id}
-                        className={`px-3 py-2 space-y-1 ${
-                          isExpired ? 'bg-rose-50/40' : isCritical ? 'bg-orange-50/30' : ''
+                        className={`p-3.5 space-y-2 ${
+                          isExpired ? 'bg-rose-50/30' : isCritical ? 'bg-orange-50/20' : ''
                         }`}
                       >
-                        <div className="flex justify-between items-center gap-1">
-                          <span className="font-bold text-xs text-slate-900 truncate">
-                            {b.medicineName}
-                            {b.medicineAlias && (
-                              <span className="text-[10px] text-slate-400 font-normal ml-1">({b.medicineAlias})</span>
-                            )}
-                          </span>
-                          {isExpired ? (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 shrink-0">
-                              🔴 Expired
-                            </span>
-                          ) : isCritical ? (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-orange-100 text-orange-800 shrink-0">
-                              🟠 {b.daysLeft}d left
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 shrink-0">
-                              🟢 Safe
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-500 text-[11px] truncate">
-                            Batch: <strong className="text-slate-800 font-mono">{b.batchNumber}</strong>
-                          </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {b.isLowStock && (
-                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-300">
-                                ⚠️ Low Stock {b.reorderLevel ? `(< ${b.reorderLevel})` : ''}
+                        {/* Header: Medicine Name & Expiry Badge */}
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-bold text-sm text-slate-900 truncate">
+                              {b.medicineName}
+                            </h3>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                              {b.medicineAlias && <span>({b.medicineAlias})</span>}
+                              {b.medicineCode && (
+                                <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
+                                  {b.medicineCode}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            {isExpired ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                                🔴 Expired
+                              </span>
+                            ) : isCritical ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 border border-orange-200">
+                                🟠 {b.daysLeft}d left
+                              </span>
+                            ) : isCaution ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                                🟡 {b.daysLeft}d left
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                🟢 Safe
                               </span>
                             )}
-                            <span className={`font-black text-xs shrink-0 ${b.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
-                              {b.quantityAvailable} {b.unit}
-                            </span>
                           </div>
                         </div>
 
-                        <div className="text-[10px] text-slate-400">
-                          Expires: {b.expiryDate} ({b.daysLeft > 0 ? `${b.daysLeft}d left` : `${Math.abs(b.daysLeft)}d ago`})
+                        {/* Batch & Stock Bar */}
+                        <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200/70 text-xs">
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
+                              Batch #
+                            </span>
+                            <span className="font-mono font-bold text-slate-800 text-xs">
+                              {b.batchNumber}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
+                              Stock Available
+                            </span>
+                            <div className="flex items-center justify-end gap-1">
+                              {b.isLowStock && (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700">
+                                  ⚠️ Low
+                                </span>
+                              )}
+                              <span className={`font-black text-sm ${b.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
+                                {b.quantityAvailable}
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-semibold">{b.unit}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Footer: Expiry Date & Action */}
+                        <div className="flex justify-between items-center text-xs pt-1">
+                          <span className="text-[11px] text-slate-500 font-mono">
+                            Expires: <strong className="text-slate-700">{b.expiryDate}</strong>
+                          </span>
+                          <div>
+                            {isExpired && canDispose ? (
+                              <button
+                                type="button"
+                                disabled={Boolean(disposing)}
+                                onClick={() => disposeStock(b)}
+                                className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 cursor-pointer"
+                              >
+                                {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab('traceability');
+                                  setSearchBatch(b.batchNumber);
+                                  handleTraceSearch(null, b.batchNumber, b._id);
+                                }}
+                                className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <span>🔍</span> Trace
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -467,7 +603,7 @@ export default function MedicineReportPage() {
               <span>🔍</span> Reverse Batch Investigation
             </h2>
             <p className="text-[11px] text-slate-500">
-              Type or scan any batch number to see when it arrived, supplier, and which sheds consumed it.
+              Search by <strong className="text-slate-700">Medicine Name</strong> or <strong className="text-slate-700">Batch Number</strong> to trace arrival, supplier, and shed consumption.
             </p>
 
             <form onSubmit={handleTraceSearch} className="flex gap-1.5 pt-0.5">
@@ -476,8 +612,8 @@ export default function MedicineReportPage() {
                   type="text"
                   value={searchBatch}
                   onChange={(e) => setSearchBatch(e.target.value)}
-                  placeholder="Batch # or scan..."
-                  className="w-full h-8 pl-2.5 pr-8 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none uppercase"
+                  placeholder="Medicine name (e.g. Paracetamol) or batch #..."
+                  className="w-full h-8 pl-2.5 pr-8 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
                 <button
                   type="button"
@@ -522,6 +658,47 @@ export default function MedicineReportPage() {
 
             return (
               <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100 text-xs">
+                {/* Related Batches Strip (when multiple batches exist for this medicine) */}
+                {traceData.relatedBatches && traceData.relatedBatches.length > 1 && (
+                  <div className="px-3 py-2 bg-slate-100/90 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                      <span>🏷️</span>
+                      <span>Batches of {batch.medicine?.name} ({traceData.relatedBatches.length}):</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
+                      {traceData.relatedBatches.map((rb) => {
+                        const isCurrent = rb.batchNumber === batch.batchNumber;
+                        const isDepleted = (rb.quantityAvailable ?? 0) <= 0 || rb.status === 'DEPLETED';
+                        return (
+                          <button
+                            key={rb._id || rb.batchNumber}
+                            type="button"
+                            onClick={() => handleSelectRelatedBatch(rb)}
+                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer border ${
+                              isCurrent
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-extrabold'
+                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="font-mono">{rb.batchNumber}</span>
+                            <span
+                              className={`text-[9px] px-1 py-0.2 rounded ${
+                                isCurrent
+                                  ? 'bg-emerald-700 text-emerald-100'
+                                  : isDepleted
+                                  ? 'bg-slate-100 text-slate-400'
+                                  : 'bg-emerald-50 text-emerald-700'
+                              }`}
+                            >
+                              {isDepleted ? 'Depleted' : `${rb.quantityAvailable} left`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* 1. Ultra-Compact Header */}
                 <div className="px-3 py-1.5 bg-slate-50/80 flex items-center justify-between gap-1.5 flex-wrap">
                   <div className="flex items-center gap-1.5">
@@ -599,23 +776,24 @@ export default function MedicineReportPage() {
                 <div className="px-3 py-1.5 space-y-1">
                   <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                     <span>Movement History</span>
-                    <span>{1 + (traceData.timeline?.issues?.length || 0)} entries</span>
+                    <span>{(traceData.timeline?.receipts?.length || 1) + (traceData.timeline?.issues?.length || 0) + (batch.disposals?.length || 0)} entries</span>
                   </div>
                   <div className="space-y-0.5 text-xs">
-                    {/* IN event */}
-                    <div className="flex items-center justify-between py-0.5 text-[11px]">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="px-1 py-0.2 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 shrink-0">
-                          IN
-                        </span>
-                        <span className="font-semibold text-slate-800 truncate">
-                          +{initialQty} {unit} Received from {batch.supplier?.name || 'Supplier'}
-                        </span>
+                    {(traceData.timeline?.receipts?.length ? traceData.timeline.receipts : [{ _id: 'legacy', receivedQuantity: initialQty, createdAt: batch.createdAt }]).map((receipt) => (
+                      <div key={receipt._id} className="flex justify-between gap-2 py-1 text-[11px]">
+                        <div className="min-w-0">
+                          <span className="font-bold text-emerald-700">IN</span> +{receipt.storeAcceptedQuantity || receipt.receivedQuantity} {unit} Received from {receipt.supplier?.name || batch.supplier?.name || 'Direct Farm Purchase'}
+                          <div className="text-slate-700">Received by: <strong>{receipt.receiverName || receipt.receivedBy?.name || receipt.receivedBy?.username || 'Not recorded'}</strong></div>
+                        </div>
+                        <span className="shrink-0 text-slate-400">{receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : ''}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
-                        {batch.createdAt ? new Date(batch.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : ''}
-                      </span>
-                    </div>
+                    ))}
+
+                    {(batch.disposals || []).map((entry, index) => (
+                      <div key={entry._id || index} className="py-1 text-xs text-rose-700">
+                        <strong>DISPOSED</strong> -{entry.quantity} {unit} ? By {entry.performedByName || 'Admin'} ? {new Date(entry.createdAt).toLocaleDateString()}
+                      </div>
+                    ))}
 
                     {/* OUT events */}
                     {(traceData.timeline?.issues || []).map((iss) => (
@@ -624,12 +802,15 @@ export default function MedicineReportPage() {
                           <span className="px-1 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-800 shrink-0">
                             OUT
                           </span>
-                          <span className="font-semibold text-slate-800 truncate">
-                            -{iss.issuedQuantity} {unit} to {iss.shed || 'Shed'}
-                          </span>
-                          {iss.issuedBy?.name && (
-                            <span className="text-[10px] text-slate-400 hidden sm:inline">• {iss.issuedBy.name}</span>
-                          )}
+                          <div className="min-w-0 break-words">
+                            <div className="font-semibold text-slate-800">-{iss.issuedQuantity} {unit} to {iss.shed || 'Shed'}</div>
+                            <div className="text-[11px] text-slate-600">
+                              Received by: <strong>{iss.issuedTo || 'Not recorded'}</strong>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              Issued by: {iss.issuedByName || iss.issuedBy?.name || 'Not recorded'}
+                            </div>
+                          </div>
                         </div>
                         <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
                           {iss.issueDate ? new Date(iss.issueDate).toLocaleDateString([], { day: '2-digit', month: 'short' }) : (iss.createdAt ? new Date(iss.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : '')}
@@ -648,10 +829,11 @@ export default function MedicineReportPage() {
       <MedicineBarcodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onDetected={({ batchNumber }) => {
-          if (batchNumber) {
-            setSearchBatch(batchNumber);
-            handleTraceSearch();
+        onDetected={({ batchNumber, medicineName }) => {
+          const val = batchNumber || medicineName;
+          if (val) {
+            setSearchBatch(val);
+            handleTraceSearch(null, val);
           }
         }}
       />

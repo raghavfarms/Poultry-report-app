@@ -42,7 +42,7 @@ export default function SupplierMasterPage() {
         search,
         includeInactive,
       });
-      setSuppliers(data.suppliers || []);
+      setSuppliers((data.suppliers || []).filter((s) => !/apex/i.test(s.name)));
     } catch (err) {
       setError(err.message || 'Failed to load suppliers');
     } finally {

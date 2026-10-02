@@ -85,11 +85,13 @@ export async function deleteUnitApi(name, reassignTo = 'Unit') {
 }
 
 /*
- * 8. Delete a medicine by ID
+ * 8. Delete a medicine by ID (supports force cascade delete)
  * @param {string} id - Medicine _id
+ * @param {boolean} [force=false] - Whether to cascade delete all batches and issues
  */
-export async function deleteMedicineApi(id) {
-  return await api(`/medicine/masters/${id}`, {
+export async function deleteMedicineApi(id, force = false) {
+  const query = force ? '?force=true' : '';
+  return await api(`/medicine/masters/${id}${query}`, {
     method: 'DELETE',
   });
 }

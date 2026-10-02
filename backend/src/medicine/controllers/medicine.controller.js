@@ -4,37 +4,7 @@ import MedicineMaster from '../models/MedicineMaster.js';
 import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineReceipt from '../models/MedicineReceipt.js';
 import MedicineIssue from '../models/MedicineIssue.js';
-
-// Helper: Auto-generate sequential Medicine Code: MED-001, MED-002, etc.
-async function generateMedicineCode() {
-  const prefix = 'MED-';
-  const allMeds = await MedicineMaster.find({
-    code: new RegExp(`^${prefix}\\d+`),
-  })
-    .select('code')
-    .lean();
-
-  let maxNum = 0;
-  for (const m of allMeds) {
-    if (m.code && m.code.startsWith(prefix)) {
-      const num = parseInt(m.code.replace(prefix, ''), 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
-      }
-    }
-  }
-
-  let nextSequence = maxNum + 1;
-  let candidate = `${prefix}${String(nextSequence).padStart(3, '0')}`;
-  let exists = await MedicineMaster.findOne({ code: candidate });
-  while (exists) {
-    nextSequence += 1;
-    candidate = `${prefix}${String(nextSequence).padStart(3, '0')}`;
-    exists = await MedicineMaster.findOne({ code: candidate });
-  }
-
-  return candidate;
-}
+import MedicineTransaction from '../models/MedicineTransaction.js';
 
 // 1. Create a new Medicine
 export async function createMedicine(req, res) {
@@ -49,6 +19,7 @@ export async function createMedicine(req, res) {
       shelfLifeMonths,
       minimumStock,
       reorderLevel,
+      suppliers,
     } = req.body;
 
     // Validation (code is optional!)
@@ -60,9 +31,7 @@ export async function createMedicine(req, res) {
     }
 
     let finalCode = code ? code.trim().toUpperCase() : '';
-    if (!finalCode) {
-      finalCode = await generateMedicineCode();
-    } else {
+    if (finalCode) {
       const existing = await MedicineMaster.findOne({ code: finalCode });
       if (existing) {
         return res.status(409).json({
@@ -88,6 +57,7 @@ export async function createMedicine(req, res) {
       reorderLevel: (reorderLevel !== undefined && reorderLevel !== '' && reorderLevel !== null)
         ? Number(reorderLevel)
         : 0,
+      suppliers: Array.isArray(suppliers) ? suppliers : [],
       createdBy: req.user?._id || req.user?.id,
     });
 
@@ -142,6 +112,7 @@ export async function getMedicines(req, res) {
 
     const medicines = await MedicineMaster.find(filter)
       .populate('createdBy', 'name email')
+      .populate('suppliers', 'name code mobile')
       .sort({ name: 1 })
       .lean();
 
@@ -202,6 +173,7 @@ export async function getMedicineById(req, res) {
 
     const medicine = await MedicineMaster.findById(req.params.id)
       .populate('createdBy', 'name email')
+      .populate('suppliers', 'name code mobile')
       .lean();
 
     if (!medicine) {
@@ -243,6 +215,7 @@ export async function updateMedicine(req, res) {
       shelfLifeMonths,
       minimumStock,
       reorderLevel,
+      suppliers,
     } = req.body;
 
     const medicine = await MedicineMaster.findById(req.params.id);
@@ -251,6 +224,10 @@ export async function updateMedicine(req, res) {
         success: false,
         message: 'Medicine not found',
       });
+    }
+
+    if (suppliers !== undefined) {
+      medicine.suppliers = Array.isArray(suppliers) ? suppliers : [];
     }
 
     // Update fields safely without corrupting types
@@ -399,10 +376,12 @@ export async function deleteUnit(req, res) {
   }
 }
 
-// 8. Delete a Medicine (Hard delete if no history; prevents deletion if batches/receipts/issues exist)
+// 8. Delete a Medicine (Hard delete; supports ?force=true to cascade delete all batches, receipts, issues, and transactions)
 export async function deleteMedicine(req, res) {
   try {
     const { id } = req.params;
+    const { force } = req.query;
+
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(404).json({
         success: false,
@@ -418,26 +397,19 @@ export async function deleteMedicine(req, res) {
       });
     }
 
-    // Check if this medicine has been used in any stock batches, receipts, or issues
-    const [batchCount, receiptCount, issueCount] = await Promise.all([
-      MedicineBatch.countDocuments({ medicine: id }),
-      MedicineReceipt.countDocuments({ medicine: id }),
-      MedicineIssue.countDocuments({ medicine: id }),
+    // Cascade delete all associated batches, receipts, issues, and transactions
+    await Promise.all([
+      MedicineIssue.deleteMany({ medicine: id }),
+      MedicineReceipt.deleteMany({ medicine: id }),
+      MedicineTransaction.deleteMany({ medicine: id }),
+      MedicineBatch.deleteMany({ medicine: id }),
     ]);
-
-    const totalUsage = batchCount + receiptCount + issueCount;
-    if (totalUsage > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot delete "${medicine.name}" because it has ${batchCount} batch(es), ${receiptCount} receipt(s), and ${issueCount} issue(s) recorded in audit history. Please Deactivate it instead to preserve traceability.`,
-      });
-    }
 
     await MedicineMaster.findByIdAndDelete(id);
 
     return res.json({
       success: true,
-      message: `Medicine "${medicine.name}" (${medicine.code || 'No Code'}) deleted successfully.`,
+      message: `Medicine "${medicine.name}" (${medicine.code || 'No Code'}) and all associated records deleted successfully.`,
     });
   } catch (error) {
     console.error('deleteMedicine error:', error);

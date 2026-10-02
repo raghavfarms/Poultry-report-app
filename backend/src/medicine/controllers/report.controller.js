@@ -64,27 +64,25 @@ export async function getDashboardStats(req, res) {
     .populate('supplier', 'name code')
     .lean();
 
-  const now = new Date();
+  const now = new Date(new Date().toISOString().slice(0, 10));
   let totalAvailableUnits = 0;
 
-    //Expiry Radar Buckets 
-    const expiryRadar={
-        expired:[],   // <= 0 days
-        critical30 :[], // 1 to 30 days
-        caution60 :[],   // 31 to 60 days
-        safe:[]   // > 60 days
-
-    }
+  // Expiry Radar Buckets 
+  const expiryRadar = {
+    expired: [],   // <= 0 days
+    critical30: [], // 1 to 30 days
+    caution60: [],  // 31 to 60 days
+    safe: []       // > 60 days
+  };
 
   // Medicine-wise aggregated stock map: { medicineId: totalAvailableQuantity }
+  const medicineStockMap = {};
 
-   const medicineStockMap={};
-
-   for(const b of batches){
+  for (const b of batches) {
     // Auto-reconcile with actual issued records to prevent any phantom stock drops
     const batchIssues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
     const batchIssuedSum = batchIssues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
-    const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum);
+    const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum - (b.disposedQuantity || 0));
     if (b.quantityAvailable !== correctQty) {
       await MedicineBatch.updateOne(
         { _id: b._id },
@@ -93,13 +91,12 @@ export async function getDashboardStats(req, res) {
       b.quantityAvailable = correctQty;
     }
 
-    totalAvailableUnits+=b.quantityAvailable;
+    totalAvailableUnits += b.quantityAvailable;
     // Days until expiry
+    const expDate = new Date(b.expiryDate);
+    const diffTime = expDate - now;
+    const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    const expDate=new Date(b.expiryDate);
-    const diffTime=expDate-now;
-    const daysLeft=Math.ceil(diffTime/(1000*60*60*24));
-   
     const batchSummary = {
       _id: b._id,
       medicineId: b.medicine?._id?.toString() || '',
@@ -113,10 +110,11 @@ export async function getDashboardStats(req, res) {
       minimumStock: b.medicine?.minimumStock || 0,
       expiryDate: b.expiryDate,
       daysLeft,
+      canIssue: b.status === 'AVAILABLE' && daysLeft >= 0,
       farm: b.farm
     };
 
-   if (daysLeft <= 0) {
+    if (daysLeft < 0 || b.status === 'EXPIRED') {
       expiryRadar.expired.push(batchSummary);
     } else if (daysLeft <= 30) {
       expiryRadar.critical30.push(batchSummary);
@@ -126,18 +124,24 @@ export async function getDashboardStats(req, res) {
       expiryRadar.safe.push(batchSummary);
     }
 
-      // Accumulate total stock per medicine
+    // Accumulate total stock per medicine
     const medId = b.medicine?._id?.toString();
     if (medId) {
       medicineStockMap[medId] = (medicineStockMap[medId] || 0) + b.quantityAvailable;
     }
-   }
+  }
 
   // Identify Low Stock Medicines (Current Stock <= Reorder Level or Minimum Stock)
+  const disposedMedicineIds = new Set((await MedicineBatch.distinct('medicine', {
+    ...matchFilter,
+    quantityAvailable: 0,
+    disposedQuantity: { $gt: 0 },
+  })).map(String));
   const lowStockAlerts = [];
   for (const med of medicines) {
     const medId = med._id.toString();
     const currentStock = medicineStockMap[medId] || 0;
+    if (currentStock === 0 && disposedMedicineIds.has(medId)) continue;
     const threshold = med.reorderLevel || med.minimumStock || 0;
     if (threshold > 0 && currentStock <= threshold) {
       lowStockAlerts.push({
@@ -191,37 +195,126 @@ export async function getDashboardStats(req, res) {
     lowStockAlerts
   });
 }
+
 /**
  * 2. GET Reverse Batch Traceability
  * Queries end-to-end lifecycle of a batch:
  * Supplier ➔ GRN ➔ Store Acceptance ➔ Shed Issues ➔ Returns ➔ Current Stock
+ * Supports search by Batch Number OR Medicine Name / Alias / Code.
  */
 export async function getBatchTraceability(req, res) {
-  const { batchNumber } = req.params;
-  if (!batchNumber) throw badRequest('Batch number is required');
-  // 1. Locate the batch
-  const batch = await MedicineBatch.findOne({
-    batchNumber: batchNumber.trim().toUpperCase()
-  })
-    .populate('medicine', 'code name category unit aliasName')
-    .populate('supplier', 'code name contactPerson mobile')
-    .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
-    .lean();
-  if (!batch) {
-    throw notFoundError(`Batch '${batchNumber}' was not found in the system.`);
+  const { batchNumber } = req.params || {};
+  const { batchId } = req.query || {};
+  if (!batchNumber && !batchId) throw badRequest('Batch number or medicine name is required');
+
+  const cleanQuery = (batchNumber || '').trim();
+  let batch = null;
+
+  // 1. If batchId is provided, look up that specific batch directly
+  if (batchId && mongoose.Types.ObjectId.isValid(batchId)) {
+    try {
+      batch = await MedicineBatch.findById(batchId)
+        .populate('medicine', 'code name category unit aliasName')
+        .populate('supplier', 'code name contactPerson mobile')
+        .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+        .lean();
+    } catch {
+      batch = null;
+    }
   }
-  // 2. Fetch all consumption issues linked to this batch
+
+  // 2. Locate the batch by exact batch number (case-insensitive)
+  if (!batch && cleanQuery) {
+    batch = await MedicineBatch.findOne({
+      batchNumber: cleanQuery.toUpperCase()
+    })
+      .populate('medicine', 'code name category unit aliasName')
+      .populate('supplier', 'code name contactPerson mobile')
+      .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+      .lean();
+  }
+
+  // 3. If not found by exact batch number, search by Medicine Name, alias, code, or partial batchNumber
+  if (!batch && cleanQuery) {
+    const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+
+    let matchingMedicineIds = [];
+    try {
+      const matchedMeds = await MedicineMaster.find({
+        $or: [
+          { name: regex },
+          { aliasName: regex },
+          { code: regex }
+        ]
+      }).select('_id').lean();
+      matchingMedicineIds = (matchedMeds || []).map((m) => m._id);
+    } catch {
+      matchingMedicineIds = [];
+    }
+
+    const batchOrConditions = [
+      ...(matchingMedicineIds.length > 0 ? [{ medicine: { $in: matchingMedicineIds } }] : []),
+      { batchNumber: regex }
+    ];
+
+    if (batchOrConditions.length > 0) {
+      try {
+        const foundBatches = await MedicineBatch.find({ $or: batchOrConditions })
+          .populate('medicine', 'code name category unit aliasName')
+          .populate('supplier', 'code name contactPerson mobile')
+          .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+          .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
+          .lean();
+
+        if (foundBatches && foundBatches.length > 0) {
+          batch = foundBatches[0];
+        }
+      } catch {
+        batch = null;
+      }
+    }
+  }
+
+  if (!batch) {
+    throw notFoundError(`No batch or medicine history found for '${cleanQuery}'.`);
+  }
+
+  // 4. Fetch related batches for the same medicine so user can toggle between all batches
+  let relatedBatches = [];
+  try {
+    const medId = batch.medicine?._id || batch.medicine;
+    if (medId && (mongoose.connection.readyState === 1 || MedicineBatch.find?.mock)) {
+      const batchesList = await MedicineBatch.find({ medicine: medId })
+        .select('batchNumber expiryDate quantityAvailable initialQuantity status createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+      if (Array.isArray(batchesList)) {
+        relatedBatches = batchesList;
+      }
+    }
+  } catch {
+    relatedBatches = [];
+  }
+
+  // 5. Fetch all consumption issues linked to this batch
+  const receipts = await MedicineReceipt.find({
+    medicine: batch.medicine?._id || batch.medicine,
+    farm: batch.farm,
+    batchNumber: batch.batchNumber,
+    status: 'STORE_ACCEPTED',
+  }).populate('receivedBy', 'name username').populate('supplier', 'name').sort({ createdAt: 1 }).lean();
   const issues = await MedicineIssue.find({ batch: batch._id })
     .populate('issuedBy', 'name role')
     .sort({ issueDate: -1, createdAt: -1 })
     .lean();
 
-  // 3. Fetch all ledger transactions for this batch (immutable timeline)
+  // 6. Fetch all ledger transactions for this batch (immutable timeline)
   const transactions = await MedicineTransaction.find({ batch: batch._id })
     .populate('performedBy', 'name role')
     .sort({ createdAt: 1 })
     .lean();
-  // 4. Summarize consumption by Shed
+  // 7. Summarize consumption by Shed
   const shedBreakdown = {};
   let totalIssuedQty = 0;
   for (const iss of issues) {
@@ -232,7 +325,7 @@ export async function getBatchTraceability(req, res) {
   }
 
   // Self-heal: ensure batch.quantityAvailable matches initialQuantity - totalIssuedQty
-  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty);
+  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty - (batch.disposedQuantity || 0));
   if (batch.quantityAvailable !== correctAvailable) {
     await MedicineBatch.updateOne(
       { _id: batch._id },
@@ -252,13 +345,16 @@ export async function getBatchTraceability(req, res) {
       issuesCount: issues.length,
       transactionsCount: transactions.length
     },
+    relatedBatches,
     timeline: {
       receipt: batch.firstReceipt,
+      receipts,
       issues,
-      transactions     //  const [transaction,setTransaction]=useState(0);
+      transactions
     }
   });
 }
+
 /**
  * 3. GET Stock Movement Ledger
  * Filterable transaction history for accounting & audits

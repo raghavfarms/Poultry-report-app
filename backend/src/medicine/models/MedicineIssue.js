@@ -159,6 +159,7 @@ const medicineIssueSchema = new mongoose.Schema(
     },
 
     // Storekeeper / User who issued the stock
+    issuedByName: { type: String, trim: true, default: '' },
     issuedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
