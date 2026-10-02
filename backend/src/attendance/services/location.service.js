@@ -92,14 +92,11 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   let closestGeofence = null;
 
   for (const geo of activeGeofences) {
-    const isOffice = geo.isOfficeTesting ||
-      geo.name?.toLowerCase().includes('office') ||
-      firmName?.toLowerCase().includes('office');
-
-    // Office/desk workers connect via city broadband/Wi-Fi where ISP gateways drift a few km.
-    // Ensure a realistic boundary for office testing & head office (minimum 5 km or configured radius).
-    const baseRadius = isOffice ? Math.max(geo.radiusMetres || 500, 5000) : (geo.radiusMetres || 500);
-    const accuracyBuffer = Math.min(Math.max(location.accuracyMetres || 0, 0), 500);
+    // Strictly adhere to the radius configured in Geofence Master (default to 200m if unspecified).
+    // If explicitly flagged for testing in DB (geo.isOfficeTesting), allow relaxed testing radius.
+    const configuredRadius = Number(geo.radiusMetres) > 0 ? Number(geo.radiusMetres) : 200;
+    const baseRadius = geo.isOfficeTesting ? Math.max(configuredRadius, 5000) : configuredRadius;
+    const accuracyBuffer = Math.min(Math.max(location.accuracyMetres || 0, 0), 50);
     const effectiveRadius = baseRadius + accuracyBuffer;
 
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
@@ -109,7 +106,7 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
         distanceMetres: dist,
         boundaryMetres: baseRadius,
         geofence: geo,
-        match: isOffice ? 'OFFICE_TESTING' : 'FARM',
+        match: geo.isOfficeTesting ? 'OFFICE_TESTING' : 'FARM',
       };
     }
     if (dist < minDistance) {
@@ -119,10 +116,8 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   }
 
   const targetName = closestGeofence?.name || firmName;
-  const isOfficeClosest = closestGeofence?.isOfficeTesting ||
-    closestGeofence?.name?.toLowerCase().includes('office') ||
-    firmName?.toLowerCase().includes('office');
-  const targetRadius = isOfficeClosest ? Math.max(closestGeofence?.radiusMetres || 500, 5000) : (closestGeofence?.radiusMetres || 500);
+  const targetConfigured = Number(closestGeofence?.radiusMetres) > 0 ? Number(closestGeofence?.radiusMetres) : 200;
+  const targetRadius = closestGeofence?.isOfficeTesting ? Math.max(targetConfigured, 5000) : targetConfigured;
   return {
     allowed: false,
     reason: 'OUTSIDE_GEOFENCE',

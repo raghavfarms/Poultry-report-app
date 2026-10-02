@@ -1,49 +1,35 @@
-// Lightning-fast multi-tier location acquisition:
-// 1. Instant Cache-First Check: Returns in 0ms if a valid location was captured in the last 30 minutes.
-// 2. Fast Standard Accuracy: Queries Wi-Fi/network and cached OS position in 50ms - 200ms.
-// 3. High Accuracy Fallback: Queries satellite GPS if standard accuracy is unavailable.
-// 4. Ultra-fast IP Geolocation: Ensures privacy browsers (like Brave) and desktop PCs resolve in sub-seconds.
-let sessionCachedLocation = null;
+// Hardware GPS-driven location acquisition:
+// 1. In-memory short cache (valid for 30s only) to avoid redundant GPS battery wakeups during rapid consecutive scans.
+// 2. High Accuracy First (satellite GPS) to ensure real physical presence at farm/office.
+// 3. Fallback to standard device accuracy if high accuracy is unsupported.
+// NOTE: IP geolocation is intentionally NEVER used for attendance geofencing,
+// because mobile 4G/5G carriers route traffic through regional gateway nodes 120km+ away.
+
+let inMemoryCachedLocation = null;
+
+// Clean up any legacy 30-minute stale location cached from previous sessions
+try {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('last_known_attendance_loc');
+  }
+} catch {}
 
 export function captureLocation({
   geolocation = globalThis.navigator?.geolocation,
-  timeoutMs = 3000,
-  maximumAge = 300000,
+  timeoutMs = 5000,
+  maximumAge = 15000,
   preferCache = true,
 } = {}) {
-  const getFallbackLocation = () => {
-    if (sessionCachedLocation && sessionCachedLocation.status === 'CAPTURED') {
-      const age = Date.now() - new Date(sessionCachedLocation.capturedAt || 0).getTime();
-      if (age < 30 * 60 * 1000) return sessionCachedLocation;
-    }
-    try {
-      if (typeof sessionStorage !== 'undefined') {
-        const stored = sessionStorage.getItem('last_known_attendance_loc');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && parsed.status === 'CAPTURED' && parsed.latitude && parsed.longitude) {
-            const age = Date.now() - new Date(parsed.capturedAt || 0).getTime();
-            if (age < 30 * 60 * 1000) {
-              sessionCachedLocation = parsed;
-              return parsed;
-            }
-          }
-        }
-      }
-    } catch {}
-    return null;
-  };
-
-  // Step 1: Instant cache resolution (0ms)
-  if (preferCache) {
-    const cached = getFallbackLocation();
-    if (cached) {
-      return Promise.resolve(cached);
+  // Check short in-memory cache (30s max, and accuracy must be reliable <= 500m)
+  if (preferCache && inMemoryCachedLocation && inMemoryCachedLocation.status === 'CAPTURED') {
+    const age = Date.now() - new Date(inMemoryCachedLocation.capturedAt || 0).getTime();
+    if (age < 30 * 1000 && (!inMemoryCachedLocation.accuracyMetres || inMemoryCachedLocation.accuracyMetres <= 500)) {
+      return Promise.resolve(inMemoryCachedLocation);
     }
   }
 
-  const timeout = Number.isFinite(timeoutMs) ? Math.max(800, Math.min(timeoutMs, 10000)) : 3000;
-  const maxAge = Number.isFinite(maximumAge) ? Math.max(0, maximumAge) : 300000;
+  const timeout = Number.isFinite(timeoutMs) ? Math.max(1000, Math.min(timeoutMs, 10000)) : 5000;
+  const maxAge = Number.isFinite(maximumAge) ? Math.max(0, maximumAge) : 15000;
 
   const parsePosition = (position) => {
     const { latitude, longitude, accuracy } = position?.coords || {};
@@ -59,70 +45,12 @@ export function captureLocation({
         accuracyMetres: accuracy,
         capturedAt: timestamp.toISOString(),
       };
-      sessionCachedLocation = captured;
-      try {
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.setItem('last_known_attendance_loc', JSON.stringify(captured));
-        }
-      } catch {}
+      // Only cache if reasonable accuracy (<= 1500m)
+      if (accuracy <= 1500) {
+        inMemoryCachedLocation = captured;
+      }
       return captured;
     }
-    return null;
-  };
-
-  const fetchIpLocation = async () => {
-    try {
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 1200);
-      const res = await fetch('https://ipwho.is/', { signal: controller.signal });
-      clearTimeout(tid);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success !== false && Number.isFinite(data.latitude) && Number.isFinite(data.longitude)) {
-          const captured = {
-            status: 'CAPTURED',
-            latitude: data.latitude,
-            longitude: data.longitude,
-            accuracyMetres: 250,
-            capturedAt: new Date().toISOString(),
-          };
-          sessionCachedLocation = captured;
-          try {
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem('last_known_attendance_loc', JSON.stringify(captured));
-            }
-          } catch {}
-          return captured;
-        }
-      }
-    } catch {}
-
-    try {
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 1200);
-      const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
-      clearTimeout(tid);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Number.isFinite(data.latitude) && Number.isFinite(data.longitude)) {
-          const captured = {
-            status: 'CAPTURED',
-            latitude: data.latitude,
-            longitude: data.longitude,
-            accuracyMetres: 350,
-            capturedAt: new Date().toISOString(),
-          };
-          sessionCachedLocation = captured;
-          try {
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem('last_known_attendance_loc', JSON.stringify(captured));
-            }
-          } catch {}
-          return captured;
-        }
-      }
-    } catch {}
-
     return null;
   };
 
@@ -138,7 +66,7 @@ export function captureLocation({
           done = true;
           resolve({ status: 'TIMEOUT' });
         }
-      }, options.timeout + 100);
+      }, options.timeout + 150);
 
       try {
         geolocation.getCurrentPosition(
@@ -168,47 +96,41 @@ export function captureLocation({
     });
 
   return new Promise(async (resolve) => {
-    // Step 2: Fast Standard Accuracy First (Wi-Fi, cellular, cached OS coordinates)
-    // Standard accuracy with cached maximumAge returns almost INSTANTANEOUSLY (50ms - 200ms)!
-    const fastTimeout = Math.min(timeout, 1200);
-    const standardResult = await querySingle({
-      enableHighAccuracy: false,
-      maximumAge: maxAge,
-      timeout: fastTimeout,
-    });
-
-    if (standardResult?.status === 'CAPTURED') {
-      return resolve(standardResult);
-    }
-
-    // Step 3: If standard accuracy didn't capture, try High Accuracy (satellite GPS) with remaining budget
-    const remainingTimeout = Math.max(1000, timeout - fastTimeout);
+    // Attempt 1: High Accuracy (Satellite GPS) - vital for accurate farm/office geofencing
     const highResult = await querySingle({
       enableHighAccuracy: true,
       maximumAge: maxAge,
-      timeout: remainingTimeout,
+      timeout,
     });
 
     if (highResult?.status === 'CAPTURED') {
       return resolve(highResult);
     }
 
-    // Step 4: Fast IP Geolocation fallback (under 1.2s)
-    const ipLoc = await fetchIpLocation();
-    if (ipLoc) {
-      return resolve(ipLoc);
-    }
-
-    // Step 5: Check session cache once more as last resort
-    const fallback = getFallbackLocation();
-    if (fallback) {
-      return resolve(fallback);
-    }
-
     if (highResult?.status === 'PERMISSION_DENIED' || highResult?.code === 1) {
       return resolve(highResult);
     }
 
-    resolve(standardResult?.status !== 'UNAVAILABLE' ? standardResult : highResult);
+    // Attempt 2: Standard Accuracy fallback (Wi-Fi / Cell tower) if GPS timed out
+    const standardResult = await querySingle({
+      enableHighAccuracy: false,
+      maximumAge: maxAge,
+      timeout: Math.min(timeout, 3000),
+    });
+
+    if (standardResult?.status === 'CAPTURED') {
+      return resolve(standardResult);
+    }
+
+    // If both failed, return the in-memory cache if still recent (< 60s)
+    if (inMemoryCachedLocation && inMemoryCachedLocation.status === 'CAPTURED') {
+      const age = Date.now() - new Date(inMemoryCachedLocation.capturedAt || 0).getTime();
+      if (age < 60 * 1000) {
+        return resolve(inMemoryCachedLocation);
+      }
+    }
+
+    resolve(highResult?.status !== 'UNAVAILABLE' ? highResult : standardResult);
   });
 }
+

@@ -118,7 +118,7 @@ export default function FaceAttendancePage() {
   const requestLocation = async () => {
     setLocationStatus('ACQUIRING');
     try {
-      const loc = await captureLocation({ timeoutMs: 2500, maximumAge: 300000, preferCache: true });
+      const loc = await captureLocation({ timeoutMs: 5000, maximumAge: 15000, preferCache: false });
       latestLocationRef.current = loc;
       setLocationStatus(loc.status);
       if (loc.status === 'CAPTURED') {
@@ -144,6 +144,11 @@ export default function FaceAttendancePage() {
             const { latitude, longitude, accuracy } = position.coords || {};
             const timestamp = new Date(position.timestamp);
             if ([latitude, longitude, accuracy].every((v) => typeof v === 'number' && Number.isFinite(v))) {
+              // Ignore coarse cell-tower triangulation (> 1500m) while waiting for GPS satellite lock
+              if (accuracy > 1500) {
+                setLocationStatus('ACQUIRING');
+                return;
+              }
               const freshLoc = {
                 status: 'CAPTURED',
                 latitude,
@@ -171,8 +176,8 @@ export default function FaceAttendancePage() {
           },
           {
             enableHighAccuracy: highAccuracy,
-            maximumAge: highAccuracy ? 60000 : 300000,
-            timeout: highAccuracy ? 6000 : 12000,
+            maximumAge: 10000,
+            timeout: highAccuracy ? 8000 : 12000,
           }
         );
       } catch {}
@@ -376,15 +381,15 @@ export default function FaceAttendancePage() {
     setStatusPill(`Recognized: ${worker.fullName} (${worker.workerCode})`);
 
     try {
-      // 1. Resolve Location: prefer pre-warmed / watched fresh location (up to 5 mins fresh)
+      // 1. Resolve Location: prefer watched fresh location (up to 60s fresh with reliable accuracy <= 500m)
       let loc = latestLocationRef.current;
       const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
-        (Date.now() - new Date(loc.capturedAt).getTime() < 300000);
+        (Date.now() - new Date(loc.capturedAt).getTime() < 60000) &&
+        (!loc.accuracyMetres || loc.accuracyMetres <= 500);
 
       if (!isFresh) {
         try {
-          // Instant cache-first capture (resolves in 0ms to 200ms)
-          loc = await captureLocation({ timeoutMs: 1500, maximumAge: 300000, preferCache: true });
+          loc = await captureLocation({ timeoutMs: 4000, maximumAge: 15000, preferCache: true });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
             setLocationStatus('CAPTURED');
@@ -843,33 +848,66 @@ export default function FaceAttendancePage() {
             )}
 
             {/* Geofence / Location Boundary Overlay */}
-            {activeResult && activeResult.type === 'GEOFENCE' && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center backdrop-blur-md animate-fade-in">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/20 text-3xl text-rose-400 border-2 border-rose-500/50 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
-                  📍
+            {activeResult && activeResult.type === 'GEOFENCE' && (() => {
+              const match = activeResult.message?.match(/You are ([\d.]+\s*(?:metres|km|m)) away from (.*?)\. Attendance must be marked within ([\d.]+\s*(?:metres|km|m))/i);
+              const distanceAway = match ? match[1] : null;
+              const targetLoc = match ? match[2] : null;
+              const allowedBoundary = match ? match[3] : null;
+
+              return (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center backdrop-blur-md animate-fade-in">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/20 text-3xl text-rose-400 border-2 border-rose-500/50 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
+                    📍
+                  </div>
+                  <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-rose-400">
+                    Outside Geofence Boundary
+                  </h2>
+                  <p className="mt-1 text-base font-bold text-white">
+                    {activeResult.workerName}
+                  </p>
+                  {activeResult.workerCode && (
+                    <p className="text-xs font-mono text-rose-300">{activeResult.workerCode}</p>
+                  )}
+
+                  {distanceAway ? (
+                    <div className="mt-3 w-full max-w-sm rounded-2xl bg-rose-950/80 p-3.5 border border-rose-500/40 text-left space-y-2">
+                      <div className="flex items-center justify-between text-xs border-b border-rose-800/40 pb-1.5">
+                        <span className="text-rose-300 font-semibold">📍 Location:</span>
+                        <span className="text-white font-bold">{targetLoc}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs border-b border-rose-800/40 pb-1.5">
+                        <span className="text-rose-300 font-semibold">📏 Distance Away:</span>
+                        <span className="text-rose-200 font-extrabold bg-rose-900/60 px-2 py-0.5 rounded border border-rose-500/30">
+                          {distanceAway}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-rose-300 font-semibold">🎯 Allowed Boundary:</span>
+                        <span className="text-emerald-300 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
+                          Within {allowedBoundary}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-center text-rose-200/90 pt-1">
+                        Please come inside the {allowedBoundary} boundary to mark attendance.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-xl bg-rose-950/60 px-4 py-3 text-xs text-rose-200 border border-rose-500/30 max-w-sm leading-relaxed font-medium">
+                      {activeResult.message}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleNextWorker}
+                    className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
+                  >
+                    <span>🔄</span>
+                    <span>Try Again / Next Person</span>
+                  </button>
                 </div>
-                <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-rose-400">
-                  Location Fencing Boundary
-                </h2>
-                <p className="mt-1 text-base font-bold text-white">
-                  {activeResult.workerName}
-                </p>
-                {activeResult.workerCode && (
-                  <p className="text-xs font-mono text-rose-300">{activeResult.workerCode}</p>
-                )}
-                <div className="mt-3 rounded-xl bg-rose-950/60 px-4 py-3 text-xs text-rose-200 border border-rose-500/30 max-w-sm leading-relaxed font-medium">
-                  {activeResult.message}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleNextWorker}
-                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
-                >
-                  <span>🔄</span>
-                  <span>Try Again / Next Person</span>
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* General Error Overlay */}
             {activeResult && activeResult.type === 'ERROR' && (
