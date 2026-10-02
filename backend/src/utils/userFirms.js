@@ -15,3 +15,4 @@ export function getPermittedFirmsForModule(user, moduleName) {
 
   return (user?.firms || []).map((f) => String(f?._id || f));
 }
+ 

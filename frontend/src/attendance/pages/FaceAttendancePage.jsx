@@ -41,7 +41,6 @@ export default function FaceAttendancePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryFirmId = searchParams.get('firmId') || searchParams.get('firm') || '';
-  const queryDate = searchParams.get('date') || '';
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -61,8 +60,10 @@ export default function FaceAttendancePage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
+  const canChangeDate = user?.role === 'admin' || user?.role === 'developer';
   const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-  const [attendanceDate, setAttendanceDate] = useState(queryDate || todayString);
+  // Always defaults to live today. Only admin/developer can change it via the date picker.
+  const [attendanceDate, setAttendanceDate] = useState(todayString);
   const [statusPill, setStatusPill] = useState('Initializing Face Scanner...');
   const [activeResult, setActiveResult] = useState(null); // { type: 'SUCCESS' | 'DUPLICATE' | 'ERROR', data, message }
   const [locationStatus, setLocationStatus] = useState('ACQUIRING'); // 'ACQUIRING' | 'CAPTURED' | 'PERMISSION_DENIED' | 'UNAVAILABLE' | 'TIMEOUT'
@@ -548,43 +549,49 @@ export default function FaceAttendancePage() {
         </div>
       </header>
 
-      {/* Attendance Date / Test Mode Selector */}
+      {/* Live Date Header & Transfer Button: Live by default, editable only by Admin/Developer */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 px-2.5 sm:px-6 py-1.5 sm:py-2 bg-slate-950/90 border-b border-slate-800 text-xs">
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <label
-            htmlFor="scanner-attendance-date"
-            onClick={() => {
-              try { document.getElementById('scanner-attendance-date')?.showPicker(); } catch {}
-            }}
-            className="text-slate-400 font-semibold text-[11px] flex items-center gap-1 cursor-pointer hover:text-slate-300 select-none shrink-0"
-          >
-            <span>📅</span>
-            <span className="hidden xs:inline">Date:</span>
-          </label>
-          <input
-            id="scanner-attendance-date"
-            type="date"
-            value={attendanceDate}
-            onChange={(e) => setAttendanceDate(e.target.value)}
-            onClick={(e) => {
-              try { e.target.showPicker(); } catch {}
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                try { e.target.showPicker(); } catch {}
-              }
-            }}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer [color-scheme:dark]"
-          />
-          {attendanceDate !== todayString && (
-            <button
-              type="button"
-              onClick={() => setAttendanceDate(todayString)}
-              className="rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 text-[10px] sm:text-[11px] font-medium text-slate-300 transition cursor-pointer whitespace-nowrap"
-            >
-              Today
-            </button>
+          {canChangeDate ? (
+            <>
+              <label
+                htmlFor="scanner-attendance-date"
+                onClick={() => {
+                  try { document.getElementById('scanner-attendance-date')?.showPicker(); } catch {}
+                }}
+                className="text-slate-400 font-semibold text-[11px] flex items-center gap-1 cursor-pointer hover:text-slate-300 select-none shrink-0"
+              >
+                <span>📅</span>
+                <span className="hidden xs:inline">Date:</span>
+              </label>
+              <input
+                id="scanner-attendance-date"
+                type="date"
+                value={attendanceDate}
+                onChange={(e) => setAttendanceDate(e.target.value)}
+                onClick={(e) => {
+                  try { e.target.showPicker(); } catch {}
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer [color-scheme:dark]"
+              />
+              {attendanceDate !== todayString && (
+                <button
+                  type="button"
+                  onClick={() => setAttendanceDate(todayString)}
+                  className="rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 text-[10px] sm:text-[11px] font-medium text-slate-300 transition cursor-pointer whitespace-nowrap"
+                >
+                  Today
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700 text-xs font-bold text-slate-200 shadow-xs select-none">
+              <span>📅</span>
+              <span>{new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }).format(new Date())}</span>
+              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">Live Today</span>
+            </div>
           )}
+
           {/* Transfer Worker Button - Just Adjacent to Date */}
           <button
             type="button"
@@ -597,15 +604,15 @@ export default function FaceAttendancePage() {
           </button>
         </div>
 
-        {attendanceDate !== todayString ? (
+        {canChangeDate && attendanceDate !== todayString ? (
           <div className="flex items-center gap-1 rounded-md bg-amber-500/20 border border-amber-500/40 px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-bold text-amber-300 animate-pulse">
             <span>⚡ Test Date:</span>
             <span className="font-mono underline">{attendanceDate}</span>
-            <span className="font-normal text-amber-200/80 hidden md:inline">(Scans mark attendance for this date)</span>
+            <span className="font-normal text-amber-200/80 hidden md:inline">(Admin Test Mode)</span>
           </div>
         ) : (
           <span className="text-[11px] font-medium text-slate-500 hidden sm:inline">
-            Live Mode · {todayString}
+            Live Attendance Mode · {todayString}
           </span>
         )}
       </div>

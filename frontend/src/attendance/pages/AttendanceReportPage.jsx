@@ -272,7 +272,7 @@ export default function AttendanceReportPage() {
                   &nbsp;
                 </label>
                 <Link
-                  to={`/attendance/scan${firmId && firmId !== 'all' ? `?firmId=${firmId}&date=${date}` : `?date=${date}`}`}
+                  to={`/attendance/scan${firmId && firmId !== 'all' ? `?firmId=${firmId}` : ''}`}
                   className={`flex ${
                     activeTab === 'daily'
                       ? 'flex-row min-h-[45px] h-[45px]'

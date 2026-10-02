@@ -52,7 +52,8 @@ export async function recordAttendance(user, payload = {}, options = {}) {
     if (!isNaN(parsed.getTime())) now = parsed;
   } else if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
     const today = indiaDateString();
-    if (date === today) {
+    const canOverrideDate = user?.role === 'admin' || user?.role === 'developer';
+    if (date === today || (!canOverrideDate && source === 'FACE')) {
       now = new Date();
     } else {
       const curr = options.now instanceof Date ? options.now : new Date();
