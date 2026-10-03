@@ -1166,7 +1166,7 @@ export default function DailyMedicineActionPage({
                       <span className="text-base">🏷️</span>
                       <div className="min-w-0">
                         <span className="text-[9px] uppercase font-bold text-amber-900 block leading-tight">
-                          Physical Batch to Pick from Cupboard:
+                          Physical Batch to Pick (Available Stock):
                         </span>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="font-mono font-black text-amber-950 text-xs bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300">

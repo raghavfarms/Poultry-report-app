@@ -897,9 +897,9 @@ export default function MedicineReportPage() {
                   </div>
 
                   <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Left in Cupboard</span>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Available Stock</span>
                     <strong className="text-emerald-700 text-xs sm:text-sm block leading-tight mt-0.5">{availableQty} {unit}</strong>
-                    <span className="text-[10px] text-emerald-600 font-semibold block">Available</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold block">In Store</span>
                   </div>
                 </div>
 
