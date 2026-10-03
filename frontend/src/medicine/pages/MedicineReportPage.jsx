@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchDashboardStats, fetchBatchTraceability } from '../api/reportApi.js';
+import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi } from '../api/reportApi.js';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
@@ -24,6 +24,25 @@ export default function MedicineReportPage() {
   const [disposing, setDisposing] = useState('');
   const [disposeError, setDisposeError] = useState('');
   const canDispose = ['admin', 'developer'].includes(user?.role);
+  const canEditBatch = ['admin', 'developer'].includes(user?.role);
+
+  // Edit Batch Modal State
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [editBatchNumber, setEditBatchNumber] = useState('');
+  const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [savingBatch, setSavingBatch] = useState(false);
+  const [editBatchError, setEditBatchError] = useState('');
+
+  const handleOpenEditBatchModal = (batch) => {
+    if (!batch) return;
+    setEditingBatch(batch);
+    setEditBatchNumber(batch.batchNumber || '');
+    setEditExpiryDate(batch.expiryDate || '');
+    setEditBatchError('');
+    setIsEditModalOpen(true);
+  };
+
   const disposeStock = async (batch) => {
     if (disposing) return;
     setDisposing(batch._id);
@@ -110,6 +129,44 @@ export default function MedicineReportPage() {
     handleTraceSearch(null, rb.batchNumber, rb._id);
   };
 
+  const handleSaveBatchEdit = async (e) => {
+    e.preventDefault();
+    if (!editingBatch?._id) return;
+    const trimmedBatch = editBatchNumber.trim().toUpperCase();
+    if (!trimmedBatch) {
+      setEditBatchError('Batch number cannot be empty.');
+      return;
+    }
+    if (!editExpiryDate) {
+      setEditBatchError('Expiry date is required.');
+      return;
+    }
+
+    try {
+      setSavingBatch(true);
+      setEditBatchError('');
+      await updateBatchApi(editingBatch._id, {
+        batchNumber: trimmedBatch,
+        expiryDate: editExpiryDate,
+      });
+
+      // Refresh traceability if open
+      if (activeTab === 'traceability') {
+        setSearchBatch(trimmedBatch);
+        await handleTraceSearch(null, trimmedBatch, editingBatch._id);
+      }
+      // Refresh stock view
+      await loadStats();
+
+      setIsEditModalOpen(false);
+      setEditingBatch(null);
+    } catch (err) {
+      setEditBatchError(err.message || 'Failed to update batch details.');
+    } finally {
+      setSavingBatch(false);
+    }
+  };
+
   const radar = stats?.expiryRadar || {};
   const lowStock = stats?.lowStockAlerts || [];
 
@@ -122,11 +179,12 @@ export default function MedicineReportPage() {
   ];
 
   // Filtered stock list
+  const isStockSearchPureNumber = /^\d+$/.test(stockSearch.trim());
   const filteredBatches = allBatches.filter((b) => {
     const matchesSearch =
       b.medicineName?.toLowerCase().includes(stockSearch.toLowerCase()) ||
       b.batchNumber?.toLowerCase().includes(stockSearch.toLowerCase()) ||
-      b.medicineCode?.toLowerCase().includes(stockSearch.toLowerCase()) ||
+      (!isStockSearchPureNumber && b.medicineCode?.toLowerCase().includes(stockSearch.toLowerCase())) ||
       b.medicineAlias?.toLowerCase().includes(stockSearch.toLowerCase());
 
     if (!matchesSearch) return false;
@@ -447,29 +505,41 @@ export default function MedicineReportPage() {
                               )}
                             </td>
                             <td className="py-3 px-4 text-center">
-                              {isExpired && canDispose ? (
-                                <button
-                                  type="button"
-                                  disabled={Boolean(disposing)}
-                                  onClick={() => disposeStock(b)}
-                                  className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
-                                >
-                                  {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveTab('traceability');
-                                    setSearchBatch(b.batchNumber);
-                                    handleTraceSearch(null, b.batchNumber, b._id);
-                                  }}
-                                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
-                                  title="Trace full batch journey"
-                                >
-                                  <span>🔍</span> Trace
-                                </button>
-                              )}
+                              <div className="flex items-center justify-center gap-1.5">
+                                {isExpired && canDispose ? (
+                                  <button
+                                    type="button"
+                                    disabled={Boolean(disposing)}
+                                    onClick={() => disposeStock(b)}
+                                    className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
+                                  >
+                                    {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveTab('traceability');
+                                      setSearchBatch(b.batchNumber);
+                                      handleTraceSearch(null, b.batchNumber, b._id);
+                                    }}
+                                    className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
+                                    title="Trace full batch journey"
+                                  >
+                                    <span>🔍</span> Trace
+                                  </button>
+                                )}
+                                {canEditBatch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditBatchModal(b)}
+                                    className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
+                                    title="Edit Batch Number or Expiry Date (Admin/Developer)"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -560,7 +630,7 @@ export default function MedicineReportPage() {
                           <span className="text-[11px] text-slate-500 font-mono">
                             Expires: <strong className="text-slate-700">{b.expiryDate}</strong>
                           </span>
-                          <div>
+                          <div className="flex items-center gap-1.5">
                             {isExpired && canDispose ? (
                               <button
                                 type="button"
@@ -581,6 +651,16 @@ export default function MedicineReportPage() {
                                 className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
                               >
                                 <span>🔍</span> Trace
+                              </button>
+                            )}
+                            {canEditBatch && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditBatchModal(b)}
+                                className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 cursor-pointer"
+                                title="Edit Batch"
+                              >
+                                ✏️
                               </button>
                             )}
                           </div>
@@ -658,46 +738,86 @@ export default function MedicineReportPage() {
 
             return (
               <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100 text-xs">
-                {/* Related Batches Strip (when multiple batches exist for this medicine) */}
-                {traceData.relatedBatches && traceData.relatedBatches.length > 1 && (
-                  <div className="px-3 py-2 bg-slate-100/90 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
-                      <span>🏷️</span>
-                      <span>Batches of {batch.medicine?.name} ({traceData.relatedBatches.length}):</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
-                      {traceData.relatedBatches.map((rb) => {
-                        const isCurrent = rb.batchNumber === batch.batchNumber;
-                        const isDepleted = (rb.quantityAvailable ?? 0) <= 0 || rb.status === 'DEPLETED';
-                        return (
-                          <button
-                            key={rb._id || rb.batchNumber}
-                            type="button"
-                            onClick={() => handleSelectRelatedBatch(rb)}
-                            className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer border ${
-                              isCurrent
-                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-extrabold'
-                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                            }`}
-                          >
-                            <span className="font-mono">{rb.batchNumber}</span>
-                            <span
-                              className={`text-[9px] px-1 py-0.2 rounded ${
+                {/* Related Batches Strip (Smart: Active pills + Clean Past Archive dropdown) */}
+                {traceData.relatedBatches && traceData.relatedBatches.length > 1 && (() => {
+                  const related = traceData.relatedBatches;
+                  const activeBatches = related.filter((rb) => (rb.quantityAvailable ?? 0) > 0 && rb.status !== 'DEPLETED');
+                  const depletedBatches = related.filter((rb) => (rb.quantityAvailable ?? 0) <= 0 || rb.status === 'DEPLETED');
+                  const isCurrentDepleted = depletedBatches.some((rb) => rb.batchNumber === batch.batchNumber);
+
+                  return (
+                    <div className="px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                        <span>🏷️</span>
+                        <span>Batches of {batch.medicine?.name}:</span>
+                        <span className="text-[10px] font-normal text-slate-500">
+                          ({activeBatches.length} active{depletedBatches.length > 0 ? `, ${depletedBatches.length} past` : ''})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
+                        {/* 1. Active batches shown as clear pills */}
+                        {activeBatches.map((rb) => {
+                          const isCurrent = rb.batchNumber === batch.batchNumber;
+                          return (
+                            <button
+                              key={rb._id || rb.batchNumber}
+                              type="button"
+                              onClick={() => handleSelectRelatedBatch(rb)}
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer border ${
                                 isCurrent
-                                  ? 'bg-emerald-700 text-emerald-100'
-                                  : isDepleted
-                                  ? 'bg-slate-100 text-slate-400'
-                                  : 'bg-emerald-50 text-emerald-700'
+                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-extrabold'
+                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                               }`}
                             >
-                              {isDepleted ? 'Depleted' : `${rb.quantityAvailable} left`}
+                              <span className="font-mono">{rb.batchNumber}</span>
+                              <span
+                                className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${
+                                  isCurrent
+                                    ? 'bg-emerald-700 text-emerald-100'
+                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                }`}
+                              >
+                                {rb.quantityAvailable} left
+                              </span>
+                            </button>
+                          );
+                        })}
+
+                        {/* 2. If user is currently inspecting a depleted batch, show it as an active pill */}
+                        {isCurrentDepleted && (
+                          <div className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-700 text-white border border-slate-800 shadow-2xs flex items-center gap-1 shrink-0">
+                            <span className="font-mono">{batch.batchNumber}</span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-300">
+                              Depleted
                             </span>
-                          </button>
-                        );
-                      })}
+                          </div>
+                        )}
+
+                        {/* 3. Dropdown for Depleted / Past batches to keep UI 100% clean even with 50+ batches */}
+                        {depletedBatches.length > 0 && (
+                          <select
+                            value={isCurrentDepleted ? batch.batchNumber : ''}
+                            onChange={(e) => {
+                              const found = depletedBatches.find((b) => b.batchNumber === e.target.value);
+                              if (found) handleSelectRelatedBatch(found);
+                            }}
+                            className="h-6 pl-2 pr-6 py-0 text-[11px] font-bold bg-white text-slate-700 border border-slate-300 hover:border-slate-400 rounded-md focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer shrink-0 shadow-2xs"
+                            title="Select past depleted batch to inspect"
+                          >
+                            <option value="" disabled>
+                              🗄️ Past Batches ({depletedBatches.length})...
+                            </option>
+                            {depletedBatches.map((db) => (
+                              <option key={db._id || db.batchNumber} value={db.batchNumber}>
+                                {db.batchNumber} (0 left — {db.expiryDate || 'Depleted'})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* 1. Ultra-Compact Header */}
                 <div className="px-3 py-1.5 bg-slate-50/80 flex items-center justify-between gap-1.5 flex-wrap">
@@ -719,8 +839,8 @@ export default function MedicineReportPage() {
                     )}
                   </div>
 
-                  {/* Expiry Badge */}
-                  <div>
+                  {/* Expiry Badge & Edit Button */}
+                  <div className="flex items-center gap-2">
                     {daysLeft !== null ? (
                       <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-black ${
                         daysLeft <= 0
@@ -737,6 +857,17 @@ export default function MedicineReportPage() {
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-500 font-semibold">{batch.expiryDate}</span>
+                    )}
+
+                    {canEditBatch && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditBatchModal(batch)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition cursor-pointer shadow-2xs"
+                        title="Edit Batch Number or Expiry Date (Admin/Developer)"
+                      >
+                        <span>✏️</span> Edit Batch
+                      </button>
                     )}
                   </div>
                 </div>
@@ -822,6 +953,94 @@ export default function MedicineReportPage() {
               </div>
             );
           })()}
+        </div>
+      )}
+
+      {/* Edit Batch Modal (Admin & Developer Only) */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-in fade-in duration-200">
+            <div className="px-5 py-4 bg-slate-900 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">✏️</span>
+                <div>
+                  <h3 className="font-bold text-sm">Edit Batch Details</h3>
+                  <p className="text-[11px] text-slate-300">
+                    {editingBatch?.medicine?.name || editingBatch?.medicineName || 'Medicine Batch'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditModalOpen(false);
+                  setEditingBatch(null);
+                }}
+                className="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBatchEdit} className="p-5 space-y-4">
+              {editBatchError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+                  ⚠️ {editBatchError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Batch Number <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editBatchNumber}
+                  onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
+                  placeholder="e.g. ENR-01, LAS-02"
+                  className="w-full h-10 px-3 font-mono font-bold text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Renaming updates all linked purchase receipts, shed issues, and ledger transactions.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Expiry Date <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={editExpiryDate}
+                  onChange={(e) => setEditExpiryDate(e.target.value)}
+                  className="w-full h-10 px-3 font-mono text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={savingBatch}
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditingBatch(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingBatch}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingBatch ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

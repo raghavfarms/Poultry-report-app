@@ -3,6 +3,7 @@ import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineReceipt from '../models/MedicineReceipt.js';
 import MedicineIssue from '../models/MedicineIssue.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
+import MedicineLocation from '../models/MedicineLocation.js';
 import Firm from '../../models/Firm.js';
 import User from '../../models/User.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
@@ -541,6 +542,93 @@ export async function scanMedicineLabel(req, res) {
   } catch (err) {
     console.error('scanMedicineLabel error:', err);
     return res.status(500).json({ success: false, message: err.message });
+  }
+}
+
+const DEFAULT_LOCATIONS = ['Shed 1', 'Shed 2', 'Brooder Shed', 'Feed Mill'];
+
+export async function getMedicineLocations(req, res) {
+  try {
+    let locs = await MedicineLocation.find({ removed: false }).sort({ createdAt: 1 }).lean();
+    if (!locs || locs.length === 0) {
+      // Seed default locations if database is fresh
+      const seedOps = DEFAULT_LOCATIONS.map((name) => ({
+        name,
+        nameKey: name.trim().toLowerCase(),
+        removed: false,
+      }));
+      await MedicineLocation.insertMany(seedOps, { ordered: false }).catch(() => null);
+      locs = await MedicineLocation.find({ removed: false }).sort({ createdAt: 1 }).lean();
+    }
+    return res.json({
+      success: true,
+      locations: locs.map((l) => l.name),
+    });
+  } catch (err) {
+    console.error('getMedicineLocations error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch locations' });
+  }
+}
+
+export async function createMedicineLocation(req, res) {
+  try {
+    if (!['admin', 'developer'].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: 'Admin access required to add locations' });
+    }
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (!name || name.length > 120) {
+      throw badRequest('Location name is required (maximum 120 characters)');
+    }
+
+    const nameKey = name.toLowerCase();
+    let loc = await MedicineLocation.findOne({ nameKey });
+    if (loc) {
+      loc.removed = false;
+      loc.name = name;
+      await loc.save();
+    } else {
+      loc = await MedicineLocation.create({
+        name,
+        nameKey,
+        removed: false,
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      location: loc.name,
+      message: 'Location saved successfully',
+    });
+  } catch (err) {
+    console.error('createMedicineLocation error:', err);
+    return res.status(err.status || err.statusCode || 500).json({
+      success: false,
+      message: err.message || 'Failed to create location',
+    });
+  }
+}
+
+export async function removeMedicineLocation(req, res) {
+  try {
+    if (!['admin', 'developer'].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: 'Admin access required to remove locations' });
+    }
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (!name) throw badRequest('Location name is required');
+
+    const nameKey = name.toLowerCase();
+    await MedicineLocation.updateOne({ nameKey }, { $set: { removed: true } });
+
+    return res.json({
+      success: true,
+      message: 'Location removed successfully',
+    });
+  } catch (err) {
+    console.error('removeMedicineLocation error:', err);
+    return res.status(err.status || err.statusCode || 500).json({
+      success: false,
+      message: err.message || 'Failed to remove location',
+    });
   }
 }
 

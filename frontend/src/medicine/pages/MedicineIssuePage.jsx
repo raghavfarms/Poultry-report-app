@@ -954,8 +954,8 @@ export default function MedicineIssuePage() {
                   onChange={(e) => setFormRemarks(e.target.value)}
                   className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                 />
-              </div>
-
+              </div>   
+                          
               {/* Buttons */}
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button

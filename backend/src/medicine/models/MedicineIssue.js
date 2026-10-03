@@ -114,7 +114,7 @@ const medicineIssueSchema = new mongoose.Schema(
     issuedQuantity: {
       type: Number,
       required: [true, 'Issued quantity is required'],
-      min: [1, 'Issued quantity must be at least 1'],
+      min: [0.001, 'Issued quantity must be greater than zero'],
     },
 
     // Unit of measurement snapshot (Bottle, Dose, Vial, Litre, etc.)

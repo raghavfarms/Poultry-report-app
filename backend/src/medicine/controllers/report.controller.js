@@ -234,44 +234,62 @@ export async function getBatchTraceability(req, res) {
       .lean();
   }
 
-  // 3. If not found by exact batch number, search by Medicine Name, alias, code, or partial batchNumber
+  // 3. If not found by exact batch number:
+  // 3a. Search by partial batchNumber first (e.g. "TXF-01", "01", "ENR")
   if (!batch && cleanQuery) {
     const escaped = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escaped, 'i');
+    const isPureNumber = /^\d+$/.test(cleanQuery);
 
-    let matchingMedicineIds = [];
     try {
-      const matchedMeds = await MedicineMaster.find({
-        $or: [
-          { name: regex },
-          { aliasName: regex },
-          { code: regex }
-        ]
-      }).select('_id').lean();
-      matchingMedicineIds = (matchedMeds || []).map((m) => m._id);
+      const foundBatches = await MedicineBatch.find({ batchNumber: regex })
+        .populate('medicine', 'code name category unit aliasName')
+        .populate('supplier', 'code name contactPerson mobile')
+        .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+        .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
+        .lean();
+
+      if (foundBatches && foundBatches.length > 0) {
+        batch = foundBatches[0];
+      }
     } catch {
-      matchingMedicineIds = [];
+      batch = null;
     }
 
-    const batchOrConditions = [
-      ...(matchingMedicineIds.length > 0 ? [{ medicine: { $in: matchingMedicineIds } }] : []),
-      { batchNumber: regex }
-    ];
+    // 3b. If no batch matched the batchNumber, search by Medicine Name or Alias
+    // (Only match internal code MED-xxx if user typed text/prefix, NOT pure digits like "001")
+    if (!batch) {
+      const medConditions = [
+        { name: regex },
+        { aliasName: regex },
+      ];
+      if (!isPureNumber) {
+        medConditions.push({ code: regex });
+      }
 
-    if (batchOrConditions.length > 0) {
+      let matchingMedicineIds = [];
       try {
-        const foundBatches = await MedicineBatch.find({ $or: batchOrConditions })
-          .populate('medicine', 'code name category unit aliasName')
-          .populate('supplier', 'code name contactPerson mobile')
-          .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
-          .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
-          .lean();
-
-        if (foundBatches && foundBatches.length > 0) {
-          batch = foundBatches[0];
-        }
+        const matchedMeds = await MedicineMaster.find({ $or: medConditions }).select('_id').lean();
+        matchingMedicineIds = (matchedMeds || []).map((m) => m._id);
       } catch {
-        batch = null;
+        matchingMedicineIds = [];
+      }
+
+      if (matchingMedicineIds.length > 0) {
+        try {
+          const foundBatches = await MedicineBatch.find({ medicine: { $in: matchingMedicineIds } })
+            .populate('medicine', 'code name category unit aliasName')
+            .populate('supplier', 'code name contactPerson mobile')
+            .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+            .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
+            .lean();
+
+          if (foundBatches && foundBatches.length > 0) {
+            batch = foundBatches[0];
+          }
+        } catch {
+          batch = null;
+        }
       }
     }
   }
@@ -512,3 +530,92 @@ export async function getFlockCostingReport(req, res) {
     flocks: flockList,
   });
 }
+
+/**
+ * 5. PATCH /api/medicine/reports/batches/:id
+ * Allows Admin and Developer to edit batch number and expiry date.
+ * Automatically synchronizes linked receipts, issues, and transactions.
+ */
+export async function updateBatchDetails(req, res) {
+  const { id } = req.params;
+  const { batchNumber, expiryDate } = req.body;
+
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    throw badRequest('Invalid batch ID');
+  }
+
+  const batch = await MedicineBatch.findById(id);
+  if (!batch) {
+    throw notFoundError('Batch not found');
+  }
+
+  const oldBatchNumber = batch.batchNumber;
+  let newBatchNumber = batch.batchNumber;
+
+  if (batchNumber && typeof batchNumber === 'string') {
+    newBatchNumber = batchNumber.trim().toUpperCase();
+    if (!newBatchNumber) {
+      throw badRequest('Batch number cannot be empty');
+    }
+
+    if (newBatchNumber !== oldBatchNumber) {
+      // Check for uniqueness within medicine & farm
+      const conflict = await MedicineBatch.findOne({
+        _id: { $ne: batch._id },
+        medicine: batch.medicine,
+        farm: batch.farm,
+        batchNumber: newBatchNumber,
+      });
+      if (conflict) {
+        throw badRequest(`Batch '${newBatchNumber}' already exists for this medicine at this farm.`);
+      }
+
+      batch.batchNumber = newBatchNumber;
+    }
+  }
+
+  if (expiryDate && typeof expiryDate === 'string') {
+    const trimmedExpiry = expiryDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedExpiry)) {
+      throw badRequest('Expiry date must be in YYYY-MM-DD format');
+    }
+    batch.expiryDate = trimmedExpiry;
+
+    // Recalculate status if available/expired
+    const today = new Date().toISOString().slice(0, 10);
+    if (batch.quantityAvailable > 0) {
+      batch.status = trimmedExpiry < today ? 'EXPIRED' : 'AVAILABLE';
+    }
+  }
+
+  await batch.save();
+
+  // If batchNumber changed, synchronize related records
+  if (newBatchNumber !== oldBatchNumber) {
+    await MedicineReceipt.updateMany(
+      { $or: [{ batch: batch._id }, { batchNumber: oldBatchNumber, medicine: batch.medicine }] },
+      { $set: { batchNumber: newBatchNumber } }
+    );
+    await MedicineIssue.updateMany(
+      { batch: batch._id },
+      { $set: { batchNumber: newBatchNumber } }
+    );
+    await MedicineTransaction.updateMany(
+      { batch: batch._id },
+      { $set: { batchNumber: newBatchNumber } }
+    );
+  }
+
+  res.json({
+    success: true,
+    message: 'Batch updated successfully',
+    batch: {
+      _id: batch._id,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      quantityAvailable: batch.quantityAvailable,
+      status: batch.status,
+    },
+  });
+}
+

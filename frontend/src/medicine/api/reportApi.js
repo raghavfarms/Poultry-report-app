@@ -61,3 +61,15 @@ export async function fetchFlockCosting(params = {}) {
   return await api(`/medicine/reports/flock-costing${queryString}`);
 }
 
+/**
+ * 5. Update Batch Details (Admin / Developer Only)
+ * @param {string} batchId
+ * @param {Object} updateData - { batchNumber, expiryDate }
+ */
+export async function updateBatchApi(batchId, updateData) {
+  return await api(`/medicine/reports/batches/${batchId}`, {
+    method: 'PATCH',
+    body: updateData,
+  });
+}
+

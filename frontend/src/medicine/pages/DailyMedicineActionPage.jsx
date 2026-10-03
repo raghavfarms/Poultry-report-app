@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from 'react';
-import MedicineCombobox from '../components/MedicineCombobox.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { fetchSuppliers } from '../api/supplierApi.js';
@@ -76,6 +75,7 @@ export default function DailyMedicineActionPage({
   const [suppliers, setSuppliers] = useState([]);
   const [todayEvents, setTodayEvents] = useState([]);
   const [stockMap, setStockMap] = useState(null);
+  const [availableBatches, setAvailableBatches] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -103,6 +103,8 @@ export default function DailyMedicineActionPage({
 
   // Outward Form State
   const [outwardMedicineId, setOutwardMedicineId] = useState('');
+  const [outwardMedicineName, setOutwardMedicineName] = useState('');
+  const [isOutwardMedDropdownOpen, setIsOutwardMedDropdownOpen] = useState(false);
   const [outwardShed, setOutwardShed] = useState('');
   const [customShed, setCustomShed] = useState('');
   const [outwardQty, setOutwardQty] = useState('');
@@ -134,6 +136,7 @@ export default function DailyMedicineActionPage({
           ...(radar.caution60 || []),
           ...(radar.safe || []),
         ];
+        setAvailableBatches(allBatches);
 
         const sMap = {};
         for (const b of allBatches) {
@@ -142,11 +145,6 @@ export default function DailyMedicineActionPage({
           }
         }
         setStockMap(sMap);
-      }
-
-      if (medList.length > 0 && !inwardMedicineId) {
-        setInwardMedicineId(medList[0]._id);
-        setInwardMedicineName(medList[0].name);
       }
     } catch (err) {
       console.error('Error loading daily action data:', err);
@@ -163,6 +161,15 @@ export default function DailyMedicineActionPage({
   const selectedInwardMed = medicines.find((m) => m._id === inwardMedicineId);
   const selectedOutwardMed = medicines.find((m) => m._id === outwardMedicineId);
   const issuableMedicines = medicines.filter((medicine) => (stockMap?.[medicine._id] || 0) > 0);
+
+  // Determine the oldest active batch for the selected medicine (FEFO pick target)
+  const oldestBatchForOutward = useMemo(() => {
+    if (!outwardMedicineId || !availableBatches.length) return null;
+    const candidates = availableBatches
+      .filter((b) => b.medicineId === outwardMedicineId && b.canIssue && (b.quantityAvailable || 0) > 0)
+      .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+    return candidates[0] || null;
+  }, [outwardMedicineId, availableBatches]);
 
   // Compute suppliers authorized for the selected inward medicine
   // (e.g. if 3 assigned -> show 3, if 1 -> show 1; fallback to all clean if none assigned)
@@ -185,13 +192,6 @@ export default function DailyMedicineActionPage({
       }
     }
   }, [inwardMedicineId, medSuppliers, inwardSupplierId]);
-
-  useEffect(() => {
-    if (stockMap === null) return;
-    setOutwardMedicineId((current) => stockMap[current] > 0
-      ? current
-      : (medicines.find((medicine) => stockMap[medicine._id] > 0)?._id || ''));
-  }, [stockMap, medicines]);
 
   // Handlers: Scanner Detection
   const handleScannerDetected = ({ batchNumber, expiryDate, medicineName }) => {
@@ -223,6 +223,34 @@ export default function DailyMedicineActionPage({
       message: `Scanned: Batch ${batchNumber || ''} ${expiryDate ? `(Exp: ${expiryDate})` : ''} ${medicineName ? `| Med: ${medicineName}` : ''}`,
     });
     setTimeout(() => setFeedback({ type: '', message: '' }), 4000);
+  };
+
+  const handleOpenInwardModal = () => {
+    setInwardMedicineName('');
+    setInwardMedicineId('');
+    setInwardBatchNo('');
+    setInwardExpiry('');
+    setInwardQty('');
+    setInwardNotes('');
+    setInwardCategory('');
+    setInwardUnit('');
+    setInwardSupplierId('');
+    setIsMedDropdownOpen(false);
+    setInwardReceiver(user?.name || user?.username || '');
+    setIsInwardModalOpen(true);
+  };
+
+  const handleOpenOutwardModal = () => {
+    setOutwardMedicineId('');
+    setOutwardMedicineName('');
+    setIsOutwardMedDropdownOpen(false);
+    setOutwardQty('');
+    setOutwardReceiver(user?.name || user?.username || '');
+    setOutwardShed(locations[0] || 'Shed 1');
+    setCustomShed('');
+    setIsOutwardModalOpen(true);
+    loadLocations();
+    loadData();
   };
 
   // Submit: Stock In (Medicine Arrived)
@@ -269,14 +297,16 @@ export default function DailyMedicineActionPage({
       setFeedback({ type: 'success', message: res.message || 'Stock added successfully!' });
       setIsInwardModalOpen(false);
       setIsMedDropdownOpen(false);
-      // Reset inward inputs
+      // Reset inward inputs completely
+      setInwardMedicineName('');
+      setInwardMedicineId('');
       setInwardBatchNo('');
       setInwardExpiry('');
       setInwardQty('');
       setInwardNotes('');
       setInwardCategory('');
       setInwardUnit('');
-      if (res.data?.medicineId) setInwardMedicineId(res.data.medicineId);
+      setInwardSupplierId('');
       // Reload feed
       loadData();
       if (onActivityUpdated) onActivityUpdated();
@@ -319,14 +349,22 @@ export default function DailyMedicineActionPage({
         issuedTo: outwardReceiver.trim(),
       });
 
-      setFeedback({ type: 'success', message: res.message || 'Medicine issued to birds!' });
+      const deductionsInfo = (res.data?.deductions || []).map((d) => `Batch ${d.batchNumber} (${d.deducted} ${selectedOutwardMed?.unit || ''})`).join(', ');
+      const successMsg = deductionsInfo
+        ? `Issued to ${finalShed}! 👉 Pick physical batch: ${deductionsInfo}`
+        : res.message || 'Medicine issued to birds!';
+
+      setFeedback({ type: 'success', message: successMsg });
       setIsOutwardModalOpen(false);
+      setIsOutwardMedDropdownOpen(false);
+      setOutwardMedicineId('');
+      setOutwardMedicineName('');
       setOutwardQty('');
       setOutwardReceiver('');
       // Reload feed
       loadData();
       if (onActivityUpdated) onActivityUpdated();
-      setTimeout(() => setFeedback({ type: '', message: '' }), 4000);
+      setTimeout(() => setFeedback({ type: '', message: '' }), 5000);
     } catch (err) {
       alert(err.message || 'Failed to issue medicine');
     } finally {
@@ -384,7 +422,7 @@ export default function DailyMedicineActionPage({
         {/* Button A: Stock In */}
         <button
           type="button"
-          onClick={() => { setInwardReceiver(user?.name || user?.username || ''); setIsInwardModalOpen(true); }}
+          onClick={handleOpenInwardModal}
           className="group p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 active:scale-[0.98] text-white shadow-2xs hover:shadow-xs transition flex items-center gap-2 cursor-pointer text-left"
         >
           <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/20 flex items-center justify-center text-sm sm:text-base shrink-0">
@@ -406,7 +444,7 @@ export default function DailyMedicineActionPage({
         {/* Button B: Stock Out */}
         <button
           type="button"
-          onClick={() => { setIsOutwardModalOpen(true); loadLocations(); loadData(); }}
+          onClick={handleOpenOutwardModal}
           className="group p-2 sm:p-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] text-white shadow-2xs hover:shadow-xs transition flex items-center gap-2 cursor-pointer text-left"
         >
           <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/20 flex items-center justify-center text-sm sm:text-base shrink-0">
@@ -599,7 +637,7 @@ export default function DailyMedicineActionPage({
                   <input
                     type="text"
                     required
-                    placeholder="Type medicine name or search..."
+                    placeholder="Search medicine or type new name..."
                     value={inwardMedicineName}
                     onFocus={() => setIsMedDropdownOpen(true)}
                     onChange={(e) => {
@@ -860,7 +898,10 @@ export default function DailyMedicineActionPage({
       {/* ======================================================== */}
       {isOutwardModalOpen && (
         <div
-          onClick={() => setIsOutwardModalOpen(false)}
+          onClick={() => {
+            setIsOutwardModalOpen(false);
+            setIsOutwardMedDropdownOpen(false);
+          }}
           className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
         >
           <div
@@ -878,7 +919,10 @@ export default function DailyMedicineActionPage({
               </div>
               <button
                 type="button"
-                onClick={() => setIsOutwardModalOpen(false)}
+                onClick={() => {
+                  setIsOutwardModalOpen(false);
+                  setIsOutwardMedDropdownOpen(false);
+                }}
                 className="text-white/80 hover:text-white text-xl font-bold leading-none p-1 cursor-pointer"
               >
                 ✕
@@ -969,23 +1013,127 @@ export default function DailyMedicineActionPage({
                 )}
               </div>
 
-              {/* Medicine Select */}
-              <div>
+              {/* Medicine Select with Autocomplete Search & Pop-down */}
+              <div className="relative">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
                   Which Medicine? <span className="text-rose-500">*</span>
                 </label>
-                <MedicineCombobox
-                  medicines={issuableMedicines}
-                  value={outwardMedicineId}
-                  onChange={setOutwardMedicineId}
-                  required
-                />
-                {!loading && stockMap !== null && issuableMedicines.length === 0 && (
-                  <p className="mt-1 text-xs text-slate-500">No medicine available to issue.</p>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Search in-stock medicine to issue..."
+                    value={outwardMedicineName}
+                    onFocus={() => setIsOutwardMedDropdownOpen(true)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setOutwardMedicineName(val);
+                      setIsOutwardMedDropdownOpen(true);
+                      const matched = issuableMedicines.find(
+                        (m) => m.name.toLowerCase().trim() === val.toLowerCase().trim()
+                      );
+                      setOutwardMedicineId(matched ? matched._id : '');
+                    }}
+                    className="w-full h-9 pl-8 pr-8 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                  <span className="absolute left-2.5 text-slate-400 text-xs pointer-events-none">
+                    🔍
+                  </span>
+                  {outwardMedicineName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOutwardMedicineName('');
+                        setOutwardMedicineId('');
+                        setIsOutwardMedDropdownOpen(true);
+                      }}
+                      className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs font-bold p-1 cursor-pointer"
+                      title="Clear text"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Pop-down Dropdown Menu */}
+                {isOutwardMedDropdownOpen && (
+                  <div
+                    className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {(() => {
+                      const q = outwardMedicineName.trim().toLowerCase();
+                      const filtered = q
+                        ? issuableMedicines.filter(
+                            (m) =>
+                              m.name.toLowerCase().includes(q) ||
+                              (m.aliasName && m.aliasName.toLowerCase().includes(q)) ||
+                              (m.category && m.category.toLowerCase().includes(q))
+                          )
+                        : issuableMedicines;
+
+                      if (issuableMedicines.length === 0) {
+                        return (
+                          <div className="p-3 text-center text-xs text-slate-400">
+                            No medicines with available stock found.
+                          </div>
+                        );
+                      }
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="p-3 text-center text-xs text-slate-400">
+                            No in-stock medicine matching "{outwardMedicineName.trim()}"
+                          </div>
+                        );
+                      }
+
+                      return filtered.map((m) => {
+                        const isSelected = m._id === outwardMedicineId;
+                        const stockQty = stockMap?.[m._id] || 0;
+                        return (
+                          <div
+                            key={m._id}
+                            onClick={() => {
+                              setOutwardMedicineId(m._id);
+                              setOutwardMedicineName(m.name);
+                              setIsOutwardMedDropdownOpen(false);
+                            }}
+                            className={`p-2.5 flex items-center justify-between cursor-pointer transition text-xs ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-900 font-bold'
+                                : 'hover:bg-slate-50 text-slate-800'
+                            }`}
+                          >
+                            <div className="flex flex-col truncate pr-2">
+                              <span className="font-bold truncate">{m.name}</span>
+                              <span className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                                {m.category && (
+                                  <>
+                                    <span className="bg-slate-100 px-1 rounded">{m.category}</span>
+                                    <span>•</span>
+                                  </>
+                                )}
+                                <span>Unit: {m.unit}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Stock: {stockQty} {m.unit}
+                              </span>
+                              {isSelected && (
+                                <span className="text-blue-600 font-bold">✓</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 )}
 
                 {/* Live Available Stock Badge with Low Stock Alert */}
-                {(() => {
+                {outwardMedicineId && (() => {
                   const availableStock = stockMap === null ? null : (stockMap[outwardMedicineId] || 0);
                   const threshold = selectedOutwardMed?.reorderLevel || selectedOutwardMed?.minimumStock || 0;
                   const isLow = threshold > 0 && availableStock !== null && availableStock <= threshold;
@@ -1010,6 +1158,31 @@ export default function DailyMedicineActionPage({
                     </div>
                   );
                 })()}
+
+                {/* Real-world Worker Guidance: Physical Batch to Pick from Shelf */}
+                {outwardMedicineId && oldestBatchForOutward && (
+                  <div className="mt-1.5 p-2 bg-amber-50/90 border border-amber-200 rounded-lg text-xs flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-base">🏷️</span>
+                      <div className="min-w-0">
+                        <span className="text-[9px] uppercase font-bold text-amber-900 block leading-tight">
+                          Physical Batch to Pick from Cupboard:
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-mono font-black text-amber-950 text-xs bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300">
+                            {oldestBatchForOutward.batchNumber}
+                          </span>
+                          <span className="text-[10px] text-amber-800 font-semibold truncate">
+                            Expires: {oldestBatchForOutward.expiryDate} ({oldestBatchForOutward.daysLeft}d left)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300 shrink-0">
+                      {oldestBatchForOutward.quantityAvailable} {selectedOutwardMed?.unit} in batch
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Quantity to Give */}
@@ -1023,11 +1196,12 @@ export default function DailyMedicineActionPage({
                   min="0.01"
                   step="any"
                   required
-                  placeholder="e.g. 2"
+                  placeholder={outwardMedicineId ? 'e.g. 2' : 'Select medicine first'}
+                  disabled={!outwardMedicineId}
                   max={stockMap?.[outwardMedicineId] || 0}
                   value={outwardQty}
                   onChange={(e) => setOutwardQty(e.target.value)}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full h-9 px-3 border border-slate-300 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
                   💡 System will automatically deduct from the earliest expiring batch (FEFO).
@@ -1055,7 +1229,10 @@ export default function DailyMedicineActionPage({
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsOutwardModalOpen(false)}
+                  onClick={() => {
+                    setIsOutwardModalOpen(false);
+                    setIsOutwardMedDropdownOpen(false);
+                  }}
                   className="px-3.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-lg transition cursor-pointer"
                 >
                   Cancel

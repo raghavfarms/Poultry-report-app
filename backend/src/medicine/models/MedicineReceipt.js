@@ -65,7 +65,7 @@ const medicineReceiptSchema = new mongoose.Schema(
     receivedQuantity: {
       type: Number,
       required: [true, 'Received quantity is required'],
-      min: [1, 'Received quantity must be at least 1'],
+      min: [0.001, 'Received quantity must be greater than zero'],
     },
 
     unit: {

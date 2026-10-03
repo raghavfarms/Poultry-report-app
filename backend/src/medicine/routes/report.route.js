@@ -6,6 +6,7 @@ import {
   getBatchTraceability,
   getStockLedger,
   getFlockCostingReport,
+  updateBatchDetails,
 } from '../controllers/report.controller.js';
 
 const router = express.Router();
@@ -13,6 +14,7 @@ const router = express.Router();
 // All medicine report routes require authentication
 router.use(protect);
 router.post('/batches/:id/dispose', adminOnly, disposeBatch);
+router.patch('/batches/:id', adminOnly, updateBatchDetails);
 
 // 1. Live KPIs, low-stock warnings, and Expiry Radar
 router.get('/dashboard-stats', getDashboardStats);
