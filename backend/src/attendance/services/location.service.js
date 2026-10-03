@@ -123,6 +123,6 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
     reason: 'OUTSIDE_GEOFENCE',
     distanceMetres: minDistance,
     boundaryMetres: targetRadius,
-    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${formatDistanceMetres(targetRadius)} of the location.`,
+    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Please move closer to mark attendance.`,
   };
 }

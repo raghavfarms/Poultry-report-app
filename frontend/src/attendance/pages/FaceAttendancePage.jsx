@@ -450,13 +450,25 @@ export default function FaceAttendancePage() {
           err.message.toLowerCase().includes('location access') ||
           err.message.toLowerCase().includes('location permission') ||
           err.message.toLowerCase().includes('gps') ||
-          err.message.toLowerCase().includes('outside farm'));
+          err.message.toLowerCase().includes('outside farm') ||
+          err.message.toLowerCase().includes('outside allowed'));
+
+      let distanceAway = '';
+      let targetLocationName = '';
+      const distMatch = err.message?.match(/You are\s+([\d.]+\s*(?:metres|km|m))\s+away from\s+([^.]+)/i);
+      if (distMatch) {
+        distanceAway = distMatch[1].trim();
+        targetLocationName = distMatch[2].trim();
+      }
+
       setActiveResult({
         type: isDuplicate ? 'DUPLICATE' : (isGeofence ? 'GEOFENCE' : 'ERROR'),
         workerName: worker.fullName,
         workerCode: worker.workerCode,
         workerId: worker.workerId || worker._id,
         worker: worker,
+        distanceAway,
+        locationName: targetLocationName,
         message: err.message || 'Unable to record attendance.',
       });
 
@@ -535,7 +547,7 @@ export default function FaceAttendancePage() {
             />
             <span className="hidden sm:inline">
               {locationStatus === 'CAPTURED'
-                ? `GPS Active${locationDetails?.accuracy ? ` (±${locationDetails.accuracy}m)` : ''}`
+                ? 'GPS Active'
                 : locationStatus === 'ACQUIRING'
                 ? 'Acquiring GPS...'
                 : locationStatus === 'PERMISSION_DENIED'
@@ -855,66 +867,63 @@ export default function FaceAttendancePage() {
             )}
 
             {/* Geofence / Location Boundary Overlay */}
-            {activeResult && activeResult.type === 'GEOFENCE' && (() => {
-              const match = activeResult.message?.match(/You are ([\d.]+\s*(?:metres|km|m)) away from (.*?)\. Attendance must be marked within ([\d.]+\s*(?:metres|km|m))/i);
-              const distanceAway = match ? match[1] : null;
-              const targetLoc = match ? match[2] : null;
-              const allowedBoundary = match ? match[3] : null;
+            {activeResult && activeResult.type === 'GEOFENCE' && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center backdrop-blur-md animate-fade-in">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/20 text-3xl text-rose-400 border-2 border-rose-500/50 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
+                  📍
+                </div>
+                <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-rose-400">
+                  OUTSIDE GEOFENCE BOUNDARY
+                </h2>
+                <p className="mt-1 text-base font-bold text-white">
+                  {activeResult.workerName}
+                </p>
+                {activeResult.workerCode && (
+                  <p className="text-xs font-mono text-rose-300">{activeResult.workerCode}</p>
+                )}
 
-              return (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center backdrop-blur-md animate-fade-in">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/20 text-3xl text-rose-400 border-2 border-rose-500/50 shadow-[0_0_30px_rgba(244,63,94,0.4)]">
-                    📍
-                  </div>
-                  <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-rose-400">
-                    Outside Geofence Boundary
-                  </h2>
-                  <p className="mt-1 text-base font-bold text-white">
-                    {activeResult.workerName}
-                  </p>
-                  {activeResult.workerCode && (
-                    <p className="text-xs font-mono text-rose-300">{activeResult.workerCode}</p>
+                <div className="mt-3 w-full max-w-xs sm:max-w-sm rounded-2xl border border-rose-900/60 bg-rose-950/50 p-3.5 sm:p-4 text-xs space-y-2 text-left backdrop-blur-sm">
+                  {activeResult.locationName && (
+                    <div className="flex items-center justify-between pb-2 border-b border-rose-900/40">
+                      <span className="font-semibold text-rose-300 flex items-center gap-1.5">
+                        <span>📍</span> Location:
+                      </span>
+                      <span className="font-bold text-white">
+                        {activeResult.locationName}
+                      </span>
+                    </div>
                   )}
 
-                  {distanceAway ? (
-                    <div className="mt-3 w-full max-w-sm rounded-2xl bg-rose-950/80 p-3.5 border border-rose-500/40 text-left space-y-2">
-                      <div className="flex items-center justify-between text-xs border-b border-rose-800/40 pb-1.5">
-                        <span className="text-rose-300 font-semibold">📍 Location:</span>
-                        <span className="text-white font-bold">{targetLoc}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs border-b border-rose-800/40 pb-1.5">
-                        <span className="text-rose-300 font-semibold">📏 Distance Away:</span>
-                        <span className="text-rose-200 font-extrabold bg-rose-900/60 px-2 py-0.5 rounded border border-rose-500/30">
-                          {distanceAway}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-rose-300 font-semibold">🎯 Allowed Boundary:</span>
-                        <span className="text-emerald-300 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30">
-                          Within {allowedBoundary}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-center text-rose-200/90 pt-1">
-                        Please come inside the {allowedBoundary} boundary to mark attendance.
-                      </p>
+                  {activeResult.distanceAway ? (
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-rose-300 flex items-center gap-1.5">
+                        <span>📐</span> Distance Away:
+                      </span>
+                      <span className="font-bold px-2 py-0.5 rounded-md bg-rose-900/80 text-rose-200 border border-rose-700/60 font-mono">
+                        {activeResult.distanceAway}
+                      </span>
                     </div>
                   ) : (
-                    <div className="mt-3 rounded-xl bg-rose-950/60 px-4 py-3 text-xs text-rose-200 border border-rose-500/30 max-w-sm leading-relaxed font-medium">
+                    <p className="text-xs text-rose-200 font-medium text-center">
                       {activeResult.message}
-                    </div>
+                    </p>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={handleNextWorker}
-                    className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
-                  >
-                    <span>🔄</span>
-                    <span>Try Again / Next Person</span>
-                  </button>
+                  <p className="pt-2 text-[11px] text-rose-300/80 text-center font-normal">
+                    Please move closer to mark attendance.
+                  </p>
                 </div>
-              );
-            })()}
+
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>Try Again / Next Person</span>
+                </button>
+              </div>
+            )}
 
             {/* General Error Overlay */}
             {activeResult && activeResult.type === 'ERROR' && (
