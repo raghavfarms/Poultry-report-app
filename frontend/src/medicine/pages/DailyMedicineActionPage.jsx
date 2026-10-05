@@ -22,55 +22,15 @@ export default function DailyMedicineActionPage({
 }) {
   const { user } = useAuth();
   const canManageLocations = ['admin', 'developer'].includes(user?.role);
+  const canAddMedicine = ['admin', 'developer'].includes(user?.role);
+  // Location State
   const [locations, setLocations] = useState([]);
   const [locationError, setLocationError] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [addingLocation, setAddingLocation] = useState(false);
   const [removingLocation, setRemovingLocation] = useState('');
 
-  const handleRemoveLocation = async (name) => {
-    if (removingLocation) return;
-    setRemovingLocation(name);
-    try {
-      await removeMedicineLocation(name);
-      setLocations((current) => current.filter((location) => location !== name));
-      setOutwardShed((current) => current === name ? '' : current);
-      setLocationError('');
-    } catch (error) {
-      setLocationError(error.message || 'Failed to remove location.');
-    } finally {
-      setRemovingLocation('');
-    }
-  };
-
-  const loadLocations = async () => {
-    try {
-      const result = await fetchMedicineLocations();
-      setLocations(result.locations || []);
-      setLocationError('');
-    } catch (error) {
-      setLocationError('Could not load locations. Use Other to enter a location.');
-    }
-  };
-
-  useEffect(() => { loadLocations(); }, []);
-
-  const handleAddLocation = async () => {
-    if (!newLocation.trim() || addingLocation) return;
-    setAddingLocation(true);
-    try {
-      const result = await createMedicineLocation(newLocation);
-      setLocations((current) => [...new Set([...current, result.location])]);
-      setOutwardShed(result.location);
-      setNewLocation('');
-      setLocationError('');
-    } catch (error) {
-      setLocationError(error.message || 'Failed to add location.');
-    } finally {
-      setAddingLocation(false);
-    }
-  };
-  // Master data
+  // Master Data State
   const [medicines, setMedicines] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [todayEvents, setTodayEvents] = useState([]);
@@ -91,8 +51,6 @@ export default function DailyMedicineActionPage({
   const [inwardMedicineName, setInwardMedicineName] = useState('');
   const [inwardCategory, setInwardCategory] = useState('');
   const [inwardUnit, setInwardUnit] = useState('');
-  const categories = [...new Set(['Feed Medicine', 'Vaccine', 'General', 'Antibiotics', 'Vitamins & Minerals', ...medicines.map((m) => m.category).filter(Boolean)])];
-  const units = [...new Set(['Bottle', 'Litre (L)', 'Millilitre (ml)', 'Kilogram (Kg)', 'Gram (g)', 'Vial', 'Packet', 'Tablet', ...medicines.map((m) => m.unit).filter(Boolean)])];
   const [isMedDropdownOpen, setIsMedDropdownOpen] = useState(false);
   const [inwardBatchNo, setInwardBatchNo] = useState('');
   const [inwardExpiry, setInwardExpiry] = useState('');
@@ -100,6 +58,7 @@ export default function DailyMedicineActionPage({
   const [inwardSupplierId, setInwardSupplierId] = useState('');
   const [inwardNotes, setInwardNotes] = useState('');
   const [inwardReceiver, setInwardReceiver] = useState('');
+  const [inwardFarmId, setInwardFarmId] = useState(selectedFarm || (firms[0]?._id || ''));
 
   // Outward Form State
   const [outwardMedicineId, setOutwardMedicineId] = useState('');
@@ -108,7 +67,74 @@ export default function DailyMedicineActionPage({
   const [outwardShed, setOutwardShed] = useState('');
   const [customShed, setCustomShed] = useState('');
   const [outwardQty, setOutwardQty] = useState('');
+  const [batchAllocations, setBatchAllocations] = useState({});
   const [outwardReceiver, setOutwardReceiver] = useState('');
+  const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (firms[0]?._id || ''));
+
+  const categories = [...new Set(['Feed Medicine', 'Vaccine', 'General', 'Antibiotics', 'Vitamins & Minerals', ...medicines.map((m) => m.category).filter(Boolean)])];
+  const units = [...new Set(['Bottle', 'Litre (L)', 'Millilitre (ml)', 'Kilogram (Kg)', 'Gram (g)', 'Vial', 'Packet', 'Tablet', ...medicines.map((m) => m.unit).filter(Boolean)])];
+
+  const effectiveFarm = selectedFarm || (firms.length === 1 ? firms[0]._id : '');
+  const activeFarmName = firms.find((f) => f._id === (selectedFarm || effectiveFarm))?.name || '';
+
+  useEffect(() => {
+    setInwardFarmId(selectedFarm || (firms[0]?._id || ''));
+    setOutwardFarmId(selectedFarm || (firms[0]?._id || ''));
+  }, [selectedFarm, firms]);
+
+  const handleRemoveLocation = async (name) => {
+    if (removingLocation) return;
+    setRemovingLocation(name);
+    const farmToUse = selectedFarm || outwardFarmId || (firms.length === 1 ? firms[0]._id : '');
+    try {
+      await removeMedicineLocation(name, farmToUse);
+      setLocations((current) => current.filter((location) => location !== name));
+      setOutwardShed((current) => (current === name ? '' : current));
+      setLocationError('');
+    } catch (error) {
+      setLocationError(error.message || 'Failed to remove location.');
+    } finally {
+      setRemovingLocation('');
+    }
+  };
+
+  const loadLocations = async (farmOverride) => {
+    const farmToFetch = farmOverride !== undefined ? farmOverride : (selectedFarm || outwardFarmId || (firms.length === 1 ? firms[0]._id : ''));
+    try {
+      const result = await fetchMedicineLocations(farmToFetch);
+      const locList = result.locations || [];
+      setLocations(locList);
+      setOutwardShed((curr) => {
+        if (curr && (locList.includes(curr) || curr === 'Other...')) return curr;
+        return locList[0] || '';
+      });
+      setLocationError('');
+    } catch (error) {
+      setLocationError('Could not load locations. Use Other to enter a location.');
+    }
+  };
+
+  useEffect(() => {
+    const farmToFetch = selectedFarm || outwardFarmId || (firms.length === 1 ? firms[0]._id : '');
+    loadLocations(farmToFetch);
+  }, [selectedFarm, outwardFarmId]);
+
+  const handleAddLocation = async () => {
+    if (!newLocation.trim() || addingLocation) return;
+    setAddingLocation(true);
+    const farmToUse = selectedFarm || outwardFarmId || (firms.length === 1 ? firms[0]._id : '');
+    try {
+      const result = await createMedicineLocation(newLocation, farmToUse);
+      setLocations((current) => [...new Set([...current, result.location])]);
+      setOutwardShed(result.location);
+      setNewLocation('');
+      setLocationError('');
+    } catch (error) {
+      setLocationError(error.message || 'Failed to add location.');
+    } finally {
+      setAddingLocation(false);
+    }
+  };
 
   // Load all required data
   const loadData = async () => {
@@ -116,11 +142,13 @@ export default function DailyMedicineActionPage({
       setLoading(true);
       setStockMap(null);
 
+      const targetFarm = selectedFarm || (firms.length === 1 ? firms[0]._id : '');
+
       const [medRes, supRes, feedRes, statsRes] = await Promise.all([
         fetchMedicines({ status: 'active' }),
         fetchSuppliers().catch(() => ({ suppliers: [] })),
-        fetchTodayActivity().catch(() => ({ events: [] })),
-        fetchDashboardStats({ farm: selectedFarm }).catch(() => null),
+        fetchTodayActivity({ farm: targetFarm }).catch(() => ({ events: [] })),
+        fetchDashboardStats({ farm: targetFarm }).catch(() => null),
       ]);
 
       const medList = medRes.medicines || [];
@@ -135,7 +163,7 @@ export default function DailyMedicineActionPage({
           ...(radar.critical30 || []),
           ...(radar.caution60 || []),
           ...(radar.safe || []),
-        ];
+        ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
         setAvailableBatches(allBatches);
 
         const sMap = {};
@@ -156,42 +184,99 @@ export default function DailyMedicineActionPage({
 
   useEffect(() => {
     loadData();
-  }, [selectedFarm]);
+  }, [selectedFarm, firms]);
 
   const selectedInwardMed = medicines.find((m) => m._id === inwardMedicineId);
   const selectedOutwardMed = medicines.find((m) => m._id === outwardMedicineId);
-  const issuableMedicines = medicines.filter((medicine) => (stockMap?.[medicine._id] || 0) > 0);
 
-  // Determine the oldest active batch for the selected medicine (FEFO pick target)
-  const oldestBatchForOutward = useMemo(() => {
-    if (!outwardMedicineId || !availableBatches.length) return null;
-    const candidates = availableBatches
-      .filter((b) => b.medicineId === outwardMedicineId && b.canIssue && (b.quantityAvailable || 0) > 0)
-      .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
-    return candidates[0] || null;
-  }, [outwardMedicineId, availableBatches]);
+  const effectiveOutwardFarm = selectedFarm || outwardFarmId || (firms.length === 1 ? firms[0]._id : '');
+  const currentFarmIssuableBatches = useMemo(() => {
+    if (!effectiveOutwardFarm) return availableBatches;
+    return availableBatches.filter((b) => {
+      const fId = b.farm?._id || b.farm;
+      return String(fId) === String(effectiveOutwardFarm);
+    });
+  }, [effectiveOutwardFarm, availableBatches]);
 
-  // Compute suppliers authorized for the selected inward medicine
-  // (e.g. if 3 assigned -> show 3, if 1 -> show 1; fallback to all clean if none assigned)
-  const medSuppliers = useMemo(() => {
-    const cleanSuppliers = suppliers.filter((s) => !/apex/i.test(s.name));
-    if (!selectedInwardMed?.suppliers || selectedInwardMed.suppliers.length === 0) {
-      return cleanSuppliers;
-    }
-    const medSupIds = selectedInwardMed.suppliers.map((s) => (s._id || s).toString());
-    const filtered = cleanSuppliers.filter((s) => medSupIds.includes(s._id.toString()));
-    return filtered.length > 0 ? filtered : cleanSuppliers;
-  }, [selectedInwardMed, suppliers]);
-
-  // Clear inwardSupplierId if it is not among the authorized suppliers for this medicine
-  useEffect(() => {
-    if (inwardSupplierId) {
-      const isValid = medSuppliers.some((s) => s._id.toString() === inwardSupplierId.toString());
-      if (!isValid) {
-        setInwardSupplierId('');
+  const currentFarmStockMap = useMemo(() => {
+    const map = {};
+    for (const b of currentFarmIssuableBatches) {
+      if (b.canIssue && b.medicineId) {
+        map[b.medicineId] = (map[b.medicineId] || 0) + (b.quantityAvailable || 0);
       }
     }
-  }, [inwardMedicineId, medSuppliers, inwardSupplierId]);
+    return map;
+  }, [currentFarmIssuableBatches]);
+
+  const issuableMedicines = useMemo(() => {
+    return medicines.filter((medicine) => (currentFarmStockMap[medicine._id] || 0) > 0);
+  }, [medicines, currentFarmStockMap]);
+
+  // Determine all active batches for the selected medicine sorted by earliest expiry date first (FEFO)
+  const activeBatchesForOutward = useMemo(() => {
+    if (!outwardMedicineId || !currentFarmIssuableBatches.length) return [];
+    return currentFarmIssuableBatches
+      .filter((b) => b.medicineId === outwardMedicineId && b.canIssue && (b.quantityAvailable || 0) > 0)
+      .sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  }, [outwardMedicineId, currentFarmIssuableBatches]);
+
+  const oldestBatchForOutward = activeBatchesForOutward[0] || null;
+
+  // Batch-wise allocation and automatic total calculation
+  const handleBatchQtyChange = (batchId, rawVal, maxAvailable) => {
+    let val = rawVal;
+    if (val !== '') {
+      const num = Number(val);
+      if (num > maxAvailable) val = String(maxAvailable);
+      else if (num < 0) val = '0';
+    }
+    const next = { ...batchAllocations, [batchId]: val };
+    setBatchAllocations(next);
+
+    // Sum all non-empty batch quantities to automatically compute total!
+    let sum = 0;
+    let hasAny = false;
+    for (const b of activeBatchesForOutward) {
+      const q = Number(next[b._id]);
+      if (next[b._id] !== '' && !isNaN(q) && q > 0) {
+        sum += q;
+        hasAny = true;
+      }
+    }
+    setOutwardQty(hasAny ? String(Number(sum.toFixed(3))) : '');
+  };
+
+  const handleSetBatchMax = (batchId, maxAvailable) => {
+    handleBatchQtyChange(batchId, String(maxAvailable), maxAvailable);
+  };
+
+  const handleTotalQtyChange = (rawTotal) => {
+    setOutwardQty(rawTotal);
+    const totalNum = Number(rawTotal);
+    if (!rawTotal || isNaN(totalNum) || totalNum <= 0) {
+      setBatchAllocations({});
+      return;
+    }
+
+    // Auto-distribute across batches in FEFO order
+    let remaining = totalNum;
+    const next = {};
+    for (const b of activeBatchesForOutward) {
+      if (remaining <= 0) {
+        next[b._id] = '';
+        continue;
+      }
+      const take = Math.min(b.quantityAvailable || 0, remaining);
+      next[b._id] = take > 0 ? String(Number(take.toFixed(3))) : '';
+      remaining -= take;
+    }
+    setBatchAllocations(next);
+  };
+
+  // Show all registered suppliers in system for stock-in (not restricted to a specific medicine)
+  const medSuppliers = useMemo(() => {
+    return suppliers.filter((s) => !/apex/i.test(s.name) && s.active !== false);
+  }, [suppliers]);
 
   // Handlers: Scanner Detection
   const handleScannerDetected = ({ batchNumber, expiryDate, medicineName }) => {
@@ -237,6 +322,7 @@ export default function DailyMedicineActionPage({
     setInwardSupplierId('');
     setIsMedDropdownOpen(false);
     setInwardReceiver(user?.name || user?.username || '');
+    setInwardFarmId(selectedFarm || (firms[0]?._id || ''));
     setIsInwardModalOpen(true);
   };
 
@@ -245,25 +331,37 @@ export default function DailyMedicineActionPage({
     setOutwardMedicineName('');
     setIsOutwardMedDropdownOpen(false);
     setOutwardQty('');
+    setBatchAllocations({});
     setOutwardReceiver(user?.name || user?.username || '');
-    setOutwardShed(locations[0] || 'Shed 1');
-    setCustomShed('');
+    const farmToUse = selectedFarm || (firms[0]?._id || '');
+    setOutwardFarmId(farmToUse);
     setIsOutwardModalOpen(true);
-    loadLocations();
+    loadLocations(farmToUse);
     loadData();
   };
 
   // Submit: Stock In (Medicine Arrived)
   const handleInwardSubmit = async (e) => {
     e.preventDefault();
+    const effectiveFarm = selectedFarm || inwardFarmId || null;
+    if (!effectiveFarm && firms.length > 0) {
+      alert('Please select a farm store');
+      return;
+    }
     const trimmedMedName = inwardMedicineName.trim();
     if (!inwardReceiver.trim()) {
       alert('Please enter the receiver name');
       return;
     }
-    if (!inwardMedicineId && !trimmedMedName) {
-      alert('Please enter or select a medicine name');
-      return;
+    if (!inwardMedicineId) {
+      if (!canAddMedicine) {
+        alert('Please select an existing medicine from the dropdown list. Only Admin and Developer accounts can add new medicines.');
+        return;
+      }
+      if (!trimmedMedName) {
+        alert('Please enter or select a medicine name');
+        return;
+      }
     }
     if (!inwardBatchNo.trim()) {
       alert('Please enter or scan a batch number');
@@ -289,7 +387,7 @@ export default function DailyMedicineActionPage({
         expiryDate: inwardExpiry,
         quantity: Number(inwardQty),
         supplierId: inwardSupplierId || null,
-        farmId: selectedFarm || null,
+        farmId: effectiveFarm,
         notes: inwardNotes,
         receiverName: inwardReceiver.trim(),
       });
@@ -321,6 +419,11 @@ export default function DailyMedicineActionPage({
   // Submit: Stock Out (Give to Birds)
   const handleOutwardSubmit = async (e) => {
     e.preventDefault();
+    const effectiveFarm = selectedFarm || outwardFarmId || null;
+    if (!effectiveFarm && firms.length > 0) {
+      alert('Please select a farm store');
+      return;
+    }
     const finalShed = outwardShed === '' ? customShed.trim() : outwardShed;
     if (!outwardReceiver.trim()) {
       alert('Please enter the name of the person collecting the medicine');
@@ -335,8 +438,26 @@ export default function DailyMedicineActionPage({
       return;
     }
     if (!outwardQty || Number(outwardQty) <= 0) {
-      alert('Please enter a valid quantity');
+      alert('Please enter a quantity to issue in at least one batch');
       return;
+    }
+
+    const allocationsToSend = Object.entries(batchAllocations)
+      .filter(([_, q]) => Number(q) > 0)
+      .map(([bId, q]) => ({ batchId: bId, quantity: Number(q) }));
+
+    if (allocationsToSend.length === 0) {
+      alert('Please enter a quantity to issue in at least one batch');
+      return;
+    }
+
+    // Safety guard: ensure no batch exceeds available stock
+    for (const alloc of allocationsToSend) {
+      const bObj = activeBatchesForOutward.find((b) => String(b._id) === String(alloc.batchId));
+      if (bObj && alloc.quantity > (bObj.quantityAvailable || 0)) {
+        alert(`Cannot issue medicine: Quantity for Batch ${bObj.batchNumber} (${alloc.quantity}) exceeds available stock (${bObj.quantityAvailable}).`);
+        return;
+      }
     }
 
     try {
@@ -345,7 +466,8 @@ export default function DailyMedicineActionPage({
         medicineId: outwardMedicineId,
         shedName: finalShed,
         quantity: Number(outwardQty),
-        farmId: selectedFarm || null,
+        batchAllocations: allocationsToSend,
+        farmId: effectiveFarm,
         issuedTo: outwardReceiver.trim(),
       });
 
@@ -360,6 +482,7 @@ export default function DailyMedicineActionPage({
       setOutwardMedicineId('');
       setOutwardMedicineName('');
       setOutwardQty('');
+      setBatchAllocations({});
       setOutwardReceiver('');
       // Reload feed
       loadData();
@@ -429,11 +552,16 @@ export default function DailyMedicineActionPage({
             📥
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] sm:text-xs font-bold truncate">
-              + Medicine In
+            <div className="text-[11px] sm:text-xs font-bold truncate flex items-center gap-1.5">
+              <span>+ Medicine In</span>
+              {activeFarmName && (
+                <span className="bg-emerald-900/50 text-emerald-100 text-[9px] px-1.5 py-0.2 rounded font-extrabold truncate">
+                  {activeFarmName}
+                </span>
+              )}
             </div>
             <p className="text-[9px] sm:text-[10px] text-emerald-100 truncate">
-              Arrived & Scan
+              {activeFarmName ? `Add to ${activeFarmName}` : 'Arrived & Scan'}
             </p>
           </div>
           <span className="text-xs font-bold text-white/50 group-hover:translate-x-0.5 transition hidden sm:inline pr-1">
@@ -451,11 +579,16 @@ export default function DailyMedicineActionPage({
             💉
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] sm:text-xs font-bold truncate">
-              - Give to Birds
+            <div className="text-[11px] sm:text-xs font-bold truncate flex items-center gap-1.5">
+              <span>- Give to Birds</span>
+              {activeFarmName && (
+                <span className="bg-blue-900/50 text-blue-100 text-[9px] px-1.5 py-0.2 rounded font-extrabold truncate">
+                  {activeFarmName}
+                </span>
+              )}
             </div>
             <p className="text-[9px] sm:text-[10px] text-blue-100 truncate">
-              Shed Out (FEFO)
+              {activeFarmName ? `Issue from ${activeFarmName}` : 'Shed Out (FEFO)'}
             </p>
           </div>
           <span className="text-xs font-bold text-white/50 group-hover:translate-x-0.5 transition hidden sm:inline pr-1">
@@ -544,6 +677,11 @@ export default function DailyMedicineActionPage({
                         <span className="font-mono text-[10px] text-slate-400">
                           #{ev.batchNumber}
                         </span>
+                        {ev.farmName && (
+                          <span className="bg-slate-100 text-slate-600 px-1 py-0.2 rounded font-semibold text-[9px] shrink-0">
+                            🏢 {ev.farmName}
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate">
                         <span>{timeStr}</span>
@@ -611,7 +749,7 @@ export default function DailyMedicineActionPage({
                 <span className="text-xl">📥</span>
                 <div>
                   <h3 className="text-sm font-bold">Medicine Arrived (Stock In)</h3>
-                  <p className="text-[10px] text-emerald-100">Instantly active in cupboard</p>
+                  <p className="text-[10px] text-emerald-100">Instantly active in available stock</p>
                 </div>
               </div>
               <button
@@ -628,6 +766,37 @@ export default function DailyMedicineActionPage({
 
             {/* Inward Form */}
             <form onSubmit={handleInwardSubmit} className="p-4 space-y-3">
+              {/* Farm Location Selector / Indicator */}
+              {(selectedFarm || firms.length === 1) ? (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-900">
+                  <div className="flex items-center gap-1.5">
+                    <span>🏢</span>
+                    <span>Farm Store:</span>
+                  </div>
+                  <span className="bg-emerald-600 text-white px-2 py-0.5 rounded text-[11px] font-black">
+                    {firms.find((f) => f._id === (selectedFarm || firms[0]?._id))?.name || 'Farm'}
+                  </span>
+                </div>
+              ) : firms.length > 1 ? (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Select Farm Store <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={inwardFarmId}
+                    onChange={(e) => setInwardFarmId(e.target.value)}
+                    required
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    <option value="">Select Farm (Raghav / Sanjana)...</option>
+                    {firms.map((f) => (
+                      <option key={f._id} value={f._id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               {/* Medicine Name: Type to search or type new medicine name */}
               <div className="relative">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
@@ -676,8 +845,9 @@ export default function DailyMedicineActionPage({
                     className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {/* Option 1: If typed name is new (not in medicines list), show + Add New Medicine */}
-                    {inwardMedicineName.trim() &&
+                    {/* Option 1: If typed name is new (not in medicines list), show + Add New Medicine (ADMIN & DEVELOPER ONLY) */}
+                    {canAddMedicine &&
+                      inwardMedicineName.trim() &&
                       !medicines.some(
                         (m) =>
                           m.name.toLowerCase().trim() ===
@@ -711,10 +881,21 @@ export default function DailyMedicineActionPage({
                           )
                         : medicines;
 
-                      if (filtered.length === 0 && !inwardMedicineName.trim()) {
+                      if (filtered.length === 0) {
                         return (
-                          <div className="p-3 text-center text-xs text-slate-400">
-                            No medicines available
+                          <div className="p-3 text-center text-xs text-slate-500">
+                            {q ? (
+                              <div>
+                                <span>No medicines matching "{inwardMedicineName.trim()}"</span>
+                                {!canAddMedicine && (
+                                  <div className="mt-1 text-[11px] text-amber-700 font-semibold">
+                                    Please search from existing medicines or contact an Admin.
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              'No medicines available'
+                            )}
                           </div>
                         );
                       }
@@ -754,8 +935,8 @@ export default function DailyMedicineActionPage({
                 )}
               </div>
 
-              {/* Barcode Scanner Button */}
-              {!inwardMedicineId && inwardMedicineName.trim() && (
+              {/* Category and Unit selectors: ADMIN & DEVELOPER ONLY */}
+              {canAddMedicine && !inwardMedicineId && inwardMedicineName.trim() && (
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <label htmlFor="inward-category" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Category <span className="text-rose-500">*</span></label>
@@ -816,8 +997,18 @@ export default function DailyMedicineActionPage({
                       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
                       return new Date(new Date(`${today}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
                     })()}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch (err) {}
+                    }}
+                    onFocus={(e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch (err) {}
+                    }}
                     onChange={(e) => setInwardExpiry(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
                   />
                 </div>
               </div>
@@ -931,6 +1122,43 @@ export default function DailyMedicineActionPage({
 
             {/* Outward Form */}
             <form onSubmit={handleOutwardSubmit} className="p-4 space-y-3">
+              {/* Farm Location Selector / Indicator */}
+              {(selectedFarm || firms.length === 1) ? (
+                <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-900">
+                  <div className="flex items-center gap-1.5">
+                    <span>🏢</span>
+                    <span>Farm Store:</span>
+                  </div>
+                  <span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[11px] font-black">
+                    {firms.find((f) => f._id === (selectedFarm || firms[0]?._id))?.name || 'Farm'}
+                  </span>
+                </div>
+              ) : firms.length > 1 ? (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Select Farm Store <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={outwardFarmId}
+                    onChange={(e) => {
+                      const nextFarm = e.target.value;
+                      setOutwardFarmId(nextFarm);
+                      setOutwardMedicineId('');
+                      setOutwardMedicineName('');
+                      loadLocations(nextFarm);
+                    }}
+                    required
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-lg text-xs font-bold text-slate-800 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select Farm (Raghav / Sanjana)...</option>
+                    {firms.map((f) => (
+                      <option key={f._id} value={f._id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               {/* 1-Tap Shed Selector */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
@@ -1159,53 +1387,98 @@ export default function DailyMedicineActionPage({
                   );
                 })()}
 
-                {/* Real-world Worker Guidance: Physical Batch to Pick from Shelf */}
-                {outwardMedicineId && oldestBatchForOutward && (
-                  <div className="mt-1.5 p-2 bg-amber-50/90 border border-amber-200 rounded-lg text-xs flex items-center justify-between gap-1.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-base">🏷️</span>
-                      <div className="min-w-0">
-                        <span className="text-[9px] uppercase font-bold text-amber-900 block leading-tight">
-                          Physical Batch to Pick (Available Stock):
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="font-mono font-black text-amber-950 text-xs bg-amber-100 px-1.5 py-0.2 rounded border border-amber-300">
-                            {oldestBatchForOutward.batchNumber}
-                          </span>
-                          <span className="text-[10px] text-amber-800 font-semibold truncate">
-                            Expires: {oldestBatchForOutward.expiryDate} ({oldestBatchForOutward.daysLeft}d left)
-                          </span>
-                        </div>
-                      </div>
+                {/* Physical Batches Available to Pick */}
+                {outwardMedicineId && activeBatchesForOutward.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
+                      <span>🏷️ Batches ({activeBatchesForOutward.length}):</span>
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        Enter quantity to take per batch
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300 shrink-0">
-                      {oldestBatchForOutward.quantityAvailable} {selectedOutwardMed?.unit} in batch
-                    </span>
+
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                      {activeBatchesForOutward.map((b, idx) => {
+                        const isExpired = b.daysLeft < 0;
+                        const isCritical = b.daysLeft <= 30;
+                        const isCaution = b.daysLeft > 30 && b.daysLeft <= 90;
+
+                        const cardStyles = isExpired || isCritical
+                          ? 'bg-rose-50/70 border-rose-300 text-rose-950'
+                          : isCaution
+                          ? 'bg-amber-50/70 border-amber-300 text-amber-950'
+                          : 'bg-emerald-50/60 border-emerald-200 text-emerald-950';
+
+                        const badgeStyles = isExpired || isCritical
+                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                          : isCaution
+                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 border-emerald-300';
+
+                        const expiryLabel = isExpired
+                          ? '🚨 Expired'
+                          : isCritical || isCaution
+                          ? `⚠️ Expiring Soon (${b.daysLeft}d left)`
+                          : `✅ Safe (${b.daysLeft}d left)`;
+
+                        const allocVal = batchAllocations[b._id] ?? '';
+
+                        return (
+                          <div
+                            key={b._id || idx}
+                            className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center justify-between gap-2 shadow-2xs transition ${cardStyles}`}
+                          >
+                            {/* Left: Batch & Expiry Info */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono font-bold text-slate-900 text-xs bg-white px-1.5 py-0.2 rounded border border-slate-300">
+                                  Batch: {b.batchNumber}
+                                </span>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${badgeStyles}`}>
+                                  {expiryLabel}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-slate-600 mt-0.5 flex items-center gap-1.5">
+                                <span>Expires: <strong className="text-slate-800">{b.expiryDate}</strong></span>
+                                <span>•</span>
+                                <span>In Batch: <strong className="text-slate-900 bg-white/80 px-1 rounded">{b.quantityAvailable} {selectedOutwardMed?.unit}</strong></span>
+                              </div>
+                            </div>
+
+                            {/* Right: Quantity to Take (Clamped to available stock) */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <label className="text-[10px] font-bold text-slate-700 uppercase whitespace-nowrap">
+                                Take:
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={b.quantityAvailable}
+                                step="any"
+                                placeholder="0"
+                                value={allocVal}
+                                onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable)}
+                                className={`no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-14 h-7 px-1.5 border rounded-md text-xs font-black text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-center shadow-2xs placeholder:text-slate-300 ${
+                                  Number(allocVal) > 0 ? 'border-blue-500 ring-1 ring-blue-400 bg-blue-50/30' : 'border-slate-300'
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Quantity to Give */}
-              <div>
-                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                  Quantity Given ({selectedOutwardMed?.unit || 'Units'}){' '}
-                  <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="any"
-                  required
-                  placeholder={outwardMedicineId ? 'e.g. 2' : 'Select medicine first'}
-                  disabled={!outwardMedicineId}
-                  max={stockMap?.[outwardMedicineId] || 0}
-                  value={outwardQty}
-                  onChange={(e) => setOutwardQty(e.target.value)}
-                  className="w-full h-9 px-3 border border-slate-300 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  💡 System will automatically deduct from the earliest expiring batch (FEFO).
-                </p>
+              {/* Small Accumulative Total Display (Non-editable, calculated from batch inputs) */}
+              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <span>⚡</span> Total Quantity to Issue:
+                </span>
+                <span className="text-sm font-black text-blue-700 bg-white px-2.5 py-0.5 rounded-md border border-blue-200 shadow-2xs">
+                  {outwardQty && Number(outwardQty) > 0 ? `${outwardQty} ${selectedOutwardMed?.unit || 'Units'}` : `0 ${selectedOutwardMed?.unit || 'Units'}`}
+                </span>
               </div>
 
               {/* Person collecting the medicine */}

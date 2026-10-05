@@ -3,6 +3,9 @@ import { badRequest, notFoundError, conflictError } from '../../utils/http.js';
 
 // 1. CREATE Supplier
 export async function createSupplier(req, res) {
+  if (req.user && !['admin', 'developer'].includes(req.user.role)) {
+    throw badRequest('Only Admin and Developer accounts can manage suppliers.');
+  }
   const { code, name, contactPerson, mobile, email, address, gstin } = req.body;
 
   if (!name || !name.trim()) {
@@ -93,6 +96,9 @@ export async function getSupplierById(req, res) {
 
 // 4. UPDATE Supplier
 export async function updateSupplier(req, res) {
+  if (req.user && !['admin', 'developer'].includes(req.user.role)) {
+    throw badRequest('Only Admin and Developer accounts can manage suppliers.');
+  }
   const { name, contactPerson, mobile, email, address, gstin } = req.body;
 
   const supplier = await Supplier.findById(req.params.id);
@@ -118,6 +124,9 @@ export async function updateSupplier(req, res) {
 
 // 5. ACTIVATE / DEACTIVATE (Soft Delete)
 export async function toggleSupplierStatus(req, res) {
+  if (req.user && !['admin', 'developer'].includes(req.user.role)) {
+    throw badRequest('Only Admin and Developer accounts can manage suppliers.');
+  }
   const supplier = await Supplier.findById(req.params.id);
   if (!supplier) {
     throw notFoundError('Supplier not found.');

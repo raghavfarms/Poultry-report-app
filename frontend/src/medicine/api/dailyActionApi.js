@@ -1,15 +1,18 @@
 import { api } from '../../api/client.js';
 
-export function fetchMedicineLocations() {
-  return api('/medicine/daily-action/locations');
+export function fetchMedicineLocations(farm) {
+  const query = farm ? `?farm=${encodeURIComponent(farm)}` : '';
+  return api(`/medicine/daily-action/locations${query}`);
 }
 
-export function createMedicineLocation(name) {
-  return api('/medicine/daily-action/locations', { method: 'POST', body: { name } });
+export function createMedicineLocation(name, farm) {
+  const query = farm ? `?farm=${encodeURIComponent(farm)}` : '';
+  return api(`/medicine/daily-action/locations${query}`, { method: 'POST', body: { name, farm } });
 }
 
-export function removeMedicineLocation(name) {
-  return api('/medicine/daily-action/locations', { method: 'DELETE', body: { name } });
+export function removeMedicineLocation(name, farm) {
+  const query = farm ? `?farm=${encodeURIComponent(farm)}` : '';
+  return api(`/medicine/daily-action/locations${query}`, { method: 'DELETE', body: { name, farm } });
 }
 
 /**
@@ -38,8 +41,11 @@ export async function postFastOutward(outwardData) {
  * 3. Get Today's Activity Stream
  * Returns list of today's In & Out logs
  */
-export async function fetchTodayActivity() {
-  return await api('/medicine/daily-action/today');
+export async function fetchTodayActivity(params = {}) {
+  const query = new URLSearchParams();
+  if (params?.farm) query.set('farm', params.farm);
+  const qStr = query.toString();
+  return await api(`/medicine/daily-action/today${qStr ? `?${qStr}` : ''}`);
 }
 
 /**

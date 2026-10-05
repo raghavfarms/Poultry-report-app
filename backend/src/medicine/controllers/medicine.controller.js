@@ -22,6 +22,14 @@ export async function createMedicine(req, res) {
       suppliers,
     } = req.body;
 
+    const isAdminOrDev = ['admin', 'developer'].includes(req.user?.role);
+    if (!isAdminOrDev) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Admin and Developer accounts can create medicines',
+      });
+    }
+
     // Validation (code is optional!)
     if (!name || !unit || !category) {
       return res.status(400).json({

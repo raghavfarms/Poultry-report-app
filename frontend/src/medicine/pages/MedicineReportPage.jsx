@@ -73,7 +73,11 @@ export default function MedicineReportPage() {
   const loadFirms = async () => {
     try {
       const data = await api('/firms');
-      setFirms(data.firms || []);
+      const loadedFirms = data.firms || [];
+      setFirms(loadedFirms);
+      if (loadedFirms.length === 1) {
+        setSelectedFarm(loadedFirms[0]._id);
+      }
     } catch (err) {
       console.error('Failed to load firms:', err);
     }
@@ -97,8 +101,17 @@ export default function MedicineReportPage() {
   }, []);
 
   useEffect(() => {
+    if (firms.length === 1 && selectedFarm !== firms[0]._id) {
+      setSelectedFarm(firms[0]._id);
+    }
+  }, [firms, selectedFarm]);
+
+  useEffect(() => {
     if (activeTab === 'stock') {
+      setStockFilter('ALL');
       loadStats();
+    } else if (activeTab === 'traceability' && searchBatch.trim()) {
+      handleTraceSearch(null, searchBatch);
     }
   }, [activeTab, selectedFarm]);
 
@@ -114,7 +127,12 @@ export default function MedicineReportPage() {
       if (!batchIdOverride) {
         setTraceData(null);
       }
-      const data = await fetchBatchTraceability(query, batchIdOverride ? { batchId: batchIdOverride } : {});
+      const data = await fetchBatchTraceability(
+        query,
+        batchIdOverride
+          ? { batchId: batchIdOverride, farm: selectedFarm }
+          : { farm: selectedFarm }
+      );
       setTraceData(data);
     } catch (err) {
       setTraceError(err.message || `No history found for '${query}'`);
@@ -170,13 +188,13 @@ export default function MedicineReportPage() {
   const radar = stats?.expiryRadar || {};
   const lowStock = stats?.lowStockAlerts || [];
 
-  // Flatten all available batches for live stock view
+  // Flatten all available batches for live stock view, strictly sorted by earliest expiry date first (FEFO)
   const allBatches = [
     ...(radar.expired || []).map((b) => ({ ...b, urgency: 'EXPIRED' })),
     ...(radar.critical30 || []).map((b) => ({ ...b, urgency: 'CRITICAL' })),
     ...(radar.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
     ...(radar.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
-  ];
+  ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
   // Filtered stock list
   const isStockSearchPureNumber = /^\d+$/.test(stockSearch.trim());
@@ -217,11 +235,16 @@ export default function MedicineReportPage() {
 
           <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
             {/* Farm filter */}
-            {firms.length > 0 && (
+            {firms.length === 1 ? (
+              <div className="h-7 sm:h-8 px-2.5 bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 flex items-center gap-1.5 shrink-0 shadow-2xs">
+                <span>🏢</span>
+                <span>{firms[0].name}</span>
+              </div>
+            ) : firms.length > 1 ? (
               <select
                 value={selectedFarm}
                 onChange={(e) => setSelectedFarm(e.target.value)}
-                className="h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-700 bg-white focus:outline-none"
+                className="h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-700 bg-white focus:outline-none cursor-pointer"
               >
                 <option value="">All Farms</option>
                 {firms.map((f) => (
@@ -230,17 +253,26 @@ export default function MedicineReportPage() {
                   </option>
                 ))}
               </select>
-            )}
+            ) : null}
 
-            {/* Quick Link to Medicine Master for Admin / Supervisor */}
+            {/* Quick Link to Medicine Master & Suppliers for Admin / Supervisor */}
             {isAdmin && (
-              <Link
-                to="/admin/medicine/master"
-                className="h-7 sm:h-8 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
-                title="Manage Catalog, Add New Medicine or Change Units"
-              >
-                <span>⚙</span> Master
-              </Link>
+              <div className="flex items-center gap-1 shrink-0">
+                <Link
+                  to="/admin/medicine/master"
+                  className="h-7 sm:h-8 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
+                  title="Manage Catalog, Add New Medicine or Change Units"
+                >
+                  <span>⚙</span> Master
+                </Link>
+                <Link
+                  to="/admin/medicine/master?tab=suppliers"
+                  className="h-7 sm:h-8 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
+                  title="Manage Suppliers & Vendors Directory"
+                >
+                  <span>🏭</span> Suppliers
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -300,6 +332,7 @@ export default function MedicineReportPage() {
           selectedFarm={selectedFarm}
           firms={firms}
           onActivityUpdated={() => {
+            setStockFilter('ALL');
             loadStats();
           }}
         />
@@ -415,6 +448,22 @@ export default function MedicineReportPage() {
             </div>
           )}
 
+          {/* Active Filter Indicator */}
+          {stockFilter !== 'ALL' && (
+            <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-center justify-between">
+              <span>
+                Showing <strong>{filteredBatches.length}</strong> of <strong>{allBatches.length}</strong> batches (Filtered by <strong>{stockFilter}</strong>).
+              </span>
+              <button
+                type="button"
+                onClick={() => setStockFilter('ALL')}
+                className="text-xs font-bold text-blue-700 hover:text-blue-900 underline cursor-pointer"
+              >
+                Show All ({allBatches.length})
+              </button>
+            </div>
+          )}
+
           {/* Batches Stock List */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             {loadingStats ? (
@@ -453,7 +502,12 @@ export default function MedicineReportPage() {
                           >
                             <td className="py-3 px-4">
                               <div className="font-bold text-slate-900 text-sm">{b.medicineName}</div>
-                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                                {b.farm?.name && (
+                                  <span className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                    🏢 {b.farm.name}
+                                  </span>
+                                )}
                                 {b.medicineAlias && (
                                   <span className="font-medium text-slate-600">({b.medicineAlias})</span>
                                 )}
@@ -496,7 +550,7 @@ export default function MedicineReportPage() {
                                 </span>
                               ) : isCaution ? (
                                 <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1">
-                                  🟡 In 60 Days ({b.daysLeft}d)
+                                  🟡 Soon ({b.daysLeft}d left)
                                 </span>
                               ) : (
                                 <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
@@ -567,7 +621,12 @@ export default function MedicineReportPage() {
                             <h3 className="font-bold text-sm text-slate-900 truncate">
                               {b.medicineName}
                             </h3>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 flex-wrap">
+                              {b.farm?.name && (
+                                <span className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                  🏢 {b.farm.name}
+                                </span>
+                              )}
                               {b.medicineAlias && <span>({b.medicineAlias})</span>}
                               {b.medicineCode && (
                                 <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
@@ -770,6 +829,11 @@ export default function MedicineReportPage() {
                               }`}
                             >
                               <span className="font-mono">{rb.batchNumber}</span>
+                              {rb.farm?.name && !selectedFarm && (
+                                <span className={`text-[8px] font-bold opacity-80 ${isCurrent ? 'text-emerald-100' : 'text-slate-500'}`}>
+                                  ({rb.farm.name})
+                                </span>
+                              )}
                               <span
                                 className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${
                                   isCurrent
@@ -809,7 +873,7 @@ export default function MedicineReportPage() {
                             </option>
                             {depletedBatches.map((db) => (
                               <option key={db._id || db.batchNumber} value={db.batchNumber}>
-                                {db.batchNumber} (0 left — {db.expiryDate || 'Depleted'})
+                                {db.batchNumber} {db.farm?.name && !selectedFarm ? `(${db.farm.name})` : ''} (0 left — {db.expiryDate || 'Depleted'})
                               </option>
                             ))}
                           </select>
@@ -835,6 +899,11 @@ export default function MedicineReportPage() {
                     {batch.medicine?.aliasName && (
                       <span className="text-[10px] text-slate-400 font-normal italic">
                         ({batch.medicine.aliasName})
+                      </span>
+                    )}
+                    {batch.farm?.name && (
+                      <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
+                        🏢 {batch.farm.name}
                       </span>
                     )}
                   </div>
@@ -899,7 +968,9 @@ export default function MedicineReportPage() {
                   <div>
                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Available Stock</span>
                     <strong className="text-emerald-700 text-xs sm:text-sm block leading-tight mt-0.5">{availableQty} {unit}</strong>
-                    <span className="text-[10px] text-emerald-600 font-semibold block">In Store</span>
+                    <span className="text-[10px] text-emerald-600 font-semibold block">
+                      {batch.farm?.name ? `In ${batch.farm.name} Store` : 'In Store'}
+                    </span>
                   </div>
                 </div>
 
@@ -1014,8 +1085,18 @@ export default function MedicineReportPage() {
                   type="date"
                   required
                   value={editExpiryDate}
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch (err) {}
+                  }}
+                  onFocus={(e) => {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch (err) {}
+                  }}
                   onChange={(e) => setEditExpiryDate(e.target.value)}
-                  className="w-full h-10 px-3 font-mono text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                  className="w-full h-10 px-3 font-mono text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 cursor-pointer"
                 />
               </div>
 

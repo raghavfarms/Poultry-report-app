@@ -64,3 +64,14 @@ test('new stock-in medicine requires category and unit before creation', async (
   }
   assert.equal(create.mock.callCount(), 0);
 });
+
+test('non-admin user cannot register new medicine during fast inward', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const res = { status(code) { this.code = code; return this; }, json(data) { this.data = data; return this; } };
+  await fastInward({
+    user: { _id: 'u1', role: 'worker', name: 'Worker 1' },
+    body: { newMedicineName: 'Excod', batchNumber: 'B1', expiryDate: '2027-01-01', quantity: 2, newMedicineCategory: 'General', newMedicineUnit: 'Bottle' }
+  }, res);
+  assert.equal(res.code, 400);
+  assert.match(res.data.message, /Only Admin and Developer accounts can register new medicines/);
+});

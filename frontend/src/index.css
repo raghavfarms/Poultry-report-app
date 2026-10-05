@@ -35,6 +35,24 @@ body {
     cursor: pointer;
   }
 }
+
+/* Hide number input spinner / up-down arrows */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type="date"] {
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
 @media (min-width: 1024px) {
   header.lg\:ml-72,
   main.lg\:ml-72 {

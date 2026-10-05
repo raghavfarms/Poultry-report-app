@@ -142,7 +142,7 @@ export default function MedicineIssuePage() {
     }
 
     loadRecommendations();
-  }, [formMedicine, formFarm]);
+  }, [formMedicine, formFarm]); 
 
   // Reset form
   const handleOpenCreateModal = () => {

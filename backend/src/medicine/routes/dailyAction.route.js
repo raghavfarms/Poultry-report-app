@@ -3,10 +3,12 @@ import {
   fastInward,
   fastOutward,
   getTodayActivity,
-  getMedicineLocations,
-  createMedicineLocation,
-  removeMedicineLocation,
 } from '../controllers/dailyAction.controller.js';
+import {
+  getLocations as getMedicineLocations,
+  createLocation as createMedicineLocation,
+  removeLocation as removeMedicineLocation,
+} from '../controllers/location.controller.js';
 import { protect } from '../../middleware/auth.js';
 
 const router = express.Router();

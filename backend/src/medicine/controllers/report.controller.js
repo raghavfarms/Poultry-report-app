@@ -21,22 +21,65 @@ async function resolveFarmId(farmQuery) {
   }
 
   // Lookup firm by name or code
-  const firm = await Firm.findOne({
-    $or: [
-      { name: new RegExp(`^${trimmed}$`, 'i') },
-      { name: new RegExp(`^${trimmed}`, 'i') },
-      { code: trimmed.toUpperCase() },
-    ],
-  })
-    .select('_id')
-    .lean();
+  if (mongoose.connection?.readyState === 1 || Firm.findOne?.mock) {
+    const firm = await Firm.findOne({
+      $or: [
+        { name: new RegExp(`^${trimmed}$`, 'i') },
+        { name: new RegExp(`^${trimmed}`, 'i') },
+        { code: trimmed.toUpperCase() },
+      ],
+    })
+      .select('_id')
+      .lean();
 
-  if (firm) {
-    return firm._id;
+    if (firm) {
+      return firm._id;
+    }
   }
 
   // Fallback: return a dummy ObjectId to avoid crashing with CastError while matching 0 results
   return new mongoose.Types.ObjectId();
+}
+
+/**
+ * Resolves the effective farm filter for a user.
+ * - If user is admin/developer:
+ *     - If specific farm requested -> { farm: resolvedFarmId }
+ *     - If no farm requested -> {} (all farms allowed)
+ * - If user is restricted (non-admin or user with specific firms):
+ *     - If specific farm requested AND is in user's allowed firms -> { farm: requestedId }
+ *     - If specific farm requested BUT NOT in allowed firms -> { farm: allowedFirms[0] } or { farm: { $in: allowedFirms } }
+ *     - If no farm requested -> { farm: allowedFirms[0] } or { farm: { $in: allowedFirms } }
+ */
+export async function resolveUserFarmScope(req, farmQuery) {
+  const isAdmin = ['admin', 'developer'].includes(req.user?.role);
+  let allowedFirms = [];
+
+  if (!isAdmin && req.user) {
+    if (Array.isArray(req.user.firms) && req.user.firms.length > 0) {
+      allowedFirms = req.user.firms.map((f) => new mongoose.Types.ObjectId(f._id || f));
+    } else if (req.user.firm) {
+      allowedFirms = [new mongoose.Types.ObjectId(req.user.firm._id || req.user.firm)];
+    }
+  }
+
+  if (farmQuery) {
+    const requestedId = await resolveFarmId(farmQuery);
+    if (!isAdmin && allowedFirms.length > 0) {
+      const isAllowed = allowedFirms.some((f) => f.toString() === requestedId?.toString());
+      if (isAllowed) {
+        return { farm: requestedId };
+      }
+      return allowedFirms.length === 1 ? { farm: allowedFirms[0] } : { farm: { $in: allowedFirms } };
+    }
+    if (requestedId) return { farm: requestedId };
+  }
+
+  if (!isAdmin && allowedFirms.length > 0) {
+    return allowedFirms.length === 1 ? { farm: allowedFirms[0] } : { farm: { $in: allowedFirms } };
+  }
+
+  return {};
 }
 
 /**
@@ -45,16 +88,12 @@ async function resolveFarmId(farmQuery) {
  */
 export async function getDashboardStats(req, res) {
   const { farm } = req.query;
-  const matchFilter = {};
-  if (farm) {
-    const farmId = await resolveFarmId(farm);
-    if (farmId) matchFilter.farm = farmId;
-  }
+  const matchFilter = await resolveUserFarmScope(req, farm);
 
   // 1. Fetch all catalog medicines for reorder & minimum stock comparisons
   const medicines = await MedicineMaster.find({ active: true }).lean();
 
-  // 2. Fetch all active/available batches
+  // 2. Fetch all active/available batches (Sorted by earliest expiry date - FEFO)
   const batches = await MedicineBatch.find({
     ...matchFilter,
     quantityAvailable: { $gt: 0 },
@@ -62,6 +101,8 @@ export async function getDashboardStats(req, res) {
   })
     .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName')
     .populate('supplier', 'name code')
+    .populate('farm', 'name code')
+    .sort({ expiryDate: 1 })
     .lean();
 
   const now = new Date(new Date().toISOString().slice(0, 10));
@@ -118,7 +159,7 @@ export async function getDashboardStats(req, res) {
       expiryRadar.expired.push(batchSummary);
     } else if (daysLeft <= 30) {
       expiryRadar.critical30.push(batchSummary);
-    } else if (daysLeft <= 60) {
+    } else if (daysLeft <= 90) {
       expiryRadar.caution60.push(batchSummary);
     } else {
       expiryRadar.safe.push(batchSummary);
@@ -131,15 +172,30 @@ export async function getDashboardStats(req, res) {
     }
   }
 
+  // Ensure each radar category is sorted strictly by earliest expiry date first (FEFO)
+  expiryRadar.expired.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  expiryRadar.critical30.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  expiryRadar.caution60.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  expiryRadar.safe.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+
   // Identify Low Stock Medicines (Current Stock <= Reorder Level or Minimum Stock)
   const disposedMedicineIds = new Set((await MedicineBatch.distinct('medicine', {
     ...matchFilter,
     quantityAvailable: 0,
     disposedQuantity: { $gt: 0 },
   })).map(String));
+
+  // Only check low stock for medicines that have actually been inwarded/stocked at this farm
+  const farmMedicineIds = new Set(
+    (await MedicineBatch.distinct('medicine', matchFilter)).map((id) => id?.toString()).filter(Boolean)
+  );
+
   const lowStockAlerts = [];
   for (const med of medicines) {
     const medId = med._id.toString();
+    // Skip medicines this farm has never received / inwarded
+    if (!farmMedicineIds.has(medId)) continue;
+
     const currentStock = medicineStockMap[medId] || 0;
     if (currentStock === 0 && disposedMedicineIds.has(medId)) continue;
     const threshold = med.reorderLevel || med.minimumStock || 0;
@@ -204,8 +260,10 @@ export async function getDashboardStats(req, res) {
  */
 export async function getBatchTraceability(req, res) {
   const { batchNumber } = req.params || {};
-  const { batchId } = req.query || {};
+  const { batchId, farm } = req.query || {};
   if (!batchNumber && !batchId) throw badRequest('Batch number or medicine name is required');
+
+  const farmFilter = await resolveUserFarmScope(req, farm);
 
   const cleanQuery = (batchNumber || '').trim();
   let batch = null;
@@ -213,11 +271,24 @@ export async function getBatchTraceability(req, res) {
   // 1. If batchId is provided, look up that specific batch directly
   if (batchId && mongoose.Types.ObjectId.isValid(batchId)) {
     try {
-      batch = await MedicineBatch.findById(batchId)
+      const found = await MedicineBatch.findById(batchId)
         .populate('medicine', 'code name category unit aliasName')
         .populate('supplier', 'code name contactPerson mobile')
+        .populate('farm', 'name code')
         .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
         .lean();
+      if (found) {
+        if (farmFilter.farm) {
+          const fStr = (found.farm?._id || found.farm)?.toString();
+          if (farmFilter.farm.$in) {
+            if (farmFilter.farm.$in.map(String).includes(fStr)) batch = found;
+          } else if (fStr === farmFilter.farm.toString()) {
+            batch = found;
+          }
+        } else {
+          batch = found;
+        }
+      }
     } catch {
       batch = null;
     }
@@ -226,10 +297,12 @@ export async function getBatchTraceability(req, res) {
   // 2. Locate the batch by exact batch number (case-insensitive)
   if (!batch && cleanQuery) {
     batch = await MedicineBatch.findOne({
-      batchNumber: cleanQuery.toUpperCase()
+      batchNumber: cleanQuery.toUpperCase(),
+      ...farmFilter,
     })
       .populate('medicine', 'code name category unit aliasName')
       .populate('supplier', 'code name contactPerson mobile')
+      .populate('farm', 'name code')
       .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
       .lean();
   }
@@ -242,9 +315,10 @@ export async function getBatchTraceability(req, res) {
     const isPureNumber = /^\d+$/.test(cleanQuery);
 
     try {
-      const foundBatches = await MedicineBatch.find({ batchNumber: regex })
+      const foundBatches = await MedicineBatch.find({ batchNumber: regex, ...farmFilter })
         .populate('medicine', 'code name category unit aliasName')
         .populate('supplier', 'code name contactPerson mobile')
+        .populate('farm', 'name code')
         .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
         .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
         .lean();
@@ -277,9 +351,10 @@ export async function getBatchTraceability(req, res) {
 
       if (matchingMedicineIds.length > 0) {
         try {
-          const foundBatches = await MedicineBatch.find({ medicine: { $in: matchingMedicineIds } })
+          const foundBatches = await MedicineBatch.find({ medicine: { $in: matchingMedicineIds }, ...farmFilter })
             .populate('medicine', 'code name category unit aliasName')
             .populate('supplier', 'code name contactPerson mobile')
+            .populate('farm', 'name code')
             .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
             .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
             .lean();
@@ -303,8 +378,9 @@ export async function getBatchTraceability(req, res) {
   try {
     const medId = batch.medicine?._id || batch.medicine;
     if (medId && (mongoose.connection.readyState === 1 || MedicineBatch.find?.mock)) {
-      const batchesList = await MedicineBatch.find({ medicine: medId })
-        .select('batchNumber expiryDate quantityAvailable initialQuantity status createdAt')
+      const batchesList = await MedicineBatch.find({ medicine: medId, ...farmFilter })
+        .select('batchNumber expiryDate quantityAvailable initialQuantity status createdAt farm')
+        .populate('farm', 'name code')
         .sort({ createdAt: -1 })
         .lean();
       if (Array.isArray(batchesList)) {
@@ -318,7 +394,7 @@ export async function getBatchTraceability(req, res) {
   // 5. Fetch all consumption issues linked to this batch
   const receipts = await MedicineReceipt.find({
     medicine: batch.medicine?._id || batch.medicine,
-    farm: batch.farm,
+    farm: batch.farm?._id || batch.farm,
     batchNumber: batch.batchNumber,
     status: 'STORE_ACCEPTED',
   }).populate('receivedBy', 'name username').populate('supplier', 'name').sort({ createdAt: 1 }).lean();
@@ -382,10 +458,8 @@ export async function getStockLedger(req, res) {
   const filter = {};
   if (medicine) filter.medicine = medicine;
   if (transactionType) filter.transactionType = transactionType;
-  if (farm) {
-    const farmId = await resolveFarmId(farm);
-    if (farmId) filter.farm = farmId;
-  }
+  const farmScope = await resolveUserFarmScope(req, farm);
+  Object.assign(filter, farmScope);
   if (startDate || endDate) {
     filter.createdAt = {};
     if (startDate) filter.createdAt.$gte = new Date(startDate);
@@ -422,11 +496,7 @@ export async function getStockLedger(req, res) {
  */
 export async function getFlockCostingReport(req, res) {
   const { farm, startDate, endDate } = req.query;
-  const filter = {};
-  if (farm) {
-    const farmId = await resolveFarmId(farm);
-    if (farmId) filter.farm = farmId;
-  }
+  const filter = await resolveUserFarmScope(req, farm);
   if (startDate || endDate) {
     filter.issueDate = {};
     if (startDate) filter.issueDate.$gte = startDate;

@@ -21,56 +21,51 @@ test('only administrators can save shared locations', () => {
   }
 });
 
-test('rejects blank, invalid, reserved and existing default names', async (t) => {
-  t.mock.method(MedicineLocation, 'findOneAndUpdate', async () => null);
+test('rejects blank, invalid, reserved names', async (t) => {
   for (const name of ['', '   ', {}, 'a'.repeat(121), 'Other', 'Other...']) {
     const res = response();
     await createLocation({ body: { name } }, res, assert.fail);
     assert.equal(res.statusCode, 400);
   }
-  const res = response();
-  await createLocation({ body: { name: ' SHED   1 ' } }, res, assert.fail);
-  assert.equal(res.statusCode, 409);
 });
 
 test('saves normalized location names and handles duplicates', async (t) => {
-  t.mock.method(MedicineLocation, 'findOneAndUpdate', async () => null);
+  t.mock.method(MedicineLocation, 'findOne', async () => null);
   const create = t.mock.method(MedicineLocation, 'create', async (data) => data);
   const res = response();
   await createLocation({ body: { name: '  North   House  ' } }, res, assert.fail);
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.location, 'North House');
-  assert.deepEqual(create.mock.calls[0].arguments[0], { name: 'North House', nameKey: 'north house' });
-  create.mock.mockImplementation(async () => { throw { code: 11000 }; });
+  assert.deepEqual(create.mock.calls[0].arguments[0], { name: 'North House', nameKey: 'north house', removed: false });
+
+  // Test duplicate check
+  t.mock.method(MedicineLocation, 'findOne', async () => ({ removed: false, name: 'North House' }));
   const duplicate = response();
   await createLocation({ body: { name: 'north house' } }, duplicate, assert.fail);
   assert.equal(duplicate.statusCode, 409);
   t.mock.restoreAll();
 });
 
-test('removed defaults and saved locations stay hidden on reload', async (t) => {
+test('removed locations stay hidden on reload', async (t) => {
   t.mock.method(MedicineLocation, 'find', () => ({ sort: () => ({ lean: async () => [
-    { name: 'Shed 1', nameKey: 'shed 1', removed: true },
-    { name: 'North House', nameKey: 'north house', removed: true },
+    { name: 'Shed 2', nameKey: 'shed 2' },
   ] }) }));
   const res = response();
   await getLocations({}, res, assert.fail);
   assert.equal(res.body.locations.includes('Shed 1'), false);
-  assert.equal(res.body.locations.includes('North House'), false);
   assert.ok(res.body.locations.includes('Shed 2'));
+  t.mock.restoreAll();
 });
 
-test('removing default and saved locations persists their removal', async (t) => {
+test('removing locations marks them removed', async (t) => {
   const update = t.mock.method(MedicineLocation, 'findOneAndUpdate', async () => ({ removed: true }));
-  for (const name of ['Shed 1', 'North House']) {
-    const res = response();
-    await removeLocation({ body: { name } }, res, assert.fail);
-    assert.equal(res.statusCode, 200);
-    const args = update.mock.calls.at(-1).arguments;
-    assert.deepEqual(args[0], { nameKey: name.toLowerCase() });
-    assert.equal(args[1].$set.removed, true);
-    assert.equal(args[2].upsert, name === 'Shed 1');
-  }
+  const res = response();
+  await removeLocation({ body: { name: 'Shed 1' } }, res, assert.fail);
+  assert.equal(res.statusCode, 200);
+  const args = update.mock.calls.at(-1).arguments;
+  assert.deepEqual(args[0], { nameKey: 'shed 1' });
+  assert.equal(args[1].$set.removed, true);
+  t.mock.restoreAll();
 });
 
 test('Other cannot be removed and unknown locations return not found', async (t) => {
@@ -83,22 +78,63 @@ test('Other cannot be removed and unknown locations return not found', async (t)
   const res = response();
   await removeLocation({ body: { name: 'Missing' } }, res, assert.fail);
   assert.equal(res.statusCode, 404);
+  t.mock.restoreAll();
 });
 
-test('administrators can add a removed default location again', async (t) => {
-  t.mock.method(MedicineLocation, 'findOneAndUpdate', async () => ({ name: 'Shed 1' }));
+test('administrators can re-add a removed location', async (t) => {
+  const mockDoc = { name: 'Shed 1', removed: true, save: async () => {} };
+  t.mock.method(MedicineLocation, 'findOne', async () => mockDoc);
   const res = response();
   await createLocation({ body: { name: 'Shed 1' } }, res, assert.fail);
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.location, 'Shed 1');
+  assert.equal(mockDoc.removed, false);
+  t.mock.restoreAll();
 });
 
-test('returns saved locations together with existing sheds', async (t) => {
+test('returns saved locations for the farm with no automatic defaults', async (t) => {
   t.mock.method(MedicineLocation, 'find', () => ({ sort: () => ({ lean: async () => [{ name: 'North House', nameKey: 'north house' }] }) }));
   const res = response();
   await getLocations({}, res, assert.fail);
-  assert.ok(res.body.locations.includes('Shed 1'));
+  assert.equal(res.body.locations.length, 1);
   assert.ok(res.body.locations.includes('North House'));
-  assert.equal(res.body.locations.length, 8);
   t.mock.restoreAll();
 });
+
+test('locations are completely independent between different farms', async (t) => {
+  const raghavId = '507f1f77bcf86cd799439011';
+  const sanjanaId = '507f1f77bcf86cd799439012';
+
+  // 1. Create on Raghav passes raghav farm ID
+  t.mock.method(MedicineLocation, 'findOne', async () => null);
+  const createMock = t.mock.method(MedicineLocation, 'create', async (data) => data);
+  const resRaghav = response();
+  await createLocation({ body: { name: 'Raghav Special Shed', farm: raghavId } }, resRaghav, assert.fail);
+  assert.equal(resRaghav.statusCode, 201);
+  assert.equal(createMock.mock.calls[0].arguments[0].name, 'Raghav Special Shed');
+  assert.equal(createMock.mock.calls[0].arguments[0].farm.toString(), raghavId);
+
+  // 2. Querying Sanjana queries with sanjana farm ID and does not see Raghav's sheds
+  t.mock.method(MedicineLocation, 'find', (query) => {
+    assert.equal(query.farm.toString(), sanjanaId);
+    return { sort: () => ({ lean: async () => [{ name: 'Sanjana Shed 1' }] }) };
+  });
+  const resSanjana = response();
+  await getLocations({ query: { farm: sanjanaId } }, resSanjana, assert.fail);
+  assert.equal(resSanjana.statusCode, 200);
+  assert.ok(!resSanjana.body.locations.includes('Raghav Special Shed'));
+  assert.ok(resSanjana.body.locations.includes('Sanjana Shed 1'));
+
+  // 3. Removing a location on Sanjana only targets Sanjana's farm filter
+  const updateMock = t.mock.method(MedicineLocation, 'findOneAndUpdate', async () => ({ removed: true }));
+  const resRemove = response();
+  await removeLocation({ body: { name: 'Sanjana Shed 1', farm: sanjanaId } }, resRemove, assert.fail);
+  assert.equal(resRemove.statusCode, 200);
+  const updateArgs = updateMock.mock.calls.at(-1).arguments;
+  assert.equal(updateArgs[0].nameKey, 'sanjana shed 1');
+  assert.equal(updateArgs[0].farm.toString(), sanjanaId);
+  assert.equal(updateArgs[1].$set.removed, true);
+
+  t.mock.restoreAll();
+});
+

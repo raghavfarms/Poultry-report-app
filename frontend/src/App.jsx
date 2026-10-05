@@ -69,7 +69,9 @@ export default function App() {
           }
         />
         <Route path="admin/medicine" element={<Navigate to="/admin/medicine/master" replace />} />
+        <Route path="admin/medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
         <Route path="medicine/master" element={<Navigate to="/admin/medicine/master" replace />} />
+        <Route path="medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
 
         <Route
           path="admin/assets"

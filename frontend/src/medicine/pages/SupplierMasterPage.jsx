@@ -188,11 +188,9 @@ export default function SupplierMasterPage() {
             <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
               <thead className="bg-slate-50 font-semibold text-slate-600">
                 <tr>
-                  <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3">Supplier Name</th>
                   <th className="px-4 py-3">Contact Person</th>
                   <th className="px-4 py-3">Phone / Mobile</th>
-                  <th className="px-4 py-3">GSTIN</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -200,22 +198,11 @@ export default function SupplierMasterPage() {
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {suppliers.map((sup) => (
                   <tr key={sup._id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-semibold text-slate-800">
-                      {sup.code}
-                    </td>
                     <td className="px-4 py-3 font-medium text-slate-900">
                       {sup.name}
-                      {sup.email && (
-                        <span className="block text-[11px] text-slate-400">
-                          {sup.email}
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3">{sup.contactPerson || '—'}</td>
                     <td className="px-4 py-3">{sup.mobile || '—'}</td>
-                    <td className="px-4 py-3 font-mono text-[11px]">
-                      {sup.gstin || '—'}
-                    </td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
@@ -260,9 +247,6 @@ export default function SupplierMasterPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="font-semibold text-slate-800">
-                      {sup.code}
-                    </span>
                     <h2 className="font-bold text-slate-900">{sup.name}</h2>
                   </div>
                   <span
@@ -285,12 +269,6 @@ export default function SupplierMasterPage() {
                     <span className="text-slate-400">Mobile: </span>
                     {sup.mobile || '—'}
                   </div>
-                  {sup.gstin && (
-                    <div className="col-span-2">
-                      <span className="text-slate-400">GSTIN: </span>
-                      <span className="font-mono">{sup.gstin}</span>
-                    </div>
-                  )}
                   {sup.address && (
                     <div className="col-span-2 truncate">
                       <span className="text-slate-400">Address: </span>
@@ -338,25 +316,7 @@ export default function SupplierMasterPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {/* Code */}
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    Supplier Code *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    disabled={!!editingId}
-                    value={formData.code}
-                    onChange={(e) =>
-                      setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                    }
-                    placeholder="e.g. SUP-001"
-                    className="h-8 w-full rounded border border-slate-200 px-2 text-xs uppercase focus:border-emerald-500 focus:outline-none disabled:bg-slate-100"
-                  />
-                </div>
-
+              <div className="text-xs space-y-2">
                 {/* Name */}
                 <div>
                   <label className="mb-1 block font-medium text-slate-700">
@@ -374,72 +334,42 @@ export default function SupplierMasterPage() {
                   />
                 </div>
 
-                {/* Contact Person */}
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    Contact Person
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.contactPerson}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contactPerson: e.target.value })
-                    }
-                    placeholder="e.g. Rajesh Sharma"
-                    className="h-8 w-full rounded border border-slate-200 px-2 text-xs focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Contact Person */}
+                  <div>
+                    <label className="mb-1 block font-medium text-slate-700">
+                      Contact Person
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.contactPerson}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contactPerson: e.target.value })
+                      }
+                      placeholder="e.g. Rajesh Sharma"
+                      className="h-8 w-full rounded border border-slate-200 px-2 text-xs focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
 
-                {/* Mobile */}
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    Mobile Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.mobile}
-                    onChange={(e) =>
-                      setFormData({ ...formData, mobile: e.target.value })
-                    }
-                    placeholder="e.g. 9876543210"
-                    className="h-8 w-full rounded border border-slate-200 px-2 text-xs focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    placeholder="sales@biovet.com"
-                    className="h-8 w-full rounded border border-slate-200 px-2 text-xs focus:border-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                {/* GSTIN */}
-                <div>
-                  <label className="mb-1 block font-medium text-slate-700">
-                    GSTIN
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.gstin}
-                    onChange={(e) =>
-                      setFormData({ ...formData, gstin: e.target.value.toUpperCase() })
-                    }
-                    placeholder="22AAAAA0000A1Z5"
-                    className="h-8 w-full rounded border border-slate-200 px-2 text-xs uppercase focus:border-emerald-500 focus:outline-none"
-                  />
+                  {/* Mobile */}
+                  <div>
+                    <label className="mb-1 block font-medium text-slate-700">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.mobile}
+                      onChange={(e) =>
+                        setFormData({ ...formData, mobile: e.target.value })
+                      }
+                      placeholder="e.g. 9876543210"
+                      className="h-8 w-full rounded border border-slate-200 px-2 text-xs focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
 
                 {/* Address (full width) */}
-                <div className="col-span-2">
+                <div>
                   <label className="mb-1 block font-medium text-slate-700">
                     Address
                   </label>
