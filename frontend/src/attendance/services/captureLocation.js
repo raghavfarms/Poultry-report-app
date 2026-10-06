@@ -1,11 +1,12 @@
 // Hardware GPS-driven location acquisition:
-// 1. In-memory verified GPS session cache (retained for 10 minutes) once satellite lock inside farm is established.
-// 2. High Accuracy First (satellite GPS) to ensure real physical presence at farm/office.
-// 3. Strict cell-tower rejection: Filters out coarse network triangulation (> 300m) which causes 5-6km carrier tower jumps.
-// 4. Force-fresh bypass supported when the operator explicitly taps "Refresh GPS".
+// 1. In-memory verified GPS session cache (retained for 10 minutes) once physical presence inside farm/office is established.
+// 2. High Accuracy First (satellite GPS on phones / Wi-Fi positioning on laptops) to ensure real physical presence.
+// 3. Strict cell-tower rejection: Filters out coarse network triangulation (> 800m) to stop 5-6km carrier tower jumps, while allowing laptops & indoor phones.
+// 4. MaximumAge (30s): Uses fast recent OS position cache on initial load to prevent cold-start timeouts.
 
 let inMemoryCachedLocation = null;
 const GPS_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes verified session retention
+const MAX_ACCEPTABLE_ACCURACY = 800; // Filter out cell towers (1500m-5000m) while allowing indoor GPS & laptop Wi-Fi
 
 // Clean up any legacy stale storage from previous app versions
 try {
@@ -30,8 +31,8 @@ export function getCachedLocation() {
 
 export function captureLocation({
   geolocation = globalThis.navigator?.geolocation,
-  timeoutMs = 6000,
-  maximumAge = 15000,
+  timeoutMs = 9000,
+  maximumAge = 30000,
   preferCache = true,
   forceFresh = false,
 } = {}) {
@@ -40,16 +41,16 @@ export function captureLocation({
     inMemoryCachedLocation = null;
   }
 
-  // Check verified in-memory session cache (10 minutes max, accuracy <= 300m)
+  // Check verified in-memory session cache (10 minutes max)
   if (preferCache && !forceFresh && inMemoryCachedLocation && inMemoryCachedLocation.status === 'CAPTURED') {
     const age = Date.now() - new Date(inMemoryCachedLocation.capturedAt || 0).getTime();
-    if (age < GPS_SESSION_TTL_MS && (!inMemoryCachedLocation.accuracyMetres || inMemoryCachedLocation.accuracyMetres <= 300)) {
+    if (age < GPS_SESSION_TTL_MS && (!inMemoryCachedLocation.accuracyMetres || inMemoryCachedLocation.accuracyMetres <= MAX_ACCEPTABLE_ACCURACY)) {
       return Promise.resolve(inMemoryCachedLocation);
     }
   }
 
-  const timeout = Number.isFinite(timeoutMs) ? Math.max(1000, Math.min(timeoutMs, 10000)) : 6000;
-  const maxAge = forceFresh ? 0 : (Number.isFinite(maximumAge) ? Math.max(0, maximumAge) : 15000);
+  const timeout = Number.isFinite(timeoutMs) ? Math.max(2000, Math.min(timeoutMs, 15000)) : 9000;
+  const maxAge = forceFresh ? 0 : (Number.isFinite(maximumAge) ? Math.max(0, maximumAge) : 30000);
 
   const parsePosition = (position) => {
     const { latitude, longitude, accuracy } = position?.coords || {};
@@ -65,8 +66,8 @@ export function captureLocation({
         accuracyMetres: accuracy,
         capturedAt: timestamp.toISOString(),
       };
-      // Only cache genuine GPS fixes (accuracy <= 300m, never coarse cell towers)
-      if (accuracy <= 300) {
+      // Only cache genuine GPS/Wi-Fi fixes (accuracy <= 800m, never coarse 5km cell towers)
+      if (accuracy <= MAX_ACCEPTABLE_ACCURACY) {
         inMemoryCachedLocation = captured;
       }
       return captured;
@@ -116,7 +117,7 @@ export function captureLocation({
     });
 
   return new Promise(async (resolve) => {
-    // Attempt 1: High Accuracy (Satellite GPS) - vital for accurate farm/office geofencing
+    // Attempt 1: High Accuracy (Satellite GPS on phones / High precision on PC)
     const highResult = await querySingle({
       enableHighAccuracy: true,
       maximumAge: maxAge,
@@ -124,8 +125,7 @@ export function captureLocation({
     });
 
     if (highResult?.status === 'CAPTURED') {
-      // If satellite fix is high precision (<= 300m), lock into cache and return immediately
-      if (!highResult.accuracyMetres || highResult.accuracyMetres <= 300) {
+      if (!highResult.accuracyMetres || highResult.accuracyMetres <= MAX_ACCEPTABLE_ACCURACY) {
         inMemoryCachedLocation = highResult;
         return resolve(highResult);
       }
@@ -135,7 +135,7 @@ export function captureLocation({
       return resolve(highResult);
     }
 
-    // If satellite GPS momentarily dipped/timed out (e.g. inside tin shed), but we have a valid 10-minute cache:
+    // If high accuracy timed out or had high drift, but we have a valid 10-minute cache:
     if (inMemoryCachedLocation && inMemoryCachedLocation.status === 'CAPTURED') {
       const age = Date.now() - new Date(inMemoryCachedLocation.capturedAt || 0).getTime();
       if (age < GPS_SESSION_TTL_MS) {
@@ -143,31 +143,27 @@ export function captureLocation({
       }
     }
 
-    // Attempt 2: Wi-Fi / standard device accuracy (short query)
+    // Attempt 2: Standard Accuracy (Wi-Fi triangulation fallback for laptops or indoor phones)
     const standardResult = await querySingle({
       enableHighAccuracy: false,
       maximumAge: maxAge,
-      timeout: Math.min(timeout, 3000),
+      timeout: Math.min(timeout, 5000),
     });
 
     if (standardResult?.status === 'CAPTURED') {
-      if (standardResult.accuracyMetres <= 300) {
+      if (!standardResult.accuracyMetres || standardResult.accuracyMetres <= MAX_ACCEPTABLE_ACCURACY) {
         inMemoryCachedLocation = standardResult;
         return resolve(standardResult);
       }
-      // If standardResult is coarse (> 300m e.g. cell tower), prefer cached session if available
       if (inMemoryCachedLocation && inMemoryCachedLocation.status === 'CAPTURED') {
         return resolve(inMemoryCachedLocation);
       }
       return resolve(standardResult);
     }
 
-    // If both attempts failed, return the session cache if still within 10 minutes
+    // Fallback to active cache if available
     if (inMemoryCachedLocation && inMemoryCachedLocation.status === 'CAPTURED') {
-      const age = Date.now() - new Date(inMemoryCachedLocation.capturedAt || 0).getTime();
-      if (age < GPS_SESSION_TTL_MS) {
-        return resolve(inMemoryCachedLocation);
-      }
+      return resolve(inMemoryCachedLocation);
     }
 
     resolve(highResult?.status !== 'UNAVAILABLE' ? highResult : standardResult);

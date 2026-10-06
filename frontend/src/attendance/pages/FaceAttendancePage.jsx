@@ -120,8 +120,8 @@ export default function FaceAttendancePage() {
     setLocationStatus('ACQUIRING');
     try {
       const loc = await captureLocation({
-        timeoutMs: 6000,
-        maximumAge: forceFresh ? 0 : 15000,
+        timeoutMs: 9000,
+        maximumAge: forceFresh ? 0 : 30000,
         preferCache: !forceFresh,
         forceFresh,
       });
@@ -150,8 +150,8 @@ export default function FaceAttendancePage() {
             const { latitude, longitude, accuracy } = position.coords || {};
             const timestamp = new Date(position.timestamp);
             if ([latitude, longitude, accuracy].every((v) => typeof v === 'number' && Number.isFinite(v))) {
-              // Ignore coarse cell-tower triangulation (> 300m) to prevent 5-6km carrier tower jumps
-              if (accuracy > 300) {
+              // Ignore coarse cell-tower triangulation (> 800m) while allowing indoor GPS & Wi-Fi
+              if (accuracy > 800) {
                 return;
               }
               const freshLoc = {
@@ -167,7 +167,6 @@ export default function FaceAttendancePage() {
             }
           },
           (error) => {
-            // Keep watching in satellite mode; NEVER fall back to cell tower (which causes 5km jumps)
             const code = error?.code;
             const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[code] || 'UNAVAILABLE';
             const cached = getCachedLocation();
@@ -177,8 +176,8 @@ export default function FaceAttendancePage() {
           },
           {
             enableHighAccuracy: true,
-            maximumAge: 10000,
-            timeout: 10000,
+            maximumAge: 15000,
+            timeout: 12000,
           }
         );
       } catch {}
@@ -386,11 +385,11 @@ export default function FaceAttendancePage() {
       let loc = latestLocationRef.current || getCachedLocation();
       const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
         (Date.now() - new Date(loc.capturedAt).getTime() < 10 * 60 * 1000) &&
-        (!loc.accuracyMetres || loc.accuracyMetres <= 300);
+        (!loc.accuracyMetres || loc.accuracyMetres <= 800);
 
       if (!isFresh) {
         try {
-          loc = await captureLocation({ timeoutMs: 5000, maximumAge: 15000, preferCache: true });
+          loc = await captureLocation({ timeoutMs: 6000, maximumAge: 30000, preferCache: true });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
             setLocationStatus('CAPTURED');
