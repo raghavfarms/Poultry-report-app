@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../api/client.js';
 import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFirm } from '../services/adminApi.js';
 import { loadFaceModels, detectAndRecognizeFaces } from '../services/faceModelLoader.js';
-import { captureLocation } from '../services/captureLocation.js';
+import { captureLocation, clearCachedLocation, getCachedLocation } from '../services/captureLocation.js';
 import TransferModal from '../components/TransferModal.jsx';
 
 // Subtle audio feedback using Web Audio API (no external asset needed)
@@ -116,10 +116,15 @@ export default function FaceAttendancePage() {
   }, [selectedFirmId]);
 
   // Proactive Location Acquisition & Continuous GPS Tracking
-  const requestLocation = async () => {
+  const requestLocation = async (forceFresh = false) => {
     setLocationStatus('ACQUIRING');
     try {
-      const loc = await captureLocation({ timeoutMs: 5000, maximumAge: 15000, preferCache: false });
+      const loc = await captureLocation({
+        timeoutMs: 6000,
+        maximumAge: forceFresh ? 0 : 15000,
+        preferCache: !forceFresh,
+        forceFresh,
+      });
       latestLocationRef.current = loc;
       setLocationStatus(loc.status);
       if (loc.status === 'CAPTURED') {
@@ -133,7 +138,7 @@ export default function FaceAttendancePage() {
   useEffect(() => {
     requestLocation();
 
-    function startWatch(highAccuracy = true) {
+    function startWatch() {
       if (!globalThis.navigator?.geolocation?.watchPosition) return;
       try {
         if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
@@ -145,9 +150,8 @@ export default function FaceAttendancePage() {
             const { latitude, longitude, accuracy } = position.coords || {};
             const timestamp = new Date(position.timestamp);
             if ([latitude, longitude, accuracy].every((v) => typeof v === 'number' && Number.isFinite(v))) {
-              // Ignore coarse cell-tower triangulation (> 1500m) while waiting for GPS satellite lock
-              if (accuracy > 1500) {
-                setLocationStatus('ACQUIRING');
+              // Ignore coarse cell-tower triangulation (> 300m) to prevent 5-6km carrier tower jumps
+              if (accuracy > 300) {
                 return;
               }
               const freshLoc = {
@@ -163,28 +167,24 @@ export default function FaceAttendancePage() {
             }
           },
           (error) => {
+            // Keep watching in satellite mode; NEVER fall back to cell tower (which causes 5km jumps)
             const code = error?.code;
-            if (highAccuracy && (code === 2 || code === 3)) {
-              // High accuracy (satellite GPS) timed out or is unavailable on this device (e.g. desktop/laptop or indoors).
-              // Automatically fall back to standard accuracy watch so location is captured via Wi-Fi/cellular network.
-              startWatch(false);
-              return;
-            }
             const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[code] || 'UNAVAILABLE';
-            if (!latestLocationRef.current || latestLocationRef.current.status !== 'CAPTURED') {
+            const cached = getCachedLocation();
+            if (!latestLocationRef.current && !cached) {
               setLocationStatus(mapped);
             }
           },
           {
-            enableHighAccuracy: highAccuracy,
+            enableHighAccuracy: true,
             maximumAge: 10000,
-            timeout: highAccuracy ? 8000 : 12000,
+            timeout: 10000,
           }
         );
       } catch {}
     }
 
-    startWatch(true);
+    startWatch();
 
     return () => {
       if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
@@ -382,15 +382,15 @@ export default function FaceAttendancePage() {
     setStatusPill(`Recognized: ${worker.fullName} (${worker.workerCode})`);
 
     try {
-      // 1. Resolve Location: prefer watched fresh location (up to 60s fresh with reliable accuracy <= 500m)
-      let loc = latestLocationRef.current;
+      // 1. Resolve Location: prefer watched fresh location or verified 10-minute GPS session cache
+      let loc = latestLocationRef.current || getCachedLocation();
       const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
-        (Date.now() - new Date(loc.capturedAt).getTime() < 60000) &&
-        (!loc.accuracyMetres || loc.accuracyMetres <= 500);
+        (Date.now() - new Date(loc.capturedAt).getTime() < 10 * 60 * 1000) &&
+        (!loc.accuracyMetres || loc.accuracyMetres <= 300);
 
       if (!isFresh) {
         try {
-          loc = await captureLocation({ timeoutMs: 4000, maximumAge: 15000, preferCache: true });
+          loc = await captureLocation({ timeoutMs: 5000, maximumAge: 15000, preferCache: true });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
             setLocationStatus('CAPTURED');
@@ -399,7 +399,7 @@ export default function FaceAttendancePage() {
             loc = latestLocationRef.current;
           }
         } catch {
-          loc = latestLocationRef.current || { status: 'UNAVAILABLE' };
+          loc = latestLocationRef.current || getCachedLocation() || { status: 'UNAVAILABLE' };
         }
       }
 
@@ -522,7 +522,7 @@ export default function FaceAttendancePage() {
 
           <button
             type="button"
-            onClick={requestLocation}
+            onClick={() => requestLocation(true)}
             title={`GPS Status: ${locationStatus}. Click to refresh.`}
             className={`flex min-h-[34px] sm:min-h-[38px] items-center gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] font-medium transition cursor-pointer border ${
               locationStatus === 'CAPTURED'
@@ -914,14 +914,33 @@ export default function FaceAttendancePage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleNextWorker}
-                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
-                >
-                  <span>🔄</span>
-                  <span>Try Again / Next Person</span>
-                </button>
+                <div className="mt-4 flex flex-col sm:flex-row items-center gap-2 w-full max-w-xs">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setStatusPill('Refreshing GPS satellites...');
+                      await requestLocation(true);
+                      if (activeResult?.worker) {
+                        const targetWorker = activeResult.worker;
+                        setActiveResult(null);
+                        handleRecognizedWorker(targetWorker);
+                      } else {
+                        handleNextWorker();
+                      }
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/30 transition cursor-pointer"
+                  >
+                    <span>🔄</span>
+                    <span>Retry with Fresh GPS</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextWorker}
+                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 px-4 py-2 text-xs font-semibold text-slate-300 transition cursor-pointer"
+                  >
+                    <span>Next Person</span>
+                  </button>
+                </div>
               </div>
             )}
 

@@ -96,7 +96,7 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
     // If explicitly flagged for testing in DB (geo.isOfficeTesting), allow relaxed testing radius.
     const configuredRadius = Number(geo.radiusMetres) > 0 ? Number(geo.radiusMetres) : 200;
     const baseRadius = geo.isOfficeTesting ? Math.max(configuredRadius, 5000) : configuredRadius;
-    const accuracyBuffer = Math.min(Math.max(location.accuracyMetres || 0, 0), 50);
+    const accuracyBuffer = Math.min(Math.max(location.accuracyMetres || 0, 0), 100);
     const effectiveRadius = baseRadius + accuracyBuffer;
 
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
