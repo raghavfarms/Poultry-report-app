@@ -11,15 +11,12 @@ import { createIssue } from '../src/medicine/controllers/issue.controller.js';
 
 const response = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
 
-test('receiver is required before any stock lookup or change', async (t) => {
+test('receiver is optional but rejects if exceeding 120 characters', async (t) => {
   t.mock.method(console, 'error', () => {});
-  const lookup = t.mock.method(MedicineMaster, 'findById', () => assert.fail('Must validate first'));
-  for (const issuedTo of [undefined, '', '   ', {}, 'x'.repeat(121)]) {
-    const res = response();
-    await fastOutward({ body: { issuedTo }, user: { _id: 'issuer' } }, res);
-    assert.equal(res.statusCode, 400);
-  }
-  assert.equal(lookup.mock.callCount(), 0);
+  const res = response();
+  await fastOutward({ body: { issuedTo: 'x'.repeat(121) }, user: { _id: 'issuer' } }, res);
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body.message, /cannot exceed 120 characters/i);
 });
 
 test('receiver and authenticated issuer are recorded for every FEFO deduction', async (t) => {
@@ -47,6 +44,32 @@ test('receiver and authenticated issuer are recorded for every FEFO deduction', 
   }
   assert.match(transactions.mock.calls[0].arguments[0].remarks, /Ramesh/);
   assert.deepEqual(batches.map((batch) => batch.quantityAvailable), [0, 1]);
+});
+
+test('custom issuer name is saved when provided instead of logged-in account name', async (t) => {
+  t.mock.method(MedicineMaster, 'findById', async () => ({ _id: 'med', name: 'Medicine', unit: 'Bottle' }));
+  const batch = { _id: 'batch1', batchNumber: 'B1', farm: { _id: 'farm' }, initialQuantity: 5, quantityAvailable: 5, save: async () => {} };
+  t.mock.method(MedicineBatch, 'find', () => ({ populate: () => ({ sort: async () => [batch] }) }));
+  t.mock.method(MedicineIssue, 'find', () => ({ select: () => ({ lean: async () => [] }) }));
+  t.mock.method(MedicineIssue, 'findOne', () => ({ sort: () => ({ lean: async () => null }) }));
+  const issues = t.mock.method(MedicineIssue, 'create', async (data) => ({ ...data, _id: 'issue' }));
+  const transactions = t.mock.method(MedicineTransaction, 'create', async (data) => data);
+  const res = response();
+  await fastOutward({
+    user: { _id: 'issuer', name: 'OriginalAccount' },
+    body: {
+      medicineId: 'med',
+      shedName: 'Shed 2',
+      farmId: 'farm',
+      quantity: 2,
+      issuedTo: 'Mohan Worker',
+      issuedByName: 'Supervisor Verma',
+    },
+  }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(issues.mock.calls[0].arguments[0].issuedByName, 'Supervisor Verma');
+  assert.equal(issues.mock.calls[0].arguments[0].issuedTo, 'Mohan Worker');
+  assert.match(transactions.mock.calls[0].arguments[0].remarks, /Supervisor Verma/);
 });
 
 test('activity includes receiver, issuer and saved location', async (t) => {

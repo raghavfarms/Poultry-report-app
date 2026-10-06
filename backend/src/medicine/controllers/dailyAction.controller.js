@@ -255,8 +255,11 @@ export async function fastInward(req, res) {
 export async function fastOutward(req, res) {
   try {
     const receiver = typeof req.body.issuedTo === 'string' ? req.body.issuedTo.trim() : '';
-    if (!receiver || receiver.length > 120) throw badRequest('Receiver name is required (maximum 120 characters)');
+    if (receiver.length > 120) throw badRequest('Receiver name cannot exceed 120 characters');
     if (!req.user?._id) return res.status(401).json({ success: false, message: 'Please log in to issue medicine.' });
+    const issuer = typeof req.body.issuedByName === 'string' && req.body.issuedByName.trim()
+      ? req.body.issuedByName.trim()
+      : (req.user.name || req.user.username || 'Store');
     const {
       medicineId,
       quantity,
@@ -373,12 +376,12 @@ export async function fastOutward(req, res) {
         destinationName: shedName.trim(),
         shed: shedName.trim(), // Mandatory field in MedicineIssue schema
         purpose: 'TREATMENT',  // Mandatory field in MedicineIssue schema
-        issuedTo: receiver,
+        issuedTo: receiver || 'Shed Incharge',
         issuedQuantity: take,
         unit: medicine.unit,
         issuedBy: userId,
-        issuedByName: req.user.name || req.user.username || '',
-        remarks: notes || `Collected by ${receiver} for ${shedName.trim()}`,
+        issuedByName: issuer,
+        remarks: notes || `Collected by ${receiver || 'Shed Incharge'} for ${shedName.trim()}`,
       });
 
       // 2. Create Ledger Transaction (All required fields: unit, referenceModel, referenceId, performedBy)
@@ -394,7 +397,7 @@ export async function fastOutward(req, res) {
         referenceModel: 'MedicineIssue',
         referenceId: issue._id,
         performedBy: userId,
-        remarks: `Collected by ${receiver} for ${shedName.trim()} (${take} ${medicine.unit})`,
+        remarks: `Issued by ${issuer || 'Store'} to ${receiver} for ${shedName.trim()} (${take} ${medicine.unit})`,
       });
 
       // 3. Update and persist batch balance ONLY after issue & ledger succeed

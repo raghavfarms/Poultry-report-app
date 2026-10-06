@@ -69,6 +69,7 @@ export default function DailyMedicineActionPage({
   const [customShed, setCustomShed] = useState('');
   const [outwardQty, setOutwardQty] = useState('');
   const [batchAllocations, setBatchAllocations] = useState({});
+  const [outwardIssuer, setOutwardIssuer] = useState(user?.name || user?.username || '');
   const [outwardReceiver, setOutwardReceiver] = useState('');
   const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (firms[0]?._id || ''));
 
@@ -333,7 +334,8 @@ export default function DailyMedicineActionPage({
     setIsOutwardMedDropdownOpen(false);
     setOutwardQty('');
     setBatchAllocations({});
-    setOutwardReceiver(user?.name || user?.username || '');
+    setOutwardIssuer(user?.name || user?.username || '');
+    setOutwardReceiver('');
     const farmToUse = selectedFarm || (firms[0]?._id || '');
     setOutwardFarmId(farmToUse);
     setIsOutwardModalOpen(true);
@@ -350,10 +352,7 @@ export default function DailyMedicineActionPage({
       return;
     }
     const trimmedMedName = inwardMedicineName.trim();
-    if (!inwardReceiver.trim()) {
-      alert('Please enter the receiver name');
-      return;
-    }
+    const finalInwardReceiver = inwardReceiver.trim() || (user?.name || user?.username || 'Storekeeper');
     if (!inwardMedicineId) {
       if (!canAddMedicine) {
         alert('Please select an existing medicine from the dropdown list. Only Admin and Developer accounts can add new medicines.');
@@ -390,7 +389,7 @@ export default function DailyMedicineActionPage({
         supplierId: inwardSupplierId || null,
         farmId: effectiveFarm,
         notes: inwardNotes,
-        receiverName: inwardReceiver.trim(),
+        receiverName: finalInwardReceiver,
       });
 
       setFeedback({ type: 'success', message: res.message || 'Stock added successfully!' });
@@ -426,10 +425,6 @@ export default function DailyMedicineActionPage({
       return;
     }
     const finalShed = outwardShed === '' ? customShed.trim() : outwardShed;
-    if (!outwardReceiver.trim()) {
-      alert('Please enter the name of the person collecting the medicine');
-      return;
-    }
     if (!outwardMedicineId) {
       alert('Please select a medicine');
       return;
@@ -469,6 +464,7 @@ export default function DailyMedicineActionPage({
         quantity: Number(outwardQty),
         batchAllocations: allocationsToSend,
         farmId: effectiveFarm,
+        issuedByName: outwardIssuer.trim(),
         issuedTo: outwardReceiver.trim(),
       });
 
@@ -485,6 +481,7 @@ export default function DailyMedicineActionPage({
       setOutwardQty('');
       setBatchAllocations({});
       setOutwardReceiver('');
+      setOutwardIssuer(user?.name || user?.username || '');
       // Reload feed
       loadData();
       if (onActivityUpdated) onActivityUpdated();
@@ -637,9 +634,9 @@ export default function DailyMedicineActionPage({
                 type="button"
                 onClick={onOpenConsumptionRegister}
                 className="text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200 flex items-center gap-1 transition cursor-pointer"
-                title="View full monthly consumption register with printout"
+                title="View full monthly consumption"
               >
-                <span>📋</span> Full Register ➔
+                <span>📋</span> Consume ➔
               </button>
             )}
           </div>
@@ -746,18 +743,14 @@ export default function DailyMedicineActionPage({
             setIsInwardModalOpen(false);
             setIsMedDropdownOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
         >
           <div
-            /*
-             * [MERN Concept: Event Propagation (e.stopPropagation())]
-             * Prevents clicks within the form from closing the modal.
-             */
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
           >
             {/* Modal Header */}
-            <div className="px-4 py-3 bg-emerald-600 text-white flex justify-between items-center">
+            <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-emerald-600 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xl">📥</span>
                 <div>
@@ -778,7 +771,7 @@ export default function DailyMedicineActionPage({
             </div>
 
             {/* Inward Form */}
-            <form onSubmit={handleInwardSubmit} className="p-4 space-y-3">
+            <form onSubmit={handleInwardSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
               {/* Farm Location Selector / Indicator */}
               {(selectedFarm || firms.length === 1) ? (
                 <div className="flex items-center justify-between px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-900">
@@ -1044,23 +1037,31 @@ export default function DailyMedicineActionPage({
                 />
               </div>
 
-              {/* Optional Supplier */}
-              <div>
-                <label htmlFor="inward-receiver" className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Receiver Name <span className="text-rose-500">*</span></label>
-                <input id="inward-receiver" type="text" required maxLength={120} value={inwardReceiver}
-                  onChange={(e) => setInwardReceiver(e.target.value)} placeholder="Name of the person receiving medicine"
-                  className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
-              </div>
-
+              {/* Optional Supplier & Receiver */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label htmlFor="inward-receiver" className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Receiver Name <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                  </label>
+                  <input
+                    id="inward-receiver"
+                    type="text"
+                    maxLength={120}
+                    value={inwardReceiver}
+                    onChange={(e) => setInwardReceiver(e.target.value)}
+                    placeholder="Received by (e.g. self / doctor)"
+                    className="w-full h-9 px-3 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
 
                 <div>
-                  <label className="block text-[10px] font-semibold text-slate-600 uppercase mb-1">
-                    Supplier (Optional)
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                    Supplier <span className="text-slate-400 font-normal lowercase">(optional)</span>
                   </label>
                   <select
                     value={inwardSupplierId}
                     onChange={(e) => setInwardSupplierId(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none"
+                    className="w-full h-9 px-2.5 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="">-- Direct Farm Purchase --</option>
                     {medSuppliers.map((s) => (
@@ -1070,26 +1071,26 @@ export default function DailyMedicineActionPage({
                     ))}
                   </select>
                 </div>
-
+              </div>
 
               {/* Submit / Cancel Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2.5 flex items-center justify-end gap-2.5 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setIsInwardModalOpen(false);
                     setIsMedDropdownOpen(false);
                   }}
-                  className="px-3.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-lg transition cursor-pointer"
+                  className="flex-1 sm:flex-none px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow transition cursor-pointer"
+                  className="flex-1 sm:flex-none px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer text-center"
                 >
-                  {submitting ? 'Saving...' : '💾 Save'}
+                  {submitting ? 'Saving...' : '💾 Stock In'}
                 </button>
               </div>
             </form>
@@ -1106,14 +1107,14 @@ export default function DailyMedicineActionPage({
             setIsOutwardModalOpen(false);
             setIsOutwardMedDropdownOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
           >
             {/* Modal Header */}
-            <div className="px-4 py-3 bg-blue-600 text-white flex justify-between items-center">
+            <div className="px-4 py-3 sm:px-5 sm:py-3.5 bg-blue-600 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xl">💉</span>
                 <div>
@@ -1134,7 +1135,7 @@ export default function DailyMedicineActionPage({
             </div>
 
             {/* Outward Form */}
-            <form onSubmit={handleOutwardSubmit} className="p-4 space-y-3">
+            <form onSubmit={handleOutwardSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
               {/* Farm Location Selector / Indicator */}
               {(selectedFarm || firms.length === 1) ? (
                 <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-bold text-blue-900">
@@ -1181,40 +1182,47 @@ export default function DailyMedicineActionPage({
                   {locations.map((shed) => {
                     const isSelected = outwardShed === shed;
                     return (
-                      <div key={shed} className="inline-flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setOutwardShed(shed)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      <div
+                        key={shed}
+                        className={`inline-flex items-center rounded-lg border text-xs font-bold transition shadow-2xs ${
                           isSelected
-                            ? 'bg-blue-600 text-white shadow-2xs'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
                         }`}
                       >
-                        {shed}
-                      </button>
-                      {canManageLocations && (
                         <button
                           type="button"
-                          aria-label={`Remove location ${shed}`}
-                          title={`Remove ${shed}`}
-                          disabled={Boolean(removingLocation) || addingLocation}
-                          onClick={() => handleRemoveLocation(shed)}
-                          className="px-1.5 py-1.5 rounded-lg text-sm font-bold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                          onClick={() => setOutwardShed(shed)}
+                          className="px-3 py-1.5 cursor-pointer"
                         >
-                          {removingLocation === shed ? '...' : '×'}
+                          {shed}
                         </button>
-                      )}
+                        {canManageLocations && (
+                          <button
+                            type="button"
+                            aria-label={`Remove location ${shed}`}
+                            title={`Remove ${shed}`}
+                            disabled={Boolean(removingLocation) || addingLocation}
+                            onClick={() => handleRemoveLocation(shed)}
+                            className={`px-1.5 py-1.5 border-l text-xs font-bold transition cursor-pointer ${
+                              isSelected
+                                ? 'border-blue-500 text-blue-200 hover:text-white hover:bg-blue-700'
+                                : 'border-slate-300 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                            }`}
+                          >
+                            {removingLocation === shed ? '...' : '✕'}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
                   <button
                     type="button"
                     onClick={() => setOutwardShed('')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer ${
                       outwardShed === ''
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
                     }`}
                   >
                     Other...
@@ -1230,25 +1238,29 @@ export default function DailyMedicineActionPage({
                     maxLength={120}
                     value={customShed}
                     onChange={(e) => setCustomShed(e.target.value)}
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs mt-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-9 px-3 border border-slate-300 rounded-xl text-xs mt-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 )}
                 {locationError && <p role="alert" className="text-xs text-rose-600 mt-2">{locationError}</p>}
                 {canManageLocations && (
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-1.5 mt-2">
                     <input
                       type="text"
                       aria-label="New saved location"
-                      placeholder="Add a saved location"
+                      placeholder="+ Add new location / shed..."
                       maxLength={120}
                       value={newLocation}
                       onChange={(e) => setNewLocation(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddLocation(); } }}
-                      className="min-w-0 flex-1 h-8 px-2.5 border border-slate-300 rounded-lg text-xs"
+                      className="min-w-0 flex-1 h-8 px-2.5 border border-slate-300 rounded-lg text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
-                    <button type="button" onClick={handleAddLocation} disabled={addingLocation || Boolean(removingLocation) || !newLocation.trim()}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 disabled:opacity-50">
-                      {addingLocation ? 'Adding...' : '+ Add location'}
+                    <button
+                      type="button"
+                      onClick={handleAddLocation}
+                      disabled={addingLocation || Boolean(removingLocation) || !newLocation.trim()}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition cursor-pointer"
+                    >
+                      {addingLocation ? 'Adding...' : 'Add'}
                     </button>
                   </div>
                 )}
@@ -1379,30 +1391,32 @@ export default function DailyMedicineActionPage({
                   const threshold = selectedOutwardMed?.reorderLevel || selectedOutwardMed?.minimumStock || 0;
                   const isLow = threshold > 0 && availableStock !== null && availableStock <= threshold;
                   return (
-                    <div className={`mt-1.5 flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg border ${
-                      isLow ? 'bg-rose-50 border-rose-300' : 'bg-slate-50 border-slate-200'
+                    <div className={`mt-2 flex items-center justify-between p-2.5 rounded-xl border text-xs ${
+                      isLow ? 'bg-rose-50/80 border-rose-300' : 'bg-slate-50 border-slate-200'
                     }`}>
-                      <span className={`font-medium flex items-center gap-1 ${isLow ? 'text-rose-800' : 'text-slate-500'}`}>
-                        {isLow && <span>⚠️</span>}
-                        Available to Issue:
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        {isLow && (
-                          <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 border border-rose-300">
-                            Low Stock (&lt; {threshold})
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{isLow ? '⚠️' : '💊'}</span>
+                        <div>
+                          <span className={`text-[10px] uppercase font-bold block ${isLow ? 'text-rose-700' : 'text-slate-500'}`}>
+                            Available Stock
                           </span>
-                        )}
-                        <span className={`font-black ${isLow ? 'text-rose-700' : availableStock !== null && availableStock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                          {availableStock !== null ? `${availableStock} ${selectedOutwardMed?.unit || 'Units'}` : loading ? 'Checking stock...' : 'Stock unavailable - refresh'}
-                        </span>
+                          <span className={`text-sm font-black ${isLow ? 'text-rose-700' : availableStock !== null && availableStock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {availableStock !== null ? `${availableStock} ${selectedOutwardMed?.unit || 'Units'}` : loading ? 'Checking stock...' : 'Stock unavailable'}
+                          </span>
+                        </div>
                       </div>
+                      {isLow && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 shrink-0">
+                          Low Stock (&lt; {threshold})
+                        </span>
+                      )}
                     </div>
                   );
                 })()}
 
                 {/* Physical Batches Available to Pick */}
                 {outwardMedicineId && activeBatchesForOutward.length > 0 && (
-                  <div className="mt-2 space-y-1.5">
+                  <div className="mt-2.5 space-y-2">
                     <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
                       <span>🏷️ Batches ({activeBatchesForOutward.length}):</span>
                       <span className="text-[10px] text-slate-500 font-normal">
@@ -1410,7 +1424,7 @@ export default function DailyMedicineActionPage({
                       </span>
                     </div>
 
-                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5">
                       {activeBatchesForOutward.map((b, idx) => {
                         const isExpired = b.daysLeft < 0;
                         const isCritical = b.daysLeft <= 30;
@@ -1439,42 +1453,50 @@ export default function DailyMedicineActionPage({
                         return (
                           <div
                             key={b._id || idx}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center justify-between gap-2 shadow-2xs transition ${cardStyles}`}
+                            className={`p-2.5 rounded-xl border text-xs shadow-2xs transition space-y-2 ${cardStyles}`}
                           >
-                            {/* Left: Batch & Expiry Info */}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-mono font-bold text-slate-900 text-xs bg-white px-1.5 py-0.2 rounded border border-slate-300">
-                                  Batch: {b.batchNumber}
+                            {/* Top Row: Batch badge, status badge, and In-Batch stock */}
+                            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono font-extrabold text-slate-900 text-xs bg-white px-2 py-0.5 rounded-md border border-slate-300 shadow-2xs">
+                                  #{b.batchNumber}
                                 </span>
-                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${badgeStyles}`}>
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${badgeStyles}`}>
                                   {expiryLabel}
                                 </span>
                               </div>
-                              <div className="text-[10px] text-slate-600 mt-0.5 flex items-center gap-1.5">
-                                <span>Expires: <strong className="text-slate-800">{b.expiryDate}</strong></span>
-                                <span>•</span>
-                                <span>In Batch: <strong className="text-slate-900 bg-white/80 px-1 rounded">{b.quantityAvailable} {selectedOutwardMed?.unit}</strong></span>
+                              <div className="text-[11px] font-semibold text-slate-700">
+                                Available: <strong className="text-slate-900 font-black">{b.quantityAvailable} {selectedOutwardMed?.unit}</strong>
                               </div>
                             </div>
 
-                            {/* Right: Quantity to Take (Clamped to available stock) */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <label className="text-[10px] font-bold text-slate-700 uppercase whitespace-nowrap">
-                                Take:
-                              </label>
-                              <input
-                                type="number"
-                                min="0"
-                                max={b.quantityAvailable}
-                                step="any"
-                                placeholder="0"
-                                value={allocVal}
-                                onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable)}
-                                className={`no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none w-14 h-7 px-1.5 border rounded-md text-xs font-black text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none text-center shadow-2xs placeholder:text-slate-300 ${
-                                  Number(allocVal) > 0 ? 'border-blue-500 ring-1 ring-blue-400 bg-blue-50/30' : 'border-slate-300'
-                                }`}
-                              />
+                            {/* Bottom Row: Expiry date on left, Take Input on right */}
+                            <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-slate-200/70">
+                              <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                                <span>Expires:</span>
+                                <strong className="text-slate-800 font-bold">{b.expiryDate}</strong>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <label className="text-[11px] font-black text-blue-900 uppercase">
+                                  Take:
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={b.quantityAvailable}
+                                  step="any"
+                                  placeholder="0"
+                                  value={allocVal}
+                                  onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable)}
+                                  className={`w-16 h-8 px-2 border rounded-lg text-xs font-black text-center bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs placeholder:text-slate-300 ${
+                                    Number(allocVal) > 0 ? 'border-blue-500 ring-2 ring-blue-300 bg-blue-50/40 text-blue-900' : 'border-slate-300 text-slate-900'
+                                  }`}
+                                />
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {selectedOutwardMed?.unit || 'Units'}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
@@ -1484,49 +1506,81 @@ export default function DailyMedicineActionPage({
                 )}
               </div>
 
-              {/* Small Accumulative Total Display (Non-editable, calculated from batch inputs) */}
-              <div className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
-                <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+              {/* Accumulative Total Display */}
+              <div className="flex items-center justify-between px-3 py-2 bg-blue-50/70 rounded-xl border border-blue-200">
+                <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
                   <span>⚡</span> Total Quantity to Issue:
                 </span>
-                <span className="text-sm font-black text-blue-700 bg-white px-2.5 py-0.5 rounded-md border border-blue-200 shadow-2xs">
+                <span className="text-sm font-black text-blue-700 bg-white px-2.5 py-0.5 rounded-lg border border-blue-200 shadow-2xs">
                   {outwardQty && Number(outwardQty) > 0 ? `${outwardQty} ${selectedOutwardMed?.unit || 'Units'}` : `0 ${selectedOutwardMed?.unit || 'Units'}`}
                 </span>
               </div>
 
-              {/* Person collecting the medicine */}
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-600 uppercase mb-1">
-                  Receiver Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  maxLength={120}
-                  aria-label="Receiver name"
-                  placeholder="Name of the person collecting medicine"
-                  value={outwardReceiver}
-                  onChange={(e) => setOutwardReceiver(e.target.value)}
-                  className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
+              {/* Issuer (Issued By) & Receiver (Received By) - Both Optional */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Person issuing medicine */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                      Issuer Name <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                    </label>
+                    {user && (user.name || user.username) && outwardIssuer !== (user.name || user.username) && (
+                      <button
+                        type="button"
+                        onClick={() => setOutwardIssuer(user.name || user.username || '')}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold underline cursor-pointer"
+                        title="Reset to your login account"
+                      >
+                        Reset to Me
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={120}
+                    aria-label="Issuer name"
+                    placeholder="Issued by (Store / Self)"
+                    value={outwardIssuer}
+                    onChange={(e) => setOutwardIssuer(e.target.value)}
+                    className="w-full h-9 px-3 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Person collecting medicine */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase">
+                      Receiver Name <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={120}
+                    aria-label="Receiver name"
+                    placeholder="Received by (Worker / Doctor)"
+                    value={outwardReceiver}
+                    onChange={(e) => setOutwardReceiver(e.target.value)}
+                    className="w-full h-9 px-3 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Submit / Cancel Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-2.5 flex items-center justify-end gap-2.5 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setIsOutwardModalOpen(false);
                     setIsOutwardMedDropdownOpen(false);
                   }}
-                  className="px-3.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold rounded-lg transition cursor-pointer"
+                  className="flex-1 sm:flex-none px-4 py-2 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl transition cursor-pointer text-center"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || loading || !stockMap?.[outwardMedicineId]}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow transition cursor-pointer"
+                  className="flex-1 sm:flex-none px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition cursor-pointer text-center"
                 >
                   {submitting ? 'Deducting...' : '💾 - Give to Birds'}
                 </button>

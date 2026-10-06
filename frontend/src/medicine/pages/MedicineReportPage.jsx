@@ -321,7 +321,7 @@ export default function MedicineReportPage() {
             }`}
           >
             <span>📋</span>
-            <span className={activeTab === 'consumption' ? '!text-white' : ''}>Register</span>
+            <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
           </button>
 
           <button
