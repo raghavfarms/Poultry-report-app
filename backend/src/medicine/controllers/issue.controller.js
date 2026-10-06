@@ -3,6 +3,7 @@ import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
 import MedicineMaster from '../models/MedicineMaster.js';
 import Firm from '../../models/Firm.js';
+import { resolveUserFarmScope } from './report.controller.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 
 // Helper: Auto-generate sequential Issue Number: ISS-YYYY-XXXX (e.g. ISS-2026-0001)
@@ -275,21 +276,21 @@ export async function getIssues(req, res) {
       startDate,
       endDate,
       page = 1,
-      limit = 25,
+      limit = 15,
     } = req.query;
 
     const query = {};
 
-    if (farm) {
-      query.farm = farm;
-    }
+    // 1. Farm Scope
+    const farmScope = await resolveUserFarmScope(req, farm);
+    Object.assign(query, farmScope);
 
     if (medicine) {
       query.medicine = medicine;
     }
 
-    if (shed) {
-      query.shed = new RegExp(shed.trim(), 'i');
+    if (shed && shed !== 'ALL') {
+      query.shed = new RegExp(`^${shed.trim()}$`, 'i');
     }
 
     if (purpose) {
@@ -302,22 +303,36 @@ export async function getIssues(req, res) {
       if (endDate) query.issueDate.$lte = endDate;
     }
 
-    if (search) {
+    if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim(), 'i');
+      const matchedMeds = await MedicineMaster.find({
+        $or: [
+          { name: searchRegex },
+          { code: searchRegex },
+          { aliasName: searchRegex },
+        ],
+      })
+        .select('_id')
+        .lean();
+      const medIds = matchedMeds.map((m) => m._id);
+
       query.$or = [
         { issueNumber: searchRegex },
         { batchNumber: searchRegex },
         { shed: searchRegex },
         { flockNumber: searchRegex },
         { issuedTo: searchRegex },
+        { issuedByName: searchRegex },
+        ...(medIds.length > 0 ? [{ medicine: { $in: medIds } }] : []),
       ];
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10)));
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    // Allow up to 1000 items (or all) for full monthly printouts and audits
+    const limitNum = limit === 'all' ? 1000 : Math.max(1, Math.min(1000, parseInt(limit, 10) || 15));
     const skip = (pageNum - 1) * limitNum;
 
-    const [issues, total] = await Promise.all([
+    const [issues, total, unitSummary] = await Promise.all([
       MedicineIssue.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -328,11 +343,20 @@ export async function getIssues(req, res) {
         .populate('issuedBy', 'username name')
         .lean(),
       MedicineIssue.countDocuments(query),
+      MedicineIssue.aggregate([
+        { $match: query },
+        { $group: { _id: '$unit', total: { $sum: '$issuedQuantity' } } },
+        { $sort: { _id: 1 } },
+      ]),
     ]);
 
     return res.json({
       success: true,
       issues,
+      unitSummary: unitSummary.map((u) => ({
+        unit: u._id || 'Units',
+        total: Number((u.total || 0).toFixed(2)),
+      })),
       pagination: {
         total,
         page: pageNum,

@@ -4,12 +4,13 @@ import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi } from '../
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
+import MedicineConsumptionRegister from '../components/MedicineConsumptionRegister.jsx';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
 
 export default function MedicineReportPage() {
   const { user } = useAuth();
 
-  // Active Tab: 1. Daily In/Out (Default) | 2. Current Stock | 3. Traceability
+  // Active Tab: 1. Daily In/Out (Default) | 2. Current Stock | 3. Consumption Register | 4. Traceability
   const [activeTab, setActiveTab] = useState('daily');
 
   // Farm Store Filter
@@ -277,8 +278,8 @@ export default function MedicineReportPage() {
           </div>
         </div>
 
-        {/* The 3 Clean Farm Views Tabs */}
-        <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-xl text-center">
+        {/* The 4 Clean Farm Views Tabs */}
+        <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl text-center">
           <button
             type="button"
             onClick={() => setActiveTab('daily')}
@@ -312,6 +313,19 @@ export default function MedicineReportPage() {
 
           <button
             type="button"
+            onClick={() => setActiveTab('consumption')}
+            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+              activeTab === 'consumption'
+                ? 'bg-emerald-600 !text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <span>📋</span>
+            <span className={activeTab === 'consumption' ? '!text-white' : ''}>Register</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('traceability')}
             className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
               activeTab === 'traceability'
@@ -331,6 +345,7 @@ export default function MedicineReportPage() {
           hideHeader={true}
           selectedFarm={selectedFarm}
           firms={firms}
+          onOpenConsumptionRegister={() => setActiveTab('consumption')}
           onActivityUpdated={() => {
             setStockFilter('ALL');
             loadStats();
@@ -1025,6 +1040,15 @@ export default function MedicineReportPage() {
             );
           })()}
         </div>
+      )}
+
+      {/* VIEW 4: Monthly Medicine Consumption & Shed Issue Register */}
+      {activeTab === 'consumption' && (
+        <MedicineConsumptionRegister
+          selectedFarm={selectedFarm}
+          firms={firms}
+          onBackToDaily={() => setActiveTab('daily')}
+        />
       )}
 
       {/* Edit Batch Modal (Admin & Developer Only) */}

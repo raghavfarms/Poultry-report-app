@@ -19,6 +19,7 @@ export default function DailyMedicineActionPage({
   selectedFarm = '',
   firms = [],
   onActivityUpdated,
+  onOpenConsumptionRegister,
 }) {
   const { user } = useAuth();
   const canManageLocations = ['admin', 'developer'].includes(user?.role);
@@ -620,16 +621,28 @@ export default function DailyMedicineActionPage({
 
       {/* 4. TODAY'S LIVE ACTIVITY FEED */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-200 flex justify-between items-center">
+        <div className="px-3 py-2 bg-slate-50/80 border-b border-slate-200 flex justify-between items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="text-xs">📜</span>
             <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
               Today's Movement Log
             </h2>
           </div>
-          <span className="text-[10px] font-bold text-slate-500 bg-slate-200/60 px-2 py-0.2 rounded-full">
-            {todayEvents.length} transactions
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-500 bg-slate-200/60 px-2 py-0.5 rounded-full">
+              {todayEvents.length} transactions
+            </span>
+            {onOpenConsumptionRegister && (
+              <button
+                type="button"
+                onClick={onOpenConsumptionRegister}
+                className="text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200 flex items-center gap-1 transition cursor-pointer"
+                title="View full monthly consumption register with printout"
+              >
+                <span>📋</span> Full Register ➔
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
