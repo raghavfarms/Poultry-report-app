@@ -26,6 +26,13 @@ export default function MedicineReportPage() {
   const [disposeError, setDisposeError] = useState('');
   const canDispose = ['admin', 'developer'].includes(user?.role);
   const canEditBatch = ['admin', 'developer'].includes(user?.role);
+  const canAccessTraceAndAction = ['admin', 'developer'].includes(user?.role);
+
+  useEffect(() => {
+    if (!canAccessTraceAndAction && activeTab === 'traceability') {
+      setActiveTab('daily');
+    }
+  }, [canAccessTraceAndAction, activeTab]);
 
   // Edit Batch Modal State
   const [editingBatch, setEditingBatch] = useState(null);
@@ -278,8 +285,8 @@ export default function MedicineReportPage() {
           </div>
         </div>
 
-        {/* The 4 Clean Farm Views Tabs */}
-        <div className="grid grid-cols-4 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
+        {/* The Clean Farm Views Tabs */}
+        <div className={`grid ${canAccessTraceAndAction ? 'grid-cols-4' : 'grid-cols-3'} gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center`}>
           <button
             type="button"
             onClick={() => setActiveTab('daily')}
@@ -324,18 +331,20 @@ export default function MedicineReportPage() {
             <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('traceability')}
-            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-              activeTab === 'traceability'
-                ? 'bg-emerald-600 !text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <span>🔍</span>
-            <span className={activeTab === 'traceability' ? '!text-white' : ''}>Trace</span>
-          </button>
+          {canAccessTraceAndAction && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('traceability')}
+              className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                activeTab === 'traceability'
+                  ? 'bg-emerald-600 !text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <span>🔍</span>
+              <span className={activeTab === 'traceability' ? '!text-white' : ''}>Trace</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -500,7 +509,9 @@ export default function MedicineReportPage() {
                         <th className="py-3 px-4 text-right">In Stock</th>
                         <th className="py-3 px-4 text-center">Expiry Date</th>
                         <th className="py-3 px-4 text-center">Shelf Status</th>
-                        <th className="py-3 px-4 text-center">Action</th>
+                        {canAccessTraceAndAction && (
+                          <th className="py-3 px-4 text-center">Action</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -573,43 +584,45 @@ export default function MedicineReportPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="py-3 px-4 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                {isExpired && canDispose ? (
-                                  <button
-                                    type="button"
-                                    disabled={Boolean(disposing)}
-                                    onClick={() => disposeStock(b)}
-                                    className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
-                                  >
-                                    {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                  </button>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveTab('traceability');
-                                      setSearchBatch(b.batchNumber);
-                                      handleTraceSearch(null, b.batchNumber, b._id);
-                                    }}
-                                    className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
-                                    title="Trace full batch journey"
-                                  >
-                                    <span>🔍</span> Trace
-                                  </button>
-                                )}
-                                {canEditBatch && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEditBatchModal(b)}
-                                    className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
-                                    title="Edit Batch Number or Expiry Date (Admin/Developer)"
-                                  >
-                                    ✏️
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                            {canAccessTraceAndAction && (
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  {isExpired && canDispose ? (
+                                    <button
+                                      type="button"
+                                      disabled={Boolean(disposing)}
+                                      onClick={() => disposeStock(b)}
+                                      className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
+                                    >
+                                      {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveTab('traceability');
+                                        setSearchBatch(b.batchNumber);
+                                        handleTraceSearch(null, b.batchNumber, b._id);
+                                      }}
+                                      className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
+                                      title="Trace full batch journey"
+                                    >
+                                      <span>🔍</span> Trace
+                                    </button>
+                                  )}
+                                  {canEditBatch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditBatchModal(b)}
+                                      className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
+                                      title="Edit Batch Number or Expiry Date (Admin/Developer)"
+                                    >
+                                      ✏️
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -704,40 +717,42 @@ export default function MedicineReportPage() {
                           <span className="text-[11px] text-slate-500 font-mono">
                             Expires: <strong className="text-slate-700">{b.expiryDate}</strong>
                           </span>
-                          <div className="flex items-center gap-1.5">
-                            {isExpired && canDispose ? (
-                              <button
-                                type="button"
-                                disabled={Boolean(disposing)}
-                                onClick={() => disposeStock(b)}
-                                className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 cursor-pointer"
-                              >
-                                {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveTab('traceability');
-                                  setSearchBatch(b.batchNumber);
-                                  handleTraceSearch(null, b.batchNumber, b._id);
-                                }}
-                                className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
-                              >
-                                <span>🔍</span> Trace
-                              </button>
-                            )}
-                            {canEditBatch && (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditBatchModal(b)}
-                                className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 cursor-pointer"
-                                title="Edit Batch"
-                              >
-                                ✏️
-                              </button>
-                            )}
-                          </div>
+                          {canAccessTraceAndAction && (
+                            <div className="flex items-center gap-1.5">
+                              {isExpired && canDispose ? (
+                                <button
+                                  type="button"
+                                  disabled={Boolean(disposing)}
+                                  onClick={() => disposeStock(b)}
+                                  className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 cursor-pointer"
+                                >
+                                  {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveTab('traceability');
+                                    setSearchBatch(b.batchNumber);
+                                    handleTraceSearch(null, b.batchNumber, b._id);
+                                  }}
+                                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
+                                >
+                                  <span>🔍</span> Trace
+                                </button>
+                              )}
+                              {canEditBatch && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditBatchModal(b)}
+                                  className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 cursor-pointer"
+                                  title="Edit Batch"
+                                >
+                                  ✏️
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -750,7 +765,7 @@ export default function MedicineReportPage() {
       )}
 
       {/* VIEW 3: Traceability History (The Audit & Doctor View) */}
-      {activeTab === 'traceability' && (
+      {canAccessTraceAndAction && activeTab === 'traceability' && (
         <div className="space-y-4">
           <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
             <h2 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
@@ -941,17 +956,6 @@ export default function MedicineReportPage() {
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-500 font-semibold">{batch.expiryDate}</span>
-                    )}
-
-                    {canEditBatch && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEditBatchModal(batch)}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition cursor-pointer shadow-2xs"
-                        title="Edit Batch Number or Expiry Date (Admin/Developer)"
-                      >
-                        <span>✏️</span> Edit Batch
-                      </button>
                     )}
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { fetchIssues } from '../api/issueApi.js';
 import { fetchMedicineLocations } from '../api/dailyActionApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
@@ -10,6 +11,7 @@ export default function MedicineConsumptionRegister({
 }) {
   const registerRef = useRef(null);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Helper to format ISO date to YYYY-MM-DD in local time
   const formatYMD = (d) => {
@@ -175,6 +177,86 @@ export default function MedicineConsumptionRegister({
     }
   };
 
+  // Export to Excel Handler using SheetJS (XLSX)
+  const handleExportExcel = async () => {
+    if (exportingExcel || issues.length === 0) return;
+    try {
+      setExportingExcel(true);
+
+      let exportData = issues;
+      if (totalRecords > issues.length && limit !== 'all') {
+        const res = await fetchIssues({
+          farm: activeFarm || undefined,
+          shed: selectedShed !== 'ALL' ? selectedShed : undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+          search: search.trim() || undefined,
+          limit: 'all',
+        });
+        if (res.success && res.issues?.length) {
+          exportData = res.issues;
+        }
+      }
+
+      const excelRows = exportData.map((iss, idx) => {
+        const dateObj = new Date(iss.createdAt);
+        const dateStr = dateObj.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+        const timeStr = dateObj.toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        return {
+          'S.No': idx + 1,
+          'Medicine Name': iss.medicine?.name || 'Medicine',
+          'Category': iss.medicine?.category || '—',
+          'Date': dateStr,
+          'Time': timeStr,
+          'Farm': iss.farm?.name || 'Farm',
+          'Location / Shed': iss.shed || iss.destinationName || 'Shed',
+          'Qty Consumed': Number(iss.issuedQuantity) || 0,
+          'Unit': iss.unit || '',
+          'Batch No': iss.batchNumber ? `#${iss.batchNumber}` : '—',
+          'Issued By': iss.issuedByName || iss.issuedBy?.name || 'Store',
+          'Received By': iss.issuedTo || 'Worker',
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(excelRows);
+
+      worksheet['!cols'] = [
+        { wch: 6 },
+        { wch: 22 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 10 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 10 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 16 },
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Consumption');
+
+      const safeFarmName = currentFarmName.replace(/\s+/g, '_');
+      const filename = `Medicine_Consumption_Register_${safeFarmName}_${startDate || 'start'}_to_${endDate || 'end'}.xlsx`;
+      XLSX.writeFile(workbook, filename);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      alert('Failed to generate Excel file. Please try again.');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div
       ref={registerRef}
@@ -197,7 +279,7 @@ export default function MedicineConsumptionRegister({
           </p>
         </div>
 
-        {/* Action Buttons: Print, PDF, Refresh */}
+        {/* Action Buttons: Print, PDF, Excel, Refresh */}
         <div data-html2canvas-ignore="true" className="flex items-center gap-1 sm:gap-2 shrink-0 print:hidden">
           {onBackToDaily && (
             <button
@@ -227,6 +309,16 @@ export default function MedicineConsumptionRegister({
             title="Download PDF Document"
           >
             <span>📄</span> <span>{exportingPdf ? '...' : 'PDF'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={loading || issues.length === 0 || exportingExcel}
+            className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition disabled:opacity-50 whitespace-nowrap"
+            title="Download Excel Sheet (.xlsx)"
+          >
+            <span>📊</span> <span>{exportingExcel ? '...' : 'Excel'}</span>
           </button>
 
           <button

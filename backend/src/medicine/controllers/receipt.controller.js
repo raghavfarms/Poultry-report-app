@@ -266,4 +266,3 @@ export async function getBatchStock(req, res) {
   });
 }
 
-
