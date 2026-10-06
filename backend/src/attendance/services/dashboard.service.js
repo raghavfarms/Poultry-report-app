@@ -7,7 +7,7 @@ import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceEvent from '../models/AttendanceEvent.js';
 import { firmScope, sortFirms } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
-import { indiaDateString, formatWorkedHours } from './attendance.service.js';
+import { indiaDateString, formatWorkedHours, autoCutExpiredSessions } from './attendance.service.js';
 import { getWorkLocationSortRank } from './report.service.js';
 import { notFoundError, badRequest } from '../../utils/http.js';
 
@@ -49,6 +49,9 @@ export async function getLiveDashboardData(user, query = {}) {
 
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
+
+  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
+  await autoCutExpiredSessions(firmObjectId, now);
 
   // 3. Parallel queries for active workers, active sheds/locations, open deployments, sessions, events, and designations
   const [activeWorkers, workLocations, openDeployments, sessions, recentEvents, firmDesignations] = await Promise.all([
