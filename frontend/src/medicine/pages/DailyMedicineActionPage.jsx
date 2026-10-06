@@ -748,10 +748,10 @@ export default function DailyMedicineActionPage({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-[95%] sm:w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[96vh] sm:max-h-[94vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            className="bg-white w-[95%] sm:w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden min-h-[460px] sm:min-h-[490px] max-h-[96vh] sm:max-h-[94vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
           >
             {/* Modal Header */}
-            <div className="px-3.5 py-2 bg-emerald-600 text-white flex justify-between items-center shrink-0">
+            <div className="px-3.5 py-2.5 bg-emerald-600 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-base">📥</span>
                 <div>
@@ -772,7 +772,7 @@ export default function DailyMedicineActionPage({
             </div>
 
             {/* Inward Form */}
-            <form onSubmit={handleInwardSubmit} className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-1.5">
+            <form onSubmit={handleInwardSubmit} className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-2">
               {/* Farm Location Selector / Indicator */}
               {(selectedFarm || firms.length === 1) ? (
                 <div className="flex items-center justify-between px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-md text-xs font-bold text-emerald-900">
@@ -793,7 +793,7 @@ export default function DailyMedicineActionPage({
                     value={inwardFarmId}
                     onChange={(e) => setInwardFarmId(e.target.value)}
                     required
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   >
                     <option value="">Select Farm (Raghav / Sanjana)...</option>
                     {firms.map((f) => (
@@ -836,7 +836,7 @@ export default function DailyMedicineActionPage({
                       );
                       setInwardMedicineId(matched ? matched._id : '');
                     }}
-                    className="w-full h-7.5 pl-7 pr-7 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full h-8 pl-7 pr-7 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                   <span className="absolute left-2 text-slate-400 text-xs pointer-events-none">
                     🔍
@@ -860,7 +860,7 @@ export default function DailyMedicineActionPage({
                 {/* Pop-down Dropdown Menu */}
                 {isMedDropdownOpen && (
                   <div
-                    className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-52 overflow-y-auto divide-y divide-slate-100"
+                    className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-[204px] overflow-y-auto divide-y divide-slate-100"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Option 1: If typed name is new (not in medicines list), show + Add New Medicine (ADMIN & DEVELOPER ONLY) */}
@@ -876,7 +876,7 @@ export default function DailyMedicineActionPage({
                             setInwardMedicineId('');
                             setIsMedDropdownOpen(false);
                           }}
-                          className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center justify-between cursor-pointer font-bold text-xs transition"
+                          className="px-3 py-2 min-h-[44px] bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center justify-between cursor-pointer font-bold text-xs transition"
                         >
                           <span className="flex items-center gap-1.5 truncate">
                             <span>➕</span> Add "{inwardMedicineName.trim()}" as new medicine
@@ -928,7 +928,7 @@ export default function DailyMedicineActionPage({
                               setInwardMedicineName(m.name);
                               setIsMedDropdownOpen(false);
                             }}
-                            className={`p-2 flex items-center justify-between cursor-pointer transition text-xs ${
+                            className={`px-3 py-1.5 min-h-[50px] max-h-[50px] flex items-center justify-between cursor-pointer transition text-xs ${
                               isSelected
                                 ? 'bg-emerald-50 text-emerald-900 font-bold'
                                 : 'hover:bg-slate-50 text-slate-800'
@@ -958,14 +958,14 @@ export default function DailyMedicineActionPage({
                 <div className="grid grid-cols-2 gap-1.5">
                   <div>
                     <label htmlFor="inward-category" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Category <span className="text-rose-500">*</span></label>
-                    <select id="inward-category" required value={inwardCategory} onChange={(e) => setInwardCategory(e.target.value)} className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs bg-white">
+                    <select id="inward-category" required value={inwardCategory} onChange={(e) => setInwardCategory(e.target.value)} className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs bg-white">
                       <option value="">Select category...</option>
                       {categories.map((category) => <option key={category} value={category}>{category}</option>)}
                     </select>
                   </div>
                   <div>
                     <label htmlFor="inward-unit" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Unit <span className="text-rose-500">*</span></label>
-                    <select id="inward-unit" required value={inwardUnit} onChange={(e) => setInwardUnit(e.target.value)} className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs bg-white">
+                    <select id="inward-unit" required value={inwardUnit} onChange={(e) => setInwardUnit(e.target.value)} className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs bg-white">
                       <option value="">Select unit...</option>
                       {units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
                     </select>
@@ -985,7 +985,7 @@ export default function DailyMedicineActionPage({
                     placeholder="e.g. BATCH-01"
                     value={inwardBatchNo}
                     onChange={(e) => setInwardBatchNo(e.target.value)}
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-mono font-bold uppercase focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-mono font-bold uppercase focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
 
@@ -1012,7 +1012,7 @@ export default function DailyMedicineActionPage({
                       } catch (err) {}
                     }}
                     onChange={(e) => setInwardExpiry(e.target.value)}
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
                   />
                 </div>
               </div>
@@ -1032,7 +1032,7 @@ export default function DailyMedicineActionPage({
                     placeholder="e.g. 50"
                     value={inwardQty}
                     onChange={(e) => setInwardQty(e.target.value)}
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
 
@@ -1047,7 +1047,7 @@ export default function DailyMedicineActionPage({
                     value={inwardReceiver}
                     onChange={(e) => setInwardReceiver(e.target.value)}
                     placeholder="Received by"
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -1060,7 +1060,7 @@ export default function DailyMedicineActionPage({
                 <select
                   value={inwardSupplierId}
                   onChange={(e) => setInwardSupplierId(e.target.value)}
-                  className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
                   <option value="">-- Direct Farm Purchase --</option>
                   {medSuppliers.map((s) => (
@@ -1072,21 +1072,21 @@ export default function DailyMedicineActionPage({
               </div>
 
               {/* Submit / Cancel Buttons */}
-              <div className="pt-1.5 flex items-center justify-end gap-1.5 border-t border-slate-100 shrink-0">
+              <div className="pt-2 flex items-center justify-end gap-1.5 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setIsInwardModalOpen(false);
                     setIsMedDropdownOpen(false);
                   }}
-                  className="px-2.5 py-1 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-md transition cursor-pointer"
+                  className="px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-md transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-3.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-md shadow-sm transition cursor-pointer"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-md shadow-sm transition cursor-pointer"
                 >
                   {submitting ? 'Saving...' : '💾 Stock In'}
                 </button>
@@ -1109,10 +1109,10 @@ export default function DailyMedicineActionPage({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-[95%] sm:w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[96vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            className="bg-white w-[95%] sm:w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden min-h-[460px] sm:min-h-[490px] max-h-[96vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
           >
             {/* Modal Header */}
-            <div className="px-3.5 py-2 bg-blue-600 text-white flex justify-between items-center shrink-0">
+            <div className="px-3.5 py-2.5 bg-blue-600 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-1.5">
                 <span className="text-base">💉</span>
                 <div>
@@ -1133,7 +1133,7 @@ export default function DailyMedicineActionPage({
             </div>
 
             {/* Outward Form */}
-            <form onSubmit={handleOutwardSubmit} className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-1.5">
+            <form onSubmit={handleOutwardSubmit} className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-2">
               {/* Farm Location Selector / Indicator */}
               {(selectedFarm || firms.length === 1) ? (
                 <div className="flex items-center justify-between px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-md text-xs font-bold text-blue-900">
@@ -1160,7 +1160,7 @@ export default function DailyMedicineActionPage({
                       loadLocations(nextFarm);
                     }}
                     required
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="">Select Farm (Raghav / Sanjana)...</option>
                     {firms.map((f) => (
@@ -1192,7 +1192,7 @@ export default function DailyMedicineActionPage({
                         <button
                           type="button"
                           onClick={() => setOutwardShed(shed)}
-                          className="px-2 py-0.5 cursor-pointer text-[11px]"
+                          className="px-2.5 py-1 cursor-pointer text-[11px]"
                         >
                           {shed}
                         </button>
@@ -1203,7 +1203,7 @@ export default function DailyMedicineActionPage({
                             title={`Remove ${shed}`}
                             disabled={Boolean(removingLocation) || addingLocation}
                             onClick={() => handleRemoveLocation(shed)}
-                            className={`px-1 py-0.5 border-l text-[9px] font-bold transition cursor-pointer ${
+                            className={`px-1 py-1 border-l text-[9px] font-bold transition cursor-pointer ${
                               isSelected
                                 ? 'border-blue-500 text-blue-200 hover:text-white hover:bg-blue-700'
                                 : 'border-slate-300 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
@@ -1218,7 +1218,7 @@ export default function DailyMedicineActionPage({
                   <button
                     type="button"
                     onClick={() => setOutwardShed('')}
-                    className={`px-2 py-0.5 rounded-md border text-[11px] font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-md border text-[11px] font-bold transition cursor-pointer ${
                       outwardShed === ''
                         ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
@@ -1230,7 +1230,7 @@ export default function DailyMedicineActionPage({
                     <button
                       type="button"
                       onClick={() => setShowAddLocationInput(true)}
-                      className="px-1.5 py-0.5 rounded-md border border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition cursor-pointer"
+                      className="px-2 py-1 rounded-md border border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold transition cursor-pointer"
                     >
                       + Add
                     </button>
@@ -1246,7 +1246,7 @@ export default function DailyMedicineActionPage({
                     maxLength={120}
                     value={customShed}
                     onChange={(e) => setCustomShed(e.target.value)}
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs mt-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs mt-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 )}
                 {locationError && <p role="alert" className="text-xs text-rose-600 mt-0.5">{locationError}</p>}
@@ -1260,21 +1260,21 @@ export default function DailyMedicineActionPage({
                       value={newLocation}
                       onChange={(e) => setNewLocation(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddLocation(); } }}
-                      className="min-w-0 flex-1 h-7 px-2 border border-slate-300 rounded-md text-xs bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="min-w-0 flex-1 h-8 px-2 border border-slate-300 rounded-md text-xs bg-slate-50 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
                       autoFocus
                     />
                     <button
                       type="button"
                       onClick={handleAddLocation}
                       disabled={addingLocation || Boolean(removingLocation) || !newLocation.trim()}
-                      className="px-2 py-0.5 rounded-md text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-md text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition cursor-pointer"
                     >
                       {addingLocation ? '...' : 'Save'}
                     </button>
                     <button
                       type="button"
                       onClick={() => { setShowAddLocationInput(false); setNewLocation(''); }}
-                      className="px-2 py-0.5 rounded-md text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
+                      className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -1314,7 +1314,7 @@ export default function DailyMedicineActionPage({
                       );
                       setOutwardMedicineId(matched ? matched._id : '');
                     }}
-                    className="w-full h-7.5 pl-7 pr-7 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 pl-7 pr-7 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                   <span className="absolute left-2 text-slate-400 text-xs pointer-events-none">
                     🔍
@@ -1338,7 +1338,7 @@ export default function DailyMedicineActionPage({
                 {/* Pop-down Dropdown Menu */}
                 {isOutwardMedDropdownOpen && (
                   <div
-                    className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-48 overflow-y-auto divide-y divide-slate-100"
+                    className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden max-h-[204px] overflow-y-auto divide-y divide-slate-100"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {(() => {
@@ -1379,7 +1379,7 @@ export default function DailyMedicineActionPage({
                               setOutwardMedicineName(m.name);
                               setIsOutwardMedDropdownOpen(false);
                             }}
-                            className={`p-2 flex items-center justify-between cursor-pointer transition text-xs ${
+                            className={`px-3 py-1.5 min-h-[50px] max-h-[50px] flex items-center justify-between cursor-pointer transition text-xs ${
                               isSelected
                                 ? 'bg-blue-50 text-blue-900 font-bold'
                                 : 'hover:bg-slate-50 text-slate-800'
@@ -1442,7 +1442,7 @@ export default function DailyMedicineActionPage({
                         return (
                           <div
                             key={b._id}
-                            className={`grid grid-cols-12 items-center px-2 py-0.5 text-xs hover:bg-blue-50/40 ${
+                            className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
                               isExpired || isCritical ? 'bg-rose-50/30' : ''
                             }`}
                           >
@@ -1481,7 +1481,7 @@ export default function DailyMedicineActionPage({
                                 placeholder="0"
                                 value={allocVal}
                                 onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable)}
-                                className={`w-14 sm:w-16 h-6 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                className={`w-14 sm:w-16 h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                                   Number(allocVal) > 0
                                     ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
                                     : 'border-slate-300'
@@ -1521,7 +1521,7 @@ export default function DailyMedicineActionPage({
                     placeholder="Issued by"
                     value={outwardIssuer}
                     onChange={(e) => setOutwardIssuer(e.target.value)}
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
 
@@ -1538,13 +1538,13 @@ export default function DailyMedicineActionPage({
                     placeholder="Received by"
                     value={outwardReceiver}
                     onChange={(e) => setOutwardReceiver(e.target.value)}
-                    className="w-full h-7 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               {/* Submit / Cancel Buttons with Total Quantity Integrated */}
-              <div className="pt-1.5 flex items-center justify-between gap-1.5 border-t border-slate-100 shrink-0">
+              <div className="pt-2 flex items-center justify-between gap-1.5 border-t border-slate-100 shrink-0">
                 <div className="text-xs font-bold text-blue-900 whitespace-nowrap">
                   Total: <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
                   <span className="text-[10px] text-slate-500 font-medium">{selectedOutwardMed?.unit || ''}</span>
@@ -1557,14 +1557,14 @@ export default function DailyMedicineActionPage({
                       setIsOutwardModalOpen(false);
                       setIsOutwardMedDropdownOpen(false);
                     }}
-                    className="px-2.5 py-1 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-md transition cursor-pointer"
+                    className="px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-md transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting || !outwardQty || Number(outwardQty) <= 0}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-md shadow-xs transition cursor-pointer flex items-center gap-1"
+                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-md shadow-xs transition cursor-pointer flex items-center gap-1"
                   >
                     <span>💾</span> {submitting ? 'Saving...' : 'Issue'}
                   </button>
