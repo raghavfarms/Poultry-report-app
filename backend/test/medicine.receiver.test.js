@@ -7,7 +7,8 @@ import MedicineIssue from '../src/medicine/models/MedicineIssue.js';
 import MedicineReceipt from '../src/medicine/models/MedicineReceipt.js';
 import MedicineTransaction from '../src/medicine/models/MedicineTransaction.js';
 import Firm from '../src/models/Firm.js';
-import { createIssue } from '../src/medicine/controllers/issue.controller.js';
+import User from '../src/models/User.js';
+import { createIssue, getIssues } from '../src/medicine/controllers/issue.controller.js';
 
 const response = () => ({ statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } });
 
@@ -113,4 +114,75 @@ test('direct issue endpoint rejects an expired batch before decrementing stock',
   assert.equal(res.statusCode, 400);
   assert.match(res.body.message, /Cannot issue expired medicine/);
   assert.equal(decrement.mock.callCount(), 0);
+});
+
+test('getIssues with pure number search matches strictly batchNumber', async (t) => {
+  let capturedQuery = null;
+  t.mock.method(MedicineIssue, 'find', (q) => {
+    capturedQuery = q;
+    return {
+      sort: () => ({
+        skip: () => ({
+          limit: () => ({
+            populate: () => ({
+              populate: () => ({
+                populate: () => ({
+                  populate: () => ({
+                    lean: async () => [],
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    };
+  });
+  t.mock.method(MedicineIssue, 'countDocuments', async () => 0);
+  t.mock.method(MedicineIssue, 'aggregate', async () => []);
+  const res = response();
+
+  // Test searching "012"
+  await getIssues({ query: { search: '012' }, user: { role: 'admin' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.ok(capturedQuery.$or);
+  // Must only have batchNumber in $or, not issueNumber, not shed, etc.
+  assert.ok(capturedQuery.$or.every((condition) => 'batchNumber' in condition));
+});
+
+test('getIssues with worker name searches issuer and receiver', async (t) => {
+  let capturedQuery = null;
+  t.mock.method(MedicineMaster, 'find', () => ({ select: () => ({ lean: async () => [] }) }));
+  t.mock.method(User, 'find', () => ({ select: () => ({ lean: async () => [{ _id: 'u1' }] }) }));
+  t.mock.method(MedicineIssue, 'find', (q) => {
+    capturedQuery = q;
+    return {
+      sort: () => ({
+        skip: () => ({
+          limit: () => ({
+            populate: () => ({
+              populate: () => ({
+                populate: () => ({
+                  populate: () => ({
+                    lean: async () => [],
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    };
+  });
+  t.mock.method(MedicineIssue, 'countDocuments', async () => 0);
+  t.mock.method(MedicineIssue, 'aggregate', async () => []);
+  const res = response();
+
+  await getIssues({ query: { search: 'ishant' }, user: { role: 'admin' } }, res);
+  assert.equal(res.statusCode, 200);
+  assert.ok(capturedQuery.$or);
+  const keys = capturedQuery.$or.flatMap(Object.keys);
+  assert.ok(keys.includes('issuedTo'));
+  assert.ok(keys.includes('issuedByName'));
+  assert.ok(keys.includes('issuedBy'));
 });

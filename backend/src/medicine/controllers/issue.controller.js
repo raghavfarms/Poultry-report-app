@@ -3,6 +3,7 @@ import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
 import MedicineMaster from '../models/MedicineMaster.js';
 import Firm from '../../models/Firm.js';
+import User from '../../models/User.js';
 import { resolveUserFarmScope } from './report.controller.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 
@@ -304,27 +305,51 @@ export async function getIssues(req, res) {
     }
 
     if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
-      const matchedMeds = await MedicineMaster.find({
-        $or: [
-          { name: searchRegex },
-          { code: searchRegex },
-          { aliasName: searchRegex },
-        ],
-      })
-        .select('_id')
-        .lean();
-      const medIds = matchedMeds.map((m) => m._id);
+      const cleanSearch = search.trim();
+      const isNumberSearch = /^#?\d+$/.test(cleanSearch);
 
-      query.$or = [
-        { issueNumber: searchRegex },
-        { batchNumber: searchRegex },
-        { shed: searchRegex },
-        { flockNumber: searchRegex },
-        { issuedTo: searchRegex },
-        { issuedByName: searchRegex },
-        ...(medIds.length > 0 ? [{ medicine: { $in: medIds } }] : []),
-      ];
+      if (isNumberSearch) {
+        // Pure number search: strictly match batch number (e.g. 012, #012)
+        const numVal = cleanSearch.replace(/^#/, '');
+        const escapedNum = numVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.$or = [
+          { batchNumber: new RegExp(escapedNum, 'i') },
+        ];
+      } else {
+        const escapedSearch = cleanSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapedSearch, 'i');
+
+        // 1. Medicine Name / Alias
+        const matchedMeds = await MedicineMaster.find({
+          $or: [
+            { name: searchRegex },
+            { aliasName: searchRegex },
+          ],
+        })
+          .select('_id')
+          .lean();
+        const medIds = matchedMeds.map((m) => m._id);
+
+        // 2. Issuer User account (if worker is registered user who issued)
+        const matchedUsers = await User.find({
+          $or: [
+            { name: searchRegex },
+            { email: searchRegex },
+          ],
+        })
+          .select('_id')
+          .lean();
+        const userIds = matchedUsers.map((u) => u._id);
+
+        // 3. Search strictly across: Medicine name, Batch number, Issuer name, or Receiver name
+        query.$or = [
+          { batchNumber: searchRegex },
+          { issuedTo: searchRegex },
+          { issuedByName: searchRegex },
+          ...(medIds.length > 0 ? [{ medicine: { $in: medIds } }] : []),
+          ...(userIds.length > 0 ? [{ issuedBy: { $in: userIds } }] : []),
+        ];
+      }
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);

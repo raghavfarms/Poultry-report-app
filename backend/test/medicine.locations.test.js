@@ -138,3 +138,48 @@ test('locations are completely independent between different farms', async (t) =
   t.mock.restoreAll();
 });
 
+test('when all farms are selected, returns unique locations from all farms without repeating common locations', async (t) => {
+  const raghavId = '507f1f77bcf86cd799439011';
+  const sanjanaId = '507f1f77bcf86cd799439012';
+
+  // Suppose Raghav has Shed 1, Shed 2, Brooder
+  // Sanjana has Shed 1, Shed 3, Layer Shed (Shed 1 is common)
+  t.mock.method(MedicineLocation, 'find', (query) => {
+    // query should not restrict to a single farm when all farms are selected
+    assert.equal(query.farm, undefined);
+    assert.equal(query.removed, false);
+    return {
+      sort: () => ({
+        lean: async () => [
+          { name: 'Shed 1', farm: raghavId },
+          { name: 'Shed 2', farm: raghavId },
+          { name: 'Brooder', farm: raghavId },
+          { name: 'Shed 1', farm: sanjanaId },
+          { name: 'Shed 3', farm: sanjanaId },
+          { name: 'Layer Shed', farm: sanjanaId },
+        ],
+      }),
+    };
+  });
+
+  const res = response();
+  // Call with no farm query (meaning "All Farms")
+  await getLocations({ query: {} }, res, assert.fail);
+  assert.equal(res.statusCode, 200);
+
+  // Common location 'Shed 1' should appear exactly once!
+  const occurrences = res.body.locations.filter((loc) => loc.toLowerCase() === 'shed 1').length;
+  assert.equal(occurrences, 1, 'Common location Shed 1 must not repeat');
+
+  // All unique locations across Raghav & Sanjana must be present
+  assert.ok(res.body.locations.includes('Shed 1'));
+  assert.ok(res.body.locations.includes('Shed 2'));
+  assert.ok(res.body.locations.includes('Shed 3'));
+  assert.ok(res.body.locations.includes('Brooder'));
+  assert.ok(res.body.locations.includes('Layer Shed'));
+  assert.equal(res.body.locations.length, 5);
+
+  t.mock.restoreAll();
+});
+
+

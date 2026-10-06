@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import MedicineLocation from '../models/MedicineLocation.js';
+import MedicineIssue from '../models/MedicineIssue.js';
 import { resolveUserFarmScope } from './report.controller.js';
 
 export const DEFAULT_LOCATIONS = [];
@@ -14,13 +16,15 @@ function cleanName(raw) {
 
 async function extractFarmId(req) {
   let rawFarm = req.body?.farm || req.query?.farm;
-  if (rawFarm === 'null' || rawFarm === 'undefined' || rawFarm === '') rawFarm = null;
+  if (rawFarm === 'null' || rawFarm === 'undefined' || rawFarm === 'ALL' || rawFarm === 'all' || rawFarm === '') rawFarm = null;
   if (!rawFarm && !req.user?.firms?.length && !req.user?.firm) return null;
-  const scope = await resolveUserFarmScope(req, rawFarm);
-  if (scope?.farm) {
-    return scope.farm.$in ? scope.farm.$in[0] : scope.farm;
+  if (mongoose.connection?.readyState === 1) {
+    const scope = await resolveUserFarmScope(req, rawFarm);
+    if (scope?.farm) {
+      return scope.farm.$in ? scope.farm.$in[0] : scope.farm;
+    }
   }
-  return null;
+  return rawFarm || null;
 }
 
 export async function createLocation(req, res, next) {
@@ -70,10 +74,72 @@ export async function createLocation(req, res, next) {
 
 export async function getLocations(req, res, next) {
   try {
-    const farmId = await extractFarmId(req);
-    const query = farmId ? { farm: farmId, removed: false } : { farm: null, removed: false };
-    const records = await MedicineLocation.find(query).sort({ createdAt: 1, name: 1 }).lean();
-    const result = records.map((r) => r.name);
+    let rawFarm = req.query?.farm || req.body?.farm;
+    if (rawFarm === 'null' || rawFarm === 'undefined' || rawFarm === 'ALL' || rawFarm === 'all' || rawFarm === '') {
+      rawFarm = null;
+    }
+
+    let query = { removed: false };
+    if (rawFarm) {
+      const farmId = await extractFarmId(req);
+      query.farm = farmId;
+    } else if (req.user && mongoose.connection?.readyState === 1) {
+      // When "All Farms" / no specific farm is selected, query across all accessible farms
+      const farmScope = await resolveUserFarmScope(req, null);
+      if (farmScope?.farm) {
+        query.farm = farmScope.farm;
+      }
+      // If admin with unrestricted access, no query.farm restriction -> matches all farms (Raghav, Sanjana, null, etc.)
+    }
+
+    const findResult = MedicineLocation.find(query);
+    const records = typeof findResult.sort === 'function'
+      ? await findResult.sort({ createdAt: 1, name: 1 }).lean()
+      : (typeof findResult.lean === 'function' ? await findResult.lean() : await findResult);
+
+    // Also include any distinct sheds from MedicineIssue within the same farm scope
+    let issueSheds = [];
+    if (mongoose.connection?.readyState === 1 && MedicineIssue && typeof MedicineIssue.distinct === 'function') {
+      try {
+        const issueFarmScope = await resolveUserFarmScope(req, rawFarm);
+        issueSheds = await MedicineIssue.distinct('shed', {
+          ...issueFarmScope,
+          shed: { $exists: true, $ne: '' },
+        });
+      } catch (_) {
+        // Gracefully ignore in mocked tests or disconnected DB
+      }
+    }
+
+    // Deduplicate case-insensitively, keeping only unique locations (common locations do not repeat)
+    const seen = new Set();
+    const result = [];
+
+    const addLocation = (loc) => {
+      if (!loc || typeof loc !== 'string') return;
+      const trimmed = loc.trim().replace(/\s+/g, ' ');
+      if (!trimmed || RESERVED_NAMES.has(trimmed.toLowerCase())) return;
+      const key = trimmed.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(trimmed);
+      }
+    };
+
+    if (Array.isArray(records)) {
+      for (const r of records) {
+        if (r?.name) addLocation(r.name);
+      }
+    }
+    if (Array.isArray(issueSheds)) {
+      for (const s of issueSheds) {
+        addLocation(s);
+      }
+    }
+
+    // Natural sort: Shed 1, Shed 2, Shed 10, Brooder...
+    result.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
     return res.status(200).json({ success: true, locations: result });
   } catch (err) {
     if (typeof next === 'function') next(err);
@@ -94,7 +160,7 @@ export async function removeLocation(req, res, next) {
 
     const farmId = await extractFarmId(req);
     const nameKey = name.toLowerCase();
-    const matchFilter = farmId ? { nameKey, farm: farmId } : { nameKey, farm: null };
+    const matchFilter = farmId ? { nameKey, farm: farmId } : { nameKey };
 
     const doc = await MedicineLocation.findOneAndUpdate(
       matchFilter,

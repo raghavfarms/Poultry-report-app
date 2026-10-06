@@ -57,7 +57,7 @@ export async function createReceipt(req, res) {
   const [medDoc, supDoc, farmDoc] = await Promise.all([
     MedicineMaster.findById(medicine),
     Supplier.findById(supplier),
-    Firm.findById(farm),
+    Firm.findById(farm),  
   ]);
 
   if (!medDoc) throw notFoundError('Medicine not found in catalog');
@@ -134,7 +134,7 @@ export async function acceptReceipt(req, res) {
     farm: receipt.farm,
   });
 
-  if (batch) {
+  if (batch) { 
     // Increment existing batch quantity atomically
     batch.quantityAvailable += finalAcceptedQty;
     batch.initialQuantity += finalAcceptedQty;
@@ -217,7 +217,7 @@ export async function getReceipts(req, res) {
     .sort({ createdAt: -1 })
     .lean();
 
-  res.json({
+  res.json({  
     success: true,
     count: receipts.length,
     receipts,
@@ -259,9 +259,11 @@ export async function getBatchStock(req, res) {
     };
   });
 
-  res.json({
+  res.json({  
     success: true,
     count: enrichedBatches.length,
     batches: enrichedBatches,
   });
 }
+
+

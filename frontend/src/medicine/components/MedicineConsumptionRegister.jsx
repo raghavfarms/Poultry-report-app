@@ -58,12 +58,26 @@ export default function MedicineConsumptionRegister({
     setActiveFarm(selectedFarm || '');
   }, [selectedFarm]);
 
-  // Load Sheds when farm changes
+  // Load Sheds when farm changes (handles "All Farms" and specific farms)
   useEffect(() => {
     const loadSheds = async () => {
       try {
         const res = await fetchMedicineLocations(activeFarm);
-        setShedList(res.locations || []);
+        const locs = res.locations || [];
+        // Deduplicate and natural sort so common locations never repeat
+        const seen = new Set();
+        const uniqueList = [];
+        for (const loc of locs) {
+          if (!loc || typeof loc !== 'string') continue;
+          const clean = loc.trim();
+          const key = clean.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueList.push(clean);
+          }
+        }
+        uniqueList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        setShedList(uniqueList);
       } catch (err) {
         setShedList([]);
       }
