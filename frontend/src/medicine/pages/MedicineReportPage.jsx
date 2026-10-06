@@ -218,10 +218,10 @@ export default function MedicineReportPage() {
   const isAdmin = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user?.role);
 
   return (
-    <div className="space-y-3 w-full max-w-5xl mx-auto px-0 sm:px-2 pb-8">
+    <div className="space-y-1.5 sm:space-y-3 w-full max-w-5xl mx-auto px-0 sm:px-2 pb-8">
       {/* 1. Header & Navigation Tabs */}
-      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-slate-200 shadow-2xs space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+      <div className="bg-white p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs space-y-1.5 sm:space-y-2">
+        <div className="flex flex-row items-center justify-between gap-1.5">
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-base sm:text-lg">💊</span>
@@ -229,23 +229,23 @@ export default function MedicineReportPage() {
                 Farm Medicines
               </h1>
             </div>
-            <p className="text-[10px] sm:text-[11px] text-slate-500">
+            <p className="hidden sm:block text-[10px] sm:text-[11px] text-slate-500">
               Daily fast In/Out, live stock & batch trace
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Farm filter */}
             {firms.length === 1 ? (
-              <div className="h-7 sm:h-8 px-2.5 bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-bold text-slate-700 flex items-center gap-1.5 shrink-0 shadow-2xs">
+              <div className="h-7 sm:h-8 px-2 sm:px-2.5 bg-slate-100 border border-slate-200 rounded-lg text-[10px] sm:text-[11px] font-bold text-slate-700 flex items-center gap-1 shrink-0 shadow-2xs">
                 <span>🏢</span>
-                <span>{firms[0].name}</span>
+                <span className="truncate max-w-[85px] sm:max-w-none">{firms[0].name}</span>
               </div>
             ) : firms.length > 1 ? (
               <select
                 value={selectedFarm}
                 onChange={(e) => setSelectedFarm(e.target.value)}
-                className="h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[11px] font-semibold text-slate-700 bg-white focus:outline-none cursor-pointer"
+                className="h-7 sm:h-8 px-1.5 sm:px-2 border border-slate-300 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 bg-white focus:outline-none cursor-pointer"
               >
                 <option value="">All Farms</option>
                 {firms.map((f) => (
@@ -261,17 +261,17 @@ export default function MedicineReportPage() {
               <div className="flex items-center gap-1 shrink-0">
                 <Link
                   to="/admin/medicine/master"
-                  className="h-7 sm:h-8 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
+                  className="h-7 sm:h-8 px-1.5 sm:px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] sm:text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
                   title="Manage Catalog, Add New Medicine or Change Units"
                 >
-                  <span>⚙</span> Master
+                  <span>⚙</span> <span className="hidden xs:inline sm:inline">Master</span>
                 </Link>
                 <Link
                   to="/admin/medicine/master?tab=suppliers"
-                  className="h-7 sm:h-8 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
+                  className="h-7 sm:h-8 px-1.5 sm:px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] sm:text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
                   title="Manage Suppliers & Vendors Directory"
                 >
-                  <span>🏭</span> Suppliers
+                  <span>🏭</span> <span className="hidden xs:inline sm:inline">Suppliers</span>
                 </Link>
               </div>
             )}
@@ -279,7 +279,7 @@ export default function MedicineReportPage() {
         </div>
 
         {/* The 4 Clean Farm Views Tabs */}
-        <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl text-center">
+        <div className="grid grid-cols-4 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
           <button
             type="button"
             onClick={() => setActiveTab('daily')}

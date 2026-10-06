@@ -31,8 +31,16 @@ export default function MedicineConsumptionRegister({
   const [activeFarm, setActiveFarm] = useState(selectedFarm || '');
   const [selectedShed, setSelectedShed] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(15); // Default 15 items per page as requested
+
+  // Check if any non-default filter is currently active
+  const hasActiveFilters = Boolean(
+    datePreset === 'CUSTOM' ||
+    (selectedShed && selectedShed !== 'ALL') ||
+    search.trim()
+  );
 
   // Data State
   const [issues, setIssues] = useState([]);
@@ -161,46 +169,27 @@ export default function MedicineConsumptionRegister({
       {/* ======================================================== */}
       {/* 1. TOP HEADER & AUDIT SUMMARY BAR (Screen & Print)      */}
       {/* ======================================================== */}
-      <div className="bg-white p-2.5 sm:p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3 print:border-none print:shadow-none print:p-0 print:mb-4">
-        <div className="w-full sm:w-auto flex justify-between items-center sm:block">
-          <div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <span className="text-base sm:text-xl print:hidden">📋</span>
-              <h1 className="text-xs sm:text-base font-extrabold text-slate-800 tracking-tight">
-                Medicine Consumption
-              </h1>
-              <span className="bg-blue-100 text-blue-800 text-[9px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-md">
-                🏢 {currentFarmName}
-              </span>
-            </div>
-            <p className="hidden sm:block text-[11px] text-slate-500 mt-0.5">
-              Official monthly verification register for bird treatment, flock dosages and physical store audit
-            </p>
-          </div>
-          {/* Mobile quick refresh button */}
-          <button
-            type="button"
-            onClick={loadRegister}
-            disabled={loading}
-            className="sm:hidden p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-semibold cursor-pointer shrink-0"
-            title="Refresh records"
-          >
-            <span>↻</span>
-          </button>
-          <div className="hidden print:block pdf-print-header text-[11px] font-semibold text-slate-600 mt-1">
-            <span>Period: {startDate || 'Start'} to {endDate || 'Present'}</span>
-            <span className="mx-2">|</span>
-            <span>Printed on: {new Date().toLocaleString('en-IN')}</span>
-          </div>
+      <div className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-row justify-between items-center gap-2 print:border-none print:shadow-none print:p-0 print:mb-4">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <span className="text-sm sm:text-lg print:hidden">📋</span>
+          <h1 className="text-xs sm:text-base font-extrabold text-slate-800 tracking-tight truncate">
+            Consumption
+          </h1>
+          <span className="bg-blue-100 text-blue-800 text-[9px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-md truncate max-w-[110px] sm:max-w-none">
+            🏢 {currentFarmName}
+          </span>
+          <p className="hidden lg:block text-[11px] text-slate-500 ml-2">
+            Monthly verification register
+          </p>
         </div>
 
         {/* Action Buttons: Print, PDF, Refresh */}
-        <div data-html2canvas-ignore="true" className="flex items-center gap-1.5 sm:gap-2 shrink-0 print:hidden w-full sm:w-auto">
+        <div data-html2canvas-ignore="true" className="flex items-center gap-1 sm:gap-2 shrink-0 print:hidden">
           {onBackToDaily && (
             <button
               type="button"
               onClick={onBackToDaily}
-              className="hidden sm:flex px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold items-center gap-1 cursor-pointer transition shrink-0"
+              className="hidden md:flex px-2.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold items-center gap-1 cursor-pointer transition shrink-0"
             >
               <span>⚡</span> In / Out
             </button>
@@ -210,7 +199,7 @@ export default function MedicineConsumptionRegister({
             type="button"
             onClick={loadRegister}
             disabled={loading}
-            className="hidden sm:inline-flex p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition shrink-0"
+            className="p-1 sm:p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition shrink-0"
             title="Refresh records"
           >
             <span>↻</span>
@@ -220,20 +209,20 @@ export default function MedicineConsumptionRegister({
             type="button"
             onClick={handleExportPDF}
             disabled={loading || issues.length === 0 || exportingPdf}
-            className="flex-1 sm:flex-none justify-center px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition disabled:opacity-50 whitespace-nowrap"
+            className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[10px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition disabled:opacity-50 whitespace-nowrap"
             title="Download PDF Document"
           >
-            <span>📄</span> {exportingPdf ? 'Exporting...' : 'Download PDF'}
+            <span>📄</span> <span>{exportingPdf ? '...' : 'PDF'}</span>
           </button>
 
           <button
             type="button"
             onClick={handlePrint}
             disabled={loading || issues.length === 0}
-            className="flex-1 sm:flex-none justify-center px-2.5 sm:px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs transition disabled:opacity-50 whitespace-nowrap"
+            className="px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs transition disabled:opacity-50 whitespace-nowrap"
             title="Print A4 Register for verification"
           >
-            <span>🖨️</span> Print Register
+            <span>🖨️</span> <span>Print</span>
           </button>
         </div>
       </div>
@@ -241,11 +230,11 @@ export default function MedicineConsumptionRegister({
       {/* ======================================================== */}
       {/* 2. FILTER STRIP (Presets, Dates, Farm, Shed, Search)     */}
       {/* ======================================================== */}
-      <div data-html2canvas-ignore="true" className="bg-white p-2.5 sm:p-3.5 rounded-xl border border-slate-200 shadow-2xs space-y-2 sm:space-y-3 print:hidden">
-        {/* Row A: Quick Presets */}
-        <div className="flex items-center justify-between gap-1.5 pb-1.5 sm:pb-2 border-b border-slate-100">
+      <div data-html2canvas-ignore="true" className="bg-white p-2 sm:p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2 print:hidden">
+        {/* Row A: Quick Presets + Filter Toggle on Mobile */}
+        <div className="flex items-center justify-between gap-1.5">
           <div className="flex items-center gap-1 sm:gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5 sm:mr-1">
+            <span className="hidden sm:inline text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5 sm:mr-1">
               Period:
             </span>
             {[
@@ -256,7 +245,7 @@ export default function MedicineConsumptionRegister({
                 key={p.id}
                 type="button"
                 onClick={() => handlePresetChange(p.id)}
-                className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer ${
+                className={`px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-bold transition cursor-pointer ${
                   datePreset === p.id
                     ? 'bg-blue-600 text-white shadow-2xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -267,14 +256,33 @@ export default function MedicineConsumptionRegister({
             ))}
           </div>
 
-          {/* Records Count Badge */}
-          <div className="text-[11px] sm:text-xs font-semibold text-slate-500 whitespace-nowrap">
-            Found: <strong className="text-slate-800">{totalRecords}</strong> records
+          <div className="flex items-center gap-1.5">
+            {/* Mobile Filter Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className={`sm:hidden px-2 py-0.5 rounded-md text-[10px] font-bold border transition flex items-center gap-1 cursor-pointer ${
+                showMobileFilters || hasActiveFilters
+                  ? 'bg-blue-50 border-blue-300 text-blue-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-600'
+              }`}
+            >
+              <span>🔍 Filters</span>
+              {hasActiveFilters && (
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+              )}
+              <span className="text-[9px]">{showMobileFilters ? '▲' : '▼'}</span>
+            </button>
+
+            {/* Records Count Badge */}
+            <div className="text-[10px] sm:text-xs font-semibold text-slate-500 whitespace-nowrap">
+              Found: <strong className="text-slate-800">{totalRecords}</strong>
+            </div>
           </div>
         </div>
 
-        {/* Row B: Filter Inputs (2 Columns on mobile, 5 on desktop) */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 items-end">
+        {/* Row B: Filter Inputs (Collapsed by default on mobile, always visible on desktop) */}
+        <div className={`${showMobileFilters ? 'grid' : 'hidden'} sm:grid grid-cols-2 lg:grid-cols-5 gap-2 items-end pt-1 sm:pt-0 border-t border-slate-100 sm:border-0`}>
           {/* 1. From Date */}
           <div>
             <label className="block text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mb-0.5 sm:mb-1">
@@ -289,7 +297,7 @@ export default function MedicineConsumptionRegister({
                 setPage(1);
               }}
               onClick={(e) => { try { e.currentTarget.showPicker(); } catch (_) {} }}
-              className="w-full h-8 px-2 border border-slate-300 rounded-lg text-[11px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
+              className="w-full h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[10px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             />
           </div>
 
@@ -307,7 +315,7 @@ export default function MedicineConsumptionRegister({
                 setPage(1);
               }}
               onClick={(e) => { try { e.currentTarget.showPicker(); } catch (_) {} }}
-              className="w-full h-8 px-2 border border-slate-300 rounded-lg text-[11px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
+              className="w-full h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[10px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             />
           </div>
 
@@ -324,7 +332,7 @@ export default function MedicineConsumptionRegister({
                   setSelectedShed('ALL');
                   setPage(1);
                 }}
-                className="w-full h-8 px-2 border border-slate-300 rounded-lg text-[11px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                className="w-full h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[10px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
               >
                 <option value="">All Farms</option>
                 {firms.map((f) => (
@@ -347,7 +355,7 @@ export default function MedicineConsumptionRegister({
                 setSelectedShed(e.target.value);
                 setPage(1);
               }}
-              className="w-full h-8 px-2 border border-slate-300 rounded-lg text-[11px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
+              className="w-full h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[10px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
             >
               <option value="ALL">All Sheds & Locations</option>
               {shedList.map((s) => (
@@ -368,7 +376,7 @@ export default function MedicineConsumptionRegister({
               placeholder="Search medicine, batch, worker..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none bg-slate-50/50"
+              className="w-full h-7 sm:h-8 px-2.5 border border-slate-300 rounded-lg text-[11px] sm:text-xs font-medium focus:ring-1 focus:ring-blue-500 focus:outline-none bg-slate-50/50"
             />
           </div>
         </div>
@@ -378,21 +386,21 @@ export default function MedicineConsumptionRegister({
       {/* 3. MONTH-END TOTAL CONSUMPTION SUMMARY STRIP             */}
       {/* ======================================================== */}
       {unitSummary && unitSummary.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-2.5 sm:p-3 shadow-2xs print:border print:border-slate-300 print:bg-white print:p-2">
-          <div className="flex items-center justify-between flex-wrap gap-1.5 sm:gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm sm:text-base print:hidden">📊</span>
-              <span className="text-[11px] sm:text-xs font-extrabold text-blue-900 uppercase tracking-wide">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl px-2 py-1 sm:p-3 shadow-2xs print:border print:border-slate-300 print:bg-white print:p-2">
+          <div className="flex items-center justify-between flex-wrap gap-1 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <span className="text-xs sm:text-base print:hidden">📊</span>
+              <span className="text-[10px] sm:text-xs font-extrabold text-blue-900 uppercase tracking-wide">
                 Total Consumed:
               </span>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
               {unitSummary.map((us) => (
                 <span
                   key={us.unit}
-                  className="px-2 sm:px-2.5 py-0.5 rounded-lg bg-white border border-blue-200 text-blue-950 font-black text-xs shadow-2xs print:border-none print:p-0 print:mr-2"
+                  className="px-1.5 sm:px-2.5 py-0.2 sm:py-0.5 rounded-md sm:rounded-lg bg-white border border-blue-200 text-blue-950 font-black text-[10px] sm:text-xs shadow-2xs print:border-none print:p-0 print:mr-2"
                 >
-                  {us.total} <span className="font-semibold text-slate-600 text-[10px] sm:text-[11px]">{us.unit}</span>
+                  {us.total} <span className="font-semibold text-slate-600 text-[9px] sm:text-[11px]">{us.unit}</span>
                 </span>
               ))}
             </div>
@@ -405,7 +413,7 @@ export default function MedicineConsumptionRegister({
       {/* ======================================================== */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden print:border-none print:shadow-none">
         {/* Table Controls (Rows per page) */}
-        <div data-html2canvas-ignore="true" className="px-3 py-2 bg-slate-50/90 border-b border-slate-200 flex justify-between items-center text-xs print:hidden">
+        <div data-html2canvas-ignore="true" className="px-2.5 py-1 sm:py-2 bg-slate-50/90 border-b border-slate-200 flex justify-between items-center text-[10px] sm:text-xs print:hidden">
           <div className="flex items-center gap-1.5 font-bold text-slate-700">
             <span>Rows:</span>
             <select
@@ -415,7 +423,7 @@ export default function MedicineConsumptionRegister({
                 setLimit(val);
                 setPage(1);
               }}
-              className="h-7 px-1.5 border border-slate-300 rounded bg-white text-xs font-semibold focus:outline-none"
+              className="h-6 sm:h-7 px-1 sm:px-1.5 border border-slate-300 rounded bg-white text-[10px] sm:text-xs font-semibold focus:outline-none"
             >
               <option value={15}>15 rows (Default)</option>
               <option value={25}>25 rows</option>
@@ -425,13 +433,13 @@ export default function MedicineConsumptionRegister({
             </select>
           </div>
 
-          <div className="text-slate-500 font-semibold text-[11px]">
+          <div className="text-slate-500 font-semibold text-[10px] sm:text-[11px]">
             Page {page} of {totalPages}
           </div>
         </div>
 
         {loading ? (
-          <div className="p-10 text-center text-xs text-slate-400">
+          <div className="p-8 text-center text-xs text-slate-400">
             <span className="animate-spin inline-block mr-2">↻</span> Loading consumption records...
           </div>
         ) : error ? (
@@ -449,25 +457,25 @@ export default function MedicineConsumptionRegister({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs print:text-[10px]">
               <thead>
-                <tr className="bg-slate-100/90 text-slate-700 uppercase tracking-wider text-[10px] font-extrabold border-b border-slate-200 print:bg-slate-200">
+                <tr className="bg-slate-100/90 text-slate-700 uppercase tracking-wider text-[9px] sm:text-[10px] font-extrabold border-b border-slate-200 print:bg-slate-200">
                   {/* Steady Column 1: S.No */}
-                  <th className="py-2.5 px-2 text-center w-9 min-w-[36px] max-w-[36px] sticky left-0 z-20 bg-slate-100 border-r border-slate-200 print:static">
+                  <th className="py-1.5 px-1.5 sm:py-2.5 sm:px-2 text-center w-8 sm:w-9 min-w-[32px] sm:min-w-[36px] max-w-[36px] sticky left-0 z-20 bg-slate-100 border-r border-slate-200 print:static">
                     #
                   </th>
 
                   {/* Steady Column 2: Medicine Name (Frozen / Steady on Horizontal Scroll) */}
-                  <th className="py-2.5 px-2.5 w-28 sm:w-32 min-w-[95px] max-w-[125px] sticky left-[36px] z-20 bg-slate-100 border-r-2 border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] print:static print:shadow-none whitespace-nowrap">
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-2.5 w-28 sm:w-32 min-w-[95px] max-w-[125px] sticky left-[32px] sm:left-[36px] z-20 bg-slate-100 border-r-2 border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] print:static print:shadow-none whitespace-nowrap">
                     Medicine Name
                   </th>
 
                   {/* Scrolling Columns */}
-                  <th className="py-2.5 px-3 whitespace-nowrap border-r border-slate-200">Date & Time</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap border-r border-slate-200">Farm</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap border-r border-slate-200">Location / Shed</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap border-r border-slate-200">Qty Consumed</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap border-r border-slate-200">Batch No</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap border-r border-slate-200">Issued By</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Received By</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Date & Time</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Farm</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Location / Shed</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-right whitespace-nowrap border-r border-slate-200">Qty Consumed</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Batch No</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Issued By</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap">Received By</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -490,32 +498,32 @@ export default function MedicineConsumptionRegister({
                       className="group hover:bg-blue-50/40 transition-colors bg-white"
                     >
                       {/* Steady Column 1: S.No */}
-                      <td className="py-2.5 px-2 text-center font-mono font-bold text-slate-400 w-9 min-w-[36px] max-w-[36px] sticky left-0 z-10 bg-white group-hover:bg-blue-50/60 border-r border-slate-200 print:static">
+                      <td className="py-1.5 px-1.5 sm:py-2.5 sm:px-2 text-center font-mono font-bold text-slate-400 w-8 sm:w-9 min-w-[32px] sm:min-w-[36px] max-w-[36px] sticky left-0 z-10 bg-white group-hover:bg-blue-50/60 border-r border-slate-200 print:static text-[10px] sm:text-xs">
                         {sNo}
                       </td>
 
                       {/* Steady Column 2: Medicine Name (Stays in place when scrolling left-right) */}
-                      <td className="py-2.5 px-2.5 w-28 sm:w-32 min-w-[95px] max-w-[125px] sticky left-[36px] z-10 bg-white group-hover:bg-blue-50/60 border-r-2 border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] print:static print:shadow-none">
-                        <div className="font-extrabold text-slate-900 leading-snug break-words">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-2.5 w-28 sm:w-32 min-w-[95px] max-w-[125px] sticky left-[32px] sm:left-[36px] z-10 bg-white group-hover:bg-blue-50/60 border-r-2 border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)] print:static print:shadow-none">
+                        <div className="font-extrabold text-[11px] sm:text-xs text-slate-900 leading-tight break-words">
                           {iss.medicine?.name || 'Medicine'}
                         </div>
                         {iss.medicine?.category && (
-                          <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider block">
+                          <span className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-bold tracking-wider block">
                             {iss.medicine.category}
                           </span>
                         )}
                       </td>
 
                       {/* Scrolling Column: Date & Time */}
-                      <td className="py-2.5 px-3 whitespace-nowrap border-r border-slate-200">
-                        <div className="font-bold text-slate-900">{dateStr}</div>
-                        <div className="text-[10px] text-slate-400">{timeStr}</div>
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">
+                        <div className="font-bold text-[10px] sm:text-xs text-slate-900">{dateStr}</div>
+                        <div className="text-[9px] sm:text-[10px] text-slate-400">{timeStr}</div>
                       </td>
 
                       {/* Scrolling Column: Farm */}
-                      <td className="py-2.5 px-3 font-semibold text-slate-700 whitespace-nowrap border-r border-slate-200">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-semibold text-slate-700 whitespace-nowrap border-r border-slate-200 text-[10px] sm:text-xs">
                         {iss.farm?.name ? (
-                          <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 text-[11px] font-bold">
+                          <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 text-[9px] sm:text-[11px] font-bold">
                             🏢 {iss.farm.name}
                           </span>
                         ) : (
@@ -524,34 +532,34 @@ export default function MedicineConsumptionRegister({
                       </td>
 
                       {/* Scrolling Column: Location / Shed */}
-                      <td className="py-2.5 px-3 border-r border-slate-200 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded print:p-0 print:bg-transparent">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 border-r border-slate-200 whitespace-nowrap text-[10px] sm:text-xs">
+                        <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded print:p-0 print:bg-transparent text-[9px] sm:text-xs">
                           <span>🏠</span> {iss.shed || iss.destinationName || 'Shed'}
                         </span>
                       </td>
 
                       {/* Scrolling Column: Quantity Consumed */}
-                      <td className="py-2.5 px-3 text-right border-r border-slate-200 whitespace-nowrap">
-                        <span className="font-black text-xs text-blue-700 print:text-black">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-right border-r border-slate-200 whitespace-nowrap">
+                        <span className="font-black text-[11px] sm:text-xs text-blue-700 print:text-black">
                           {iss.issuedQuantity}
                         </span>{' '}
-                        <span className="text-[10px] font-bold text-slate-500">
+                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-500">
                           {iss.unit}
                         </span>
                       </td>
 
                       {/* Scrolling Column: Batch No */}
-                      <td className="py-2.5 px-3 font-mono font-bold text-slate-600 whitespace-nowrap border-r border-slate-200">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-mono font-bold text-slate-600 whitespace-nowrap border-r border-slate-200 text-[10px] sm:text-xs">
                         #{iss.batchNumber}
                       </td>
 
                       {/* Scrolling Column: Issued By */}
-                      <td className="py-2.5 px-3 font-medium text-slate-700 border-r border-slate-200 whitespace-nowrap">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-medium text-slate-700 border-r border-slate-200 whitespace-nowrap text-[10px] sm:text-xs">
                         {iss.issuedByName || iss.issuedBy?.name || 'Store'}
                       </td>
 
                       {/* Scrolling Column: Received By */}
-                      <td className="py-2.5 px-3 font-bold text-slate-900 whitespace-nowrap">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-bold text-slate-900 whitespace-nowrap text-[10px] sm:text-xs">
                         {iss.issuedTo || 'Worker'}
                       </td>
                     </tr>
