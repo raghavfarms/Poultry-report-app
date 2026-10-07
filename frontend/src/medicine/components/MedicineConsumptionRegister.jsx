@@ -512,7 +512,7 @@ export default function MedicineConsumptionRegister({
               <option value={100}>100 rows</option>
               <option value="all">All (Print Whole Month)</option>
             </select>
-          </div>
+          </div>  
 
           <div className="text-slate-500 font-semibold text-[10px] sm:text-[11px]">
             Page {page} of {totalPages}
@@ -573,7 +573,7 @@ export default function MedicineConsumptionRegister({
                     minute: '2-digit',
                   });
 
-                  return (
+                  return (   
                     <tr
                       key={iss._id}
                       className="group hover:bg-blue-50/40 transition-colors bg-white"
@@ -692,7 +692,3 @@ export default function MedicineConsumptionRegister({
   );
 }
 
-/* 
- 
-
- */

@@ -58,10 +58,73 @@ export default function DailyMedicineActionPage({
   const inwardExpiryRef = useRef(null);
   const [inwardQty, setInwardQty] = useState('');
   const [inwardSupplierId, setInwardSupplierId] = useState('');
+  const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
+  const [isInwardFarmDropdownOpen, setIsInwardFarmDropdownOpen] = useState(false);
+  const [isOutwardFarmDropdownOpen, setIsOutwardFarmDropdownOpen] = useState(false);
   const safeFirms = Array.isArray(firms) ? firms : [];
   const [inwardNotes, setInwardNotes] = useState('');
   const [inwardReceiver, setInwardReceiver] = useState('');
   const [inwardFarmId, setInwardFarmId] = useState(selectedFarm || (safeFirms[0]?._id || ''));
+
+  // Compact Mid-Screen Expiry Calendar States
+  const [isExpiryPickerOpen, setIsExpiryPickerOpen] = useState(false);
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
+
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(calendarYear, calendarMonth, 1).getDay();
+
+  const CALENDAR_MONTHS = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+
+  const todayKolkata = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+
+  const calendarYearOptions = Array.from({ length: 11 }, (_, i) => new Date().getFullYear() + i);
+
+  const openExpiryPicker = () => {
+    if (inwardExpiry) {
+      const [y, m] = inwardExpiry.split('-').map(Number);
+      setCalendarYear(y || new Date().getFullYear());
+      setCalendarMonth(typeof m === 'number' && m >= 1 ? m - 1 : new Date().getMonth());
+    } else {
+      const now = new Date();
+      setCalendarYear(now.getFullYear());
+      setCalendarMonth(now.getMonth());
+    }
+    setIsExpiryPickerOpen(true);
+  };
+
+  const handlePrevMonth = () => {
+    if (calendarMonth === 0) {
+      setCalendarMonth(11);
+      setCalendarYear((y) => y - 1);
+    } else {
+      setCalendarMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calendarMonth === 11) {
+      setCalendarMonth(0);
+      setCalendarYear((y) => y + 1);
+    } else {
+      setCalendarMonth((m) => m + 1);
+    }
+  };
+
+  const formatToDDMMYYYY = (dateStr) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  };
 
   // Outward Form State
   const [outwardMedicineId, setOutwardMedicineId] = useState('');
@@ -326,6 +389,8 @@ export default function DailyMedicineActionPage({
     setInwardUnit('');
     setInwardSupplierId('');
     setIsMedDropdownOpen(false);
+    setIsSupplierDropdownOpen(false);
+    setIsInwardFarmDropdownOpen(false);
     setInwardReceiver(user?.name || user?.username || '');
     setInwardFarmId(selectedFarm || (firms[0]?._id || ''));
     setIsInwardModalOpen(true);
@@ -335,6 +400,7 @@ export default function DailyMedicineActionPage({
     setOutwardMedicineId('');
     setOutwardMedicineName('');
     setIsOutwardMedDropdownOpen(false);
+    setIsOutwardFarmDropdownOpen(false);
     setOutwardQty('');
     setBatchAllocations({});
     setOutwardIssuer(user?.name || user?.username || '');
@@ -398,6 +464,8 @@ export default function DailyMedicineActionPage({
       setFeedback({ type: 'success', message: res.message || 'Stock added successfully!' });
       setIsInwardModalOpen(false);
       setIsMedDropdownOpen(false);
+      setIsSupplierDropdownOpen(false);
+      setIsInwardFarmDropdownOpen(false);
       // Reset inward inputs completely
       setInwardMedicineName('');
       setInwardMedicineId('');
@@ -479,6 +547,7 @@ export default function DailyMedicineActionPage({
       setFeedback({ type: 'success', message: successMsg });
       setIsOutwardModalOpen(false);
       setIsOutwardMedDropdownOpen(false);
+      setIsOutwardFarmDropdownOpen(false);
       setOutwardMedicineId('');
       setOutwardMedicineName('');
       setOutwardQty('');
@@ -746,11 +815,11 @@ export default function DailyMedicineActionPage({
             setIsInwardModalOpen(false);
             setIsMedDropdownOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-[95%] sm:w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[96vh] sm:max-h-[94vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            className="bg-white w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90dvh] sm:max-h-[92vh] flex flex-col animate-in fade-in duration-100 cursor-default"
           >
             {/* Modal Header */}
             <div className="px-3.5 py-2.5 bg-emerald-600 text-white flex justify-between items-center shrink-0">
@@ -774,7 +843,8 @@ export default function DailyMedicineActionPage({
             </div>
 
             {/* Inward Form */}
-            <form onSubmit={handleInwardSubmit} className="w-full overflow-y-auto p-3 sm:p-3.5 space-y-2">
+            <form onSubmit={handleInwardSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-3.5 space-y-2">
               {/* Farm Location Selector / Indicator */}
               {(selectedFarm || firms.length === 1) ? (
                 <div className="flex items-center justify-between px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-md text-xs font-bold text-emerald-900">
@@ -786,24 +856,60 @@ export default function DailyMedicineActionPage({
                     {firms.find((f) => f._id === (selectedFarm || firms[0]?._id))?.name || 'Farm'}
                   </span>
                 </div>
-              ) : firms.length > 1 ? (
-                <div>
+              ) : safeFirms.length > 1 ? (
+                <div className="relative">
                   <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
                     Select Farm Store <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={inwardFarmId}
-                    onChange={(e) => setInwardFarmId(e.target.value)}
-                    required
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                  <div
+                    onClick={() => setIsInwardFarmDropdownOpen((prev) => !prev)}
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors"
                   >
-                    <option value="">Select Farm (Raghav / Sanjana)...</option>
-                    {firms.map((f) => (
-                      <option key={f._id} value={f._id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
+                    <span className={inwardFarmId ? 'text-slate-900 truncate' : 'text-slate-400 truncate'}>
+                      {safeFirms.find((f) => f._id === inwardFarmId)?.name || 'Select Farm (Raghav / Sanjana)...'}
+                    </span>
+                    <span className="text-slate-400 text-[10px]">
+                      {isInwardFarmDropdownOpen ? '▲' : '▼'}
+                    </span>
+                  </div>
+
+                  {isInwardFarmDropdownOpen && (
+                    <div
+                      className="w-full mt-1.5 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[160px] overflow-y-auto divide-y divide-slate-100 transition-all duration-200 animate-in fade-in"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between px-3 py-1 bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 font-semibold sticky top-0 z-10">
+                        <span>Select Farm Store ({safeFirms.length})</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsInwardFarmDropdownOpen(false)}
+                          className="text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                        >
+                          Close ✕
+                        </button>
+                      </div>
+                      {safeFirms.map((f) => {
+                        const isSelected = f._id === inwardFarmId;
+                        return (
+                          <div
+                            key={f._id}
+                            onClick={() => {
+                              setInwardFarmId(f._id);
+                              setIsInwardFarmDropdownOpen(false);
+                            }}
+                            className={`px-3 py-2 flex items-center justify-between cursor-pointer transition text-xs ${
+                              isSelected
+                                ? 'bg-emerald-50 text-emerald-900 font-bold'
+                                : 'hover:bg-slate-50 text-slate-800'
+                            }`}
+                          >
+                            <span className="truncate">{f.name}</span>
+                            {isSelected && <span className="text-emerald-600 font-bold">✓</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ) : null}
 
@@ -1021,33 +1127,17 @@ export default function DailyMedicineActionPage({
                     Expiry Date <span className="text-rose-500">*</span>
                   </label>
                   <div
-                    className="relative w-full cursor-pointer"
-                    onClick={() => {
-                      try {
-                        inwardExpiryRef.current?.showPicker();
-                      } catch (err) {}
-                    }}
+                    onClick={openExpiryPicker}
+                    className={`w-full h-8 px-2 border rounded-md text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                      inwardExpiry
+                        ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
+                        : 'border-slate-300 bg-white text-slate-400 hover:border-slate-400'
+                    } focus:outline-none focus:ring-1 focus:ring-emerald-500`}
                   >
-                    <input
-                      ref={inwardExpiryRef}
-                      type="date"
-                      required
-                      value={inwardExpiry}
-                      min={(() => {
-                        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-                        return new Date(new Date(`${today}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
-                      })()}
-                      onClick={(e) => {
-                        try {
-                          e.currentTarget.showPicker();
-                        } catch (err) {}
-                      }}
-                      onChange={(e) => setInwardExpiry(e.target.value)}
-                      className="w-full h-8 pl-2 pr-7 border border-slate-300 rounded-md text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer bg-white relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none select-none">
-                      📅
+                    <span className={inwardExpiry ? 'font-mono text-emerald-900 font-bold' : 'text-slate-400'}>
+                      {inwardExpiry ? formatToDDMMYYYY(inwardExpiry) : 'DD-MM-YYYY'}
                     </span>
+                    <span className="text-xs text-slate-400">📅</span>
                   </div>
                 </div>
               </div>
@@ -1088,45 +1178,242 @@ export default function DailyMedicineActionPage({
               </div>
 
               {/* Supplier Selector */}
-              <div>
+              {/* Supplier Selector (Custom Dynamic Shift Dropdown) */}
+              <div className="relative">
                 <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
                   Supplier <span className="text-slate-400 font-normal lowercase">(optional)</span>
                 </label>
-                <select
-                  value={inwardSupplierId}
-                  onChange={(e) => setInwardSupplierId(e.target.value)}
-                  className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                <div
+                  onClick={() => setIsSupplierDropdownOpen((prev) => !prev)}
+                  className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 bg-white flex items-center justify-between cursor-pointer hover:border-emerald-500 transition-colors"
                 >
-                  <option value="">-- Direct Farm Purchase --</option>
-                  {medSuppliers.map((s) => (
-                    <option key={s._id} value={s._id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  <span className={inwardSupplierId ? 'font-bold text-slate-900 truncate' : 'text-slate-500 truncate'}>
+                    {medSuppliers.find((s) => s._id === inwardSupplierId)?.name || '-- Direct Farm Purchase --'}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {inwardSupplierId && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInwardSupplierId('');
+                        }}
+                        className="text-slate-400 hover:text-slate-600 text-xs font-bold p-0.5 cursor-pointer"
+                        title="Clear supplier"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    <span className="text-slate-400 text-[10px]">
+                      {isSupplierDropdownOpen ? '▲' : '▼'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pop-down Dropdown Menu (Normal Flow Dynamic Shift) */}
+                {isSupplierDropdownOpen && (
+                  <div
+                    className="w-full mt-1.5 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[180px] overflow-y-auto divide-y divide-slate-100 transition-all duration-200 animate-in fade-in"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between px-3 py-1 bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 font-semibold sticky top-0 z-10">
+                      <span>Select Supplier ({medSuppliers.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsSupplierDropdownOpen(false)}
+                        className="text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                      >
+                        Close ✕
+                      </button>
+                    </div>
+
+                    {/* Option 0: Direct Farm Purchase */}
+                    <div
+                      onClick={() => {
+                        setInwardSupplierId('');
+                        setIsSupplierDropdownOpen(false);
+                      }}
+                      className={`px-3 py-2 flex items-center justify-between cursor-pointer transition text-xs ${
+                        !inwardSupplierId
+                          ? 'bg-emerald-50 text-emerald-900 font-bold'
+                          : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className="truncate">-- Direct Farm Purchase --</span>
+                      {!inwardSupplierId && <span className="text-emerald-600 font-bold">✓</span>}
+                    </div>
+
+                    {/* Suppliers list */}
+                    {medSuppliers.map((s) => {
+                      const isSelected = s._id === inwardSupplierId;
+                      return (
+                        <div
+                          key={s._id}
+                          onClick={() => {
+                            setInwardSupplierId(s._id);
+                            setIsSupplierDropdownOpen(false);
+                          }}
+                          className={`px-3 py-2 flex items-center justify-between cursor-pointer transition text-xs ${
+                            isSelected
+                              ? 'bg-emerald-50 text-emerald-900 font-bold'
+                              : 'hover:bg-slate-50 text-slate-800'
+                          }`}
+                        >
+                          <span className="truncate">{s.name}</span>
+                          {isSelected && <span className="text-emerald-600 font-bold">✓</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Submit / Cancel Buttons */}
-              <div className="pt-2 flex items-center justify-end gap-1.5 border-t border-slate-100 shrink-0">
+              </div>
+
+              {/* Submit / Cancel Buttons (Pinned Sticky Footer) */}
+              <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     setIsInwardModalOpen(false);
                     setIsMedDropdownOpen(false);
                   }}
-                  className="px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-md transition cursor-pointer"
+                  className="px-3.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold rounded-lg transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-md shadow-sm transition cursor-pointer"
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
                 >
-                  {submitting ? 'Saving...' : '💾 Stock In'}
+                  <span>💾</span> {submitting ? 'Saving...' : 'Stock In'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* COMPACT MID-SCREEN CALENDAR MODAL                        */}
+      {/* ======================================================== */}
+      {isExpiryPickerOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in duration-100 cursor-pointer"
+          onClick={() => setIsExpiryPickerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-[270px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-800 p-3 space-y-2 cursor-default"
+          >
+            {/* Header: Month / Year with arrows */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold transition cursor-pointer text-xs"
+                title="Previous Month"
+              >
+                ◀
+              </button>
+
+              <div className="flex items-center gap-1">
+                <select
+                  value={calendarMonth}
+                  onChange={(e) => setCalendarMonth(Number(e.target.value))}
+                  className="text-xs font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                >
+                  {CALENDAR_MONTHS.map((m, idx) => (
+                    <option key={m} value={idx}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={calendarYear}
+                  onChange={(e) => setCalendarYear(Number(e.target.value))}
+                  className="text-xs font-bold bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer font-mono"
+                >
+                  {calendarYearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 text-slate-600 font-bold transition cursor-pointer text-xs"
+                title="Next Month"
+              >
+                ▶
+              </button>
+            </div>
+
+            {/* Weekdays */}
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                <div key={d}>{d}</div>
+              ))}
+            </div>
+
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                <div key={`blank-${i}`} className="h-6.5 w-6.5" />
+              ))}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const dayNum = i + 1;
+                const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                const isPastOrToday = dateStr <= todayKolkata;
+                const isSelected = inwardExpiry === dateStr;
+
+                return (
+                  <button
+                    key={dayNum}
+                    type="button"
+                    disabled={isPastOrToday}
+                    onClick={() => {
+                      setInwardExpiry(dateStr);
+                      setIsExpiryPickerOpen(false);
+                    }}
+                    className={`h-6.5 w-full rounded text-xs font-semibold flex items-center justify-center transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-600 text-white font-bold'
+                        : isPastOrToday
+                        ? 'text-slate-300 cursor-not-allowed line-through text-[10px]'
+                        : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    {dayNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Minimalist Footer */}
+            <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setInwardExpiry('');
+                  setIsExpiryPickerOpen(false);
+                }}
+                className="text-[11px] text-slate-500 hover:text-rose-600 font-medium px-1.5 py-0.5 rounded cursor-pointer"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsExpiryPickerOpen(false)}
+                className="text-[11px] text-slate-700 font-bold px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1142,11 +1429,11 @@ export default function DailyMedicineActionPage({
             setIsOutwardModalOpen(false);
             setIsOutwardMedDropdownOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white w-[95%] sm:w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[96vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-100 cursor-default"
+            className="bg-white w-full max-w-md sm:max-w-[444px] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90dvh] sm:max-h-[92vh] flex flex-col animate-in fade-in duration-100 cursor-default"
           >
             {/* Modal Header */}
             <div className="px-3.5 py-2.5 bg-blue-600 text-white flex justify-between items-center shrink-0">
@@ -1170,7 +1457,8 @@ export default function DailyMedicineActionPage({
             </div>
 
             {/* Outward Form */}
-            <form onSubmit={handleOutwardSubmit} className="w-full overflow-y-auto p-3 sm:p-3.5 space-y-2">
+            <form onSubmit={handleOutwardSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-3.5 space-y-2">
               {/* Farm Location Selector / Indicator */}
               {(selectedFarm || firms.length === 1) ? (
                 <div className="flex items-center justify-between px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-md text-xs font-bold text-blue-900">
@@ -1182,30 +1470,64 @@ export default function DailyMedicineActionPage({
                     {firms.find((f) => f._id === (selectedFarm || firms[0]?._id))?.name || 'Farm'}
                   </span>
                 </div>
-              ) : firms.length > 1 ? (
-                <div>
+              ) : safeFirms.length > 1 ? (
+                <div className="relative">
                   <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
                     Select Farm Store <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={outwardFarmId}
-                    onChange={(e) => {
-                      const nextFarm = e.target.value;
-                      setOutwardFarmId(nextFarm);
-                      setOutwardMedicineId('');
-                      setOutwardMedicineName('');
-                      loadLocations(nextFarm);
-                    }}
-                    required
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  <div
+                    onClick={() => setIsOutwardFarmDropdownOpen((prev) => !prev)}
+                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-800 bg-white flex items-center justify-between cursor-pointer hover:border-blue-500 transition-colors"
                   >
-                    <option value="">Select Farm (Raghav / Sanjana)...</option>
-                    {firms.map((f) => (
-                      <option key={f._id} value={f._id}>
-                        {f.name}
-                      </option>
-                    ))}
-                  </select>
+                    <span className={outwardFarmId ? 'text-slate-900 truncate' : 'text-slate-400 truncate'}>
+                      {safeFirms.find((f) => f._id === outwardFarmId)?.name || 'Select Farm (Raghav / Sanjana)...'}
+                    </span>
+                    <span className="text-slate-400 text-[10px]">
+                      {isOutwardFarmDropdownOpen ? '▲' : '▼'}
+                    </span>
+                  </div>
+
+                  {isOutwardFarmDropdownOpen && (
+                    <div
+                      className="w-full mt-1.5 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[160px] overflow-y-auto divide-y divide-slate-100 transition-all duration-200 animate-in fade-in"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between px-3 py-1 bg-slate-50 border-b border-slate-200 text-[10px] text-slate-500 font-semibold sticky top-0 z-10">
+                        <span>Select Farm Store ({safeFirms.length})</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsOutwardFarmDropdownOpen(false)}
+                          className="text-slate-500 hover:text-slate-800 font-bold px-1.5 py-0.5 rounded hover:bg-slate-200 cursor-pointer"
+                        >
+                          Close ✕
+                        </button>
+                      </div>
+                      {safeFirms.map((f) => {
+                        const isSelected = f._id === outwardFarmId;
+                        return (
+                          <div
+                            key={f._id}
+                            onClick={() => {
+                              const nextFarm = f._id;
+                              setOutwardFarmId(nextFarm);
+                              setOutwardMedicineId('');
+                              setOutwardMedicineName('');
+                              loadLocations(nextFarm);
+                              setIsOutwardFarmDropdownOpen(false);
+                            }}
+                            className={`px-3 py-2 flex items-center justify-between cursor-pointer transition text-xs ${
+                              isSelected
+                                ? 'bg-blue-50 text-blue-900 font-bold'
+                                : 'hover:bg-slate-50 text-slate-800'
+                            }`}
+                          >
+                            <span className="truncate">{f.name}</span>
+                            {isSelected && <span className="text-blue-600 font-bold">✓</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ) : null}
 
@@ -1603,28 +1925,30 @@ export default function DailyMedicineActionPage({
                 </div>
               </div>
 
-              {/* Submit / Cancel Buttons with Total Quantity Integrated */}
-              <div className="pt-2 flex items-center justify-between gap-1.5 border-t border-slate-100 shrink-0">
+              </div>
+
+              {/* Submit / Cancel Buttons with Total Quantity Integrated (Pinned Sticky Footer) */}
+              <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
                 <div className="text-xs font-bold text-blue-900 whitespace-nowrap">
                   Total: <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
                   <span className="text-[10px] text-slate-500 font-medium">{selectedOutwardMed?.unit || ''}</span>
                 </div>
 
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => {
                       setIsOutwardModalOpen(false);
                       setIsOutwardMedDropdownOpen(false);
                     }}
-                    className="px-3 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-md transition cursor-pointer"
+                    className="px-3.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold rounded-lg transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting || !outwardQty || Number(outwardQty) <= 0}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-md shadow-xs transition cursor-pointer flex items-center gap-1"
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
                   >
                     <span>💾</span> {submitting ? 'Saving...' : 'Issue'}
                   </button>
