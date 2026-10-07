@@ -7,6 +7,37 @@ import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
 import MedicineConsumptionRegister from '../components/MedicineConsumptionRegister.jsx';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
 
+class DailyActionErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('DailyActionErrorBoundary caught an error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 bg-white rounded-xl border border-rose-200 shadow-sm text-center space-y-2">
+          <div className="text-rose-600 font-bold text-sm">⚠️ Failed to load Daily Actions view</div>
+          <p className="text-xs text-slate-500">{this.state.error?.message || 'An unexpected error occurred.'}</p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-md hover:bg-emerald-700 cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function MedicineReportPage() {
   const { user } = useAuth();
 
@@ -350,16 +381,18 @@ export default function MedicineReportPage() {
 
       {/* VIEW 1: Daily Quick Action (The Worker's Best Friend) */}
       {activeTab === 'daily' && (
-        <DailyMedicineActionPage
-          hideHeader={true}
-          selectedFarm={selectedFarm}
-          firms={firms}
-          onOpenConsumptionRegister={() => setActiveTab('consumption')}
-          onActivityUpdated={() => {
-            setStockFilter('ALL');
-            loadStats();
-          }}
-        />
+        <DailyActionErrorBoundary>
+          <DailyMedicineActionPage
+            hideHeader={true}
+            selectedFarm={selectedFarm}
+            firms={firms}
+            onOpenConsumptionRegister={() => setActiveTab('consumption')}
+            onActivityUpdated={() => {
+              setStockFilter('ALL');
+              loadStats();
+            }}
+          />
+        </DailyActionErrorBoundary>
       )}
 
       {/* VIEW 2: Current Stock & Expiry (Simple Visual List) */}
@@ -1109,23 +1142,28 @@ export default function MedicineReportPage() {
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Expiry Date <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={editExpiryDate}
-                  onClick={(e) => {
-                    try {
-                      e.currentTarget.showPicker();
-                    } catch (err) {}
-                  }}
-                  onFocus={(e) => {
-                    try {
-                      e.currentTarget.showPicker();
-                    } catch (err) {}
-                  }}
-                  onChange={(e) => setEditExpiryDate(e.target.value)}
-                  className="w-full h-10 px-3 font-mono text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 cursor-pointer"
-                />
+                <div className="relative w-full cursor-pointer">
+                  <input
+                    type="date"
+                    required
+                    value={editExpiryDate}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch (err) {}
+                    }}
+                    onFocus={(e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch (err) {}
+                    }}
+                    onChange={(e) => setEditExpiryDate(e.target.value)}
+                    className="w-full h-10 pl-3 pr-8 font-mono text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 cursor-pointer relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none select-none">
+                    📅
+                  </span>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

@@ -81,7 +81,7 @@ export default function MedicineConsumptionRegister({
         uniqueList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
         setShedList(uniqueList);
       } catch (err) {
-        setShedList([]);
+        setShedList([]);     
       }
     };
     loadSheds();
@@ -691,3 +691,8 @@ export default function MedicineConsumptionRegister({
     </div>
   );
 }
+
+/* 
+ 
+
+ */

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { fetchSuppliers } from '../api/supplierApi.js';
@@ -55,81 +55,13 @@ export default function DailyMedicineActionPage({
   const [isMedDropdownOpen, setIsMedDropdownOpen] = useState(false);
   const [inwardBatchNo, setInwardBatchNo] = useState('');
   const [inwardExpiry, setInwardExpiry] = useState('');
+  const inwardExpiryRef = useRef(null);
   const [inwardQty, setInwardQty] = useState('');
   const [inwardSupplierId, setInwardSupplierId] = useState('');
+  const safeFirms = Array.isArray(firms) ? firms : [];
   const [inwardNotes, setInwardNotes] = useState('');
   const [inwardReceiver, setInwardReceiver] = useState('');
-  const [inwardFarmId, setInwardFarmId] = useState(selectedFarm || (firms[0]?._id || ''));
-
-  // Mid-Screen Expiry Date Picker States
-  const [isExpiryPickerOpen, setIsExpiryPickerOpen] = useState(false);
-  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth());
-
-  const CALENDAR_MONTHS = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-
-  const todayKolkata = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).format(new Date());
-
-  const calendarYearOptions = Array.from({ length: 11 }, (_, i) => new Date().getFullYear() + i);
-
-  const openExpiryPicker = () => {
-    if (inwardExpiry) {
-      const [y, m] = inwardExpiry.split('-').map(Number);
-      setCalendarYear(y || new Date().getFullYear());
-      setCalendarMonth(typeof m === 'number' && m >= 1 ? m - 1 : new Date().getMonth());
-    } else {
-      const now = new Date();
-      setCalendarYear(now.getFullYear());
-      setCalendarMonth(now.getMonth());
-    }
-    setIsExpiryPickerOpen(true);
-  };
-
-  const handlePrevMonth = () => {
-    if (calendarMonth === 0) {
-      setCalendarMonth(11);
-      setCalendarYear((y) => y - 1);
-    } else {
-      setCalendarMonth((m) => m - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (calendarMonth === 11) {
-      setCalendarMonth(0);
-      setCalendarYear((y) => y + 1);
-    } else {
-      setCalendarMonth((m) => m + 1);
-    }
-  };
-
-  const applyQuickPreset = (monthsToAdd) => {
-    const target = new Date();
-    target.setMonth(target.getMonth() + monthsToAdd);
-    const y = target.getFullYear();
-    const m = String(target.getMonth() + 1).padStart(2, '0');
-    const d = String(target.getDate()).padStart(2, '0');
-    const formatted = `${y}-${m}-${d}`;
-    setInwardExpiry(formatted);
-    setCalendarYear(y);
-    setCalendarMonth(target.getMonth());
-    setIsExpiryPickerOpen(false);
-  };
-
-  const formatToDDMMYYYY = (dateStr) => {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    return `${parts[2]}-${parts[1]}-${parts[0]}`;
-  };
+  const [inwardFarmId, setInwardFarmId] = useState(selectedFarm || (safeFirms[0]?._id || ''));
 
   // Outward Form State
   const [outwardMedicineId, setOutwardMedicineId] = useState('');
@@ -141,18 +73,18 @@ export default function DailyMedicineActionPage({
   const [batchAllocations, setBatchAllocations] = useState({});
   const [outwardIssuer, setOutwardIssuer] = useState(user?.name || user?.username || '');
   const [outwardReceiver, setOutwardReceiver] = useState('');
-  const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (firms[0]?._id || ''));
+  const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (safeFirms[0]?._id || ''));
   const [showAddLocationInput, setShowAddLocationInput] = useState(false);
 
   const categories = [...new Set(['Feed Medicine', 'Vaccine', 'General', 'Antibiotics', 'Vitamins & Minerals', ...medicines.map((m) => m.category).filter(Boolean)])];
   const units = [...new Set(['Bottle', 'Litre (L)', 'Millilitre (ml)', 'Kilogram (Kg)', 'Gram (g)', 'Vial', 'Packet', 'Tablet', ...medicines.map((m) => m.unit).filter(Boolean)])];
 
-  const effectiveFarm = selectedFarm || (firms.length === 1 ? firms[0]._id : '');
-  const activeFarmName = firms.find((f) => f._id === (selectedFarm || effectiveFarm))?.name || '';
+  const effectiveFarm = selectedFarm || (safeFirms.length === 1 ? safeFirms[0]?._id : '');
+  const activeFarmName = safeFirms.find((f) => f._id === (selectedFarm || effectiveFarm))?.name || '';
 
   useEffect(() => {
-    setInwardFarmId(selectedFarm || (firms[0]?._id || ''));
-    setOutwardFarmId(selectedFarm || (firms[0]?._id || ''));
+    setInwardFarmId(selectedFarm || (safeFirms[0]?._id || ''));
+    setOutwardFarmId(selectedFarm || (safeFirms[0]?._id || ''));
   }, [selectedFarm, firms]);
 
   const handleRemoveLocation = async (name) => {
@@ -1088,20 +1020,35 @@ export default function DailyMedicineActionPage({
                   <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
                     Expiry Date <span className="text-rose-500">*</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={openExpiryPicker}
-                    className={`w-full h-8 px-2 border rounded-md text-xs font-semibold flex items-center justify-between text-left transition-all cursor-pointer ${
-                      inwardExpiry
-                        ? 'border-emerald-500 bg-emerald-50/60 text-emerald-950 font-bold'
-                        : 'border-slate-300 bg-white text-slate-400 hover:border-slate-400'
-                    } focus:ring-1 focus:ring-emerald-500 focus:outline-none`}
+                  <div
+                    className="relative w-full cursor-pointer"
+                    onClick={() => {
+                      try {
+                        inwardExpiryRef.current?.showPicker();
+                      } catch (err) {}
+                    }}
                   >
-                    <span className={inwardExpiry ? 'font-mono text-emerald-900 font-bold' : 'text-slate-400'}>
-                      {inwardExpiry ? formatToDDMMYYYY(inwardExpiry) : 'dd-mm-yyyy'}
+                    <input
+                      ref={inwardExpiryRef}
+                      type="date"
+                      required
+                      value={inwardExpiry}
+                      min={(() => {
+                        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+                        return new Date(new Date(`${today}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
+                      })()}
+                      onClick={(e) => {
+                        try {
+                          e.currentTarget.showPicker();
+                        } catch (err) {}
+                      }}
+                      onChange={(e) => setInwardExpiry(e.target.value)}
+                      className="w-full h-8 pl-2 pr-7 border border-slate-300 rounded-md text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer bg-white relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none select-none">
+                      📅
                     </span>
-                    <span className="text-xs text-slate-500">📅</span>
-                  </button>
+                  </div>
                 </div>
               </div>
 
@@ -1184,174 +1131,7 @@ export default function DailyMedicineActionPage({
         </div>
       )}
 
-      {/* ======================================================== */}
-      {/* MID-SCREEN CALENDAR MODAL FOR EXPIRY DATE                */}
-      {/* ======================================================== */}
-      {isExpiryPickerOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150 cursor-pointer"
-          onClick={() => setIsExpiryPickerOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-[92%] sm:w-full max-w-[320px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-800 p-3.5 space-y-2.5 animate-in zoom-in-95 duration-150 cursor-default"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>📅</span> Select Expiry Date
-                </h3>
-                <p className="text-[9px] text-slate-500">Must be tomorrow or a future date</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsExpiryPickerOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 text-xs font-bold leading-none cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
 
-            {/* Quick Presets */}
-            <div>
-              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                Quick Presets
-              </div>
-              <div className="grid grid-cols-4 gap-1">
-                {[
-                  { label: '+6 Mos', months: 6 },
-                  { label: '+1 Year', months: 12 },
-                  { label: '+2 Years', months: 24 },
-                  { label: '+3 Years', months: 36 },
-                ].map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => applyQuickPreset(preset.months)}
-                    className="py-1 px-1 text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-md border border-emerald-200 transition-colors cursor-pointer text-center"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Month & Year Navigation */}
-            <div className="flex items-center justify-between bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-700 font-bold hover:shadow-xs transition cursor-pointer text-xs"
-                title="Previous Month"
-              >
-                ◀
-              </button>
-              <div className="flex items-center gap-1.5">
-                <select
-                  value={calendarMonth}
-                  onChange={(e) => setCalendarMonth(Number(e.target.value))}
-                  className="text-xs font-bold bg-white border border-slate-200 rounded-md py-1 px-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
-                >
-                  {CALENDAR_MONTHS.map((m, idx) => (
-                    <option key={m} value={idx}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={calendarYear}
-                  onChange={(e) => setCalendarYear(Number(e.target.value))}
-                  className="text-xs font-bold bg-white border border-slate-200 rounded-md py-1 px-1.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer font-mono"
-                >
-                  {calendarYearOptions.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white text-slate-700 font-bold hover:shadow-xs transition cursor-pointer text-xs"
-                title="Next Month"
-              >
-                ▶
-              </button>
-            </div>
-
-            {/* Weekday headers */}
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-400">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                <div key={d} className="py-0.5">
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-1 text-center">
-              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`blank-${i}`} className="h-7" />
-              ))}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const dayNum = i + 1;
-                const dateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                const isPastOrToday = dateStr <= todayKolkata;
-                const isSelected = inwardExpiry === dateStr;
-
-                return (
-                  <button
-                    key={dayNum}
-                    type="button"
-                    disabled={isPastOrToday}
-                    onClick={() => {
-                      setInwardExpiry(dateStr);
-                      setIsExpiryPickerOpen(false);
-                    }}
-                    className={`h-7 w-full rounded-lg text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-600 text-white font-bold shadow-sm'
-                        : isPastOrToday
-                        ? 'text-slate-300 cursor-not-allowed line-through text-[11px]'
-                        : 'text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 active:scale-95'
-                    }`}
-                  >
-                    {dayNum}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Footer with Clear and Close buttons */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  setInwardExpiry('');
-                  setIsExpiryPickerOpen(false);
-                }}
-                className="text-slate-500 hover:text-rose-600 font-semibold text-[11px] px-2 py-1 rounded hover:bg-slate-50 transition cursor-pointer"
-              >
-                Clear
-              </button>
-              {inwardExpiry && (
-                <span className="font-mono text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  {formatToDDMMYYYY(inwardExpiry)}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsExpiryPickerOpen(false)}
-                className="text-slate-600 hover:text-slate-800 font-semibold text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 transition cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ======================================================== */}
       {/* MODAL 2: STOCK OUT (- Give to Birds)                     */}
