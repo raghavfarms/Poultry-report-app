@@ -488,31 +488,6 @@ export default function MedicineConsumptionRegister({
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 3. MONTH-END TOTAL CONSUMPTION SUMMARY STRIP             */}
-      {/* ======================================================== */}
-      {unitSummary && unitSummary.length > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl px-2 py-1 sm:p-3 shadow-2xs print:border print:border-slate-300 print:bg-white print:p-2">
-          <div className="flex items-center justify-between flex-wrap gap-1 sm:gap-2">
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <span className="text-xs sm:text-base print:hidden">📊</span>
-              <span className="text-[10px] sm:text-xs font-extrabold text-blue-900 uppercase tracking-wide">
-                Total Consumed:
-              </span>
-            </div>
-            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-              {unitSummary.map((us) => (
-                <span
-                  key={us.unit}
-                  className="px-1.5 sm:px-2.5 py-0.2 sm:py-0.5 rounded-md sm:rounded-lg bg-white border border-blue-200 text-blue-950 font-black text-[10px] sm:text-xs shadow-2xs print:border-none print:p-0 print:mr-2"
-                >
-                  {us.total} <span className="font-semibold text-slate-600 text-[9px] sm:text-[11px]">{us.unit}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ======================================================== */}
       {/* 4. THE MAIN CONSUMPTION REGISTER TABLE (15 Rows Min)     */}

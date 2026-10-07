@@ -197,7 +197,7 @@ export async function getReceipts(req, res) {
 
   const filter = {};
   if (status) filter.status = status;
-  if (supplier) filter.supplier = supplier;
+  if (supplier) filter.supplier = supplier;  
   if (farm) filter.farm = farm;
   if (search) {
     filter.$or = [
@@ -219,7 +219,7 @@ export async function getReceipts(req, res) {
 
   res.json({  
     success: true,
-    count: receipts.length,
+    count: receipts.length,  
     receipts,
   });
 }
@@ -230,7 +230,7 @@ export async function getBatchStock(req, res) {
 
   const filter = {};
   if (farm) filter.farm = farm;
-  if (medicine) filter.medicine = medicine;
+  if (medicine) filter.medicine = medicine;             
   if (status) filter.status = status;
 
   const batches = await MedicineBatch.find(filter)
@@ -265,4 +265,3 @@ export async function getBatchStock(req, res) {
     batches: enrichedBatches,
   });
 }
-
