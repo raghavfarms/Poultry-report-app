@@ -609,7 +609,7 @@ export default function MedicineConsumptionRegister({
                           </span>
                         ) : (
                           'Farm'
-                        )}
+                        )}  
                       </td>
 
                       {/* Scrolling Column: Location / Shed */}
@@ -644,7 +644,7 @@ export default function MedicineConsumptionRegister({
                         {iss.issuedTo || 'Worker'}
                       </td>
                     </tr>
-                  );
+                  );  
                 })}
               </tbody>
             </table>
@@ -668,8 +668,8 @@ export default function MedicineConsumptionRegister({
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 transition cursor-pointer"
               >
-                ◀ Previous
-              </button>
+                ◀ Previous     
+              </button> 
 
               <span className="px-2 text-slate-600 font-bold">
                 {page} / {totalPages}
