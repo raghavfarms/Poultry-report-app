@@ -5,7 +5,7 @@ import { Alert, Spinner, inputClass, secondaryButton, primaryButton } from '../.
 import { attendancePath } from '../services/adminApi.js';
 
 export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSuccess }) {
-  const [date, setDate] = useState(initialDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()));
+  const [date, setDate] = useState(() => initialDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()));
   const [workers, setWorkers] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({}); // workerId -> 'P' | 'HD' | 'A'
   const [search, setSearch] = useState('');
@@ -15,7 +15,14 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  // 1. Fetch active workers and existing saved attendance for the selected date
+  // Synchronize when initialDate prop changes
+  useEffect(() => {
+    if (initialDate) {
+      setDate(initialDate);
+    }
+  }, [initialDate]);
+
+  // 1. Fetch authoritative calculated attendance (P, HD, A) for the selected date
   useEffect(() => {
     if (!firmId || !date) return;
     let isMounted = true;
@@ -23,37 +30,62 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
     setError('');
 
     Promise.all([
+      api(attendancePath('reports/daily', { firmId, date })),
       api(attendancePath('workers', { firmId, active: true, limit: 300 })),
-      api(attendancePath('sessions', { firmId, date, limit: 500 })),
     ])
-      .then(([workersRes, sessionsRes]) => {
+      .then(([dailyRes, workersRes]) => {
         if (!isMounted) return;
-        const workerList = workersRes.items || [];
-        setWorkers(workerList);
 
-        const savedSessions = sessionsRes.items || [];
-        const sessionMap = new Map();
-        for (const s of savedSessions) {
-          const wId = String(s.worker?._id || s.worker);
-          sessionMap.set(wId, s);
-        }
+        const dailyRecords = dailyRes?.records || [];
+        const allWorkers = workersRes?.items || [];
+
+        // Build worker lookup dictionary for any fallback
+        const workerMap = new Map();
+        allWorkers.forEach((w) => {
+          workerMap.set(String(w._id), {
+            _id: w._id,
+            fullName: w.fullName,
+            workerCode: w.workerCode,
+            designationName: w.designation?.name || '',
+            workLocationName: '',
+          });
+        });
 
         const map = {};
-        workerList.forEach((w) => {
-          const s = sessionMap.get(String(w._id));
-          if (s) {
-            if (s.status === 'ABSENT') {
-              map[w._id] = 'A';
-            } else if (s.status === 'DUTY_COMPLETED' && s.workedMinutes >= 240 && s.workedMinutes < 475) {
-              map[w._id] = 'HD';
-            } else {
-              map[w._id] = 'P';
-            }
+        const orderedWorkers = [];
+
+        // 1. Process all workers from the authoritative daily attendance report
+        // Single source of truth: matching Monthly & Daily Register exactly!
+        dailyRecords.forEach((r) => {
+          const wId = String(r.workerId);
+          let status = 'A';
+          if (r.status === 'COMPLETED' || r.status === 'ON_DUTY' || r.status === 'PRESENT') {
+            status = 'P';
+          } else if (r.status === 'HALF_DAY') {
+            status = 'HD';
           } else {
-            // Not recorded yet for this date: default to P
-            map[w._id] = 'P';
+            status = 'A';
           }
+          map[wId] = status;
+
+          orderedWorkers.push({
+            _id: r.workerId,
+            fullName: r.workerName,
+            workerCode: r.workerCode,
+            designationName: r.designationName || '',
+            workLocationName: r.workLocationName || '',
+          });
+
+          workerMap.delete(wId);
         });
+
+        // 2. Any active workers who didn't appear in daily report (default to Absent 'A')
+        workerMap.forEach((w) => {
+          map[String(w._id)] = 'A';
+          orderedWorkers.push(w);
+        });
+
+        setWorkers(orderedWorkers);
         setAttendanceMap(map);
       })
       .catch((err) => {
@@ -105,7 +137,9 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
     const term = search.trim().toLowerCase();
     return workers.filter((w) =>
       (w.fullName || '').toLowerCase().includes(term) ||
-      (w.workerCode || '').toLowerCase().includes(term)
+      (w.workerCode || '').toLowerCase().includes(term) ||
+      (w.workLocationName || '').toLowerCase().includes(term) ||
+      (w.designationName || '').toLowerCase().includes(term)
     );
   }, [workers, search]);
 
@@ -122,7 +156,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
 
     const records = workers.map((w) => ({
       workerId: w._id,
-      status: attendanceMap[w._id] || 'P',
+      status: attendanceMap[w._id] || 'A',
     }));
 
     try {
@@ -178,11 +212,9 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
               />
             </div>
 
-            {/* Quick Set Pills */}
-            <div className="flex items-center justify-start sm:justify-end gap-1 overflow-x-auto py-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap mr-0.5">
-                Set All:
-              </span>
+            {/* Quick All P / All HD / All A buttons */}
+            <div className="flex items-center gap-1.5 self-end sm:self-auto">
+              <span className="text-[11px] font-semibold text-slate-400 mr-0.5 hidden xs:inline">Set All:</span>
               <button
                 type="button"
                 onClick={() => markAll('P')}
@@ -214,11 +246,11 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-1.5 border-t border-slate-200/70">
             <input
               type="text"
-              placeholder="Search worker…"
+              placeholder="Search worker, shed, code…"
               value={search}
               disabled={isSaving}
               onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} !min-h-7 !h-7 !py-0 !px-2 text-xs rounded-md bg-white w-full sm:w-48`}
+              className={`${inputClass} !min-h-7 !h-7 !py-0 !px-2 text-xs rounded-md bg-white w-full sm:w-56`}
             />
 
             <div className="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto whitespace-nowrap">
@@ -242,7 +274,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
           {loading ? (
             <div className="py-10 text-center">
-              <Spinner label="Loading workers list…" />
+              <Spinner label="Loading attendance records for this date…" />
             </div>
           ) : filteredWorkers.length === 0 ? (
             <div className="p-6 text-center text-slate-400 text-xs font-semibold">
@@ -251,7 +283,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
           ) : (
             <div className="max-h-[50dvh] sm:max-h-[380px] overflow-y-auto divide-y divide-slate-100">
               {filteredWorkers.map((w) => {
-                const currentStatus = attendanceMap[w._id] || 'P';
+                const currentStatus = attendanceMap[w._id] || 'A';
                 return (
                   <div
                     key={w._id}
@@ -264,7 +296,8 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
                       </p>
                       <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium truncate mt-0.5">
                         <span className="font-semibold text-slate-500">{w.workerCode}</span>
-                        {w.designation?.name ? ` · ${w.designation.name}` : ''}
+                        {w.workLocationName ? ` · ${w.workLocationName}` : ''}
+                        {w.designationName ? ` · ${w.designationName}` : ''}
                       </p>
                     </div>
 
@@ -325,7 +358,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
         {/* Footer: Mobile-first Stacked / Flex Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
           <p className="text-[10px] sm:text-[11px] text-slate-400 order-2 sm:order-1 text-center sm:text-left">
-            Tip: Click <strong className="text-slate-600 font-bold">Save & Next ➡️</strong> to rapidly advance dates.
+            Tip: Pre-filled with actual daily records. Click <strong className="text-slate-600 font-bold">Save & Next ➡️</strong> to advance dates.
           </p>
 
           <div className="grid grid-cols-3 sm:flex sm:items-center gap-1.5 order-1 sm:order-2">

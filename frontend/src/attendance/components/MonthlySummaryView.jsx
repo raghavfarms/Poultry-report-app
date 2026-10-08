@@ -24,6 +24,7 @@ export default function MonthlySummaryView({
   const canBulkApply = ['admin', 'developer'].includes(user?.role);
   const [editingWorker, setEditingWorker] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkModalDate, setBulkModalDate] = useState('');
   const [notice, setNotice] = useState('');
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
@@ -252,7 +253,14 @@ export default function MonthlySummaryView({
           {canBulkApply && (
             <button
               type="button"
-              onClick={() => setShowBulkModal(true)}
+              onClick={() => {
+                setBulkModalDate(
+                  month === getCurrentMonthString()
+                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+                    : `${month}-01`
+                );
+                setShowBulkModal(true);
+              }}
               title="Bulk Daily Muster Entry for all workers"
               className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded cursor-pointer shadow-2xs transition-colors whitespace-nowrap shrink-0"
             >
@@ -354,7 +362,19 @@ export default function MonthlySummaryView({
                   <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap print:px-1 print:py-0.5 print:w-16">Designation</th>
                   <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap print:px-1 print:py-0.5 print:w-16">Shed</th>
                   {daysArray.map((d) => (
-                    <th key={d} className="sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 print:min-w-0 print:w-3.5 print:px-0 print:py-0.5 whitespace-nowrap">
+                    <th
+                      key={d}
+                      onClick={() => {
+                        if (canBulkApply) {
+                          setBulkModalDate(`${month}-${d}`);
+                          setShowBulkModal(true);
+                        }
+                      }}
+                      title={canBulkApply ? `Click to Bulk Edit Day ${Number(d)}` : undefined}
+                      className={`sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 print:min-w-0 print:w-3.5 print:px-0 print:py-0.5 whitespace-nowrap ${
+                        canBulkApply ? 'cursor-pointer hover:bg-slate-200 hover:text-slate-900 transition-colors' : ''
+                      }`}
+                    >
                       {Number(d)}
                     </th>
                   ))}
@@ -422,7 +442,9 @@ export default function MonthlySummaryView({
       />}
       {canBulkApply && showBulkModal && <BulkAttendanceModal
         firmId={firmId}
-        initialDate={`${month}-01`}
+        initialDate={bulkModalDate || (month === getCurrentMonthString()
+          ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
+          : `${month}-01`)}
         onClose={() => setShowBulkModal(false)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}
