@@ -4,7 +4,7 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const input = useRef(null);
+  const input = useRef(null);    
   const list = useRef(null);
   const id = useId();
   const selected = medicines.find((medicine) => medicine._id === value);
@@ -15,7 +15,7 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
     const rank = (medicine) => medicine.name.toLowerCase() === term ? 0 : medicine.name.toLowerCase().startsWith(term) ? 1 : 2;
     return rank(a) - rank(b) || a.name.localeCompare(b.name);
   });
-  const activeIndex = Math.min(active, matches.length - 1);
+  const activeIndex = Math.min(active, matches.length - 1); 
 
   useEffect(() => {
     input.current?.setCustomValidity(required && !selected ? 'Select a medicine from the suggestions.' : '');
@@ -28,7 +28,7 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
   const choose = (medicine) => {
     onChange(medicine._id);
     setQuery('');
-    setOpen(false);
+    setOpen(false);  
   };
 
   return (
@@ -40,7 +40,7 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
         role="combobox"
         aria-label="Search and select medicine"
         aria-expanded={open}
-        aria-controls={`${id}-list`}
+        aria-controls={`${id}-list`} 
         aria-autocomplete="list"
         aria-activedescendant={open && activeIndex >= 0 ? `${id}-${activeIndex}` : undefined}
         autoComplete="off"
@@ -50,7 +50,7 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
         onFocus={(event) => { setOpen(true); setActive(0); event.target.select(); }}
         onClick={() => setOpen(true)}
         onChange={(event) => {
-          setQuery(event.target.value);
+          setQuery(event.target.value);            
           onChange('');
           setActive(0);
           setOpen(true);
@@ -64,8 +64,8 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
             event.preventDefault();
             if (matches[activeIndex]) choose(matches[activeIndex]);
           } else if (event.key === 'Escape' && open) {
-            event.preventDefault();
-            event.stopPropagation();
+            event.preventDefault();                        
+            event.stopPropagation(); 
             setOpen(false);
           }
         }}
@@ -89,5 +89,15 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
         </ul>
       )}
     </div>
-  );
-}
+  );  
+}    
+
+
+
+
+
+
+
+
+
+

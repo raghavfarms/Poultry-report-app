@@ -18,8 +18,9 @@ const STATUS_BADGES = {
 
 const EXPIRY_BADGES = {
   VALID: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  EXPIRING_60_DAYS: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  EXPIRING_30_DAYS: 'bg-orange-50 text-orange-700 border-orange-200',
+  EXPIRING_90_DAYS: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  EXPIRING_60_DAYS: 'bg-orange-50 text-orange-700 border-orange-200',
+  EXPIRING_30_DAYS: 'bg-red-50 text-red-700 border-red-200 font-bold',
   EXPIRED: 'bg-rose-50 text-rose-700 border-rose-200 font-bold',
 };
 

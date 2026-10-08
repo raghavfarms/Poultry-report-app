@@ -110,10 +110,11 @@ export async function getDashboardStats(req, res) {
 
   // Expiry Radar Buckets 
   const expiryRadar = {
-    expired: [],   // <= 0 days
-    critical30: [], // 1 to 30 days
-    caution60: [],  // 31 to 60 days
-    safe: []       // > 60 days
+    expired: [],    // <= 0 days
+    critical30: [], // 1 to 30 days (1 Month - Red / Critical)
+    caution60: [],  // 31 to 60 days (2 Months - Orange / High Caution)
+    warning90: [],  // 61 to 90 days (3 Months - Yellow / Use Soon)
+    safe: []        // > 90 days (> 3 Months - Green / Safe)
   };
 
   // Medicine-wise aggregated stock map: { medicineId: totalAvailableQuantity }
@@ -159,8 +160,10 @@ export async function getDashboardStats(req, res) {
       expiryRadar.expired.push(batchSummary);
     } else if (daysLeft <= 30) {
       expiryRadar.critical30.push(batchSummary);
-    } else if (daysLeft <= 90) {
+    } else if (daysLeft <= 60) {
       expiryRadar.caution60.push(batchSummary);
+    } else if (daysLeft <= 90) {
+      expiryRadar.warning90.push(batchSummary);
     } else {
       expiryRadar.safe.push(batchSummary);
     }
@@ -176,6 +179,7 @@ export async function getDashboardStats(req, res) {
   expiryRadar.expired.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   expiryRadar.critical30.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   expiryRadar.caution60.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  expiryRadar.warning90.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   expiryRadar.safe.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
   // Identify Low Stock Medicines (Current Stock <= Reorder Level or Minimum Stock)
@@ -227,6 +231,7 @@ export async function getDashboardStats(req, res) {
   enrichWithStockAlert(expiryRadar.expired);
   enrichWithStockAlert(expiryRadar.critical30);
   enrichWithStockAlert(expiryRadar.caution60);
+  enrichWithStockAlert(expiryRadar.warning90);
   enrichWithStockAlert(expiryRadar.safe);
   res.json({
     success: true,
@@ -236,16 +241,20 @@ export async function getDashboardStats(req, res) {
       totalAvailableUnits,
       lowStockCount: lowStockAlerts.length,
       expiredCount: expiryRadar.expired.length,
-      critical30Count: expiryRadar.critical30.length
+      critical30Count: expiryRadar.critical30.length,
+      caution60Count: expiryRadar.caution60.length,
+      warning90Count: expiryRadar.warning90.length
     },
     expiryRadar: {
       expiredCount: expiryRadar.expired.length,
       critical30Count: expiryRadar.critical30.length,
       caution60Count: expiryRadar.caution60.length,
+      warning90Count: expiryRadar.warning90.length,
       safeCount: expiryRadar.safe.length,
       expired: expiryRadar.expired,
       critical30: expiryRadar.critical30,
       caution60: expiryRadar.caution60,
+      warning90: expiryRadar.warning90,
       safe: expiryRadar.safe
     },
     lowStockAlerts

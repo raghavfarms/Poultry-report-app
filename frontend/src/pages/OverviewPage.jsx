@@ -3,7 +3,6 @@ import DieselReports from "../components/DieselReports.jsx";
 import TransportPage from "./TransportPage.jsx";
 import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
 import WorkerAttendancePortal from "../attendance/pages/WorkerAttendancePortal.jsx";
-import DailyMedicineActionPage from "../medicine/pages/DailyMedicineActionPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -23,27 +22,23 @@ export default function OverviewPage() {
     return () => query.removeEventListener("change", update);
   }, []);
 
-  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
-  const isSecurity = user?.role === "security";
-
   if (desktop)
     return (
       <div className="space-y-6">
-        {!isSecurity && <DieselReports compact />}
-        {!isSecurity && <TransportPage />}
-        {hasAttendanceAccess && <AttendanceReportPage />}
-        {!isSecurity && (
-          <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6">
-            <DailyMedicineActionPage />
-          </section>
+        <DieselReports compact />
+        <TransportPage />
+        {["admin", "developer"].includes(user.role) ? (
+          <AttendanceReportPage />
+        ) : (
+          <WorkerAttendancePortal />
         )}
-        {user?.role === "developer" && (
+        {user.role === "developer" && (
           <section>
             <h2 className="mb-4 text-xl font-black text-slate-900">
               Next report modules
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {modules.filter(([slug]) => !["diesel", "transport", "attendance", "medicine"].includes(slug)).map(([slug, label, icon]) => (
+              {modules.filter(([slug]) => !["diesel", "transport", "attendance"].includes(slug)).map(([slug, label, icon]) => (
               <article
                 key={slug}
                 className="rounded-2xl border border-slate-200 bg-white p-5"
@@ -79,14 +74,7 @@ export default function OverviewPage() {
           Select a report to open or close it.
         </p>
       </div>
-      {(user?.role === "developer"
-        ? modules
-        : modules.filter(([slug]) => {
-            if (user?.role === "security") return slug === "attendance";
-            if (slug === "attendance") return hasAttendanceAccess;
-            return ["diesel", "transport", "medicine"].includes(slug);
-          })
-      ).map(([slug, label, icon]) => {
+      {(user.role === "developer" ? modules : modules.filter(([slug]) => ["diesel", "transport", "attendance"].includes(slug))).map(([slug, label, icon]) => {
         const expanded = openReport === slug;
         const panelId = `report-panel-${slug}`;
         return (
@@ -111,9 +99,9 @@ export default function OverviewPage() {
                   {label}
                 </span>
                 <span
-                  className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport", "attendance", "medicine"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
+                  className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport", "attendance"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
                 >
-                  {["diesel", "transport", "attendance", "medicine"].includes(slug) ? "Available" : "Ready for next phase"}
+                  {["diesel", "transport", "attendance"].includes(slug) ? "Available" : "Ready for next phase"}
                 </span>
               </span>
               <svg
@@ -141,9 +129,11 @@ export default function OverviewPage() {
                 ) : slug === "transport" ? (
                   <TransportPage />
                 ) : slug === "attendance" ? (
-                  <AttendanceReportPage />
-                ) : slug === "medicine" ? (
-                  <DailyMedicineActionPage />
+                  ["admin", "developer"].includes(user.role) ? (
+                    <AttendanceReportPage />
+                  ) : (
+                    <WorkerAttendancePortal />
+                  )
                 ) : (
                   <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
                     <h2 className="font-bold text-slate-800">{label}</h2>

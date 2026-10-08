@@ -230,6 +230,7 @@ export default function DailyMedicineActionPage({
           ...(radar.expired || []),
           ...(radar.critical30 || []),
           ...(radar.caution60 || []),
+          ...(radar.warning90 || []),
           ...(radar.safe || []),
         ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
         setAvailableBatches(allBatches);
@@ -1818,14 +1819,16 @@ export default function DailyMedicineActionPage({
                     <div className="max-h-32 overflow-y-auto divide-y divide-slate-100">
                       {activeBatchesForOutward.map((b) => {
                         const isExpired = b.daysLeft < 0;
-                        const isCritical = b.daysLeft <= 30;
+                        const isCritical = b.daysLeft <= 30; // 1 month
+                        const isCaution = b.daysLeft <= 60;  // 2 months
+                        const isWarning = b.daysLeft <= 90;  // 3 months
                         const allocVal = batchAllocations[b._id] ?? '';
 
                         return (
                           <div
                             key={b._id}
                             className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
-                              isExpired || isCritical ? 'bg-rose-50/30' : ''
+                              isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
                             }`}
                           >
                             {/* Col 1: Batch */}
@@ -1841,6 +1844,10 @@ export default function DailyMedicineActionPage({
                                 className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                                   isExpired || isCritical
                                     ? 'bg-rose-100 text-rose-700'
+                                    : isCaution
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : isWarning
+                                    ? 'bg-amber-100 text-amber-800'
                                     : 'bg-emerald-100 text-emerald-700'
                                 }`}
                               >

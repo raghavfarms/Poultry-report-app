@@ -72,6 +72,8 @@ export async function getFefoRecommendations(req, res) {
         expiryStatus = 'EXPIRING_30_DAYS';
       } else if (daysLeft <= 60) {
         expiryStatus = 'EXPIRING_60_DAYS';
+      } else if (daysLeft <= 90) {
+        expiryStatus = 'EXPIRING_90_DAYS';
       }
 
       // First batch with positive days left is FEFO recommended

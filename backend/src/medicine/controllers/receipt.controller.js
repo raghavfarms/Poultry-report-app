@@ -251,6 +251,7 @@ export async function getBatchStock(req, res) {
     if (daysRemaining <= 0) expiryAlert = 'EXPIRED';
     else if (daysRemaining <= 30) expiryAlert = 'EXPIRING_30_DAYS';
     else if (daysRemaining <= 60) expiryAlert = 'EXPIRING_60_DAYS';
+    else if (daysRemaining <= 90) expiryAlert = 'EXPIRING_90_DAYS';
 
     return {
       ...b,

@@ -232,6 +232,7 @@ export default function MedicineReportPage() {
     ...(radar.expired || []).map((b) => ({ ...b, urgency: 'EXPIRED' })),
     ...(radar.critical30 || []).map((b) => ({ ...b, urgency: 'CRITICAL' })),
     ...(radar.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
+    ...(radar.warning90 || []).map((b) => ({ ...b, urgency: 'WARNING' })),
     ...(radar.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
   ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
@@ -247,7 +248,7 @@ export default function MedicineReportPage() {
     if (!matchesSearch) return false;
 
     if (stockFilter === 'SAFE') return b.urgency === 'SAFE';
-    if (stockFilter === 'SOON') return b.urgency === 'CRITICAL' || b.urgency === 'CAUTION';
+    if (stockFilter === 'SOON') return b.urgency === 'CRITICAL' || b.urgency === 'CAUTION' || b.urgency === 'WARNING';
     if (stockFilter === 'EXPIRED') return b.urgency === 'EXPIRED';
     if (stockFilter === 'LOW') return Boolean(b.isLowStock);
     return true;
@@ -460,7 +461,7 @@ export default function MedicineReportPage() {
                     : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
                 }`}
               >
-                <span>🟡</span> Soon ({(radar.critical30Count || 0) + (radar.caution60Count || 0)})
+                <span>🟡</span> Soon ({(radar.critical30Count || 0) + (radar.caution60Count || 0) + (radar.warning90Count || 0)})
               </button>
               <button
                 type="button"
@@ -550,13 +551,22 @@ export default function MedicineReportPage() {
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredBatches.map((b) => {
                         const isExpired = b.urgency === 'EXPIRED';
-                        const isCritical = b.urgency === 'CRITICAL';
-                        const isCaution = b.urgency === 'CAUTION';
+                        const isCritical = b.urgency === 'CRITICAL'; // <= 30d (1 Month)
+                        const isCaution = b.urgency === 'CAUTION';   // <= 60d (2 Months)
+                        const isWarning = b.urgency === 'WARNING';   // <= 90d (3 Months)
                         return (
                           <tr
                             key={b._id}
                             className={`hover:bg-slate-50/80 transition-colors ${
-                              isExpired ? 'bg-rose-50/30' : isCritical ? 'bg-orange-50/25' : ''
+                              isExpired
+                                ? 'bg-rose-50/40'
+                                : isCritical
+                                ? 'bg-rose-50/25'
+                                : isCaution
+                                ? 'bg-orange-50/25'
+                                : isWarning
+                                ? 'bg-amber-50/20'
+                                : ''
                             }`}
                           >
                             <td className="py-3 px-4">
@@ -604,15 +614,19 @@ export default function MedicineReportPage() {
                                   🔴 Expired ({Math.abs(b.daysLeft)}d ago)
                                 </span>
                               ) : isCritical ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1">
-                                  🟠 Use Soon ({b.daysLeft}d left)
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1" title="Expires within 1 month">
+                                  🔴 Use Soon ({b.daysLeft}d left)
                                 </span>
                               ) : isCaution ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1">
-                                  🟡 Soon ({b.daysLeft}d left)
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1" title="Expires within 2 months">
+                                  🟠 Use Soon ({b.daysLeft}d left)
+                                </span>
+                              ) : isWarning ? (
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1" title="Expires within 3 months">
+                                  🟡 Use Soon ({b.daysLeft}d left)
                                 </span>
                               ) : (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1">
+                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1" title="Safe (> 3 months)">
                                   🟢 Safe ({b.daysLeft}d left)
                                 </span>
                               )}
@@ -667,13 +681,22 @@ export default function MedicineReportPage() {
                 <div className="md:hidden divide-y divide-slate-100 bg-white">
                   {filteredBatches.map((b) => {
                     const isExpired = b.urgency === 'EXPIRED';
-                    const isCritical = b.urgency === 'CRITICAL';
-                    const isCaution = b.urgency === 'CAUTION';
+                    const isCritical = b.urgency === 'CRITICAL'; // <= 30d (1 Month)
+                    const isCaution = b.urgency === 'CAUTION';   // <= 60d (2 Months)
+                    const isWarning = b.urgency === 'WARNING';   // <= 90d (3 Months)
                     return (
                       <div
                         key={b._id}
                         className={`p-3.5 space-y-2 ${
-                          isExpired ? 'bg-rose-50/30' : isCritical ? 'bg-orange-50/20' : ''
+                          isExpired
+                            ? 'bg-rose-50/40'
+                            : isCritical
+                            ? 'bg-rose-50/25'
+                            : isCaution
+                            ? 'bg-orange-50/20'
+                            : isWarning
+                            ? 'bg-amber-50/15'
+                            : ''
                         }`}
                       >
                         {/* Header: Medicine Name & Expiry Badge */}
@@ -702,16 +725,20 @@ export default function MedicineReportPage() {
                                 🔴 Expired
                               </span>
                             ) : isCritical ? (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-900 border border-red-200">
+                                🔴 {b.daysLeft}d left
+                              </span>
+                            ) : isCaution ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 border border-orange-200">
                                 🟠 {b.daysLeft}d left
                               </span>
-                            ) : isCaution ? (
+                            ) : isWarning ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
                                 🟡 {b.daysLeft}d left
                               </span>
                             ) : (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-                                🟢 Safe
+                                🟢 Safe ({b.daysLeft}d left)
                               </span>
                             )}
                           </div>
@@ -978,13 +1005,15 @@ export default function MedicineReportPage() {
                         daysLeft <= 0
                           ? 'bg-rose-100 text-rose-800 border border-rose-200'
                           : daysLeft <= 30
-                          ? 'bg-orange-100 text-orange-800 border border-orange-200'
+                          ? 'bg-red-100 text-red-800 border border-red-200'
                           : daysLeft <= 60
+                          ? 'bg-orange-100 text-orange-800 border border-orange-200'
+                          : daysLeft <= 90
                           ? 'bg-amber-100 text-amber-800 border border-amber-200'
                           : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       }`}>
-                        <span>{daysLeft <= 0 ? '🔴' : daysLeft <= 30 ? '🟠' : daysLeft <= 60 ? '🟡' : '🟢'}</span>
-                        <span>{daysLeft <= 0 ? `Expired (${Math.abs(daysLeft)}d ago)` : `${daysLeft}d Safe`}</span>
+                        <span>{daysLeft <= 0 ? '🔴' : daysLeft <= 30 ? '🔴' : daysLeft <= 60 ? '🟠' : daysLeft <= 90 ? '🟡' : '🟢'}</span>
+                        <span>{daysLeft <= 0 ? `Expired (${Math.abs(daysLeft)}d ago)` : daysLeft <= 90 ? `Use Soon (${daysLeft}d left)` : `${daysLeft}d Safe`}</span>
                         <span className="opacity-70 font-normal text-[9px]">({batch.expiryDate})</span>
                       </span>
                     ) : (
