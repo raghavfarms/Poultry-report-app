@@ -16,6 +16,7 @@ import receiptRoutes from './medicine/routes/receipt.route.js';
 import issueRoutes from './medicine/routes/issue.route.js';
 import reportRoutes from './medicine/routes/report.route.js';
 import dailyActionRoutes from './medicine/routes/dailyAction.route.js';
+import transferRoutes from './medicine/routes/transfer.route.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -43,6 +44,7 @@ app.use('/api/medicine/receipts', receiptRoutes);
 app.use('/api/medicine/issues', issueRoutes);
 app.use('/api/medicine/reports', reportRoutes);
 app.use('/api/medicine/daily-action', dailyActionRoutes);
+app.use('/api/medicine/transfers', transferRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

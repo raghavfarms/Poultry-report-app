@@ -64,6 +64,13 @@ const medicineBatchSchema = new mongoose.Schema(
       required: true,
       min: [0, 'Available quantity cannot be negative'],
     },
+    // Quantity reserved in pending inter-firm transfer requests
+    quantityOnHold: {
+      type: Number,
+      default: 0,
+      min: [0, 'Hold quantity cannot be negative'],
+    },
+    transferredOutQuantity: { type: Number, default: 0, min: 0 },
     disposedQuantity: { type: Number, default: 0, min: 0 },
     disposals: [{
       quantity: { type: Number, required: true },

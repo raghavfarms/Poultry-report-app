@@ -16,6 +16,9 @@ import {
   updateSupplierApi,
   toggleSupplierStatusApi,
 } from '../api/supplierApi.js';
+import { api } from '../../api/client.js';
+import MedicineTransferAuditReport from '../components/MedicineTransferAuditReport.jsx';
+import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 
 const DEFAULT_CATEGORIES = [
   'Feed Medicine',
@@ -143,9 +146,12 @@ export default function MedicineMasterPage() {
   // Data states
   const [medicines, setMedicines] = useState([]);
   const [allSuppliers, setAllSuppliers] = useState([]);
+  const [firms, setFirms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [auditRefreshKey, setAuditRefreshKey] = useState(0);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -246,6 +252,9 @@ export default function MedicineMasterPage() {
 
   useEffect(() => {
     loadSuppliers();
+    api('/firms')
+      .then((data) => setFirms(data.firms || data || []))
+      .catch((err) => console.error('Failed to load firms:', err));
   }, []);
 
   // Automatically fetch medicines on page load and whenever filters change
@@ -572,9 +581,22 @@ export default function MedicineMasterPage() {
             {allSuppliers.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('transfers')}
+          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer ${
+            activeTab === 'transfers'
+              ? 'bg-white text-blue-800 shadow-xs border border-slate-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <span>🔄</span>
+          <span>Transfer Audit</span>
+        </button>
       </div>
 
-      {activeTab === 'medicines' ? (
+      {activeTab === 'medicines' && (
         <div className="space-y-3 sm:space-y-4">
           {/* 1. Header Section */}
           <div className="flex justify-between items-center gap-3 bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
@@ -985,10 +1007,12 @@ export default function MedicineMasterPage() {
         )}
       </div>
     </div>
-  ) : (
-    /* ======================================================== */
-    /* SUPPLIERS DIRECTORY TAB                                  */
-    /* ======================================================== */
+  )}
+
+  {/* ======================================================== */}
+  {/* SUPPLIERS DIRECTORY TAB                                  */}
+  {/* ======================================================== */}
+  {activeTab === 'suppliers' && (
     <div className="space-y-3 sm:space-y-4">
       {/* Suppliers Header */}
       <div className="flex justify-between items-center gap-3 bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
@@ -1218,7 +1242,20 @@ export default function MedicineMasterPage() {
     </div>
   )}
 
-      {/* 4. Add / Edit Modal (Compact & Mobile-Optimized) */}
+  {/* ======================================================== */}
+  {/* 3. INTER-FIRM TRANSFER AUDIT TAB                         */}
+  {/* ======================================================== */}
+  {activeTab === 'transfers' && (
+    <div className="space-y-3 sm:space-y-4">
+      <MedicineTransferAuditReport
+        key={auditRefreshKey}
+        firms={firms}
+        onOpenTransferModal={() => setIsTransferModalOpen(true)}
+      />
+    </div>
+  )}
+
+  {/* 4. Add / Edit Modal (Compact & Mobile-Optimized) */}
       {isModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2.5 sm:p-4 overflow-y-auto cursor-pointer"
@@ -1561,6 +1598,14 @@ export default function MedicineMasterPage() {
           </div>
         </div>
       )}
+
+      {/* Stock Transfer Request Modal */}
+      <MedicineTransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        firms={firms}
+        onSuccess={() => setAuditRefreshKey((k) => k + 1)}
+      />
     </div>
   );
 }

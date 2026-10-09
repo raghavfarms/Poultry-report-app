@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi } from '../api/reportApi.js';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
 import MedicineConsumptionRegister from '../components/MedicineConsumptionRegister.jsx';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
+import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
+import MedicineTransferInboxModal from '../components/MedicineTransferInboxModal.jsx';
+import { fetchPendingTransfers } from '../api/transferApi.js';
 
 class DailyActionErrorBoundary extends React.Component {
   constructor(props) {
@@ -58,6 +60,43 @@ export default function MedicineReportPage() {
   const canDispose = ['admin', 'developer'].includes(user?.role);
   const canEditBatch = ['admin', 'developer'].includes(user?.role);
   const canAccessTraceAndAction = ['admin', 'developer'].includes(user?.role);
+  const canTransferStock = ['admin', 'developer'].includes(user?.role);
+
+  // Transfer Modals & Notification State
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
+  const [pendingTransfers, setPendingTransfers] = useState([]);
+
+  const loadPendingTransfers = async () => {
+    if (!canTransferStock) return;
+    try {
+      const res = await fetchPendingTransfers();
+      setPendingTransfers(res.transfers || []);
+    } catch (err) {
+      console.error('Failed to load pending transfers:', err);
+    }
+  };
+
+  const incomingTransferCount = React.useMemo(() => {
+    if (!selectedFarm) return pendingTransfers.length;
+    return pendingTransfers.filter(
+      (t) => (t.toFarm?._id || t.toFarm)?.toString() === selectedFarm.toString()
+    ).length;
+  }, [pendingTransfers, selectedFarm]);
+
+  const outgoingTransferCount = React.useMemo(() => {
+    if (!selectedFarm) return 0;
+    return pendingTransfers.filter(
+      (t) => (t.fromFarm?._id || t.fromFarm)?.toString() === selectedFarm.toString()
+    ).length;
+  }, [pendingTransfers, selectedFarm]);
+
+  useEffect(() => {
+    loadPendingTransfers();
+    // Poll pending transfers every 30 seconds
+    const interval = setInterval(loadPendingTransfers, 30000);
+    return () => clearInterval(interval);
+  }, [canTransferStock]);
 
   useEffect(() => {
     if (!canAccessTraceAndAction && activeTab === 'traceability') {
@@ -298,20 +337,52 @@ export default function MedicineReportPage() {
             {/* Quick Link to Medicine Master & Suppliers for Admin / Supervisor */}
             {isAdmin && (
               <div className="flex items-center gap-1 shrink-0">
-                <Link
-                  to="/admin/medicine/master"
-                  className="h-7 sm:h-8 px-1.5 sm:px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] sm:text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
-                  title="Manage Catalog, Add New Medicine or Change Units"
-                >
-                  <span>⚙</span> <span className="hidden xs:inline sm:inline">Master</span>
-                </Link>
-                <Link
-                  to="/admin/medicine/master?tab=suppliers"
-                  className="h-7 sm:h-8 px-1.5 sm:px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] sm:text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
-                  title="Manage Suppliers & Vendors Directory"
-                >
-                  <span>🏭</span> <span className="hidden xs:inline sm:inline">Suppliers</span>
-                </Link>
+                {/* Transfer Notification Bell / Chat Icon */}
+                {canTransferStock && (
+                  <button
+                    type="button"
+                    onClick={() => setIsInboxModalOpen(true)}
+                    className="relative h-7 sm:h-8 px-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-[10px] sm:text-[11px] rounded-lg transition flex items-center gap-1 shrink-0 cursor-pointer"
+                    title="Incoming & Pending Transfer Requests"
+                  >
+                    <span>💬</span>
+                    <span className="hidden sm:inline">Requests</span>
+                    {selectedFarm ? (
+                      incomingTransferCount > 0 ? (
+                        <span
+                          className="px-1.5 py-0.5 bg-rose-600 text-white rounded-full text-[9px] font-black animate-pulse leading-none"
+                          title={`${incomingTransferCount} incoming transfers waiting for acceptance`}
+                        >
+                          {incomingTransferCount}
+                        </span>
+                      ) : outgoingTransferCount > 0 ? (
+                        <span
+                          className="px-1.5 py-0.5 bg-blue-600 text-white rounded-full text-[9px] font-black leading-none"
+                          title={`${outgoingTransferCount} outgoing transfers on hold`}
+                        >
+                          {outgoingTransferCount}
+                        </span>
+                      ) : null
+                    ) : pendingTransfers.length > 0 ? (
+                      <span className="px-1.5 py-0.5 bg-rose-600 text-white rounded-full text-[9px] font-black animate-pulse leading-none">
+                        {pendingTransfers.length}
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+
+                {/* Transfer Button */}
+                {canTransferStock && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTransferModalOpen(true)}
+                    className="h-7 sm:h-8 px-2 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-[10px] sm:text-[11px] rounded-lg transition flex items-center gap-1 shrink-0 cursor-pointer"
+                    title="Send Medicine Stock to Another Farm"
+                  >
+                    <span>🔄</span>
+                    <span>Transfer</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1232,6 +1303,35 @@ export default function MedicineReportPage() {
           }
         }}
       />
+
+      {/* Stock Transfer Request Modal */}
+      {canTransferStock && (
+        <MedicineTransferModal
+          isOpen={isTransferModalOpen}
+          onClose={() => setIsTransferModalOpen(false)}
+          firms={firms}
+          currentFarmId={selectedFarm}
+          onSuccess={() => {
+            loadStats();
+            loadPendingTransfers();
+          }}
+        />
+      )}
+
+      {/* Pending Transfers Inbox Modal */}
+      {canTransferStock && (
+        <MedicineTransferInboxModal
+          isOpen={isInboxModalOpen}
+          onClose={() => setIsInboxModalOpen(false)}
+          pendingTransfers={pendingTransfers}
+          currentFarmId={selectedFarm}
+          firms={firms}
+          onActionComplete={() => {
+            loadStats();
+            loadPendingTransfers();
+          }}
+        />
+      )}
     </div>
   );
 }

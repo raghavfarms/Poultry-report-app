@@ -314,14 +314,14 @@ export async function fastOutward(req, res) {
     for (const b of availableBatches) {
       const issues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
       const totalIssued = issues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
-      const correctAvailable = Math.max(0, (b.initialQuantity || 0) - totalIssued - (b.disposedQuantity || 0));
+      const correctAvailable = Math.max(0, (b.initialQuantity || 0) - totalIssued - (b.disposedQuantity || 0) - (b.transferredOutQuantity || 0) - (b.quantityOnHold || 0));
       if (b.quantityAvailable !== correctAvailable) {
         await MedicineBatch.updateOne(
           { _id: b._id },
-          { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+          { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
         );
         b.quantityAvailable = correctAvailable;
-        b.status = correctAvailable === 0 ? 'DEPLETED' : 'AVAILABLE';
+        b.status = correctAvailable === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE';
       }
     }
 

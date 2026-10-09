@@ -13,6 +13,8 @@ const medicineTransactionSchema = new mongoose.Schema(
           'ADJUSTMENT_IN',
           'ADJUSTMENT_OUT',
           'DISPOSAL_EXPIRED',
+          'TRANSFER_OUTWARD',
+          'TRANSFER_INWARD',
         ],
         message: '{VALUE} is not a valid transaction type',
       },
@@ -73,7 +75,7 @@ const medicineTransactionSchema = new mongoose.Schema(
     // Dynamic reference: What document caused this transaction?
     referenceModel: {
       type: String,
-      enum: ['MedicineReceipt', 'MedicineIssue', 'PurchaseOrder', 'ManualAdjustment'],
+      enum: ['MedicineReceipt', 'MedicineIssue', 'PurchaseOrder', 'ManualAdjustment', 'MedicineTransfer'],
       required: true,
     },
 

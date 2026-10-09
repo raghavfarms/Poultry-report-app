@@ -124,11 +124,11 @@ export async function getDashboardStats(req, res) {
     // Auto-reconcile with actual issued records to prevent any phantom stock drops
     const batchIssues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
     const batchIssuedSum = batchIssues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
-    const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum - (b.disposedQuantity || 0));
+    const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum - (b.disposedQuantity || 0) - (b.transferredOutQuantity || 0) - (b.quantityOnHold || 0));
     if (b.quantityAvailable !== correctQty) {
       await MedicineBatch.updateOne(
         { _id: b._id },
-        { $set: { quantityAvailable: correctQty, status: correctQty === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+        { $set: { quantityAvailable: correctQty, status: correctQty === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
       );
       b.quantityAvailable = correctQty;
     }
@@ -427,15 +427,15 @@ export async function getBatchTraceability(req, res) {
     shedBreakdown[shedKey] = (shedBreakdown[shedKey] || 0) + qty;
   }
 
-  // Self-heal: ensure batch.quantityAvailable matches initialQuantity - totalIssuedQty
-  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty - (batch.disposedQuantity || 0));
+  // Self-heal: ensure batch.quantityAvailable matches initialQuantity - totalIssuedQty - disposed - transferred - onHold
+  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty - (batch.disposedQuantity || 0) - (batch.transferredOutQuantity || 0) - (batch.quantityOnHold || 0));
   if (batch.quantityAvailable !== correctAvailable) {
     await MedicineBatch.updateOne(
       { _id: batch._id },
-      { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+      { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 && (batch.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
     );
     batch.quantityAvailable = correctAvailable;
-    batch.status = correctAvailable === 0 ? 'DEPLETED' : 'AVAILABLE';
+    batch.status = correctAvailable === 0 && (batch.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE';
   }
 
   res.json({
