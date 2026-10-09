@@ -75,7 +75,19 @@ export async function createReceipt(req, res) {
     }
   }
 
-  const receiptNumber = await generateReceiptNumber();
+  const cleanBatchNo = batchNumber.trim().toUpperCase();
+
+  // Check if batch number already belongs to another medicine
+  const conflictOtherMed = await MedicineBatch.findOne({
+    batchNumber: cleanBatchNo,
+    medicine: { $ne: medicine },
+  }).populate('medicine', 'name');
+
+  if (conflictOtherMed) {
+    throw badRequest(
+      `Batch number '${cleanBatchNo}' is already used for medicine '${conflictOtherMed.medicine?.name || 'another medicine'}'. Batch numbers must be unique across medicines.`
+    );
+  }
 
   const receipt = await MedicineReceipt.create({
     receiptNumber,
@@ -83,7 +95,7 @@ export async function createReceipt(req, res) {
     medicine,
     supplier,
     farm,
-    batchNumber: batchNumber.trim().toUpperCase(),
+    batchNumber: cleanBatchNo,
     manufacturingDate: manufacturingDate || null,
     expiryDate,
     receivedQuantity: Number(receivedQuantity),

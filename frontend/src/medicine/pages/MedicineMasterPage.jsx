@@ -21,11 +21,9 @@ import MedicineTransferAuditReport from '../components/MedicineTransferAuditRepo
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 
 const DEFAULT_CATEGORIES = [
-  'Feed Medicine',
-  'Vaccine',
   'General',
-  'Antibiotics',
-  'Vitamins & Minerals',
+  'Vaccination',
+  'Spray',
 ];
 
 const DEFAULT_UNITS = [
@@ -43,7 +41,7 @@ const INITIAL_FORM = {
   code: '',
   name: '',
   aliasName: '',
-  category: 'Feed Medicine',
+  category: 'General',
   unit: 'Bottle',
   shelfLifeMonths: '',
   minimumStock: '',
@@ -208,7 +206,7 @@ export default function MedicineMasterPage() {
   const safeMedicines = Array.isArray(medicines) ? medicines.filter(Boolean) : [];
   const dbCategories = safeMedicines
     .map((m) => m?.category)
-    .filter((cat) => cat && !['Sanitizers & Disinfectants', 'Dewormers', 'Supplements & Feed Additives', 'Vaccines'].includes(cat));
+    .filter((cat) => cat && !['Feed Medicine', 'Sanitizers & Disinfectants', 'Dewormers', 'Supplements & Feed Additives', 'Vaccines'].includes(cat));
   const availableCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...dbCategories]));
 
   const dbUnits = safeMedicines
@@ -281,7 +279,7 @@ export default function MedicineMasterPage() {
       code: '',
       name: '',
       aliasName: '',
-      category: availableCategories[0] || 'Feed Medicine',
+      category: availableCategories[0] || 'General',
       unit: availableUnits[0] || 'Bottle',
       shelfLifeMonths: '',
       minimumStock: '',

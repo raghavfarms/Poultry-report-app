@@ -139,7 +139,7 @@ export default function DailyMedicineActionPage({
   const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (safeFirms[0]?._id || ''));
   const [showAddLocationInput, setShowAddLocationInput] = useState(false);
 
-  const categories = [...new Set(['Feed Medicine', 'Vaccine', 'General', 'Antibiotics', 'Vitamins & Minerals', ...medicines.map((m) => m.category).filter(Boolean)])];
+  const categories = [...new Set(['General', 'Vaccination', 'Spray', ...medicines.map((m) => m.category).filter((c) => c && c !== 'Feed Medicine')])];
   const units = [...new Set(['Bottle', 'Litre (L)', 'Millilitre (ml)', 'Kilogram (Kg)', 'Gram (g)', 'Vial', 'Packet', 'Tablet', ...medicines.map((m) => m.unit).filter(Boolean)])];
 
   const effectiveFarm = selectedFarm || (safeFirms.length === 1 ? safeFirms[0]?._id : '');
@@ -280,6 +280,26 @@ export default function DailyMedicineActionPage({
   const issuableMedicines = useMemo(() => {
     return medicines.filter((medicine) => (currentFarmStockMap[medicine._id] || 0) > 0);
   }, [medicines, currentFarmStockMap]);
+
+  const trimmedInwardBatch = inwardBatchNo.trim().toUpperCase();
+  const batchConflict = useMemo(() => {
+    if (!trimmedInwardBatch) return null;
+    const match = availableBatches.find(
+      (b) => b.batchNumber?.toUpperCase() === trimmedInwardBatch
+    );
+    if (!match) return null;
+    const isSameMed =
+      inwardMedicineId &&
+      (String(match.medicineId) === String(inwardMedicineId) ||
+        String(match.medicine?._id) === String(inwardMedicineId));
+    return {
+      match,
+      isConflict: !isSameMed,
+      message: !isSameMed
+        ? `Batch #${trimmedInwardBatch} is already in use for "${match.medicineName || 'another medicine'}". Batch numbers must be unique.`
+        : `Batch #${trimmedInwardBatch} exists in stock. Submitting will add quantity to this batch.`,
+    };
+  }, [trimmedInwardBatch, availableBatches, inwardMedicineId]);
 
   // Determine all active batches for the selected medicine sorted by earliest expiry date first (FEFO)
   const activeBatchesForOutward = useMemo(() => {
@@ -435,6 +455,10 @@ export default function DailyMedicineActionPage({
     }
     if (!inwardBatchNo.trim()) {
       alert('Please enter or scan a batch number');
+      return;
+    }
+    if (batchConflict?.isConflict) {
+      alert(batchConflict.message);
       return;
     }
     if (!inwardExpiry || inwardExpiry <= new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())) {
@@ -1119,8 +1143,22 @@ export default function DailyMedicineActionPage({
                     placeholder="e.g. BATCH-01"
                     value={inwardBatchNo}
                     onChange={(e) => setInwardBatchNo(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-mono font-bold uppercase focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    className={`w-full h-8 px-2 border rounded-md text-xs font-mono font-bold uppercase focus:ring-1 focus:outline-none ${
+                      batchConflict?.isConflict
+                        ? 'border-rose-400 bg-rose-50 text-rose-900 focus:ring-rose-500'
+                        : 'border-slate-300 focus:ring-emerald-500'
+                    }`}
                   />
+                  {batchConflict && (
+                    <div
+                      className={`text-[9px] mt-1 font-semibold leading-tight ${
+                        batchConflict.isConflict ? 'text-rose-600' : 'text-blue-600'
+                      }`}
+                    >
+                      {batchConflict.isConflict ? '⚠️ ' : 'ℹ️ '}
+                      {batchConflict.message}
+                    </div>
+                  )}
                 </div>
 
                 <div>

@@ -153,6 +153,31 @@ export async function fastInward(req, res) {
 
     const cleanBatchNo = batchNumber.trim().toUpperCase();
 
+    // 1. Enforce uniqueness: A batch number cannot belong to another medicine anywhere in the system
+    const conflictOtherMed = await MedicineBatch.findOne({
+      batchNumber: cleanBatchNo,
+      medicine: { $ne: medicine._id },
+    }).populate('medicine', 'name');
+
+    if (conflictOtherMed) {
+      throw badRequest(
+        `Batch number '${cleanBatchNo}' is already registered for medicine '${conflictOtherMed.medicine?.name || 'another medicine'}'. Batch numbers must be unique across medicines.`
+      );
+    }
+
+    // 2. If batch already exists for this medicine at this farm, check for expiry consistency
+    const existingSameFarmBatch = await MedicineBatch.findOne({
+      batchNumber: cleanBatchNo,
+      medicine: medicine._id,
+      farm,
+    });
+
+    if (existingSameFarmBatch && existingSameFarmBatch.expiryDate !== expiryDate) {
+      throw badRequest(
+        `Batch '${cleanBatchNo}' already exists in stock with expiry date ${existingSameFarmBatch.expiryDate}. Cannot create duplicate batch with different expiry date.`
+      );
+    }
+
     const userId = await getActionUserId(req);
 
     // 4. Create Receipt log for official tracking & audit

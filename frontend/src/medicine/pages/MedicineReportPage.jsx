@@ -57,6 +57,7 @@ export default function MedicineReportPage() {
   const [stockFilter, setStockFilter] = useState('ALL'); // 'ALL' | 'SAFE' | 'SOON' | 'EXPIRED' | 'LOW'
   const [disposing, setDisposing] = useState('');
   const [disposeError, setDisposeError] = useState('');
+  const [expandedMeds, setExpandedMeds] = useState({});
   const canDispose = ['admin', 'developer'].includes(user?.role);
   const canEditBatch = ['admin', 'developer'].includes(user?.role);
   const canAccessTraceAndAction = ['admin', 'developer'].includes(user?.role);
@@ -275,23 +276,169 @@ export default function MedicineReportPage() {
     ...(radar.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
   ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
-  // Filtered stock list
+  // Group batches by unique Medicine
+  const groupedMedicines = React.useMemo(() => {
+    const map = new Map();
+
+    for (const b of allBatches) {
+      const key = (b.medicineId || b.medicineName || '').toString();
+      if (!key) continue;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          medicineId: b.medicineId,
+          medicineName: b.medicineName,
+          medicineCode: b.medicineCode,
+          medicineAlias: b.medicineAlias,
+          unit: b.unit,
+          reorderLevel: b.reorderLevel,
+          totalStock: 0,
+          batches: [],
+          farmsMap: new Map(),
+          urgency: 'SAFE',
+          isLowStock: false,
+        });
+      }
+
+      const entry = map.get(key);
+      entry.totalStock += Number(b.quantityAvailable || 0);
+      entry.batches.push(b);
+      if (b.farm?.name) {
+        entry.farmsMap.set(b.farm._id || b.farm.name, b.farm);
+      }
+      if (b.isLowStock) entry.isLowStock = true;
+    }
+
+    const urgencyRank = {
+      EXPIRED: 4,
+      CRITICAL: 3,
+      CAUTION: 2,
+      WARNING: 1,
+      SAFE: 0,
+    };
+
+    const list = Array.from(map.values()).map((entry) => {
+      // Batches sorted FEFO (earliest expiry first)
+      entry.batches.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+      entry.earliestBatch = entry.batches[0] || null;
+
+      let highestUrgency = 'SAFE';
+      for (const b of entry.batches) {
+        if ((urgencyRank[b.urgency] || 0) > (urgencyRank[highestUrgency] || 0)) {
+          highestUrgency = b.urgency;
+        }
+      }
+      entry.urgency = highestUrgency;
+      entry.farmList = Array.from(entry.farmsMap.values());
+      return entry;
+    });
+
+    // Sort medicines: earliest expiring first (FEFO)
+    list.sort((a, b) => {
+      const dateA = a.earliestBatch ? new Date(a.earliestBatch.expiryDate) : new Date(9999, 0, 1);
+      const dateB = b.earliestBatch ? new Date(b.earliestBatch.expiryDate) : new Date(9999, 0, 1);
+      return dateA - dateB;
+    });
+
+    return list;
+  }, [allBatches]);
+
+  // Filtered grouped medicines
   const isStockSearchPureNumber = /^\d+$/.test(stockSearch.trim());
-  const filteredBatches = allBatches.filter((b) => {
-    const matchesSearch =
-      b.medicineName?.toLowerCase().includes(stockSearch.toLowerCase()) ||
-      b.batchNumber?.toLowerCase().includes(stockSearch.toLowerCase()) ||
-      (!isStockSearchPureNumber && b.medicineCode?.toLowerCase().includes(stockSearch.toLowerCase())) ||
-      b.medicineAlias?.toLowerCase().includes(stockSearch.toLowerCase());
+  const filteredMedicines = React.useMemo(() => {
+    const q = stockSearch.trim().toLowerCase();
 
-    if (!matchesSearch) return false;
+    return groupedMedicines.filter((m) => {
+      // 1. Search match on Medicine Name, Code, Alias, or ANY child batch number
+      const matchesSearch =
+        !q ||
+        m.medicineName?.toLowerCase().includes(q) ||
+        (!isStockSearchPureNumber && m.medicineCode?.toLowerCase().includes(q)) ||
+        m.medicineAlias?.toLowerCase().includes(q) ||
+        m.batches.some((b) => b.batchNumber?.toLowerCase().includes(q));
 
-    if (stockFilter === 'SAFE') return b.urgency === 'SAFE';
-    if (stockFilter === 'SOON') return b.urgency === 'CRITICAL' || b.urgency === 'CAUTION' || b.urgency === 'WARNING';
-    if (stockFilter === 'EXPIRED') return b.urgency === 'EXPIRED';
-    if (stockFilter === 'LOW') return Boolean(b.isLowStock);
-    return true;
-  });
+      if (!matchesSearch) return false;
+
+      // 2. Shelf status filter
+      if (stockFilter === 'SAFE') return m.urgency === 'SAFE';
+      if (stockFilter === 'SOON') return m.urgency === 'CRITICAL' || m.urgency === 'CAUTION' || m.urgency === 'WARNING';
+      if (stockFilter === 'EXPIRED') return m.urgency === 'EXPIRED';
+      if (stockFilter === 'LOW') return Boolean(m.isLowStock);
+      return true;
+    });
+  }, [groupedMedicines, stockSearch, isStockSearchPureNumber, stockFilter]);
+
+  // Auto-expand medicines matching search
+  useEffect(() => {
+    const q = stockSearch.trim();
+    if (q) {
+      const autoExpand = {};
+      filteredMedicines.forEach((m) => {
+        autoExpand[m.key] = true;
+      });
+      setExpandedMeds(autoExpand);
+    }
+  }, [stockSearch, filteredMedicines]);
+
+  const toggleExpand = (key) => {
+    setExpandedMeds((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+  const isAllExpanded = React.useMemo(() => {
+    return filteredMedicines.length > 0 && filteredMedicines.every((m) => expandedMeds[m.key]);
+  }, [filteredMedicines, expandedMeds]);
+
+  const toggleAllExpand = () => {
+    if (isAllExpanded) {
+      setExpandedMeds({});
+    } else {
+      const next = {};
+      filteredMedicines.forEach((m) => {
+        next[m.key] = true;
+      });
+      setExpandedMeds(next);
+    }
+  };
+
+  const renderShelfBadge = (urgency, daysLeft) => {
+    if (urgency === 'EXPIRED') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
+          🔴 Expired ({Math.abs(daysLeft)}d ago)
+        </span>
+      );
+    }
+    if (urgency === 'CRITICAL') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1" title="Expires within 1 month">
+          🔴 Use Soon ({daysLeft}d left)
+        </span>
+      );
+    }
+    if (urgency === 'CAUTION') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1" title="Expires within 2 months">
+          🟠 Use Soon ({daysLeft}d left)
+        </span>
+      );
+    }
+    if (urgency === 'WARNING') {
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1" title="Expires within 3 months">
+          🟡 Use Soon ({daysLeft}d left)
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1" title="Safe (> 3 months)">
+        🟢 Safe ({daysLeft}d left)
+      </span>
+    );
+  };
 
   const isAdmin = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user?.role);
 
@@ -499,63 +646,77 @@ export default function MedicineReportPage() {
               )}
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => setStockFilter('ALL')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 border ${
-                  stockFilter === 'ALL'
-                    ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                }`}
-              >
-                All ({allBatches.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockFilter('SAFE')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
-                  stockFilter === 'SAFE'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                    : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-                }`}
-              >
-                <span>🟢</span> Safe ({radar.safeCount || 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockFilter('SOON')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
-                  stockFilter === 'SOON'
-                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
-                    : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
-                }`}
-              >
-                <span>🟡</span> Soon ({(radar.critical30Count || 0) + (radar.caution60Count || 0) + (radar.warning90Count || 0)})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStockFilter('EXPIRED')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
-                  stockFilter === 'EXPIRED'
-                    ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
-                    : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
-                }`}
-              >
-                <span>🔴</span> Expired ({radar.expiredCount || 0})
-              </button>
-              {lowStock.length > 0 && (
+            {/* Filter Pills & Expand Toggle */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap">
                 <button
                   type="button"
-                  onClick={() => setStockFilter('LOW')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
-                    stockFilter === 'LOW'
-                      ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
-                      : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                  onClick={() => setStockFilter('ALL')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 border ${
+                    stockFilter === 'ALL'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                   }`}
                 >
-                  <span>⚠️</span> Low Stock ({lowStock.length})
+                  All ({groupedMedicines.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilter('SAFE')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                    stockFilter === 'SAFE'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  <span>🟢</span> Safe ({groupedMedicines.filter((m) => m.urgency === 'SAFE').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilter('SOON')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                    stockFilter === 'SOON'
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                      : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                  }`}
+                >
+                  <span>🟡</span> Soon ({groupedMedicines.filter((m) => ['CRITICAL', 'CAUTION', 'WARNING'].includes(m.urgency)).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilter('EXPIRED')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                    stockFilter === 'EXPIRED'
+                      ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                      : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
+                  <span>🔴</span> Expired ({groupedMedicines.filter((m) => m.urgency === 'EXPIRED').length})
+                </button>
+                {lowStock.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStockFilter('LOW')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                      stockFilter === 'LOW'
+                        ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
+                        : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
+                    }`}
+                  >
+                    <span>⚠️</span> Low Stock ({groupedMedicines.filter((m) => m.isLowStock).length})
+                  </button>
+                )}
+              </div>
+
+              {filteredMedicines.length > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleAllExpand}
+                  className="self-start sm:self-auto text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 inline-flex items-center gap-1.5"
+                  title={isAllExpanded ? 'Collapse all medicine batches' : 'Expand all medicine batches'}
+                >
+                  <span className="text-[10px]">{isAllExpanded ? '▲' : '▼'}</span>
+                  <span>{isAllExpanded ? 'Collapse All' : 'Expand All'}</span>
                 </button>
               )}
             </div>
@@ -581,25 +742,25 @@ export default function MedicineReportPage() {
           {stockFilter !== 'ALL' && (
             <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-center justify-between">
               <span>
-                Showing <strong>{filteredBatches.length}</strong> of <strong>{allBatches.length}</strong> batches (Filtered by <strong>{stockFilter}</strong>).
+                Showing <strong>{filteredMedicines.length}</strong> of <strong>{groupedMedicines.length}</strong> medicines ({allBatches.length} total batches) (Filtered by <strong>{stockFilter}</strong>).
               </span>
               <button
                 type="button"
                 onClick={() => setStockFilter('ALL')}
                 className="text-xs font-bold text-blue-700 hover:text-blue-900 underline cursor-pointer"
               >
-                Show All ({allBatches.length})
+                Show All ({groupedMedicines.length})
               </button>
             </div>
           )}
 
-          {/* Batches Stock List */}
+          {/* Batches Stock List (Grouped by Medicine with Accordion Drawer) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             {loadingStats ? (
               <div className="p-12 text-center text-slate-400 text-xs">Loading current stock...</div>
-            ) : filteredBatches.length === 0 ? (
+            ) : filteredMedicines.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs space-y-1">
-                <p className="text-sm font-bold text-slate-600">No medicine batches found</p>
+                <p className="text-sm font-bold text-slate-600">No medicines found</p>
                 <p className="text-[11px] text-slate-400">Try changing your search query or click "All" above.</p>
               </div>
             ) : (
@@ -609,139 +770,296 @@ export default function MedicineReportPage() {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-4 min-w-[220px]">Medicine Name</th>
-                        <th className="py-3 px-4">Batch Number</th>
-                        <th className="py-3 px-4 text-right">In Stock</th>
-                        <th className="py-3 px-4 text-center">Expiry Date</th>
-                        <th className="py-3 px-4 text-center">Shelf Status</th>
-                        {canAccessTraceAndAction && (
-                          <th className="py-3 px-4 text-center">Action</th>
-                        )}
+                        <th className="py-3 px-4 min-w-[240px]">Medicine Name</th>
+                        <th className="py-3 px-4 text-center">Batches</th>
+                        <th className="py-3 px-4 text-right">Total In Stock</th>
+                        <th className="py-3 px-4 text-center">Next Expiry</th>
+                        <th className="py-3 px-4 text-center">Shelf Status (FEFO)</th>
+                        <th className="py-3 px-4 text-center min-w-[130px]">Batches Breakdown</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {filteredBatches.map((b) => {
-                        const isExpired = b.urgency === 'EXPIRED';
-                        const isCritical = b.urgency === 'CRITICAL'; // <= 30d (1 Month)
-                        const isCaution = b.urgency === 'CAUTION';   // <= 60d (2 Months)
-                        const isWarning = b.urgency === 'WARNING';   // <= 90d (3 Months)
+                      {filteredMedicines.map((m) => {
+                        const isExpanded = Boolean(expandedMeds[m.key]);
+                        const isExpired = m.urgency === 'EXPIRED';
+                        const isCritical = m.urgency === 'CRITICAL';
+                        const isCaution = m.urgency === 'CAUTION';
+                        const isWarning = m.urgency === 'WARNING';
+
                         return (
-                          <tr
-                            key={b._id}
-                            className={`hover:bg-slate-50/80 transition-colors ${
-                              isExpired
-                                ? 'bg-rose-50/40'
-                                : isCritical
-                                ? 'bg-rose-50/25'
-                                : isCaution
-                                ? 'bg-orange-50/25'
-                                : isWarning
-                                ? 'bg-amber-50/20'
-                                : ''
-                            }`}
-                          >
-                            <td className="py-3 px-4">
-                              <div className="font-bold text-slate-900 text-sm">{b.medicineName}</div>
-                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
-                                {b.farm?.name && (
-                                  <span className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
-                                    🏢 {b.farm.name}
+                          <React.Fragment key={m.key}>
+                            {/* Parent Medicine Row */}
+                            <tr
+                              onClick={() => toggleExpand(m.key)}
+                              className={`cursor-pointer transition-colors select-none ${
+                                isExpanded
+                                  ? 'bg-blue-50/40 hover:bg-blue-50/60 font-medium'
+                                  : isExpired
+                                  ? 'bg-rose-50/40 hover:bg-rose-50/60'
+                                  : isCritical
+                                  ? 'bg-rose-50/20 hover:bg-rose-50/40'
+                                  : isCaution
+                                  ? 'bg-orange-50/20 hover:bg-orange-50/40'
+                                  : isWarning
+                                  ? 'bg-amber-50/15 hover:bg-amber-50/35'
+                                  : 'hover:bg-slate-50/80'
+                              }`}
+                            >
+                              {/* Column 1: Medicine Name & Meta */}
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`text-xs font-black transition-transform duration-200 ${
+                                      isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
+                                    }`}
+                                  >
+                                    ▶
                                   </span>
-                                )}
-                                {b.medicineAlias && (
-                                  <span className="font-medium text-slate-600">({b.medicineAlias})</span>
-                                )}
-                                {b.medicineCode && (
-                                  <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
-                                    {b.medicineCode}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200 inline-block">
-                                {b.batchNumber}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {b.isLowStock && (
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
-                                    ⚠️ Low {b.reorderLevel ? `(< ${b.reorderLevel})` : ''}
-                                  </span>
-                                )}
-                                <span className={`font-black text-sm ${b.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
-                                  {b.quantityAvailable}
-                                </span>{' '}
-                                <span className="text-[11px] text-slate-500 font-semibold">{b.unit}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-center font-mono text-xs font-medium text-slate-600">
-                              {b.expiryDate}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              {isExpired ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
-                                  🔴 Expired ({Math.abs(b.daysLeft)}d ago)
-                                </span>
-                              ) : isCritical ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1" title="Expires within 1 month">
-                                  🔴 Use Soon ({b.daysLeft}d left)
-                                </span>
-                              ) : isCaution ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1" title="Expires within 2 months">
-                                  🟠 Use Soon ({b.daysLeft}d left)
-                                </span>
-                              ) : isWarning ? (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1" title="Expires within 3 months">
-                                  🟡 Use Soon ({b.daysLeft}d left)
-                                </span>
-                              ) : (
-                                <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1" title="Safe (> 3 months)">
-                                  🟢 Safe ({b.daysLeft}d left)
-                                </span>
-                              )}
-                            </td>
-                            {canAccessTraceAndAction && (
-                              <td className="py-3 px-4 text-center">
-                                <div className="flex items-center justify-center gap-1.5">
-                                  {isExpired && canDispose ? (
-                                    <button
-                                      type="button"
-                                      disabled={Boolean(disposing)}
-                                      onClick={() => disposeStock(b)}
-                                      className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
-                                    >
-                                      {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveTab('traceability');
-                                        setSearchBatch(b.batchNumber);
-                                        handleTraceSearch(null, b.batchNumber, b._id);
-                                      }}
-                                      className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
-                                      title="Trace full batch journey"
-                                    >
-                                      <span>🔍</span> Trace
-                                    </button>
-                                  )}
-                                  {canEditBatch && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleOpenEditBatchModal(b)}
-                                      className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
-                                      title="Edit Batch Number or Expiry Date (Admin/Developer)"
-                                    >
-                                      ✏️
-                                    </button>
-                                  )}
+                                  <div>
+                                    <div className="font-bold text-slate-900 text-sm hover:text-blue-700 transition">
+                                      {m.medicineName}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                                      {m.farmList?.map((farm) => (
+                                        <span
+                                          key={farm._id || farm.name}
+                                          className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200"
+                                        >
+                                          🏢 {farm.name}
+                                        </span>
+                                      ))}
+                                      {m.medicineAlias && (
+                                        <span className="font-medium text-slate-600">({m.medicineAlias})</span>
+                                      )}
+                                      {m.medicineCode && (
+                                        <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
+                                          {m.medicineCode}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </td>
+
+                              {/* Column 2: Batches Count Badge */}
+                              <td className="py-3.5 px-4 text-center">
+                                <span
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border inline-flex items-center gap-1.5 transition ${
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                  }`}
+                                >
+                                  <span>📦</span>
+                                  <span>
+                                    {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
+                                  </span>
+                                  <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                                </span>
+                              </td>
+
+                              {/* Column 3: Total Stock */}
+                              <td className="py-3.5 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {m.isLowStock && (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                                      ⚠️ Low {m.reorderLevel ? `(< ${m.reorderLevel})` : ''}
+                                    </span>
+                                  )}
+                                  <span
+                                    className={`font-black text-sm ${
+                                      m.isLowStock ? 'text-rose-700' : 'text-slate-900'
+                                    }`}
+                                  >
+                                    {m.totalStock}
+                                  </span>{' '}
+                                  <span className="text-[11px] text-slate-500 font-semibold">{m.unit}</span>
+                                </div>
+                              </td>
+
+                              {/* Column 4: Earliest Expiry Date */}
+                              <td className="py-3.5 px-4 text-center font-mono text-xs font-semibold text-slate-700">
+                                {m.earliestBatch?.expiryDate || '—'}
+                              </td>
+
+                              {/* Column 5: Shelf Status (Earliest FEFO Batch) */}
+                              <td className="py-3.5 px-4 text-center">
+                                {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}
+                              </td>
+
+                              {/* Column 6: Expand Action Button */}
+                              <td className="py-3.5 px-4 text-center">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpand(m.key);
+                                  }}
+                                  className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1.5 ${
+                                    isExpanded
+                                      ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  <span>{isExpanded ? '▲ Hide' : '▼ View'}</span>
+                                  <span className="font-mono text-[11px]">({m.batches.length})</span>
+                                </button>
+                              </td>
+                            </tr>
+
+                            {/* Nested Accordion Drawer for Batches */}
+                            {isExpanded && (
+                              <tr className="bg-slate-50/70 border-y border-blue-200/60">
+                                <td colSpan={6} className="p-3.5 sm:p-4">
+                                  <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-hidden">
+                                    <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-4 py-2.5 border-b border-blue-100 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-base">📦</span>
+                                        <span className="font-bold text-xs text-slate-800">
+                                          Batches Breakdown for{' '}
+                                          <strong className="text-blue-900">{m.medicineName}</strong>
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
+                                          Sorted by FEFO (Earliest Expiring First)
+                                        </span>
+                                      </div>
+                                      <span className="text-xs text-slate-500 font-semibold">
+                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {m.unit} across{' '}
+                                        <strong className="text-blue-700">{m.batches.length}</strong> {m.batches.length === 1 ? 'batch' : 'batches'}
+                                      </span>
+                                    </div>
+
+                                    {/* Child Batches Table */}
+                                    <table className="w-full text-left text-xs">
+                                      <thead className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                                        <tr>
+                                          <th className="py-2.5 px-3">Batch Number</th>
+                                          <th className="py-2.5 px-3">Location / Farm</th>
+                                          <th className="py-2.5 px-3 text-right">In Stock</th>
+                                          <th className="py-2.5 px-3 text-center">Expiry Date</th>
+                                          <th className="py-2.5 px-3 text-center">Shelf Status</th>
+                                          {canAccessTraceAndAction && (
+                                            <th className="py-2.5 px-3 text-center">Actions</th>
+                                          )}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 bg-white">
+                                        {m.batches.map((b) => {
+                                          const bExpired = b.urgency === 'EXPIRED';
+                                          const bCritical = b.urgency === 'CRITICAL';
+                                          const bCaution = b.urgency === 'CAUTION';
+                                          const bWarning = b.urgency === 'WARNING';
+
+                                          return (
+                                            <tr
+                                              key={b._id}
+                                              className={`hover:bg-blue-50/30 transition-colors ${
+                                                bExpired
+                                                  ? 'bg-rose-50/40'
+                                                  : bCritical
+                                                  ? 'bg-rose-50/20'
+                                                  : bCaution
+                                                  ? 'bg-orange-50/20'
+                                                  : bWarning
+                                                  ? 'bg-amber-50/15'
+                                                  : ''
+                                              }`}
+                                            >
+                                              {/* Batch Number */}
+                                              <td className="py-2.5 px-3">
+                                                <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
+                                                  {b.batchNumber}
+                                                </span>
+                                              </td>
+
+                                              {/* Farm */}
+                                              <td className="py-2.5 px-3">
+                                                {b.farm?.name ? (
+                                                  <span className="font-semibold text-xs text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 inline-block">
+                                                    🏢 {b.farm.name}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-slate-400 italic text-[11px]">All / Main</span>
+                                                )}
+                                              </td>
+
+                                              {/* Stock */}
+                                              <td className="py-2.5 px-3 text-right">
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                  {b.isLowStock && (
+                                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                                      ⚠️ Low
+                                                    </span>
+                                                  )}
+                                                  <span className="font-black text-xs text-slate-900">
+                                                    {b.quantityAvailable}
+                                                  </span>{' '}
+                                                  <span className="text-[11px] text-slate-500 font-semibold">
+                                                    {b.unit}
+                                                  </span>
+                                                </div>
+                                              </td>
+
+                                              {/* Expiry Date */}
+                                              <td className="py-2.5 px-3 text-center font-mono text-xs text-slate-700 font-medium">
+                                                {b.expiryDate}
+                                              </td>
+
+                                              {/* Shelf Status */}
+                                              <td className="py-2.5 px-3 text-center">
+                                                {renderShelfBadge(b.urgency, b.daysLeft)}
+                                              </td>
+
+                                              {/* Actions */}
+                                              {canAccessTraceAndAction && (
+                                                <td className="py-2.5 px-3 text-center">
+                                                  <div className="flex items-center justify-center gap-1.5">
+                                                    {bExpired && canDispose ? (
+                                                      <button
+                                                        type="button"
+                                                        disabled={Boolean(disposing)}
+                                                        onClick={() => disposeStock(b)}
+                                                        className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
+                                                      >
+                                                        {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                                                      </button>
+                                                    ) : (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          setActiveTab('traceability');
+                                                          setSearchBatch(b.batchNumber);
+                                                          handleTraceSearch(null, b.batchNumber, b._id);
+                                                        }}
+                                                        className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
+                                                        title="Trace full batch journey"
+                                                      >
+                                                        <span>🔍</span> Trace
+                                                      </button>
+                                                    )}
+                                                    {canEditBatch && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleOpenEditBatchModal(b)}
+                                                        className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
+                                                        title="Edit Batch Number or Expiry Date (Admin/Developer)"
+                                                      >
+                                                        ✏️
+                                                      </button>
+                                                    )}
+                                                  </div>
+                                                </td>
+                                              )}
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
                             )}
-                          </tr>
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -750,19 +1068,23 @@ export default function MedicineReportPage() {
 
                 {/* Mobile Responsive Cards View */}
                 <div className="md:hidden divide-y divide-slate-100 bg-white">
-                  {filteredBatches.map((b) => {
-                    const isExpired = b.urgency === 'EXPIRED';
-                    const isCritical = b.urgency === 'CRITICAL'; // <= 30d (1 Month)
-                    const isCaution = b.urgency === 'CAUTION';   // <= 60d (2 Months)
-                    const isWarning = b.urgency === 'WARNING';   // <= 90d (3 Months)
+                  {filteredMedicines.map((m) => {
+                    const isExpanded = Boolean(expandedMeds[m.key]);
+                    const isExpired = m.urgency === 'EXPIRED';
+                    const isCritical = m.urgency === 'CRITICAL';
+                    const isCaution = m.urgency === 'CAUTION';
+                    const isWarning = m.urgency === 'WARNING';
+
                     return (
                       <div
-                        key={b._id}
-                        className={`p-3.5 space-y-2 ${
-                          isExpired
+                        key={m.key}
+                        className={`p-3.5 space-y-2.5 transition-colors ${
+                          isExpanded
+                            ? 'bg-blue-50/30'
+                            : isExpired
                             ? 'bg-rose-50/40'
                             : isCritical
-                            ? 'bg-rose-50/25'
+                            ? 'bg-rose-50/20'
                             : isCaution
                             ? 'bg-orange-50/20'
                             : isWarning
@@ -770,121 +1092,145 @@ export default function MedicineReportPage() {
                             : ''
                         }`}
                       >
-                        {/* Header: Medicine Name & Expiry Badge */}
+                        {/* Header: Medicine Name & Earliest Shelf Status */}
                         <div className="flex justify-between items-start gap-2">
                           <div className="min-w-0 flex-1">
                             <h3 className="font-bold text-sm text-slate-900 truncate">
-                              {b.medicineName}
+                              {m.medicineName}
                             </h3>
                             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 flex-wrap">
-                              {b.farm?.name && (
-                                <span className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
-                                  🏢 {b.farm.name}
+                              {m.farmList?.map((farm) => (
+                                <span
+                                  key={farm._id || farm.name}
+                                  className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200"
+                                >
+                                  🏢 {farm.name}
                                 </span>
-                              )}
-                              {b.medicineAlias && <span>({b.medicineAlias})</span>}
-                              {b.medicineCode && (
+                              ))}
+                              {m.medicineAlias && <span>({m.medicineAlias})</span>}
+                              {m.medicineCode && (
                                 <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
-                                  {b.medicineCode}
+                                  {m.medicineCode}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div>
-                            {isExpired ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
-                                🔴 Expired
-                              </span>
-                            ) : isCritical ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-900 border border-red-200">
-                                🔴 {b.daysLeft}d left
-                              </span>
-                            ) : isCaution ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 border border-orange-200">
-                                🟠 {b.daysLeft}d left
-                              </span>
-                            ) : isWarning ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                                🟡 {b.daysLeft}d left
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-                                🟢 Safe ({b.daysLeft}d left)
-                              </span>
-                            )}
-                          </div>
+                          <div>{renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}</div>
                         </div>
 
-                        {/* Batch & Stock Bar */}
+                        {/* Medicine Stock & Batches Accordion Bar */}
                         <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200/70 text-xs">
                           <div>
                             <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
-                              Batch #
+                              Total Stock
                             </span>
-                            <span className="font-mono font-bold text-slate-800 text-xs">
-                              {b.batchNumber}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
-                              Stock Available
-                            </span>
-                            <div className="flex items-center justify-end gap-1">
-                              {b.isLowStock && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {m.isLowStock && (
                                 <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700">
                                   ⚠️ Low
                                 </span>
                               )}
-                              <span className={`font-black text-sm ${b.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
-                                {b.quantityAvailable}
+                              <span
+                                className={`font-black text-sm ${
+                                  m.isLowStock ? 'text-rose-700' : 'text-slate-900'
+                                }`}
+                              >
+                                {m.totalStock}
                               </span>
-                              <span className="text-[11px] text-slate-500 font-semibold">{b.unit}</span>
+                              <span className="text-[11px] text-slate-500 font-semibold">{m.unit}</span>
                             </div>
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(m.key)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                              isExpanded
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                            }`}
+                          >
+                            <span>📦</span>
+                            <span>
+                              {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
+                            </span>
+                            <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
+                          </button>
                         </div>
 
-                        {/* Footer: Expiry Date & Action */}
-                        <div className="flex justify-between items-center text-xs pt-1">
-                          <span className="text-[11px] text-slate-500 font-mono">
-                            Expires: <strong className="text-slate-700">{b.expiryDate}</strong>
-                          </span>
-                          {canAccessTraceAndAction && (
-                            <div className="flex items-center gap-1.5">
-                              {isExpired && canDispose ? (
-                                <button
-                                  type="button"
-                                  disabled={Boolean(disposing)}
-                                  onClick={() => disposeStock(b)}
-                                  className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 cursor-pointer"
-                                >
-                                  {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveTab('traceability');
-                                    setSearchBatch(b.batchNumber);
-                                    handleTraceSearch(null, b.batchNumber, b._id);
-                                  }}
-                                  className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
-                                >
-                                  <span>🔍</span> Trace
-                                </button>
-                              )}
-                              {canEditBatch && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEditBatchModal(b)}
-                                  className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 cursor-pointer"
-                                  title="Edit Batch"
-                                >
-                                  ✏️
-                                </button>
-                              )}
+                        {/* Mobile Expanded Drawer */}
+                        {isExpanded && (
+                          <div className="pt-1 space-y-2 border-t border-blue-200/60 mt-2">
+                            <div className="text-[11px] font-bold text-blue-900 flex items-center justify-between">
+                              <span>Batches Details (Earliest Expiry First):</span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                Next: {m.earliestBatch?.expiryDate}
+                              </span>
                             </div>
-                          )}
-                        </div>
+
+                            <div className="space-y-2">
+                              {m.batches.map((b) => (
+                                <div
+                                  key={b._id}
+                                  className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs space-y-1.5 text-xs"
+                                >
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-xs">
+                                      {b.batchNumber}
+                                    </span>
+                                    {renderShelfBadge(b.urgency, b.daysLeft)}
+                                  </div>
+
+                                  <div className="flex justify-between items-center text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                                    <span>
+                                      Stock: <strong className="text-slate-900">{b.quantityAvailable}</strong> {b.unit}
+                                    </span>
+                                    <span className="font-mono">
+                                      Exp: <strong className="text-slate-800">{b.expiryDate}</strong>
+                                    </span>
+                                  </div>
+
+                                  {canAccessTraceAndAction && (
+                                    <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
+                                      {b.urgency === 'EXPIRED' && canDispose ? (
+                                        <button
+                                          type="button"
+                                          disabled={Boolean(disposing)}
+                                          onClick={() => disposeStock(b)}
+                                          className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 cursor-pointer"
+                                        >
+                                          {disposing === b._id ? 'Disposing...' : 'Dispose'}
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveTab('traceability');
+                                            setSearchBatch(b.batchNumber);
+                                            handleTraceSearch(null, b.batchNumber, b._id);
+                                          }}
+                                          className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
+                                        >
+                                          <span>🔍</span> Trace
+                                        </button>
+                                      )}
+                                      {canEditBatch && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditBatchModal(b)}
+                                          className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 cursor-pointer"
+                                          title="Edit Batch"
+                                        >
+                                          ✏️
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

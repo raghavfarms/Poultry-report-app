@@ -638,15 +638,28 @@ export async function updateBatchDetails(req, res) {
     }
 
     if (newBatchNumber !== oldBatchNumber) {
-      // Check for uniqueness within medicine & farm
-      const conflict = await MedicineBatch.findOne({
+      // Check for uniqueness across different medicines
+      const conflictOtherMed = await MedicineBatch.findOne({
         _id: { $ne: batch._id },
-        medicine: batch.medicine,
+        medicine: { $ne: batch.medicine },
+        batchNumber: newBatchNumber,
+      }).populate('medicine', 'name');
+
+      if (conflictOtherMed) {
+        throw badRequest(
+          `Batch '${newBatchNumber}' already exists for '${conflictOtherMed.medicine?.name || 'another medicine'}'. Batch numbers must be unique across medicines.`
+        );
+      }
+
+      // Check for duplicate at same farm
+      const conflictSameFarm = await MedicineBatch.findOne({
+        _id: { $ne: batch._id },
         farm: batch.farm,
         batchNumber: newBatchNumber,
       });
-      if (conflict) {
-        throw badRequest(`Batch '${newBatchNumber}' already exists for this medicine at this farm.`);
+
+      if (conflictSameFarm) {
+        throw badRequest(`Batch '${newBatchNumber}' already exists at this farm.`);
       }
 
       batch.batchNumber = newBatchNumber;
