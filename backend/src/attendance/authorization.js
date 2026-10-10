@@ -1,10 +1,14 @@
 import { objectId } from './validation.js';
+import { getPermittedFirmsForModule } from '../utils/userFirms.js';
 
 // Attendance honours assigned firms for supervisors/staff. Admins and developers have access to all firms.
 export function firmScope(user, requestedFirm) {
   const firm = requestedFirm === undefined ? undefined : objectId(requestedFirm, 'Firm');
   if (['developer', 'admin'].includes(user.role)) return firm ? { firm } : {};
-  const permitted = (user.firms || []).map((id) => String(id._id || id));
+  const modulePermitted = getPermittedFirmsForModule(user, 'attendance');
+  const permitted = modulePermitted && modulePermitted.length > 0
+    ? modulePermitted
+    : (user.firms || []).map((id) => String(id._id || id));
   if (firm && !permitted.includes(String(firm))) {
     const error = new Error('You do not have access to this firm.');
     error.status = 403;

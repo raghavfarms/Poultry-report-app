@@ -17,6 +17,7 @@ const publicUser = (user) => {
     email: user.email,
     role: user.role,
     firms: (user.firms || []).map((firm) => String(firm._id || firm)),
+    moduleFirms: user.moduleFirms || {},
     allowedModules: userModules,
     permissions: {
       attendance_scan: user.permissions?.attendance_scan ?? true,

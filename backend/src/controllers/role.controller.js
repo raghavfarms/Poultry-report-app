@@ -138,6 +138,19 @@ export async function updateRole(req, res) {
   }
 
   await role.save();
+
+  // Propagate role changes to all existing accounts with this role so they reflect immediately
+  const userUpdates = {};
+  if (req.body.permissions) {
+    userUpdates.permissions = role.permissions;
+  }
+  if (Array.isArray(req.body.allowedModules)) {
+    userUpdates.allowedModules = role.allowedModules;
+  }
+  if (Object.keys(userUpdates).length > 0) {
+    await User.updateMany({ role: role.code }, { $set: userUpdates });
+  }
+
   res.json({ role });
 }
 
