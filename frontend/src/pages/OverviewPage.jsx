@@ -3,6 +3,7 @@ import DieselReports from "../components/DieselReports.jsx";
 import TransportPage from "./TransportPage.jsx";
 import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
 import WorkerAttendancePortal from "../attendance/pages/WorkerAttendancePortal.jsx";
+import MedicineReportPage from "../medicine/pages/MedicineReportPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
