@@ -36,22 +36,22 @@ function Sidebar({ open, close }) {
   const isAdminOrDev = ["admin", "developer"].includes(user?.role);
   const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
   const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
-  const visibleModules =
-    user?.role === "developer"
-      ? modules
-      : modules.filter(([slug]) => {
-          if (isAdminOrDev) return true;
-          if (user?.allowedModules && user?.allowedModules.length > 0) {
-            return user.allowedModules.includes(slug);
-          }
-          if (user?.role === "security") {
-            return slug === "attendance";
-          }
-          if (slug === "medicine") {
-            return ["office", "supervisor", "farm_incharge"].includes(user?.role);
-          }
-          return ["diesel", "transport", "attendance"].includes(slug);
-        });
+  const canManageMedicine =
+    (user?.permissions?.medicine_master === true || (isAdminOrDev && user?.permissions?.medicine_master !== false)) &&
+    (Array.isArray(user?.allowedModules) ? user.allowedModules.includes("medicine") : true);
+
+  const visibleModules = modules.filter(([slug]) => {
+    if (Array.isArray(user?.allowedModules)) {
+      return user.allowedModules.includes(slug);
+    }
+    if (user?.role === "developer") return true;
+    if (isAdminOrDev) return ["diesel", "transport", "attendance", "medicine"].includes(slug);
+    if (user?.role === "security") return slug === "attendance";
+    if (slug === "medicine") {
+      return ["office", "supervisor", "farm_incharge"].includes(user?.role);
+    }
+    return ["diesel", "transport", "attendance"].includes(slug);
+  });
     
 
 
@@ -130,7 +130,7 @@ function Sidebar({ open, close }) {
                   <span>👤</span>Attendance Admin
                 </NavLink>
               )}
-              {["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user?.role) && (
+              {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
                   <span>💊</span>General Medicine
                 </NavLink>

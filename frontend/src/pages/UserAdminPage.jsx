@@ -1,15 +1,22 @@
 import { useEffect, useState, useRef } from "react";
 import { api } from "../api/client.js";
 import { Alert, Field, inputClass, primaryButton, secondaryButton, Spinner } from "../components/Ui.jsx";
-import { modules as AVAILABLE_MODULES } from "../components/Layout.jsx";
+import { modules as ALL_MODULES } from "../components/Layout.jsx";
+import { AVAILABLE_MODULES as LIVE_MODULE_CODES } from "../utils/moduleAccess.js";
 import { useAuth } from "../context/AuthContext.jsx";
+
+// Only active/live modules reflect in User Permission Management
+export const LIVE_MODULES = ALL_MODULES.filter((m) => {
+  const slug = Array.isArray(m) ? m[0] : m.slug;
+  return LIVE_MODULE_CODES.includes(slug);
+});
 
 const DEFAULT_ROLES = [
   {
     code: "admin",
     name: "Administrator",
     description: "Full system administration, user management, and firm configuration.",
-    allowedModules: ["diesel", "transport", "attendance"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -17,6 +24,7 @@ const DEFAULT_ROLES = [
       attendance_edit: true,
       asset_master: true,
       transport_master: true,
+      medicine_master: true,
       attendance_admin_master: true,
     },
     isSystem: true,
@@ -25,7 +33,7 @@ const DEFAULT_ROLES = [
     code: "developer",
     name: "Developer",
     description: "System developer with unrestricted access and debugging tools.",
-    allowedModules: ["diesel", "transport", "attendance"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -33,6 +41,7 @@ const DEFAULT_ROLES = [
       attendance_edit: true,
       asset_master: true,
       transport_master: true,
+      medicine_master: true,
       attendance_admin_master: true,
     },
     isSystem: true,
@@ -41,7 +50,7 @@ const DEFAULT_ROLES = [
     code: "office",
     name: "Head Office",
     description: "Office staff with full report & operational visibility.",
-    allowedModules: ["diesel", "transport", "attendance"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -49,6 +58,7 @@ const DEFAULT_ROLES = [
       attendance_edit: false,
       asset_master: false,
       transport_master: false,
+      medicine_master: false,
       attendance_admin_master: false,
     },
     isSystem: true,
@@ -57,7 +67,7 @@ const DEFAULT_ROLES = [
     code: "farm_incharge",
     name: "Farm Incharge",
     description: "Farm Incharge with attendance registers and worker master.",
-    allowedModules: ["attendance"],
+    allowedModules: ["attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -65,6 +75,7 @@ const DEFAULT_ROLES = [
       attendance_edit: false,
       asset_master: false,
       transport_master: false,
+      medicine_master: false,
       attendance_admin_master: false,
     },
     isSystem: true,
@@ -73,7 +84,7 @@ const DEFAULT_ROLES = [
     code: "supervisor",
     name: "Supervisor",
     description: "Farm supervisor for attendance and worker enrolment.",
-    allowedModules: ["attendance"],
+    allowedModules: ["attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -81,6 +92,7 @@ const DEFAULT_ROLES = [
       attendance_edit: false,
       asset_master: false,
       transport_master: false,
+      medicine_master: false,
       attendance_admin_master: false,
     },
     isSystem: true,
@@ -97,6 +109,7 @@ const DEFAULT_ROLES = [
       attendance_edit: false,
       asset_master: false,
       transport_master: false,
+      medicine_master: false,
       attendance_admin_master: false,
     },
     isSystem: true,
@@ -113,6 +126,7 @@ const DEFAULT_ROLES = [
       attendance_edit: false,
       asset_master: false,
       transport_master: false,
+      medicine_master: false,
       attendance_admin_master: false,
     },
     isSystem: true,
@@ -125,7 +139,7 @@ const INITIAL_USER_FORM = {
   password: "",
   role: "supervisor",
   firms: [],
-  allowedModules: ["attendance"],
+  allowedModules: ["attendance", "medicine"],
   moduleFirms: {},
   permissions: {
     attendance_scan: true,
@@ -135,6 +149,7 @@ const INITIAL_USER_FORM = {
     attendance_autocut: false,
     asset_master: false,
     transport_master: false,
+    medicine_master: false,
     attendance_admin_master: false,
   },
 };
@@ -143,7 +158,7 @@ const INITIAL_ROLE_FORM = {
   name: "",
   code: "",
   description: "",
-  allowedModules: ["attendance"],
+  allowedModules: ["attendance", "medicine"],
   permissions: {
     attendance_scan: true,
     attendance_report: false,
@@ -152,6 +167,7 @@ const INITIAL_ROLE_FORM = {
     attendance_autocut: false,
     asset_master: false,
     transport_master: false,
+    medicine_master: false,
     attendance_admin_master: false,
   },
 };
@@ -167,6 +183,7 @@ function renderAllowedMasters(permissions = {}, role) {
   if (unrestricted || permissions.attendance_autocut) allowed.push("Auto Cut Attendance");
   if (unrestricted || permissions.asset_master) allowed.push("Firms & Assets");
   if (unrestricted || permissions.transport_master) allowed.push("Transport Vehicles & Stations");
+  if (unrestricted || permissions.medicine_master) allowed.push("General Medicine");
   if (unrestricted || permissions.attendance_scan) allowed.push("Camera Scan");
   if (unrestricted || permissions.worker_master) allowed.push("Worker Master");
   if (unrestricted || permissions.attendance_admin_master) allowed.push("Attendance Master");
@@ -452,6 +469,7 @@ export default function UserAdminPage() {
         attendance_autocut: false,
         asset_master: false,
         transport_master: false,
+        medicine_master: false,
         attendance_admin_master: false,
       },
     });
@@ -467,7 +485,7 @@ export default function UserAdminPage() {
     const activeFirms = assignedFirmIds.length ? assignedFirmIds : firms.map((f) => f._id);
     const allowedModules = Array.isArray(u.allowedModules) && u.allowedModules.length
       ? u.allowedModules
-      : ["attendance"];
+      : ["attendance", "medicine"];
 
     const initModuleFirms = {};
     allowedModules.forEach((mod) => {
@@ -494,6 +512,7 @@ export default function UserAdminPage() {
         attendance_autocut: u.permissions?.attendance_autocut ?? false,
         asset_master: u.permissions?.asset_master ?? false,
         transport_master: u.permissions?.transport_master ?? false,
+        medicine_master: u.permissions?.medicine_master ?? (["admin", "developer"].includes(u.role) ? true : false),
         attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
       },
     });
@@ -730,6 +749,7 @@ export default function UserAdminPage() {
         attendance_autocut: role.permissions?.attendance_autocut ?? false,
         asset_master: role.permissions?.asset_master ?? false,
         transport_master: role.permissions?.transport_master ?? false,
+        medicine_master: role.permissions?.medicine_master ?? (["admin", "developer"].includes(role.code) ? true : false),
         attendance_admin_master: role.permissions?.attendance_admin_master ?? false,
       },
     });
@@ -1445,7 +1465,7 @@ export default function UserAdminPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5">
-                  {AVAILABLE_MODULES.map((m) => {
+                  {LIVE_MODULES.map((m) => {
                     const slug = Array.isArray(m) ? m[0] : m.slug;
                     const label = Array.isArray(m) ? m[1] : m.label;
                     const checked = userForm.allowedModules.includes(slug);
@@ -1483,12 +1503,13 @@ export default function UserAdminPage() {
                   </div>
 
                   <div className="space-y-2">
-                    {userForm.allowedModules.map((slug) => {
-                      const modDef = AVAILABLE_MODULES.find((m) => (Array.isArray(m) ? m[0] : m.slug) === slug);
+                    {userForm.allowedModules.filter((slug) => LIVE_MODULE_CODES.includes(slug)).map((slug) => {
+                      const modDef = LIVE_MODULES.find((m) => (Array.isArray(m) ? m[0] : m.slug) === slug);
                       const label = modDef ? (Array.isArray(modDef) ? modDef[1] : modDef.label) : slug;
-                      const assignedFirmsList = firms.filter((f) =>
-                        userForm.firms.some((id) => String(id?._id || id) === String(f._id))
-                      );
+                      const isHeadOffice = (f) => f.code === 'OFFICE' || f.name?.toLowerCase().includes('head office');
+                      const assignedFirmsList = firms
+                        .filter((f) => userForm.firms.some((id) => String(id?._id || id) === String(f._id)))
+                        .filter((f) => slug === 'attendance' || !isHeadOffice(f));
                       const selectedIds = userForm.moduleFirms?.[slug] || userForm.firms;
                       const countSelected = assignedFirmsList.filter((f) =>
                         selectedIds.some((id) => String(id?._id || id) === String(f._id))
@@ -1557,7 +1578,13 @@ export default function UserAdminPage() {
                   Master Access
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  {[["attendance_edit", "Edit Attendance"], ["attendance_autocut", "Auto Cut Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
+                  {[
+                    ["attendance_edit", "Edit Attendance"],
+                    ["attendance_autocut", "Auto Cut Attendance"],
+                    ["asset_master", "Firms & Assets"],
+                    ["transport_master", "Transport Vehicles & Stations"],
+                    ["medicine_master", "General Medicine"],
+                  ].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={Boolean(userForm.permissions[key])} onChange={() => toggleUserPermission(key)} className="h-3.5 w-3.5 rounded text-emerald-700" />
                       <span className="text-xs">{label}</span>
@@ -1711,7 +1738,7 @@ export default function UserAdminPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5">
-                  {AVAILABLE_MODULES.map((m) => {
+                  {LIVE_MODULES.map((m) => {
                     const slug = Array.isArray(m) ? m[0] : m.slug;
                     const label = Array.isArray(m) ? m[1] : m.label;
                     const checked = roleForm.allowedModules.includes(slug);
@@ -1740,7 +1767,13 @@ export default function UserAdminPage() {
                   Default Master Access
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
-                  {[["attendance_edit", "Edit Attendance"], ["attendance_autocut", "Auto Cut Attendance"], ["asset_master", "Firms & Assets"], ["transport_master", "Transport Vehicles & Stations"]].map(([key, label]) => (
+                  {[
+                    ["attendance_edit", "Edit Attendance"],
+                    ["attendance_autocut", "Auto Cut Attendance"],
+                    ["asset_master", "Firms & Assets"],
+                    ["transport_master", "Transport Vehicles & Stations"],
+                    ["medicine_master", "General Medicine"],
+                  ].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={Boolean(roleForm.permissions[key])} onChange={() => toggleRolePermission(key)} className="h-3.5 w-3.5 rounded text-emerald-700" />
                       <span className="text-xs">{label}</span>

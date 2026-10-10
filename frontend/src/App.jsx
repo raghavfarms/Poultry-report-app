@@ -50,15 +50,36 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="reports/medicine" element={<MedicineReportPage />} />
+        <Route
+          path="reports/medicine"
+          element={
+            <ProtectedRoute module="medicine">
+              <MedicineReportPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="reports/:slug"
           element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
         />
 
         {/* Daily Medicine Actions & Management (Unified Hub) */}
-        <Route path="medicine/daily" element={<MedicineReportPage />} />
-        <Route path="medicine" element={<MedicineReportPage />} />
+        <Route
+          path="medicine/daily"
+          element={
+            <ProtectedRoute module="medicine">
+              <MedicineReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="medicine"
+          element={
+            <ProtectedRoute module="medicine">
+              <MedicineReportPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Administration: Master Data (Admin & Developer Only) */}
         <Route

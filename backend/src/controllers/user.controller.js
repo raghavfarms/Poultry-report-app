@@ -11,37 +11,29 @@ export async function getUsers(req, res) {
     .sort({ createdAt: -1 })
     .lean();
 
-  const allModules = ['diesel', 'transport', 'attendance'];
+  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine'];
 
   const mapped = users.map((u) => {
     const isAdminOrDev = ['admin', 'developer'].includes(u.role);
+    const userModules = Array.isArray(u.allowedModules) && u.allowedModules.length
+      ? u.allowedModules
+      : (isAdminOrDev ? allLiveModules : ['attendance']);
+
     return {
       ...u,
       moduleFirms: u.moduleFirms || {},
-      allowedModules: isAdminOrDev
-        ? allModules
-        : (u.allowedModules?.length ? u.allowedModules : ['attendance']),
-      permissions: isAdminOrDev
-        ? {
-            attendance_scan: true,
-            attendance_report: true,
-            worker_master: true,
-            attendance_edit: true,
-            attendance_autocut: true,
-            asset_master: true,
-            transport_master: true,
-            attendance_admin_master: true,
-          }
-        : {
-            attendance_scan: u.permissions?.attendance_scan ?? true,
-            attendance_report: u.permissions?.attendance_report ?? false,
-            worker_master: u.permissions?.worker_master ?? true,
-            attendance_edit: u.permissions?.attendance_edit ?? false,
-            attendance_autocut: u.permissions?.attendance_autocut ?? false,
-            asset_master: u.permissions?.asset_master ?? false,
-            transport_master: u.permissions?.transport_master ?? false,
-            attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
-          },
+      allowedModules: userModules,
+      permissions: {
+        attendance_scan: u.permissions?.attendance_scan ?? true,
+        attendance_report: u.permissions?.attendance_report ?? (isAdminOrDev ? true : false),
+        worker_master: u.permissions?.worker_master ?? true,
+        attendance_edit: u.permissions?.attendance_edit ?? (isAdminOrDev ? true : false),
+        attendance_autocut: u.permissions?.attendance_autocut ?? (isAdminOrDev ? true : false),
+        asset_master: u.permissions?.asset_master ?? (isAdminOrDev ? true : false),
+        transport_master: u.permissions?.transport_master ?? (isAdminOrDev ? true : false),
+        medicine_master: u.permissions?.medicine_master ?? (isAdminOrDev ? true : false),
+        attendance_admin_master: u.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
+      },
     };
   });
 
@@ -82,6 +74,7 @@ export async function createUser(req, res) {
     attendance_autocut: req.body.permissions?.attendance_autocut ?? roleDoc?.permissions?.attendance_autocut ?? false,
     asset_master: req.body.permissions?.asset_master ?? roleDoc?.permissions?.asset_master ?? false,
     transport_master: req.body.permissions?.transport_master ?? roleDoc?.permissions?.transport_master ?? false,
+    medicine_master: req.body.permissions?.medicine_master ?? roleDoc?.permissions?.medicine_master ?? false,
     attendance_admin_master: req.body.permissions?.attendance_admin_master ?? roleDoc?.permissions?.attendance_admin_master ?? false,
   };
 
@@ -155,6 +148,7 @@ export async function updateUser(req, res) {
       attendance_autocut: req.body.permissions.attendance_autocut ?? user.permissions.attendance_autocut,
       asset_master: req.body.permissions.asset_master ?? user.permissions.asset_master,
       transport_master: req.body.permissions.transport_master ?? user.permissions.transport_master,
+      medicine_master: req.body.permissions.medicine_master ?? user.permissions.medicine_master,
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? user.permissions.attendance_admin_master,
     };
   }

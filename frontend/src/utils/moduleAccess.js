@@ -8,17 +8,20 @@ export function canAccessModule(user, module) {
     return false;
   }
 
-  if (module === 'medicine') {
-    return Boolean(
-      ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user.role) ||
-      user.allowedModules?.includes('medicine')
-    );
+  // If user has allowedModules configured, respect it strictly
+  if (Array.isArray(user.allowedModules)) {
+    return user.allowedModules.includes(module);
   }
 
-  return Boolean(
-    ['admin', 'developer'].includes(user.role) ||
-    user.allowedModules?.includes(module)
-  );
+  if (['admin', 'developer'].includes(user.role)) {
+    return true;
+  }
+
+  if (module === 'medicine') {
+    return ['office', 'supervisor', 'farm_incharge'].includes(user.role);
+  }
+
+  return ['diesel', 'transport', 'attendance'].includes(module);
 }
 
 export function canAccessReport(user, module) {

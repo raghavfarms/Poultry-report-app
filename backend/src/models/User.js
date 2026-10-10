@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
       attendance_autocut: { type: Boolean, default: false },
       asset_master: { type: Boolean, default: false },
       transport_master: { type: Boolean, default: false },
+      medicine_master: { type: Boolean, default: false },
       attendance_scan: { type: Boolean, default: true },
       attendance_report: { type: Boolean, default: false },
       worker_master: { type: Boolean, default: true },

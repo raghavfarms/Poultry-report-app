@@ -18,22 +18,28 @@ export default function ProtectedRoute({
   if (!user) return <Navigate to="/login" replace />;
 
   const isAdminOrDev = ["admin", "developer"].includes(user.role);
-  if (isAdminOrDev) return children;
 
   if (admin && !isAdminOrDev) return <Navigate to="/" replace />;
   if (developer && user.role !== "developer") return <Navigate to="/" replace />;
-
-  if (medicineAdmin && !["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user.role)) {
-    return <Navigate to="/" replace />;
-  }
 
   if (module && !canAccessModule(user, module)) {
     return <Navigate to="/" replace />;
   }
 
-  if (permission && !user.permissions?.[permission]) {
-    return <Navigate to="/" replace />;
+  if (permission) {
+    const hasPerm = user.permissions?.[permission] === true || (isAdminOrDev && user.permissions?.[permission] !== false);
+    if (!hasPerm) return <Navigate to="/" replace />;
   }
+
+  if (medicineAdmin) {
+    const hasMedicineAccess = canAccessModule(user, "medicine");
+    const hasMasterPerm = user.permissions?.medicine_master === true || (isAdminOrDev && user.permissions?.medicine_master !== false);
+    if (!hasMedicineAccess || !hasMasterPerm) {
+      return <Navigate to="/" replace />;
+    }
+  }
+
+  if (isAdminOrDev) return children;
 
   if (
     attendanceStaff &&

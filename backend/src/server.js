@@ -38,20 +38,10 @@ async function start() {
       { upsert: true, new: true, runValidators: true }
     );
 
+    // 3a. Ensure Head Office firm is linked to admin/dev, and default allowedModules/permissions initialized if missing
     await User.updateMany(
       { role: { $in: ['admin', 'developer'] } },
-      {
-        $addToSet: { firms: officeFirm._id },
-        $set: {
-          allowedModules: ['diesel', 'transport', 'attendance'],
-          permissions: {
-            attendance_scan: true,
-            attendance_report: true,
-            worker_master: true,
-            attendance_admin_master: true,
-          },
-        },
-      }
+      { $addToSet: { firms: officeFirm._id } }
     );
 
     // 3b. Sync missing permissions and allowedModules for all existing registered users
@@ -60,20 +50,28 @@ async function start() {
       const needsModules = !u.allowedModules || u.allowedModules.length === 0;
       const needsPermissions = !u.permissions || u.permissions.attendance_scan === undefined;
       if (needsModules || needsPermissions) {
-        let defaultModules = ['diesel', 'transport', 'attendance'];
+        let defaultModules = ['diesel', 'transport', 'attendance', 'medicine'];
         let defaultPerms = {
           attendance_scan: true,
           attendance_report: false,
           worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
           attendance_admin_master: false,
         };
 
         if (['admin', 'developer'].includes(u.role)) {
-          defaultModules = ['diesel', 'transport', 'attendance'];
+          defaultModules = ['diesel', 'transport', 'attendance', 'medicine'];
           defaultPerms = {
             attendance_scan: true,
             attendance_report: true,
             worker_master: true,
+            attendance_edit: true,
+            asset_master: true,
+            transport_master: true,
+            medicine_master: true,
             attendance_admin_master: true,
           };
         } else if (u.role === 'security') {
@@ -82,14 +80,22 @@ async function start() {
             attendance_scan: true,
             attendance_report: false,
             worker_master: false,
+            attendance_edit: false,
+            asset_master: false,
+            transport_master: false,
+            medicine_master: false,
             attendance_admin_master: false,
           };
-        } else if (['office', 'farm_incharge'].includes(u.role)) {
-          defaultModules = ['diesel', 'transport', 'attendance'];
+        } else if (['office', 'farm_incharge', 'supervisor'].includes(u.role)) {
+          defaultModules = ['diesel', 'transport', 'attendance', 'medicine'];
           defaultPerms = {
             attendance_scan: true,
             attendance_report: true,
             worker_master: true,
+            attendance_edit: false,
+            asset_master: false,
+            transport_master: false,
+            medicine_master: false,
             attendance_admin_master: false,
           };
         }
@@ -178,11 +184,15 @@ async function start() {
         name: 'Administrator',
         code: 'admin',
         description: 'Full system administration, user management, and firm configuration',
-        allowedModules: ['diesel', 'transport', 'attendance'],
+        allowedModules: ['diesel', 'transport', 'attendance', 'medicine'],
         permissions: {
           attendance_scan: true,
           attendance_report: true,
           worker_master: true,
+          attendance_edit: true,
+          asset_master: true,
+          transport_master: true,
+          medicine_master: true,
           attendance_admin_master: true,
         },
         isSystem: true,
@@ -191,11 +201,15 @@ async function start() {
         name: 'Developer',
         code: 'developer',
         description: 'System developer with unrestricted access and debugging tools',
-        allowedModules: ['diesel', 'transport', 'attendance'],
+        allowedModules: ['diesel', 'transport', 'attendance', 'medicine'],
         permissions: {
           attendance_scan: true,
           attendance_report: true,
           worker_master: true,
+          attendance_edit: true,
+          asset_master: true,
+          transport_master: true,
+          medicine_master: true,
           attendance_admin_master: true,
         },
         isSystem: true,
@@ -204,11 +218,15 @@ async function start() {
         name: 'Head Office',
         code: 'office',
         description: 'Office staff with full report & operational visibility',
-        allowedModules: ['diesel', 'transport', 'attendance'],
+        allowedModules: ['diesel', 'transport', 'attendance', 'medicine'],
         permissions: {
           attendance_scan: true,
           attendance_report: true,
           worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
           attendance_admin_master: false,
         },
         isSystem: true,
@@ -217,11 +235,15 @@ async function start() {
         name: 'Farm Incharge',
         code: 'farm_incharge',
         description: 'Farm Incharge with attendance registers and worker master',
-        allowedModules: ['attendance'],
+        allowedModules: ['attendance', 'medicine'],
         permissions: {
           attendance_scan: true,
           attendance_report: true,
           worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
           attendance_admin_master: false,
         },
         isSystem: true,
@@ -230,11 +252,15 @@ async function start() {
         name: 'Supervisor',
         code: 'supervisor',
         description: 'Farm supervisor for attendance and worker enrolment',
-        allowedModules: ['attendance'],
+        allowedModules: ['attendance', 'medicine'],
         permissions: {
           attendance_scan: true,
           attendance_report: true,
           worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
           attendance_admin_master: false,
         },
         isSystem: true,
@@ -248,6 +274,10 @@ async function start() {
           attendance_scan: true,
           attendance_report: false,
           worker_master: false,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
           attendance_admin_master: false,
         },
         isSystem: true,
@@ -257,7 +287,15 @@ async function start() {
     for (const r of defaultRoles) {
       await Role.findOneAndUpdate(
         { code: r.code },
-        { $setOnInsert: r },
+        {
+          $setOnInsert: r,
+          ...(['admin', 'developer'].includes(r.code)
+            ? {
+                $addToSet: { allowedModules: 'medicine' },
+                $set: { 'permissions.medicine_master': true },
+              }
+            : {}),
+        },
         { upsert: true, new: true }
       );
     }

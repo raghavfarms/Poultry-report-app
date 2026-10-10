@@ -64,6 +64,10 @@ export function attendanceReportsOnly(req, res, next) {
 
 export function requireModuleAccess(module) {
   return (req, res, next) => {
+    if (Array.isArray(req.user?.allowedModules)) {
+      if (req.user.allowedModules.includes(module)) return next();
+      return res.status(403).json({ message: 'You do not have access to this report module.' });
+    }
     if (['admin', 'developer'].includes(req.user?.role) || req.user?.allowedModules?.includes(module)) return next();
     return res.status(403).json({ message: 'You do not have access to this report module.' });
   };
@@ -71,7 +75,8 @@ export function requireModuleAccess(module) {
 
 export function masterOnly(permission) {
   return (req, res, next) => {
-    if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.[permission] === true) return next();
+    if (req.user?.permissions?.[permission] === true) return next();
+    if (['admin', 'developer'].includes(req.user?.role) && req.user?.permissions?.[permission] !== false) return next();
     return res.status(403).json({ message: 'Master access is required.' });
   };
 }

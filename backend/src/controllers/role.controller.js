@@ -20,10 +20,10 @@ export async function getRoles(req, res) {
         .join(' ');
 
       const defaultModules = ['admin', 'developer', 'office', 'farm_incharge'].includes(lower)
-        ? ['diesel', 'transport', 'attendance']
+        ? ['diesel', 'transport', 'attendance', 'medicine']
         : lower === 'user'
         ? ['diesel']
-        : ['attendance'];
+        : ['attendance', 'medicine'];
 
       const created = await Role.findOneAndUpdate(
         { code: lower },
@@ -41,6 +41,7 @@ export async function getRoles(req, res) {
               attendance_autocut: ['admin', 'developer', 'office', 'farm_incharge'].includes(lower),
               asset_master: ['admin', 'developer'].includes(lower),
               transport_master: ['admin', 'developer'].includes(lower),
+              medicine_master: ['admin', 'developer'].includes(lower),
               attendance_admin_master: ['admin', 'developer'].includes(lower),
             },
             isSystem: lower === 'admin',
@@ -83,6 +84,7 @@ export async function createRole(req, res) {
     attendance_autocut: Boolean(req.body.permissions?.attendance_autocut),
     asset_master: Boolean(req.body.permissions?.asset_master),
     transport_master: Boolean(req.body.permissions?.transport_master),
+    medicine_master: Boolean(req.body.permissions?.medicine_master),
     attendance_admin_master: Boolean(req.body.permissions?.attendance_admin_master),
   };
 
@@ -130,6 +132,7 @@ export async function updateRole(req, res) {
       attendance_autocut: req.body.permissions.attendance_autocut ?? role.permissions.attendance_autocut,
       asset_master: req.body.permissions.asset_master ?? role.permissions.asset_master,
       transport_master: req.body.permissions.transport_master ?? role.permissions.transport_master,
+      medicine_master: req.body.permissions.medicine_master ?? role.permissions.medicine_master,
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? role.permissions.attendance_admin_master,
     };
   }

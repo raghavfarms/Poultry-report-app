@@ -6,34 +6,29 @@ import { badRequest } from '../utils/http.js';
 
 const publicUser = (user) => {
   const isAdminOrDev = ['admin', 'developer'].includes(user.role);
+  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine'];
+  const userModules = Array.isArray(user.allowedModules) && user.allowedModules.length
+    ? user.allowedModules
+    : (isAdminOrDev ? allLiveModules : ['attendance']);
+
   return {
     id: String(user._id),
     name: user.name,
     email: user.email,
     role: user.role,
     firms: (user.firms || []).map((firm) => String(firm._id || firm)),
-    allowedModules: isAdminOrDev
-      ? ['diesel', 'transport', 'attendance']
-      : (user.allowedModules?.length ? user.allowedModules : ['attendance']),
-    permissions: isAdminOrDev
-      ? {
-          attendance_scan: true,
-          attendance_report: true,
-          worker_master: true,
-          attendance_edit: true,
-          asset_master: true,
-          transport_master: true,
-          attendance_admin_master: true,
-        }
-      : {
-          attendance_scan: user.permissions?.attendance_scan ?? true,
-          attendance_report: user.permissions?.attendance_report ?? false,
-          worker_master: user.permissions?.worker_master ?? true,
-          attendance_edit: user.permissions?.attendance_edit ?? false,
-          asset_master: user.permissions?.asset_master ?? false,
-          transport_master: user.permissions?.transport_master ?? false,
-          attendance_admin_master: user.permissions?.attendance_admin_master ?? false,
-        },
+    allowedModules: userModules,
+    permissions: {
+      attendance_scan: user.permissions?.attendance_scan ?? true,
+      attendance_report: user.permissions?.attendance_report ?? (isAdminOrDev ? true : false),
+      worker_master: user.permissions?.worker_master ?? true,
+      attendance_edit: user.permissions?.attendance_edit ?? (isAdminOrDev ? true : false),
+      attendance_autocut: user.permissions?.attendance_autocut ?? (isAdminOrDev ? true : false),
+      asset_master: user.permissions?.asset_master ?? (isAdminOrDev ? true : false),
+      transport_master: user.permissions?.transport_master ?? (isAdminOrDev ? true : false),
+      medicine_master: user.permissions?.medicine_master ?? (isAdminOrDev ? true : false),
+      attendance_admin_master: user.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
+    },
   };
 };
 
