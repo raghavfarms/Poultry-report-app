@@ -137,7 +137,7 @@ for (const kind of ['designations', 'work-locations', 'geofences']) {
 }
 
 // Deployments
-router.get('/deployments', async (req, res) => res.json(await deploymentService.listDeployments(req.user, req.query)));
+router.get('/deployments', attendanceFullMasterOnly, async (req, res) => res.json(await deploymentService.listDeployments(req.user, req.query)));
 
 // Workers
 router.get('/workers', async (req, res) => res.json(await service.listWorkers(req.user, req.query)));
@@ -147,9 +147,9 @@ router.get('/workers/:id', async (req, res) => res.json({ worker: await service.
 router.patch('/workers/:id', attendanceAdminOnly, async (req, res) => res.json({ worker: await service.updateWorker(req.user, req.params.id, req.body) }));
 router.delete('/workers/:id', attendanceAdminOnly, async (req, res) => res.json(await service.deleteWorker(req.user, req.params.id)));
 router.get('/workers/:id/deployment', async (req, res) => res.json(await deploymentService.currentDeployment(req.user, req.params.id, req.query)));
-router.get('/workers/:id/deployments', async (req, res) => res.json(await deploymentService.listDeployments(req.user, req.query, req.params.id)));
+router.get('/workers/:id/deployments', attendanceFullMasterOnly, async (req, res) => res.json(await deploymentService.listDeployments(req.user, req.query, req.params.id)));
 router.post('/workers/:id/initial-deployment', attendanceAdminOnly, async (req, res) => res.status(201).json({ deployment: await deploymentService.assignInitialDeployment(req.user, req.params.id, req.body) }));
-router.post('/workers/:id/transfer', async (req, res) => res.json(await deploymentService.transferWorker(req.user, req.params.id, req.body)));
+router.post('/workers/:id/transfer', attendanceFullMasterOnly, async (req, res) => res.json(await deploymentService.transferWorker(req.user, req.params.id, req.body)));
 
 // Worker Photo
 router.put('/workers/:id/photo', attendanceAdminOnly, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '2mb' }), async (req, res) => {

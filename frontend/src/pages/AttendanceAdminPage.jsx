@@ -14,7 +14,7 @@ export default function AttendanceAdminPage() {
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
   const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
   const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
-  const canTransferOrDeploy = hasWorkerMaster && ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
+  const canTransferOrDeploy = hasAttendanceMaster && ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
 
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState('');
@@ -25,9 +25,9 @@ export default function AttendanceAdminPage() {
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
 
-  // Fallback to workers tab if non-attendance master user was on an admin tab
+  // Enforce workers tab for worker master users
   useEffect(() => {
-    if (!hasAttendanceMaster && !['workers', 'deployments'].includes(tab)) {
+    if (!hasAttendanceMaster && tab !== 'workers') {
       setTab('workers');
     }
   }, [hasAttendanceMaster, tab]);
@@ -39,8 +39,16 @@ export default function AttendanceAdminPage() {
       .then(({ firms: list = [] }) => {
         const sorted = sortFirmsOrder(list);
         setFirms(sorted);
-        const defId = getDefaultFirmId(sorted);
-        if (defId) setFirmId(defId);
+        const stored = getStoredAttendanceFirm();
+        if (sorted.length === 1) {
+          setFirmId(sorted[0]._id);
+          setStoredAttendanceFirm(sorted[0]._id);
+        } else if (stored && sorted.some((f) => String(f._id) === String(stored))) {
+          setFirmId(stored);
+        } else {
+          const defId = getDefaultFirmId(sorted);
+          if (defId) setFirmId(defId);
+        }
       })
       .catch((err) => setError(err.message || 'Failed to load firms.'))
       .finally(() => setLoadingFirms(false));
@@ -165,41 +173,39 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="attendance-tabs no-print border-b border-slate-200">
-        {[
-          ['workers', activeFirm?.code === 'OFFICE' ? '👤 Employees' : '👤 Workers'],
-          ...(canTransferOrDeploy ? [['deployments', '📍 Deployments']] : []),
-          ...(hasAttendanceMaster
-            ? [
-                ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
-                ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
-                ['designations', '🏷️ Designations'],
-                ['audit', '📜 Audit History'],
-              ]
-            : []),
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            className={`whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-bold transition ${
-              tab === key
-                ? 'border-emerald-700 text-emerald-800'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
-            }`}
-            onClick={() => setTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Tab Navigation (Attendance Master only; Worker Master manages workers directly) */}
+      {hasAttendanceMaster && (
+        <div className="attendance-tabs no-print border-b border-slate-200">
+          {[
+            ['workers', activeFirm?.code === 'OFFICE' ? '👤 Employees' : '👤 Workers'],
+            ['deployments', '📍 Deployments'],
+            ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
+            ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
+            ['designations', '🏷️ Designations'],
+            ['audit', '📜 Audit History'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`whitespace-nowrap border-b-2 px-5 py-2.5 text-sm font-bold transition ${
+                tab === key
+                  ? 'border-emerald-700 text-emerald-800'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
+              }`}
+              onClick={() => setTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tab Panels */}
       {tab === 'workers' && (
         <WorkersPanel key={firmId} firmId={firmId} firms={firms} revision={revision} onChanged={handleChanged} />
       )}
 
-      {tab === 'deployments' && canTransferOrDeploy && (
+      {hasAttendanceMaster && tab === 'deployments' && (
         <DeploymentPanel key={firmId} firmId={firmId} revision={revision} />
       )}
 
