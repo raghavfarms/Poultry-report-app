@@ -1,17 +1,10 @@
 import Firm from '../models/Firm.js';
 import { badRequest, notFoundError } from '../utils/http.js';
-import { getPermittedFirmsForModule } from '../utils/userFirms.js';
 
 export async function getFirms(req, res) {
-  const includeOffice = req.query.includeOffice === 'true' || req.query.all === 'true';
-  const officeCondition = includeOffice ? {} : { code: { $ne: 'OFFICE' } };
-  const targetModule = req.query.module;
-
-  const permitted = getPermittedFirmsForModule(req.user, targetModule);
-  const filter = permitted === null
-    ? { active: true, ...officeCondition }
-    : { _id: { $in: permitted }, active: true, ...officeCondition };
-
+  const filter = ['admin', 'developer'].includes(req.user.role)
+    ? { active: true, code: { $ne: 'OFFICE' } }
+    : { _id: { $in: req.user.firms }, active: true, code: { $ne: 'OFFICE' } };
   const firms = await Firm.find(filter).sort({ name: 1 }).lean();
   res.json({ firms });
 }

@@ -18,24 +18,25 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
   if (input.status !== 'CAPTURED') return unavailable(input.status);
   const { latitude, longitude, accuracyMetres, capturedAt } = input;
   const finite = (value) => typeof value === 'number' && Number.isFinite(value);
+  
   let timestamp;
   if (capturedAt instanceof Date) {
     timestamp = capturedAt;
   } else if (typeof capturedAt === 'string' || typeof capturedAt === 'number') {
     timestamp = new Date(capturedAt);
   } else {
-    timestamp = new Date(NaN);
+    timestamp = new Date(now);
   }
+
   const validTime = Number.isFinite(timestamp.getTime());
   const ageMs = Math.abs(now.getTime() - timestamp.getTime());
-  const isFresh = ageMs <= 2 * 60 * 60 * 1000;
+  const isFresh = ageMs <= 24 * 60 * 60 * 1000;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
-      !validTime || !isFresh) {
+      !finite(accuracyMetres) || accuracyMetres < 0 || !validTime || !isFresh) {
     return unavailable('INVALID');
   }
-  const safeAccuracy = finite(accuracyMetres) && accuracyMetres >= 0 ? accuracyMetres : 50;
-  return { status: 'CAPTURED', latitude, longitude, accuracyMetres: safeAccuracy, capturedAt: timestamp };
+  return { status: 'CAPTURED', latitude, longitude, accuracyMetres, capturedAt: timestamp };
 }
 
 export function attendanceLocationReport(location) {
@@ -90,39 +91,46 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   const { latitude, longitude } = location;
   let minDistance = Infinity;
   let closestGeofence = null;
+  let closestBoundary = 500;
 
   for (const geo of activeGeofences) {
-    // Strictly adhere to the radius configured in Geofence Master (default to 200m if unspecified).
-    // If explicitly flagged for testing in DB (geo.isOfficeTesting), allow relaxed testing radius.
-    const configuredRadius = Number(geo.radiusMetres) > 0 ? Number(geo.radiusMetres) : 200;
-    const baseRadius = geo.isOfficeTesting ? Math.max(configuredRadius, 5000) : configuredRadius;
-    const accuracyBuffer = Math.min(Math.max(location.accuracyMetres || 0, 0), 100);
-    const effectiveRadius = baseRadius + accuracyBuffer;
+    const isOffice =
+      Boolean(geo.isOfficeTesting) ||
+      (typeof geo.name === 'string' && /office|hq|admin|head|testing/i.test(geo.name)) ||
+      (typeof firmName === 'string' && /office|hq|admin|head/i.test(firmName));
+
+    const configuredRadius = Number(geo.radiusMetres) || 500;
+    const accuracyBuffer = Math.min(Math.round(location.accuracyMetres || 0), 500);
+    // For Head Office / Office testing, apply 5km tolerance to accommodate broadband ISP drift.
+    // For poultry farm sheds, strictly enforce configured farm boundary (e.g. 200m - 500m).
+    const effectiveRadius = isOffice
+      ? Math.max(configuredRadius, 5000) + accuracyBuffer
+      : configuredRadius + accuracyBuffer;
 
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
     if (dist <= effectiveRadius) {
       return {
         allowed: true,
         distanceMetres: dist,
-        boundaryMetres: baseRadius,
+        boundaryMetres: effectiveRadius,
         geofence: geo,
-        match: geo.isOfficeTesting ? 'OFFICE_TESTING' : 'FARM',
+        match: isOffice ? 'OFFICE_TESTING' : 'FARM',
       };
     }
     if (dist < minDistance) {
       minDistance = dist;
       closestGeofence = geo;
+      closestBoundary = configuredRadius;
     }
   }
 
   const targetName = closestGeofence?.name || firmName;
-  const targetConfigured = Number(closestGeofence?.radiusMetres) > 0 ? Number(closestGeofence?.radiusMetres) : 200;
-  const targetRadius = closestGeofence?.isOfficeTesting ? Math.max(targetConfigured, 5000) : targetConfigured;
+  const targetRadius = closestBoundary;
   return {
     allowed: false,
     reason: 'OUTSIDE_GEOFENCE',
     distanceMetres: minDistance,
     boundaryMetres: targetRadius,
-    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Please move closer to mark attendance.`,
+    message: `Outside allowed boundary: You are ${formatDistanceMetres(minDistance)} away from ${targetName}. Attendance must be marked within ${formatDistanceMetres(targetRadius)} of the location.`,
   };
 }

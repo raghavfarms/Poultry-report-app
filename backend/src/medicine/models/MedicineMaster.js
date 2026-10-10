@@ -1,6 +1,7 @@
 
 
 import mongoose from 'mongoose';
+import { nextMedicineCode } from '../services/medicineCode.js';
 
 const medicineSchema=new mongoose.Schema({
  
@@ -8,12 +9,12 @@ const medicineSchema=new mongoose.Schema({
      // uppercase true ensures 'med-001'  is saved as MED-001
 
 
-     code:{
+      code:{
         type:String,
-        required:[true,'Medicine code is required'],
-        trim:true ,  // "MED-011 "  convert "MED-011"    reomve space 
+        trim:true,
         uppercase:true,
         unique:true,
+        sparse:true, // Allows multiple documents without breaking unique index
         maxlength:30
       },
 
@@ -47,11 +48,10 @@ const medicineSchema=new mongoose.Schema({
 
        //  unit of Measurement (e.g  bottle,litre,tablet)
 
-        unit :{
-            type: String,
-            required:[true,'unit of measurement is required'],
-               trim: true,
-
+        unit: {
+          type: String,
+          required: [true, 'Unit of measurement is required'],
+          trim: true,
         },
 
         // Manufacturer/ Brand Name (Optional)
@@ -91,6 +91,13 @@ const medicineSchema=new mongoose.Schema({
          index:true,
      },
 
+     suppliers: [
+       {
+         type: mongoose.Schema.Types.ObjectId,
+         ref: 'Supplier',
+       },
+     ],
+
     createdBy:{
         type : mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -99,6 +106,11 @@ const medicineSchema=new mongoose.Schema({
 
 },{
     timestamps:true
+});
+
+// Both medicine entry flows share the same sequential code allocator.
+medicineSchema.pre('validate', async function () {
+  if (!this.code) this.code = await nextMedicineCode(this.constructor);
 });
 
 export default mongoose.model('MedicineMaster',medicineSchema);  

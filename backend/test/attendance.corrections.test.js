@@ -22,14 +22,14 @@ const worker = { _id: workerId, firm, fullName: 'Worker', workerCode: 'W1', date
 const deployment = { firm, worker: workerId, supervisor: supervisorId, firmNameSnapshot: 'Farm',
   workLocation: supervisorId, workLocationNameSnapshot: 'Shed 1',
   designation: sessionId, designationNameSnapshot: 'Worker' };
-const staff = role => ({ _id: userId, name: 'Editor', role, firms: [firm], permissions: { attendance_edit: role !== 'labour' } });
+const staff = role => ({ _id: userId, name: 'Editor', role, firms: [firm] });
 function query(value) {
   return { select() { return this; }, populate() { return this; }, sort() { return this; },
     limit() { return this; }, skip() { return this; }, session() { return this; },
     lean: async () => value, then(resolve, reject) { return Promise.resolve(value).then(resolve, reject); } };
 }
 
-test('authorized security and incharge can correct within assigned firms, but not another firm', async () => {
+test('security and incharge can correct within assigned firms, but not another firm', async () => {
   for (const role of ['security', 'farm_incharge']) {
     const user = staff(role);
     assert.equal(await correctionActor(user, worker, deployment), user);

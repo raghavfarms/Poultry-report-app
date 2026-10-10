@@ -98,13 +98,11 @@ export function setStoredAttendanceFirm(firmId) {
   } catch {}
 }
 
-export function getDefaultFirmId(firms = [], currentId = '', allowAll = false) {
+export function getDefaultFirmId(firms = [], currentId = '') {
   const stored = getStoredAttendanceFirm();
   const candidate = currentId || stored;
-  if (candidate) {
-    if (allowAll && candidate === 'all') return 'all';
-    const match = firms.find((f) => String(f._id || f) === String(candidate));
-    if (match) return match._id || match;
+  if (candidate && (candidate === 'all' || firms.some((f) => String(f._id || f) === String(candidate)))) {
+    return candidate;
   }
   const raghav = firms.find((f) => /raghav/i.test(f?.name || (typeof f === 'string' ? f : '')));
   const nonOffice = firms.find((f) => f?.code !== 'OFFICE' && !/office/i.test(f?.name || (typeof f === 'string' ? f : '')));
@@ -122,7 +120,7 @@ export function getDefaultFirmId(firms = [], currentId = '', allowAll = false) {
  */
 export function getWorkLocationSortRank(name, type, order) {
   const lower = String(name || '').toLowerCase().trim();
-  if (!lower || lower === 'unassigned' || lower === 'none' || lower === '—') return 999999;
+  if (!lower || lower === 'unassigned') return 999999;
 
   const numMatch = lower.match(/\d+/);
   const num = numMatch ? parseInt(numMatch[0], 10) : 0;

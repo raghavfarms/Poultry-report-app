@@ -1,22 +1,14 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { canAccessReport } from "../utils/moduleAccess.js";
 import { useAuth } from "../context/AuthContext.jsx";
-
-export const AVAILABLE_MODULES = [
-  ["diesel", "Diesel Consumption", "⛽"],
-  ["transport", "Transport Report", "🚚"],
-  ["attendance", "Attendance", "👤"],
-];
 
 export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
-  ["bird-stock", "Bird Stock", "🐔"],
+  ["medicine", "General Medicine", "💊"],
   ["egg-stock", "Egg Stock", "🥚"],
   ["hatching-egg", "Hatching Egg Summary", "◉"],
-  ["medicine", "Medicine Requirement", "✚"],
   ["packing", "Packing Material", "□"],
   ["vermicompost", "Vermicompost", "♻"],
   ["feed-production", "Feed Production", "◫"],
@@ -41,15 +33,22 @@ export const moduleIconStyles = {
 
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
-  const isAdminOrDev = ["admin", "developer"].includes(user?.role);
-  const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
-  const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
-  const visibleModules = modules.filter(([slug]) => canAccessReport(user, slug));
+  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
+  const visibleModules =
+    user?.role === "developer"
+      ? modules
+      : modules.filter(([slug]) => {
+          if (user?.role === "security") {
+            return slug === "attendance";
+          }
+          if (slug === "attendance") return hasAttendanceAccess;
+          return ["diesel", "transport", "medicine"].includes(slug);
+        });
     
 
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive ? "bg-emerald-800 font-semibold text-white" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"}`;
+    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive ? "bg-emerald-600 font-semibold text-white" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-900"}`;
   return (
     <>
       {open && (
@@ -98,31 +97,27 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {(canManageAssets || canManageTransport || isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
+          {["admin", "developer","office","supervisor","farm_incharge"].includes(user?.role) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
               </p>
-              {isAdminOrDev && (
+              {["admin", "developer"].includes(user?.role) && (
                 <>
-                  <NavLink to="/admin/users" className={linkClass}>
-                    <span>👥</span>Users & Roles
-                  </NavLink>
-                </>
-              )}
-              {canManageAssets && (
                   <NavLink to="/admin/assets" className={linkClass}>
                     <span>⚙</span>Firms & Assets
                   </NavLink>
-              )}
-              {canManageTransport && (
                   <NavLink to="/admin/transport" className={linkClass}>
                     <span>🚚</span>Transport Vehicles
                   </NavLink>
+                </>
               )}
-              {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master) && (
-                <NavLink to="/admin/attendance" className={linkClass}>
-                  <span>👤</span>Attendance Admin
+              <NavLink to="/admin/attendance" className={linkClass}>
+                <span>👤</span>Attendance Admin
+              </NavLink>
+              {["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user?.role) && (
+                <NavLink to="/admin/medicine/master" className={linkClass}>
+                  <span>💊</span>General Medicine
                 </NavLink>
               )}
             </>
@@ -183,7 +178,7 @@ export default function Layout() {
           Daily Farm Reporting
         </span>
       </header>
-      <main className="flex-1 p-3 sm:p-4 lg:ml-72 lg:p-5">
+      <main className="flex-1 p-1.5 sm:p-4 lg:ml-72 lg:p-5">
         <Outlet />
       </main>
     </div>

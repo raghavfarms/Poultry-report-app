@@ -34,4 +34,3 @@ router.route('/:id')
 router.patch('/:id/status', toggleMedicineStatus);
 
 export default router;
-

@@ -22,15 +22,35 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  button,
+  select {
+    cursor: pointer;
+  }
 }
-button,
-select {
+
+/* Hide number input spinner / up-down arrows */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none !important;
+  margin: 0 !important;
+}
+input.no-spinner {
+  -moz-appearance: textfield !important;
+  appearance: textfield !important;
+}
+
+input[type="date"] {
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 @media (min-width: 1024px) {

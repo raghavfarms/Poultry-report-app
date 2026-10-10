@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { protect, requireModuleAccess, attendanceEditOnly, attendanceAutoCutOnly, attendanceReportsOnly, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
+import { protect, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly } from '../middleware/auth.js';
 import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
 import User from '../models/User.js';
@@ -7,7 +7,6 @@ import User from '../models/User.js';
 import * as service from './services/masters.service.js';
 import * as deploymentService from './services/deployment.service.js';
 import * as attendanceService from './services/attendance.service.js';
-import { deleteAttendanceSession } from './services/attendance.service.js';
 import * as faceService from './services/face.service.js';
 import * as photoService from './services/photo.service.js';
 import * as dashboardService from './services/dashboard.service.js';
@@ -29,6 +28,57 @@ router.post('/worker/punch', protect, async (req, res) => {
   res.json(await workerAuthService.recordWorkerSelfPunch(req.user, req.body));
 });
 
+// Instant public network location resolution endpoint (server-side IP geolocation)
+// Used by Face Scanner, Worker Portal, and Admin Geofence modal when client-side GPS/Brave is restricted
+router.get('/network-location', async (req, res) => {
+  try {
+    let clientIp = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket.remoteAddress || '';
+    if (typeof clientIp === 'string') {
+      clientIp = clientIp.split(',')[0].trim();
+    }
+    if (!clientIp || clientIp === '::1' || clientIp === '127.0.0.1' || clientIp.startsWith('192.168.') || clientIp.startsWith('10.') || clientIp.startsWith('172.16.')) {
+      clientIp = '';
+    }
+
+    const targetUrl = clientIp ? `https://ipwho.is/${clientIp}` : 'https://ipwho.is/';
+    const response = await fetch(targetUrl, { signal: AbortSignal.timeout(2000) });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.success !== false && Number.isFinite(data.latitude) && Number.isFinite(data.longitude)) {
+        return res.json({
+          status: 'CAPTURED',
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracyMetres: 250,
+          source: 'SERVER_NETWORK',
+          city: data.city || '',
+          capturedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch {}
+
+  try {
+    const response = await fetch('http://ip-api.com/json/', { signal: AbortSignal.timeout(1800) });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.status === 'success' && Number.isFinite(data.lat) && Number.isFinite(data.lon)) {
+        return res.json({
+          status: 'CAPTURED',
+          latitude: data.lat,
+          longitude: data.lon,
+          accuracyMetres: 350,
+          source: 'SERVER_NETWORK',
+          city: data.city || '',
+          capturedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch {}
+
+  res.json({ status: 'UNAVAILABLE' });
+});
+
 // Staff-operated kiosk & administration endpoints
 router.use(protect, attendanceStaffOnly);
 router.use((req, res, next) => {
@@ -38,8 +88,8 @@ router.use((req, res, next) => {
 
 // Supervisor scoped endpoints
 router.get('/supervisor/workers', async (req, res) => res.json(await supervisorService.supervisorWorkers(req.user, req.query)));
-router.get('/supervisor/sessions', requireModuleAccess('attendance'), async (req, res) => res.json(await supervisorService.supervisorSessions(req.user, req.query)));
-router.post('/supervisor/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
+router.get('/supervisor/sessions', async (req, res) => res.json(await supervisorService.supervisorSessions(req.user, req.query)));
+router.post('/supervisor/sessions/correct', async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
 
 // Master data & firms
 router.get('/firms', async (req, res) => {
@@ -77,13 +127,13 @@ router.get('/registered-users', async (req, res) => res.json(await service.listR
 
 for (const kind of ['designations', 'work-locations', 'geofences']) {
   router.get(`/${kind}`, async (req, res) => res.json(await service.listMasters(kind, req.user, req.query)));
-  router.post(`/${kind}`, attendanceFullMasterOnly, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
+  router.post(`/${kind}`, attendanceAdminOnly, async (req, res) => res.status(201).json({ item: await service.createMaster(kind, req.user, req.body) }));
   router.get(`/${kind}/:id`, async (req, res) => {
     const item = await service.getMaster(kind, req.user, req.params.id);
     res.json({ item: kind === 'work-locations' ? service.locationWithCapacity(item) : item });
   });
-  router.patch(`/${kind}/:id`, attendanceFullMasterOnly, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
-  router.delete(`/${kind}/:id`, attendanceFullMasterOnly, async (req, res) => res.json(await service.deleteMaster(kind, req.user, req.params.id)));
+  router.patch(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json({ item: await service.updateMaster(kind, req.user, req.params.id, req.body) }));
+  router.delete(`/${kind}/:id`, attendanceAdminOnly, async (req, res) => res.json(await service.deleteMaster(kind, req.user, req.params.id)));
 }
 
 // Deployments
@@ -117,20 +167,19 @@ router.get('/face-descriptors', async (req, res) => res.json(await faceService.l
 
 // Live Attendance Tracking & Events
 router.get('/workers/:id/status', async (req, res) => res.json(await attendanceService.getWorkerAttendanceStatus(req.user, req.params.id, req.query.at ? new Date(req.query.at) : undefined)));
-router.get('/events', requireModuleAccess('attendance'), async (req, res) => res.json(await attendanceService.listAttendanceEvents(req.user, req.query)));
+router.get('/events', async (req, res) => res.json(await attendanceService.listAttendanceEvents(req.user, req.query)));
 router.post('/events', async (req, res) => res.status(201).json(await attendanceService.recordAttendance(req.user, req.body)));
-router.get('/sessions', requireModuleAccess('attendance'), async (req, res) => res.json(await attendanceService.listAttendanceSessions(req.user, req.query)));
-router.post('/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
-router.post('/sessions/auto-cut', attendanceAutoCutOnly, async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
-router.post('/sessions/bulk-day', adminOnly, async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
-router.delete('/sessions/:id', attendanceEditOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
+router.get('/sessions', async (req, res) => res.json(await attendanceService.listAttendanceSessions(req.user, req.query)));
+router.post('/sessions/correct', async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
+router.post('/sessions/auto-cut', async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
+router.post('/sessions/bulk-day', async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
 
 // Dashboard
-router.get('/dashboard/live', requireModuleAccess('attendance'), async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));
+router.get('/dashboard/live', async (req, res) => res.json(await dashboardService.getLiveDashboardData(req.user, req.query)));
 
 // Reports
-router.get('/reports/daily', requireModuleAccess('attendance'), async (req, res) => res.json(await reportService.getDailyAttendanceReport(req.user, req.query)));
-router.get('/reports/monthly', attendanceReportsOnly, async (req, res) => res.json(await reportService.getMonthlyAttendanceSummary(req.user, req.query)));
+router.get('/reports/daily', async (req, res) => res.json(await reportService.getDailyAttendanceReport(req.user, req.query)));
+router.get('/reports/monthly', async (req, res) => res.json(await reportService.getMonthlyAttendanceSummary(req.user, req.query)));
 
 // Audit Logs
 router.get('/audit-logs', attendanceAdminOnly, async (req, res) => res.json(await auditService.listAuditLogs(req.user, req.query)));
@@ -145,8 +194,8 @@ router.use((error, req, res, next) => {
     return res.status(400).json({ message: msg || 'Please check the attendance fields and try again.' });
   }
   if (error.status && error.status >= 400 && error.status < 500) return res.status(error.status).json({ message: error.message });
-  console.error('Attendance request failed:', error.stack || error);
-  res.status(500).json({ message: error.message || 'Unable to process attendance. Please retry.' });
+  console.error('Attendance request failed:', error.name || 'Error');
+  res.status(500).json({ message: 'Unable to process attendance. Please retry.' });
 });
 
 export default router;

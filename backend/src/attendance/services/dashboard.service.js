@@ -7,7 +7,7 @@ import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceEvent from '../models/AttendanceEvent.js';
 import { firmScope, sortFirms } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
-import { indiaDateString, formatWorkedHours, autoCutExpiredSessions } from './attendance.service.js';
+import { indiaDateString, formatWorkedHours } from './attendance.service.js';
 import { getWorkLocationSortRank } from './report.service.js';
 import { notFoundError, badRequest } from '../../utils/http.js';
 
@@ -30,7 +30,7 @@ export async function getLiveDashboardData(user, query = {}) {
 
   // 2. Resolve target firm with strict permission scoping
   let firmId = query.firmId;
-  if (!firmId || firmId === 'all') {
+  if (!firmId) {
     if (user.role === 'developer') {
       const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
       if (allActive[0]) firmId = String(allActive[0]._id);
@@ -50,9 +50,6 @@ export async function getLiveDashboardData(user, query = {}) {
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
-  await autoCutExpiredSessions(firmObjectId, now);
-
   // 3. Parallel queries for active workers, active sheds/locations, open deployments, sessions, events, and designations
   const [activeWorkers, workLocations, openDeployments, sessions, recentEvents, firmDesignations] = await Promise.all([
     Worker.find({ firm: firmObjectId, active: true })
@@ -66,7 +63,7 @@ export async function getLiveDashboardData(user, query = {}) {
       .lean(),
 
     WorkerDeployment.find({ firm: firmObjectId, effectiveTo: null })
-      .select('worker workLocation designation designationNameSnapshot supervisor effectiveFrom')
+      .select('worker workLocation designation supervisor effectiveFrom')
       .lean(),
 
     AttendanceSession.find({ firm: firmObjectId, date: targetDate })
@@ -131,11 +128,6 @@ export async function getLiveDashboardData(user, query = {}) {
   }
 
   const workerMap = new Map(activeWorkers.map((w) => [String(w._id), w]));
-  const locationMap = new Map();
-  for (const loc of workLocations) {
-    if (loc._id) locationMap.set(String(loc._id), String(loc._id));
-    if (loc.name) locationMap.set(loc.name.toLowerCase().trim(), String(loc._id));
-  }
 
   // Map of wId -> { weight, status, workLocationId, isSupervisor, isFemale, isSecurity, workerName }
   const workerDailyAttendance = new Map();
@@ -178,18 +170,13 @@ export async function getLiveDashboardData(user, query = {}) {
 
     const latestSession = wSessions[wSessions.length - 1];
     const dep = deploymentMap.get(wId);
-    let workLocationId = dep?.workLocation
-      ? String(dep.workLocation)
-      : (latestSession?.workLocation ? String(latestSession.workLocation) : null);
+    const workLocationId = latestSession?.workLocation
+      ? String(latestSession.workLocation)
+      : (dep?.workLocation ? String(dep.workLocation) : null);
 
-    if (workLocationId && !locationMap.has(workLocationId) && latestSession?.workLocationNameSnapshot) {
-      const byName = locationMap.get(latestSession.workLocationNameSnapshot.toLowerCase().trim());
-      if (byName) workLocationId = byName;
-    }
-
-    const desig = (w?.designation?.name || dep?.designationNameSnapshot || latestSession?.designationNameSnapshot || '').toLowerCase();
+    const desig = (latestSession?.designationNameSnapshot || w?.designation?.name || dep?.designationNameSnapshot || '').toLowerCase();
     const isSecurity = desig.includes('security');
-    const isSupervisor = !isSecurity && (w?.isSupervisor || desig.includes('supervisor') || desig.includes('incharge') || desig.includes('in-charge'));
+    const isSupervisor = !isSecurity && (w?.isSupervisor || desig.includes('supervisor'));
     const isFemale = !isSecurity && !isSupervisor && (w?.gender === 'FEMALE');
 
     workerDailyAttendance.set(wId, {
@@ -205,10 +192,6 @@ export async function getLiveDashboardData(user, query = {}) {
 
   const deploymentCountByLocation = new Map();
   for (const dep of openDeployments) {
-    if (!dep.workLocation) continue;
-    const w = workerMap.get(String(dep.worker));
-    const desig = (w?.designation?.name || dep.designationNameSnapshot || '').toLowerCase();
-    if (desig.includes('security')) continue;
     const locKey = String(dep.workLocation);
     deploymentCountByLocation.set(locKey, (deploymentCountByLocation.get(locKey) || 0) + 1);
   }

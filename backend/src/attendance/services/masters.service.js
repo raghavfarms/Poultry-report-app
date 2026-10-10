@@ -225,7 +225,7 @@ export function publicWorker(worker) {
 
 export async function listWorkers(user, query) {
   const filter = { ...firmScope(user, query.firmId), ...searchFilter(query, ['fullName', 'workerCode', 'mobileNumber', 'referenceName']) };
-  if (query.designation && query.designation !== 'all') filter.designation = objectId(query.designation, 'Designation');
+  if (query.designation !== undefined) filter.designation = objectId(query.designation, 'Designation');
   if (query.isSupervisor !== undefined) {
     if (!['true', 'false'].includes(query.isSupervisor)) throw badRequest('Supervisor filter must be true or false.');
     if (query.isSupervisor === 'true') {
@@ -252,9 +252,6 @@ export async function getWorker(user, id, sensitive = false) {
 }
 
 export async function listRegisteredUsers(user, query) {
-  if (!query.firmId || query.firmId === 'all') {
-    return { items: [], pagination: { page: 1, limit: 10, total: 0, pages: 0 } };
-  }
   const firm = await activeFirm(user, objectId(query.firmId, 'Firm'));
   const linked = await Worker.distinct('userId');
   const filter = { active: true, firms: firm._id, _id: { $nin: linked }, ...searchFilter({ search: query.search }, ['name', 'email']) };
@@ -371,11 +368,7 @@ export async function updateWorker(user, id, body) {
   }
 
   // Synchronize active deployment if designation, workLocation, or worker name changed
-  const currentDep = await WorkerDeployment.findOne({
-    worker: worker._id,
-    $or: [{ effectiveTo: null }, { effectiveTo: { $gt: new Date() } }],
-  }).sort({ effectiveFrom: -1, createdAt: -1, _id: -1 });
-
+  const currentDep = await WorkerDeployment.findOne({ worker: worker._id, effectiveTo: null });
   if (currentDep) {
     let depChanged = false;
     const oldValues = {};
@@ -391,34 +384,13 @@ export async function updateWorker(user, id, body) {
       depChanged = true;
     }
 
-    const effectiveDesigName = desigDoc?.name || currentDep.designationNameSnapshot || '';
-    const isDesigSecurity = /security/i.test(effectiveDesigName);
-
-    if (data.workLocation === null || (isDesigSecurity && (body.workLocation === '' || body.workLocation === null))) {
-      if (currentDep.workLocation !== null || (currentDep.workLocationNameSnapshot && currentDep.workLocationNameSnapshot !== 'None')) {
-        oldValues.workLocationId = currentDep.workLocation;
-        oldValues.workLocationName = currentDep.workLocationNameSnapshot;
-        currentDep.workLocation = null;
-        currentDep.workLocationNameSnapshot = 'None';
-        currentDep.supervisor = null;
-        currentDep.supervisorNameSnapshot = '';
-        newValues.workLocationId = null;
-        newValues.workLocationName = 'None';
-        depChanged = true;
-      }
-    } else if (locDoc && String(currentDep.workLocation) !== String(locDoc._id)) {
+    if (locDoc && String(currentDep.workLocation) !== String(locDoc._id)) {
       oldValues.workLocationId = currentDep.workLocation;
       oldValues.workLocationName = currentDep.workLocationNameSnapshot;
       currentDep.workLocation = locDoc._id;
       currentDep.workLocationNameSnapshot = locDoc.name;
       newValues.workLocationId = locDoc._id;
       newValues.workLocationName = locDoc.name;
-
-      if (locDoc.supervisor) {
-        const supWorker = await Worker.findById(locDoc.supervisor).select('fullName').lean();
-        currentDep.supervisor = locDoc.supervisor;
-        currentDep.supervisorNameSnapshot = supWorker?.fullName || '';
-      }
       depChanged = true;
     }
 
@@ -428,46 +400,8 @@ export async function updateWorker(user, id, body) {
     }
 
     if (depChanged) {
-      // 1. Direct MongoDB update to guarantee persistence
-      await WorkerDeployment.updateOne(
-        { _id: currentDep._id },
-        {
-          $set: {
-            designation: currentDep.designation,
-            designationNameSnapshot: currentDep.designationNameSnapshot,
-            workLocation: currentDep.workLocation,
-            workLocationNameSnapshot: currentDep.workLocationNameSnapshot,
-            supervisor: currentDep.supervisor,
-            supervisorNameSnapshot: currentDep.supervisorNameSnapshot,
-            workerNameSnapshot: currentDep.workerNameSnapshot,
-          },
-        }
-      );
+      await currentDep.save();
 
-      // 2. Synchronize today's open attendance session if one exists
-      try {
-        const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
-        await AttendanceSession.updateMany(
-          { worker: worker._id, date: todayDate },
-          {
-            $set: {
-              workLocation: currentDep.workLocation,
-              workLocationNameSnapshot: currentDep.workLocationNameSnapshot,
-              designation: currentDep.designation,
-              designationNameSnapshot: currentDep.designationNameSnapshot,
-              workerNameSnapshot: currentDep.workerNameSnapshot,
-              ...(currentDep.supervisor ? {
-                supervisor: currentDep.supervisor,
-                supervisorNameSnapshot: currentDep.supervisorNameSnapshot,
-              } : {}),
-            },
-          }
-        );
-      } catch (sessionSyncErr) {
-        console.warn('Session sync note:', sessionSyncErr.message);
-      }
-
-      // 3. Create immutable audit log
       try {
         const firmDoc = await Firm.findById(worker.firm).select('name').lean();
         await AttendanceAuditLog.create({
@@ -490,28 +424,27 @@ export async function updateWorker(user, id, body) {
         console.warn('Audit log creation note:', auditErr.message);
       }
     }
-  } else if (locDoc || /security/i.test(desigDoc?.name || worker.designation?.name || '')) {
-    // No active deployment found, create initial or correction deployment
+  } else if (locDoc) {
+    // No active deployment found, create initial deployment
     try {
       const firmDoc = await Firm.findById(worker.firm).select('name').lean();
       const desig = desigDoc || await Designation.findById(data.designation || worker.designation).lean();
-      const hasInitial = await WorkerDeployment.exists({ worker: worker._id, allocationType: 'INITIAL' });
       await WorkerDeployment.create({
         worker: worker._id,
         firm: worker.firm,
-        workLocation: locDoc?._id || null,
-        designation: desig?._id || worker.designation,
-        supervisor: locDoc?.supervisor || null,
+        workLocation: locDoc._id,
+        designation: desig._id,
+        supervisor: locDoc.supervisor || null,
         workerCodeSnapshot: worker.workerCode,
         workerNameSnapshot: data.fullName || worker.fullName,
         firmNameSnapshot: firmDoc?.name || '',
-        workLocationNameSnapshot: locDoc?.name || 'None',
+        workLocationNameSnapshot: locDoc.name,
         designationNameSnapshot: desig?.name || '',
         supervisorNameSnapshot: '',
-        allocationType: hasInitial ? 'CORRECTION' : 'INITIAL',
+        allocationType: 'INITIAL',
         effectiveFrom: worker.dateOfJoining ? new Date(`${worker.dateOfJoining}T00:00:00+05:30`) : new Date(),
         effectiveTo: null,
-        reason: 'Deployment via worker edit',
+        reason: 'Initial deployment via worker edit',
         createdBy: user._id,
       });
     } catch (createDepErr) {

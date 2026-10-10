@@ -192,6 +192,13 @@ export function LoginPage() {
       </form>
 
       <div className="mt-4 space-y-1.5 text-center text-xs text-slate-600">
+        <p>
+          New user?{" "}
+          <Link className="font-semibold text-emerald-700 hover:underline" to="/register">
+            Create an account
+          </Link>
+        </p>
+
         {setupRequired && (
           <p>
             First use?{" "}
@@ -211,7 +218,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const { form, updateForm } = useAccountForm();
 
-  const [role, setRole] = useState("office");
+  const [role, setRole] = useState("user");
   const [firms, setFirms] = useState([]);
   const [selectedFirmIds, setSelectedFirmIds] = useState([]);
   const [error, setError] = useState("");
@@ -304,6 +311,7 @@ export function RegisterPage() {
               value={role}
               onChange={(e) => setRole(e.target.value)}
             >
+              <option value="user">User</option>
               <option value="office">Office</option>
               <option value="supervisor">Supervisor</option>
               <option value="security">Security</option>

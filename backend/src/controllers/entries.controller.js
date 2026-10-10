@@ -5,18 +5,9 @@ import Firm from '../models/Firm.js';
 import { calculateReport, calculateServiceBeforeDate, latestFullStatuses } from '../services/report.service.js';
 import { addDays, assertDate, todayUtc } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
-import { getPermittedFirmsForModule } from '../utils/userFirms.js';
 
-async function loadFirm(id, user) {
+async function loadFirm(id) {
   if (!mongoose.isValidObjectId(id)) throw badRequest('Invalid firm.');
-  if (user) {
-    const permitted = getPermittedFirmsForModule(user, 'diesel');
-    if (permitted !== null && !permitted.includes(String(id))) {
-      const error = new Error('You do not have access to this firm for diesel reports.');
-      error.status = 403;
-      throw error;
-    }
-  }
   const firm = await Firm.findOne({ _id: id, active: true }).lean();
   if (!firm) throw notFoundError('Firm not found.');
   return firm;
@@ -34,13 +25,13 @@ async function earliestMissingDate(firmId) {
 }
 
 export async function getDefaultDate(req, res) {
-  await loadFirm(req.query.firmId, req.user);
+  await loadFirm(req.query.firmId);
   res.json({ date: await earliestMissingDate(req.query.firmId) });
 }
 
 export async function getOpening(req, res) {
   assertDate(req.query.date);
-  const firm = await loadFirm(req.query.firmId, req.user);
+  const firm = await loadFirm(req.query.firmId);
   const entries = await DieselEntry.find({ firm: firm._id, date: { $lte: req.query.date } }).sort({ date: 1 }).lean();
   const report = calculateReport({ firm, entries, from: req.query.date, to: req.query.date, includeMissing: true });
   const current = entries.find((entry) => entry.date === req.query.date) || null;
@@ -49,7 +40,7 @@ export async function getOpening(req, res) {
 
 export async function getServiceStatus(req, res) {
   assertDate(req.query.date);
-  await loadFirm(req.query.firmId, req.user);
+  await loadFirm(req.query.firmId);
   const [assets, entries] = await Promise.all([
     Asset.find({ firm: req.query.firmId, active: true }).sort({ order: 1 }).lean(),
     DieselEntry.find({ firm: req.query.firmId, date: { $lt: req.query.date } }).sort({ date: 1 }).lean(),
@@ -58,7 +49,7 @@ export async function getServiceStatus(req, res) {
 }
 
 export async function getReport(req, res) {
-  const firm = await loadFirm(req.query.firmId, req.user);
+  const firm = await loadFirm(req.query.firmId);
   const to = req.query.to || todayUtc();
   const from = req.query.from || addDays(to, -6);
   assertDate(from, 'from');
@@ -76,8 +67,7 @@ export async function getOverview(req, res) {
   const to = req.query.to || todayUtc();
   const from = addDays(to, -(days - 1));
   assertDate(to, 'to');
-  const permitted = getPermittedFirmsForModule(req.user, 'diesel');
-  const firmFilter = permitted === null ? { active: true } : { _id: { $in: permitted }, active: true };
+  const firmFilter = ['admin', 'developer'].includes(req.user.role) ? { active: true } : { _id: { $in: req.user.firms }, active: true };
   const firms = await Firm.find(firmFilter).sort({ name: 1 }).lean();
   const reports = [];
   for (const firm of firms) {
@@ -93,7 +83,7 @@ export async function getOverview(req, res) {
 }
 
 export async function resetService(req, res) {
-  const firm = await loadFirm(req.params.firmId, req.user);
+  const firm = await loadFirm(req.params.firmId);
   if (!mongoose.isValidObjectId(req.params.assetId)) throw badRequest('Invalid asset.');
   const date = todayUtc();
   const entry = await DieselEntry.findOne({ firm: firm._id, date });
@@ -108,7 +98,7 @@ export async function resetService(req, res) {
 
 export async function saveEntry(req, res) {
   assertDate(req.params.date);
-  const firm = await loadFirm(req.params.firmId, req.user);
+  const firm = await loadFirm(req.params.firmId);
   const existing = await DieselEntry.findOne({ firm: firm._id, date: req.params.date }).lean();
   if (!['admin', 'developer'].includes(req.user.role) && req.params.date > todayUtc()) {
     return res.status(403).json({ message: 'Labour cannot enter a future date.' });

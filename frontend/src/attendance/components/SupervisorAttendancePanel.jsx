@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { canEditAttendance } from '../../utils/moduleAccess.js';
 import { api } from '../../api/client.js';
 import { Alert, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath } from '../services/adminApi.js';
 import AttendanceCorrectionModal from './AttendanceCorrectionModal.jsx';
 
 export default function SupervisorAttendancePanel() {
-  const { user } = useAuth();
-  const canEdit = canEditAttendance(user);
   const [date, setDate] = useState(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()));
   const [workers, setWorkers] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -16,7 +12,6 @@ export default function SupervisorAttendancePanel() {
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   useEffect(() => {
-    if (!canEdit) return;
     let cancelled = false;
     setLoading(true);
     setError('');
@@ -25,8 +20,7 @@ export default function SupervisorAttendancePanel() {
     }).catch(err => { if (!cancelled) { setWorkers([]); setError(err.message); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [date, canEdit]);
-  if (!canEdit) return null;
+  }, [date]);
   return <section className="space-y-3 rounded-xl border bg-white p-4">
     <h2 className="font-bold text-slate-900">Team attendance corrections</h2>
     <p className="text-sm text-slate-600">Correct missed scans for workers assigned to you. Enter the actual duty times and a reason. Every change is recorded for admin review.</p>

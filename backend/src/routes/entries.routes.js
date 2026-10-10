@@ -8,10 +8,10 @@ import {
   resetService,
   saveEntry,
 } from '../controllers/entries.controller.js';
-import { protect, requireModuleAccess, requireFirmAccess } from '../middleware/auth.js';
+import { protect, requireFirmAccess } from '../middleware/auth.js';
 
 const router = Router();
-router.use(protect, requireModuleAccess('diesel'));
+router.use(protect);
 
 router.get('/default-date', requireFirmAccess, getDefaultDate);
 router.get('/opening', requireFirmAccess, getOpening);

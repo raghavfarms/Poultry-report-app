@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../api/client.js';
 import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFirm } from '../services/adminApi.js';
 import { loadFaceModels, detectAndRecognizeFaces } from '../services/faceModelLoader.js';
-import { captureLocation, clearCachedLocation, getCachedLocation } from '../services/captureLocation.js';
+import { captureLocation } from '../services/captureLocation.js';
 import TransferModal from '../components/TransferModal.jsx';
 
 // Subtle audio feedback using Web Audio API (no external asset needed)
@@ -41,6 +41,7 @@ export default function FaceAttendancePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryFirmId = searchParams.get('firmId') || searchParams.get('firm') || '';
+  const queryDate = searchParams.get('date') || '';
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -60,10 +61,8 @@ export default function FaceAttendancePage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
-  const canChangeDate = user?.role === 'admin' || user?.role === 'developer';
   const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-  // Always defaults to live today. Only admin/developer can change it via the date picker.
-  const [attendanceDate, setAttendanceDate] = useState(todayString);
+  const [attendanceDate, setAttendanceDate] = useState(queryDate || todayString);
   const [statusPill, setStatusPill] = useState('Initializing Face Scanner...');
   const [activeResult, setActiveResult] = useState(null); // { type: 'SUCCESS' | 'DUPLICATE' | 'ERROR', data, message }
   const [locationStatus, setLocationStatus] = useState('ACQUIRING'); // 'ACQUIRING' | 'CAPTURED' | 'PERMISSION_DENIED' | 'UNAVAILABLE' | 'TIMEOUT'
@@ -116,15 +115,10 @@ export default function FaceAttendancePage() {
   }, [selectedFirmId]);
 
   // Proactive Location Acquisition & Continuous GPS Tracking
-  const requestLocation = async (forceFresh = false) => {
+  const requestLocation = async () => {
     setLocationStatus('ACQUIRING');
     try {
-      const loc = await captureLocation({
-        timeoutMs: 9000,
-        maximumAge: forceFresh ? 0 : 30000,
-        preferCache: !forceFresh,
-        forceFresh,
-      });
+      const loc = await captureLocation({ timeoutMs: 2500, preferCache: true });
       latestLocationRef.current = loc;
       setLocationStatus(loc.status);
       if (loc.status === 'CAPTURED') {
@@ -138,22 +132,13 @@ export default function FaceAttendancePage() {
   useEffect(() => {
     requestLocation();
 
-    function startWatch() {
-      if (!globalThis.navigator?.geolocation?.watchPosition) return;
+    if (globalThis.navigator?.geolocation?.watchPosition) {
       try {
-        if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
-          navigator.geolocation.clearWatch(watchIdRef.current);
-          watchIdRef.current = null;
-        }
         watchIdRef.current = navigator.geolocation.watchPosition(
           (position) => {
             const { latitude, longitude, accuracy } = position.coords || {};
             const timestamp = new Date(position.timestamp);
             if ([latitude, longitude, accuracy].every((v) => typeof v === 'number' && Number.isFinite(v))) {
-              // Ignore coarse cell-tower triangulation (> 800m) while allowing indoor GPS & Wi-Fi
-              if (accuracy > 800) {
-                return;
-              }
               const freshLoc = {
                 status: 'CAPTURED',
                 latitude,
@@ -167,28 +152,19 @@ export default function FaceAttendancePage() {
             }
           },
           (error) => {
-            const code = error?.code;
-            const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[code] || 'UNAVAILABLE';
-            const cached = getCachedLocation();
-            if (!latestLocationRef.current && !cached) {
+            const mapped = ({ 1: 'PERMISSION_DENIED', 2: 'UNAVAILABLE', 3: 'TIMEOUT' })[error?.code] || 'UNAVAILABLE';
+            if (!latestLocationRef.current || latestLocationRef.current.status !== 'CAPTURED') {
               setLocationStatus(mapped);
             }
           },
-          {
-            enableHighAccuracy: true,
-            maximumAge: 15000,
-            timeout: 12000,
-          }
+          { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 }
         );
       } catch {}
     }
 
-    startWatch();
-
     return () => {
       if (watchIdRef.current !== null && globalThis.navigator?.geolocation?.clearWatch) {
         navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
       }
     };
   }, []);
@@ -272,9 +248,6 @@ export default function FaceAttendancePage() {
     setActiveResult(null);
     setStatusPill('Ready · Scanning face...');
     processingRef.current = false;
-    if (locationStatus !== 'CAPTURED') {
-      requestLocation();
-    }
   }
 
   // Handle detected face that is not registered/enrolled
@@ -381,15 +354,15 @@ export default function FaceAttendancePage() {
     setStatusPill(`Recognized: ${worker.fullName} (${worker.workerCode})`);
 
     try {
-      // 1. Resolve Location: prefer watched fresh location or verified 10-minute GPS session cache
-      let loc = latestLocationRef.current || getCachedLocation();
+      // 1. Resolve Location: prefer pre-warmed / watched fresh location (up to 5 mins fresh)
+      let loc = latestLocationRef.current;
       const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
-        (Date.now() - new Date(loc.capturedAt).getTime() < 10 * 60 * 1000) &&
-        (!loc.accuracyMetres || loc.accuracyMetres <= 800);
+        (Date.now() - new Date(loc.capturedAt).getTime() < 300000);
 
       if (!isFresh) {
         try {
-          loc = await captureLocation({ timeoutMs: 6000, maximumAge: 30000, preferCache: true });
+          // Fast sub-second location check with instant cache fallback so face scans mark in 0ms - 200ms
+          loc = await captureLocation({ timeoutMs: 1200, maximumAge: 300000, preferCache: true });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
             setLocationStatus('CAPTURED');
@@ -398,7 +371,7 @@ export default function FaceAttendancePage() {
             loc = latestLocationRef.current;
           }
         } catch {
-          loc = latestLocationRef.current || getCachedLocation() || { status: 'UNAVAILABLE' };
+          loc = latestLocationRef.current || { status: 'UNAVAILABLE' };
         }
       }
 
@@ -449,25 +422,13 @@ export default function FaceAttendancePage() {
           err.message.toLowerCase().includes('location access') ||
           err.message.toLowerCase().includes('location permission') ||
           err.message.toLowerCase().includes('gps') ||
-          err.message.toLowerCase().includes('outside farm') ||
-          err.message.toLowerCase().includes('outside allowed'));
-
-      let distanceAway = '';
-      let targetLocationName = '';
-      const distMatch = err.message?.match(/You are\s+([\d.]+\s*(?:metres|km|m))\s+away from\s+([^.]+)/i);
-      if (distMatch) {
-        distanceAway = distMatch[1].trim();
-        targetLocationName = distMatch[2].trim();
-      }
-
+          err.message.toLowerCase().includes('outside farm'));
       setActiveResult({
         type: isDuplicate ? 'DUPLICATE' : (isGeofence ? 'GEOFENCE' : 'ERROR'),
         workerName: worker.fullName,
         workerCode: worker.workerCode,
         workerId: worker.workerId || worker._id,
         worker: worker,
-        distanceAway,
-        locationName: targetLocationName,
         message: err.message || 'Unable to record attendance.',
       });
 
@@ -521,7 +482,7 @@ export default function FaceAttendancePage() {
 
           <button
             type="button"
-            onClick={() => requestLocation(true)}
+            onClick={requestLocation}
             title={`GPS Status: ${locationStatus}. Click to refresh.`}
             className={`flex min-h-[34px] sm:min-h-[38px] items-center gap-1.5 rounded-lg px-2 sm:px-2.5 py-1 text-[11px] font-medium transition cursor-pointer border ${
               locationStatus === 'CAPTURED'
@@ -546,7 +507,7 @@ export default function FaceAttendancePage() {
             />
             <span className="hidden sm:inline">
               {locationStatus === 'CAPTURED'
-                ? 'GPS Active'
+                ? `GPS Active${locationDetails?.accuracy ? ` (±${locationDetails.accuracy}m)` : ''}`
                 : locationStatus === 'ACQUIRING'
                 ? 'Acquiring GPS...'
                 : locationStatus === 'PERMISSION_DENIED'
@@ -560,49 +521,43 @@ export default function FaceAttendancePage() {
         </div>
       </header>
 
-      {/* Live Date Header & Transfer Button: Live by default, editable only by Admin/Developer */}
+      {/* Attendance Date / Test Mode Selector */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 px-2.5 sm:px-6 py-1.5 sm:py-2 bg-slate-950/90 border-b border-slate-800 text-xs">
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {canChangeDate ? (
-            <>
-              <label
-                htmlFor="scanner-attendance-date"
-                onClick={() => {
-                  try { document.getElementById('scanner-attendance-date')?.showPicker(); } catch {}
-                }}
-                className="text-slate-400 font-semibold text-[11px] flex items-center gap-1 cursor-pointer hover:text-slate-300 select-none shrink-0"
-              >
-                <span>📅</span>
-                <span className="hidden xs:inline">Date:</span>
-              </label>
-              <input
-                id="scanner-attendance-date"
-                type="date"
-                value={attendanceDate}
-                onChange={(e) => setAttendanceDate(e.target.value)}
-                onClick={(e) => {
-                  try { e.target.showPicker(); } catch {}
-                }}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer [color-scheme:dark]"
-              />
-              {attendanceDate !== todayString && (
-                <button
-                  type="button"
-                  onClick={() => setAttendanceDate(todayString)}
-                  className="rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 text-[10px] sm:text-[11px] font-medium text-slate-300 transition cursor-pointer whitespace-nowrap"
-                >
-                  Today
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/90 border border-slate-700 text-xs font-bold text-slate-200 shadow-xs select-none">
-              <span>📅</span>
-              <span>{new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }).format(new Date())}</span>
-              <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">Live Today</span>
-            </div>
+          <label
+            htmlFor="scanner-attendance-date"
+            onClick={() => {
+              try { document.getElementById('scanner-attendance-date')?.showPicker(); } catch {}
+            }}
+            className="text-slate-400 font-semibold text-[11px] flex items-center gap-1 cursor-pointer hover:text-slate-300 select-none shrink-0"
+          >
+            <span>📅</span>
+            <span className="hidden xs:inline">Date:</span>
+          </label>
+          <input
+            id="scanner-attendance-date"
+            type="date"
+            value={attendanceDate}
+            onChange={(e) => setAttendanceDate(e.target.value)}
+            onClick={(e) => {
+              try { e.target.showPicker(); } catch {}
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                try { e.target.showPicker(); } catch {}
+              }
+            }}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-xs font-bold text-white focus:border-emerald-500 focus:outline-none cursor-pointer [color-scheme:dark]"
+          />
+          {attendanceDate !== todayString && (
+            <button
+              type="button"
+              onClick={() => setAttendanceDate(todayString)}
+              className="rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-600 px-2 py-1 text-[10px] sm:text-[11px] font-medium text-slate-300 transition cursor-pointer whitespace-nowrap"
+            >
+              Today
+            </button>
           )}
-
           {/* Transfer Worker Button - Just Adjacent to Date */}
           <button
             type="button"
@@ -615,15 +570,15 @@ export default function FaceAttendancePage() {
           </button>
         </div>
 
-        {canChangeDate && attendanceDate !== todayString ? (
+        {attendanceDate !== todayString ? (
           <div className="flex items-center gap-1 rounded-md bg-amber-500/20 border border-amber-500/40 px-2 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-bold text-amber-300 animate-pulse">
             <span>⚡ Test Date:</span>
             <span className="font-mono underline">{attendanceDate}</span>
-            <span className="font-normal text-amber-200/80 hidden md:inline">(Admin Test Mode)</span>
+            <span className="font-normal text-amber-200/80 hidden md:inline">(Scans mark attendance for this date)</span>
           </div>
         ) : (
           <span className="text-[11px] font-medium text-slate-500 hidden sm:inline">
-            Live Attendance Mode · {todayString}
+            Live Mode · {todayString}
           </span>
         )}
       </div>
@@ -872,7 +827,7 @@ export default function FaceAttendancePage() {
                   📍
                 </div>
                 <h2 className="mt-3 text-lg font-black uppercase tracking-wide text-rose-400">
-                  OUTSIDE GEOFENCE BOUNDARY
+                  Location Fencing Boundary
                 </h2>
                 <p className="mt-1 text-base font-bold text-white">
                   {activeResult.workerName}
@@ -880,66 +835,17 @@ export default function FaceAttendancePage() {
                 {activeResult.workerCode && (
                   <p className="text-xs font-mono text-rose-300">{activeResult.workerCode}</p>
                 )}
-
-                <div className="mt-3 w-full max-w-xs sm:max-w-sm rounded-2xl border border-rose-900/60 bg-rose-950/50 p-3.5 sm:p-4 text-xs space-y-2 text-left backdrop-blur-sm">
-                  {activeResult.locationName && (
-                    <div className="flex items-center justify-between pb-2 border-b border-rose-900/40">
-                      <span className="font-semibold text-rose-300 flex items-center gap-1.5">
-                        <span>📍</span> Location:
-                      </span>
-                      <span className="font-bold text-white">
-                        {activeResult.locationName}
-                      </span>
-                    </div>
-                  )}
-
-                  {activeResult.distanceAway ? (
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-rose-300 flex items-center gap-1.5">
-                        <span>📐</span> Distance Away:
-                      </span>
-                      <span className="font-bold px-2 py-0.5 rounded-md bg-rose-900/80 text-rose-200 border border-rose-700/60 font-mono">
-                        {activeResult.distanceAway}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-rose-200 font-medium text-center">
-                      {activeResult.message}
-                    </p>
-                  )}
-
-                  <p className="pt-2 text-[11px] text-rose-300/80 text-center font-normal">
-                    Please move closer to mark attendance.
-                  </p>
+                <div className="mt-3 rounded-xl bg-rose-950/60 px-4 py-3 text-xs text-rose-200 border border-rose-500/30 max-w-sm leading-relaxed font-medium">
+                  {activeResult.message}
                 </div>
-
-                <div className="mt-4 flex flex-col sm:flex-row items-center gap-2 w-full max-w-xs">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setStatusPill('Refreshing GPS satellites...');
-                      await requestLocation(true);
-                      if (activeResult?.worker) {
-                        const targetWorker = activeResult.worker;
-                        setActiveResult(null);
-                        handleRecognizedWorker(targetWorker);
-                      } else {
-                        handleNextWorker();
-                      }
-                    }}
-                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/30 transition cursor-pointer"
-                  >
-                    <span>🔄</span>
-                    <span>Retry with Fresh GPS</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNextWorker}
-                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 px-4 py-2 text-xs font-semibold text-slate-300 transition cursor-pointer"
-                  >
-                    <span>Next Person</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleNextWorker}
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 active:scale-95 px-5 py-2.5 text-xs font-bold text-slate-950 shadow transition cursor-pointer"
+                >
+                  <span>🔄</span>
+                  <span>Try Again / Next Person</span>
+                </button>
               </div>
             )}
 

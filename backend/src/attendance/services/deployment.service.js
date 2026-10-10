@@ -28,13 +28,13 @@ export function deploymentInstant(value, label = 'Effective date/time') {
 }
 
 export function initialDeploymentPayload(body, dateOfJoining) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest('Initial deployment is required.');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw badRequest('Initial deployment is required. Select a work location.');
   if (Object.keys(body).some((key) => !['workLocation', 'supervisor', 'effectiveFrom', 'reason'].includes(key))) {
     throw badRequest('Initial deployment contains unsupported or read-only fields.');
   }
   const fallbackDate = dateOfJoining || new Date().toISOString().slice(0, 10);
   const result = {
-    workLocation: body.workLocation ? objectId(body.workLocation, 'Work location') : null,
+    workLocation: objectId(body.workLocation, 'Work location'),
     effectiveFrom: deploymentInstant(body.effectiveFrom ?? fallbackDate),
     reason: body.reason === undefined ? 'Initial deployment' : text(body.reason, 'Reason', 1000, true),
   };
@@ -80,19 +80,11 @@ export async function createInitialRecord(user, worker, data, session) {
   // Sequential database operations inside a MongoDB transaction.
   const firm = await Firm.findOne({ _id: worker.firm, active: true }).session(session).lean();
   if (!firm) throw badRequest('Select an active firm.');
+  const location = await WorkLocation.findOne({ _id: data.workLocation, firm: worker.firm, active: true }).session(session).lean();
+  if (!location) throw badRequest('Select an active work location belonging to this firm.');
   const designation = await Designation.findOne({ _id: worker.designation, firm: worker.firm, active: true }).session(session).lean();
   if (!designation) throw badRequest('Select an active designation belonging to this firm.');
-
-  const isSecurity = /security/i.test(designation.name);
-  let location = null;
-  if (data.workLocation) {
-    location = await WorkLocation.findOne({ _id: data.workLocation, firm: worker.firm, active: true }).session(session).lean();
-    if (!location) throw badRequest('Select an active work location belonging to this firm.');
-  } else if (!isSecurity) {
-    throw badRequest('Select an active work location belonging to this firm.');
-  }
-
-  const supervisorId = data.supervisor === undefined ? (location?.supervisor || null) : data.supervisor;
+  const supervisorId = data.supervisor === undefined ? location.supervisor : data.supervisor;
   let supervisor = null;
   if (supervisorId) {
     if (String(supervisorId) === String(worker._id)) throw badRequest('A worker cannot supervise themselves.');
@@ -109,10 +101,10 @@ export async function createInitialRecord(user, worker, data, session) {
     }
   }
   const [record] = await WorkerDeployment.create([{
-    worker: worker._id, firm: worker.firm, workLocation: location?._id || null, designation: designation._id,
+    worker: worker._id, firm: worker.firm, workLocation: location._id, designation: designation._id,
     supervisor: supervisor?._id || null, workerCodeSnapshot: worker.workerCode,
     workerNameSnapshot: worker.fullName, firmNameSnapshot: firm.name,
-    workLocationNameSnapshot: location?.name || 'None', designationNameSnapshot: designation.name,
+    workLocationNameSnapshot: location.name, designationNameSnapshot: designation.name,
     supervisorNameSnapshot: supervisor?.fullName || '', allocationType: 'INITIAL',
     effectiveFrom: data.effectiveFrom, effectiveTo: null, reason: data.reason, createdBy: user._id,
   }], { session });
@@ -153,7 +145,7 @@ export async function listDeployments(user, query, workerId) {
   if (workerId !== undefined) filter.worker = await requireVisibleWorker(user, workerId);
   else if (query.workerId !== undefined) filter.worker = await requireVisibleWorker(user, query.workerId);
   for (const key of ['workLocation', 'designation', 'supervisor']) {
-    if (query[key] && query[key] !== 'all') filter[key] = objectId(query[key], key);
+    if (query[key] !== undefined) filter[key] = objectId(query[key], key);
   }
   if (query.at !== undefined) Object.assign(filter, effectiveAtFilter(deploymentInstant(query.at, 'Lookup date/time')));
   const [items, total] = await Promise.all([

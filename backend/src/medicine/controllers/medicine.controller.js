@@ -1,36 +1,10 @@
+// Medicine Master Controller
 import mongoose from 'mongoose';
 import MedicineMaster from '../models/MedicineMaster.js';
-
-// Helper: Auto-generate sequential Medicine Code: MED-001, MED-002, etc.
-async function generateMedicineCode() {
-  const prefix = 'MED-';
-  const allMeds = await MedicineMaster.find({
-    code: new RegExp(`^${prefix}\\d+`),
-  })
-    .select('code')
-    .lean();
-
-  let maxNum = 0;
-  for (const m of allMeds) {
-    if (m.code && m.code.startsWith(prefix)) {
-      const num = parseInt(m.code.replace(prefix, ''), 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
-      }
-    }
-  }
-
-  let nextSequence = maxNum + 1;
-  let candidate = `${prefix}${String(nextSequence).padStart(3, '0')}`;
-  let exists = await MedicineMaster.findOne({ code: candidate });
-  while (exists) {
-    nextSequence += 1;
-    candidate = `${prefix}${String(nextSequence).padStart(3, '0')}`;
-    exists = await MedicineMaster.findOne({ code: candidate });
-  }
-
-  return candidate;
-}
+import MedicineBatch from '../models/MedicineBatch.js';
+import MedicineReceipt from '../models/MedicineReceipt.js';
+import MedicineIssue from '../models/MedicineIssue.js';
+import MedicineTransaction from '../models/MedicineTransaction.js';
 
 // 1. Create a new Medicine
 export async function createMedicine(req, res) {
@@ -45,7 +19,16 @@ export async function createMedicine(req, res) {
       shelfLifeMonths,
       minimumStock,
       reorderLevel,
+      suppliers,
     } = req.body;
+
+    const isAdminOrDev = ['admin', 'developer'].includes(req.user?.role);
+    if (!isAdminOrDev) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Admin and Developer accounts can create medicines',
+      });
+    }
 
     // Validation (code is optional!)
     if (!name || !unit || !category) {
@@ -53,19 +36,17 @@ export async function createMedicine(req, res) {
         success: false,
         message: 'Medicine name, category, and unit are required fields',
       });
-    } 
+    }
 
     let finalCode = code ? code.trim().toUpperCase() : '';
-    if (!finalCode) {
-      finalCode = await generateMedicineCode();
-    } else {
+    if (finalCode) {
       const existing = await MedicineMaster.findOne({ code: finalCode });
       if (existing) {
         return res.status(409).json({
           success: false,
           message: `Medicine with code '${finalCode}' already exists`,
         });
-      }  
+      }
     }
 
     const medicine = await MedicineMaster.create({
@@ -84,6 +65,7 @@ export async function createMedicine(req, res) {
       reorderLevel: (reorderLevel !== undefined && reorderLevel !== '' && reorderLevel !== null)
         ? Number(reorderLevel)
         : 0,
+      suppliers: Array.isArray(suppliers) ? suppliers : [],
       createdBy: req.user?._id || req.user?.id,
     });
 
@@ -110,11 +92,16 @@ export async function createMedicine(req, res) {
 // 2. GET all Medicines (with search, category filter, inactive toggle)
 export async function getMedicines(req, res) {
   try {
-    const { search, category, includeInactive } = req.query;
+    const { search, category, includeInactive, status } = req.query;
 
     const filter = {};
 
-    if (includeInactive !== 'true') {
+    if (status === 'inactive') {
+      filter.active = false;
+    } else if (status === 'all' || includeInactive === 'true') {
+      // include both active and inactive
+    } else {
+      // default: active only
       filter.active = true;
     }
 
@@ -133,13 +120,45 @@ export async function getMedicines(req, res) {
 
     const medicines = await MedicineMaster.find(filter)
       .populate('createdBy', 'name email')
+      .populate('suppliers', 'name code mobile')
       .sort({ name: 1 })
       .lean();
 
+    // Compute live current stock across batches to power low stock alerts
+    const batches = await MedicineBatch.find({
+      quantityAvailable: { $gt: 0 },
+      status: { $in: ['AVAILABLE', 'EXPIRED'] },
+    })
+      .select('medicine quantityAvailable')
+      .lean();
+
+    const stockMap = {};
+    for (const b of batches) {
+      const medId = b.medicine?.toString();
+      if (medId) {
+        stockMap[medId] = (stockMap[medId] || 0) + (b.quantityAvailable || 0);
+      }
+    }
+
+    const enrichedMedicines = medicines.map((med) => {
+      const medId = med._id.toString();
+      const currentStock = stockMap[medId] || 0;
+      const threshold = med.reorderLevel || med.minimumStock || 0;
+      const isLowStock = threshold > 0 && currentStock <= threshold;
+      const isOutOfStock = currentStock === 0;
+
+      return {
+        ...med,
+        currentStock,
+        isLowStock,
+        isOutOfStock,
+      };
+    });
+
     return res.json({
       success: true,
-      count: medicines.length,
-      medicines,
+      count: enrichedMedicines.length,
+      medicines: enrichedMedicines,
     });
   } catch (error) {
     console.error('getMedicines error:', error);
@@ -162,6 +181,7 @@ export async function getMedicineById(req, res) {
 
     const medicine = await MedicineMaster.findById(req.params.id)
       .populate('createdBy', 'name email')
+      .populate('suppliers', 'name code mobile')
       .lean();
 
     if (!medicine) {
@@ -203,6 +223,7 @@ export async function updateMedicine(req, res) {
       shelfLifeMonths,
       minimumStock,
       reorderLevel,
+      suppliers,
     } = req.body;
 
     const medicine = await MedicineMaster.findById(req.params.id);
@@ -211,6 +232,10 @@ export async function updateMedicine(req, res) {
         success: false,
         message: 'Medicine not found',
       });
+    }
+
+    if (suppliers !== undefined) {
+      medicine.suppliers = Array.isArray(suppliers) ? suppliers : [];
     }
 
     // Update fields safely without corrupting types
@@ -359,6 +384,47 @@ export async function deleteUnit(req, res) {
   }
 }
 
+// 8. Delete a Medicine (Hard delete; supports ?force=true to cascade delete all batches, receipts, issues, and transactions)
+export async function deleteMedicine(req, res) {
+  try {
+    const { id } = req.params;
+    const { force } = req.query;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medicine not found',
+      });
+    }
 
+    const medicine = await MedicineMaster.findById(id);
+    if (!medicine) {
+      return res.status(404).json({
+        success: false,
+        message: 'Medicine not found',
+      });
+    }
+
+    // Cascade delete all associated batches, receipts, issues, and transactions
+    await Promise.all([
+      MedicineIssue.deleteMany({ medicine: id }),
+      MedicineReceipt.deleteMany({ medicine: id }),
+      MedicineTransaction.deleteMany({ medicine: id }),
+      MedicineBatch.deleteMany({ medicine: id }),
+    ]);
+
+    await MedicineMaster.findByIdAndDelete(id);
+
+    return res.json({
+      success: true,
+      message: `Medicine "${medicine.name}" (${medicine.code || 'No Code'}) and all associated records deleted successfully.`,
+    });
+  } catch (error) {
+    console.error('deleteMedicine error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete medicine',
+    });
+  }
+}
 

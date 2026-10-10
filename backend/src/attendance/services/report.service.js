@@ -19,7 +19,7 @@ import { notFoundError, badRequest } from '../../utils/http.js';
  */
 export function getWorkLocationSortRank(name, type, order) {
   const lower = String(name || '').toLowerCase().trim();
-  if (!lower || lower === 'unassigned' || lower === 'none' || lower === '—') return 999999;
+  if (!lower || lower === 'unassigned') return 999999;
 
   const numMatch = lower.match(/\d+/);
   const num = numMatch ? parseInt(numMatch[0], 10) : 0;
@@ -65,7 +65,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
 
   // 2. Resolve firm
   let firmId = query.firmId;
-  if (!firmId || firmId === 'all') {
+  if (!firmId) {
     if (user.role === 'developer') {
       const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
       if (allActive[0]) firmId = String(allActive[0]._id);
@@ -83,7 +83,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Auto-cut any sessions exceeding 15 elapsed hours threshold (never auto-cut before 15 hours regardless of date change)
+  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
   await autoCutExpiredSessions(firmObjectId, now);
 
   // 3. Parallel fetch of workers, deployments, attendance sessions, and active work locations
@@ -156,20 +156,14 @@ export async function getDailyAttendanceReport(user, query = {}) {
 
     const latestSession = workerSessions[workerSessions.length - 1];
     const workLocationId = latestSession?.workLocation ? String(latestSession.workLocation) : (deployment?.workLocation ? String(deployment.workLocation) : null);
-    const designationName = worker.designation?.name || latestSession?.designationNameSnapshot || deployment?.designationNameSnapshot || '—';
+    const workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'Unassigned';
+    const designationName = latestSession?.designationNameSnapshot || worker.designation?.name || deployment?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
-    const isSecurity = /security/i.test(designationName);
 
-    let workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'None';
-    if (workLocationName === 'Unassigned' || (isSecurity && !workLocationId)) {
-      workLocationName = 'None';
-    }
-
-    const cleanLocName = String(workLocationName || '').toLowerCase().trim();
     const matchedLoc = (workLocationId && locationById.get(workLocationId))
-      || (cleanLocName && locationByName.get(cleanLocName))
+      || locationByName.get(workLocationName.toLowerCase().trim())
       || null;
-    const workLocationType = matchedLoc?.type || (cleanLocName.includes('shed') ? 'SHED' : 'MISCELLANEOUS');
+    const workLocationType = matchedLoc?.type || (workLocationName.toLowerCase().includes('shed') ? 'SHED' : 'MISCELLANEOUS');
     const workLocationOrder = matchedLoc?.order ?? 0;
 
     // Filter by workLocation if requested
@@ -321,7 +315,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
   // Resolve firm
   let firmId = query.firmId;
-  if (!firmId || firmId === 'all') {
+  if (!firmId) {
     if (user.role === 'developer') {
       const allActive = sortFirms(await Firm.find({ active: true }).select('_id name code').lean());
       if (allActive[0]) firmId = String(allActive[0]._id);
@@ -339,7 +333,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
   const firm = await Firm.findById(firmObjectId).select('name code active').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Auto-cut any sessions exceeding 15 elapsed hours threshold (never auto-cut before 15 hours regardless of date change)
+  // Auto-cut any sessions exceeding 15hr threshold or past-date unclosed before querying
   await autoCutExpiredSessions(firmObjectId, now);
 
   // Determine days in month
@@ -368,12 +362,9 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
       { $match: { firm: firmObjectId, entityType: 'ATTENDANCE_SESSION', action: 'CORRECTION',
         'newValue.date': { $gte: targetMonth + '-01', $lte: targetMonth + '-' + String(daysInMonth).padStart(2, '0') } } },
       { $group: { _id: '$worker', count: { $sum: 1 } } },
-    ]).catch((err) => {
-      console.warn('AttendanceAuditLog aggregate error:', err?.message);
-      return [];
-    }),
+    ]),
   ]);
-  const editCounts = new Map((correctionCounts || []).map(item => [String(item._id), item.count]));
+  const editCounts = new Map(correctionCounts.map(item => [String(item._id), item.count]));
 
   const deploymentByWorker = new Map();
   for (const dep of deployments) {
@@ -397,13 +388,9 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
   for (const worker of workers) {
     const workerIdStr = String(worker._id);
     const deployment = deploymentByWorker.get(workerIdStr);
-    const designationName = worker.designation?.name || deployment?.designationNameSnapshot || '—';
-    const isSecurity = /security/i.test(designationName);
     const workLocationId = deployment?.workLocation ? String(deployment.workLocation) : null;
-    let workLocationName = deployment?.workLocationNameSnapshot || 'None';
-    if (workLocationName === 'Unassigned' || (isSecurity && !workLocationId)) {
-      workLocationName = 'None';
-    }
+    const workLocationName = deployment?.workLocationNameSnapshot || 'Unassigned';
+    const designationName = worker.designation?.name || deployment?.designationNameSnapshot || '—';
 
     const effectiveJoining = worker.dateOfJoining
       || (deployment?.effectiveFrom ? indiaDateString(deployment.effectiveFrom) : null)
@@ -415,9 +402,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
 
     if (query.search) {
       const term = query.search.trim().toLowerCase();
-      const matchesName = String(worker.fullName || '').toLowerCase().includes(term);
-      const matchesCode = String(worker.workerCode || '').toLowerCase().includes(term);
-      if (!matchesName && !matchesCode) {
+      if (!worker.fullName.toLowerCase().includes(term) && !worker.workerCode.toLowerCase().includes(term)) {
         continue;
       }
     }
@@ -450,10 +435,10 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
           days[dayStr] = 'OD'; // On duty right now
           presentDays += 1;
         } else if (isOpen || dayMinutes >= 475) {
-          days[dayStr] = 'P'; // Full day (>= 7h 55m or auto-cut)
+          days[dayStr] = 'P'; // Full day (>= 7 hrs 55 mins or auto-cut)
           presentDays += 1;
         } else if (dayMinutes >= 240) {
-          days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 7h 55m)
+          days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 7 hrs 55 mins)
           presentDays += 0.5;
           absentDays += 0.5;
         } else {
@@ -519,4 +504,3 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
   };
 }
 
-           

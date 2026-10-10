@@ -1,7 +1,6 @@
-import { canAccessFirm } from '../middleware/auth.js';
 import Asset from '../models/Asset.js';
 import Firm from '../models/Firm.js';
-import { badRequest, notFoundError, forbiddenError } from '../utils/http.js';
+import { badRequest, notFoundError } from '../utils/http.js';
 
 function payload(body) {
   const label = String(body.label || '').trim();
@@ -19,7 +18,7 @@ function payload(body) {
 
 export async function getFirmAssets(req, res) {
   const filter = { firm: req.params.firmId };
-  if (!((['admin', 'developer'].includes(req.user.role) || req.user.permissions?.asset_master) && req.query.includeInactive === 'true')) filter.active = true;
+  if (!(['admin', 'developer'].includes(req.user.role) && req.query.includeInactive === 'true')) filter.active = true;
   const assets = await Asset.find(filter).sort({ order: 1, label: 1 }).lean();
   res.json({ assets });
 }
@@ -34,7 +33,6 @@ export async function createAsset(req, res) {
 export async function updateAsset(req, res) {
   const existing = await Asset.findById(req.params.assetId);
   if (!existing) throw notFoundError('Asset not found.');
-  if (!canAccessFirm(req.user, existing.firm)) throw forbiddenError('You do not have access to this firm.');
   const asset = await Asset.findByIdAndUpdate(
     req.params.assetId,
     { ...payload({ ...existing.toObject(), serviceHours: existing.serviceIntervalMinutes / 60, ...req.body }), active: req.body.active ?? existing.active },
@@ -44,18 +42,12 @@ export async function updateAsset(req, res) {
 }
 
 export async function deleteAsset(req, res) {
-  const existing = await Asset.findById(req.params.assetId);
-  if (!existing) throw notFoundError('Asset not found.');
-  if (!canAccessFirm(req.user, existing.firm)) throw forbiddenError('You do not have access to this firm.');
   const asset = await Asset.findByIdAndUpdate(req.params.assetId, { active: false }, { new: true });
   if (!asset) throw notFoundError('Asset not found.');
   res.json({ message: 'Asset removed. Historical reports are unchanged.', asset });
 }
 
 export async function restoreAsset(req,res){
-  const existing = await Asset.findById(req.params.assetId);
-  if (!existing) throw notFoundError('Asset not found.');
-  if (!canAccessFirm(req.user, existing.firm)) throw forbiddenError('You do not have access to this firm.');
   const asset = await Asset.findByIdAndUpdate(req.params.assetId, {active : true }, {new :true });
   if(!asset) throw notFoundError('Asset not found.');
   res.json({message : 'Asset restored.', asset});

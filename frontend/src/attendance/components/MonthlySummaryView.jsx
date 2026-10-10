@@ -4,7 +4,6 @@ import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui
 import { attendancePath } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { canEditAttendance } from '../../utils/moduleAccess.js';
 import AttendanceCorrectionModal from './AttendanceCorrectionModal.jsx';
 import BulkAttendanceModal from './BulkAttendanceModal.jsx';
 
@@ -20,11 +19,9 @@ export default function MonthlySummaryView({
   setMonth: propSetMonth,
 }) {
   const { user } = useAuth();
-  const canEdit = canEditAttendance(user);
-  const canBulkApply = ['admin', 'developer'].includes(user?.role);
+  const canEdit = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge', 'security'].includes(user?.role);
   const [editingWorker, setEditingWorker] = useState(null);
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkModalDate, setBulkModalDate] = useState('');
   const [notice, setNotice] = useState('');
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
@@ -70,7 +67,7 @@ export default function MonthlySummaryView({
 
   // 2. Load active work locations for selected firm
   useEffect(() => {
-    if (!firmId || firmId === 'all') {
+    if (!firmId) {
       setWorkLocations([]);
       return;
     }
@@ -81,7 +78,7 @@ export default function MonthlySummaryView({
 
   // 3. Fetch Monthly Summary data
   const loadMonthlySummary = useCallback(() => {
-    if (!firmId || firmId === 'all') return;
+    if (!firmId) return;
     setLoadingData(true);
     const params = { firmId, month };
     if (selectedLocation) params.workLocationId = selectedLocation;
@@ -250,17 +247,10 @@ export default function MonthlySummaryView({
 
         {/* Action Buttons: Export PDF, CSV, Print & Bulk Entry */}
         <div className="flex items-center gap-1 overflow-x-auto py-0.5 shrink-0">
-          {canBulkApply && (
+          {canEdit && (
             <button
               type="button"
-              onClick={() => {
-                setBulkModalDate(
-                  month === getCurrentMonthString()
-                    ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
-                    : `${month}-01`
-                );
-                setShowBulkModal(true);
-              }}
+              onClick={() => setShowBulkModal(true)}
               title="Bulk Daily Muster Entry for all workers"
               className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded cursor-pointer shadow-2xs transition-colors whitespace-nowrap shrink-0"
             >
@@ -362,19 +352,7 @@ export default function MonthlySummaryView({
                   <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap print:px-1 print:py-0.5 print:w-16">Designation</th>
                   <th className="sticky top-0 bg-slate-50 px-2.5 py-1.5 whitespace-nowrap print:px-1 print:py-0.5 print:w-16">Shed</th>
                   {daysArray.map((d) => (
-                    <th
-                      key={d}
-                      onClick={() => {
-                        if (canBulkApply) {
-                          setBulkModalDate(`${month}-${d}`);
-                          setShowBulkModal(true);
-                        }
-                      }}
-                      title={canBulkApply ? `Click to Bulk Edit Day ${Number(d)}` : undefined}
-                      className={`sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 print:min-w-0 print:w-3.5 print:px-0 print:py-0.5 whitespace-nowrap ${
-                        canBulkApply ? 'cursor-pointer hover:bg-slate-200 hover:text-slate-900 transition-colors' : ''
-                      }`}
-                    >
+                    <th key={d} className="sticky top-0 bg-slate-50 px-1 py-1.5 text-center min-w-6 print:min-w-0 print:w-3.5 print:px-0 print:py-0.5 whitespace-nowrap">
                       {Number(d)}
                     </th>
                   ))}
@@ -431,7 +409,7 @@ export default function MonthlySummaryView({
           </div>
         )}
       </div>
-      {canEdit && editingWorker && <AttendanceCorrectionModal
+      {editingWorker && <AttendanceCorrectionModal
         worker={editingWorker}
         supervisor={user?.role === 'supervisor'}
         initialDate={month === getCurrentMonthString()
@@ -440,11 +418,9 @@ export default function MonthlySummaryView({
         onClose={() => setEditingWorker(null)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}
-      {canBulkApply && showBulkModal && <BulkAttendanceModal
+      {showBulkModal && <BulkAttendanceModal
         firmId={firmId}
-        initialDate={bulkModalDate || (month === getCurrentMonthString()
-          ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date())
-          : `${month}-01`)}
+        initialDate={`${month}-01`}
         onClose={() => setShowBulkModal(false)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}

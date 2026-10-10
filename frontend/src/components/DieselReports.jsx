@@ -27,13 +27,8 @@ export default function DieselReports({ compact = false, showHeading = true }) {
   const reportsRef = useRef(null);     // stores a reference to the report HTML that should expect 
 
   useEffect(() => {   //  Loading firms -- this run once when the component opens 
-    api("/firms?module=diesel")
-      .then(({ firms = [] }) => {
-        setFirms(firms);
-        if (firms.length === 1) {
-          setFirmFilter(firms[0]._id);
-        }
-      })
+    api("/firms")
+      .then(({ firms }) => setFirms(firms))
       .catch((err) => setError(err.message));
   }, []);  // []  means runs only once when the component is mounted
 
@@ -134,7 +129,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
           value={firmFilter}
           onChange={(e) => setFirmFilter(e.target.value)} // changing the selection updates FirmFilter ,which causes report to reload 
         >
-          {firms.length > 1 && <option value="all">All firms</option>}
+          <option value="all">All firms</option>
           {firms.map((firm) => (
             <option key={firm._id} value={firm._id}>
               {firm.name}

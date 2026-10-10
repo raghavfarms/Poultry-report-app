@@ -1,0 +1,423 @@
+import MedicineIssue from '../models/MedicineIssue.js';
+import MedicineBatch from '../models/MedicineBatch.js';
+import MedicineTransaction from '../models/MedicineTransaction.js';
+import MedicineMaster from '../models/MedicineMaster.js';
+import Firm from '../../models/Firm.js';
+import User from '../../models/User.js';
+import { resolveUserFarmScope } from './report.controller.js';
+import { badRequest, notFoundError } from '../../utils/http.js';
+
+// Helper: Auto-generate sequential Issue Number: ISS-YYYY-XXXX (e.g. ISS-2026-0001)
+async function generateIssueNumber() {
+  const year = new Date().getFullYear();
+  const prefix = `ISS-${year}-`;
+
+  const lastIssue = await MedicineIssue.findOne({
+    issueNumber: new RegExp(`^${prefix}`),
+  })
+    .sort({ issueNumber: -1 })
+    .lean();
+
+  let nextSequence = 1;
+  if (lastIssue && lastIssue.issueNumber) {
+    const lastNumStr = lastIssue.issueNumber.replace(prefix, '');
+    const lastNum = parseInt(lastNumStr, 10);
+    if (!isNaN(lastNum)) {
+      nextSequence = lastNum + 1;
+    }
+  }
+
+  return `${prefix}${String(nextSequence).padStart(4, '0')}`;
+}
+
+/**
+ * GET /api/medicine/issues/fefo-recommendations
+ * Query params: medicineId, farmId
+ * Returns all active batches sorted by FEFO (earliest expiry first),
+ * highlighting the optimal batch to issue.
+ */
+export async function getFefoRecommendations(req, res) {
+  try {
+    const { medicineId, farmId } = req.query;
+
+    if (!medicineId || !farmId) {
+      throw badRequest('Both medicineId and farmId query parameters are required for FEFO suggestions');
+    }
+
+    // Fetch batches with available stock, strictly ordered by expiryDate ASC
+    const batches = await MedicineBatch.find({
+      medicine: medicineId,
+      farm: farmId,
+      quantityAvailable: { $gt: 0 },
+      status: 'AVAILABLE',
+      expiryDate: { $gte: new Date().toISOString().slice(0, 10) },
+    })
+      .sort({ expiryDate: 1 }) // FEFO principle: earliest expiry first
+      .populate('supplier', 'name code')
+      .lean();
+
+    const today = new Date(new Date().toISOString().slice(0, 10));
+
+    let firstEligibleFound = false;
+
+    const enrichedBatches = batches.map((batch) => {
+      const expDate = new Date(batch.expiryDate);
+      const diffTime = expDate.getTime() - today.getTime();
+      const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      let expiryStatus = 'VALID';
+      if (daysLeft < 0) {
+        expiryStatus = 'EXPIRED';
+      } else if (daysLeft <= 30) {
+        expiryStatus = 'EXPIRING_30_DAYS';
+      } else if (daysLeft <= 60) {
+        expiryStatus = 'EXPIRING_60_DAYS';
+      } else if (daysLeft <= 90) {
+        expiryStatus = 'EXPIRING_90_DAYS';
+      }
+
+      // First batch with positive days left is FEFO recommended
+      let isFefoRecommended = false;
+      if (!firstEligibleFound && daysLeft >= 0) {
+        isFefoRecommended = true;
+        firstEligibleFound = true;
+      }
+
+      return {
+        ...batch,
+        daysLeft,
+        expiryStatus,
+        isFefoRecommended,
+      };
+    });
+
+    return res.json({
+      success: true,
+      recommendations: enrichedBatches,
+    });
+  } catch (error) {
+    console.error('getFefoRecommendations error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+}
+
+/**
+ * POST /api/medicine/issues
+ * Create a new medicine issue to a shed/flock with atomic FEFO stock deduction
+ */
+export async function createIssue(req, res) {
+  try {
+    const {
+      medicineId,
+      batchId,
+      farmId,
+      destinationType = 'SHED',
+      feedMillBatchNumber,
+      feedType,
+      targetSheds,
+      shed,
+      flockNumber,
+      birdCount,
+      birdAgeDays,
+      issuedQuantity,
+      purpose,
+      dosageInstructions,
+      issuedTo,
+      issueDate,
+      remarks,
+    } = req.body;
+
+    const actualShed = destinationType === 'FEED_MILL' ? (shed?.trim() || 'Feed Mill') : shed?.trim();
+
+    // 1. Basic validation
+    if (!medicineId || !batchId || !farmId || !actualShed || !issuedQuantity || !issuedTo) {
+      throw badRequest('Medicine, Batch, Farm, Location/Shed, Quantity, and Recipient are required');
+    }
+
+    const qty = Number(issuedQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      throw badRequest('Issued quantity must be a positive number');
+    }
+
+    // 2. Validate Medicine
+    const medicine = await MedicineMaster.findById(medicineId);
+    if (!medicine || !medicine.active) {
+      throw badRequest('Selected medicine is inactive or does not exist');
+    }
+
+    // 3. Validate Farm
+    const farm = await Firm.findById(farmId);
+    if (!farm || !farm.active) {
+      throw badRequest('Selected farm is inactive or does not exist');
+    }
+
+    // 4. Validate Batch
+    const batch = await MedicineBatch.findById(batchId);
+    if (!batch) {
+      throw notFoundError('Medicine batch not found');
+    }
+
+    if (String(batch.medicine) !== String(medicineId) || String(batch.farm) !== String(farmId)) {
+      throw badRequest('Batch does not belong to the selected medicine or farm');
+    }
+
+    if (batch.status !== 'AVAILABLE') {
+      throw badRequest(`Batch is not available for issue (Status: ${batch.status})`);
+    }
+
+    // Check expiry safety: Never issue expired medicine to birds
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (batch.expiryDate < todayStr) {
+      throw badRequest(`Cannot issue expired medicine! Batch ${batch.batchNumber} expired on ${batch.expiryDate}`);
+    }
+
+    // 5. ATOMIC Concurrency Guarded Decrement
+    // Only decrements if quantityAvailable >= qty
+    const updatedBatch = await MedicineBatch.findOneAndUpdate(
+      {
+        _id: batch._id,
+        quantityAvailable: { $gte: qty },
+        status: 'AVAILABLE',
+        expiryDate: { $gte: todayStr },
+      },
+      {
+        $inc: { quantityAvailable: -qty },
+      },
+      { new: true }
+    );
+
+    if (!updatedBatch) {
+      throw badRequest(`Insufficient stock available in Batch ${batch.batchNumber}. Available: ${batch.quantityAvailable}, Requested: ${qty}`
+      );
+    }
+
+    // If batch is fully exhausted, mark it DEPLETED
+    if (updatedBatch.quantityAvailable === 0) {
+      updatedBatch.status = 'DEPLETED';
+      await updatedBatch.save();
+    }
+
+    // 6. Generate Issue Number & Save Record
+    const issueNumber = await generateIssueNumber();
+
+    const newIssue = await MedicineIssue.create({
+      issueNumber,
+      issueDate: issueDate || todayStr,
+      medicine: medicine._id,
+      batch: batch._id,
+      batchNumber: batch.batchNumber,
+      farm: farm._id,
+      destinationType,
+      feedMillBatchNumber: feedMillBatchNumber?.trim() || '',
+      feedType: feedType || 'GROWER',
+      targetSheds: targetSheds?.trim() || '',
+      shed: actualShed,
+      flockNumber: flockNumber?.trim() || '',
+      birdCount: Number(birdCount) || 0,
+      birdAgeDays: Number(birdAgeDays) || 0,
+      issuedQuantity: qty,
+      unit: medicine.unit,
+      purpose: purpose || (destinationType === 'FEED_MILL' ? 'FEED_ADDITIVE' : 'TREATMENT'),
+      dosageInstructions: dosageInstructions?.trim() || '',
+      issuedTo: issuedTo.trim(),
+      issuedBy: req.user._id,
+      remarks: remarks?.trim() || '',
+    });
+
+    // 7. Write Immutable Audit Trail to MedicineTransaction
+    const locRemark = destinationType === 'FEED_MILL'
+      ? `Issued to Feed Mill (Batch: ${feedMillBatchNumber || 'Direct'}, Feed: ${feedType || 'GROWER'}, Target: ${targetSheds || 'Sheds'})`
+      : `Issued to ${actualShed} (${purpose || 'TREATMENT'})`;
+
+    await MedicineTransaction.create({
+      transactionType: 'ISSUE_OUTWARD',
+      medicine: medicine._id,
+      batch: batch._id,
+      batchNumber: batch.batchNumber,
+      farm: farm._id,
+      quantity: qty,
+      unit: medicine.unit,
+      balanceAfter: updatedBatch.quantityAvailable,
+      referenceModel: 'MedicineIssue',
+      referenceId: newIssue._id,
+      performedBy: req.user._id,
+      remarks: `${locRemark}. Recipient: ${issuedTo.trim()}${
+        dosageInstructions ? ` • Dosage: ${dosageInstructions.trim()}` : ''
+      }`,
+    });
+
+    // Populate and return
+    const populatedIssue = await MedicineIssue.findById(newIssue._id)
+      .populate('medicine', 'name code unit category aliasName')
+      .populate('farm', 'name code')
+      .populate('issuedBy', 'username name email');
+
+    return res.status(201).json({
+      success: true,
+      message: `Stock successfully issued from Batch ${batch.batchNumber} (Remaining: ${updatedBatch.quantityAvailable} ${medicine.unit})`,
+      issue: populatedIssue,
+      batchRemaining: updatedBatch.quantityAvailable,
+    });
+  } catch (error) {
+    console.error('createIssue error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+}
+
+/**
+ * GET /api/medicine/issues
+ * Fetch list of medicine issues with filtering & pagination
+ */
+export async function getIssues(req, res) {
+  try {
+    const {
+      search,
+      farm,
+      medicine,
+      shed,
+      purpose,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 15,
+    } = req.query;
+
+    const query = {};
+
+    // 1. Farm Scope
+    const farmScope = await resolveUserFarmScope(req, farm);
+    Object.assign(query, farmScope);
+
+    if (medicine) {
+      query.medicine = medicine;
+    }
+
+    if (shed && shed !== 'ALL') {
+      query.shed = new RegExp(`^${shed.trim()}$`, 'i');
+    }
+
+    if (purpose) {
+      query.purpose = purpose;
+    }
+
+    if (startDate || endDate) {
+      query.issueDate = {};
+      if (startDate) query.issueDate.$gte = startDate;
+      if (endDate) query.issueDate.$lte = endDate;
+    }
+
+    if (search && search.trim()) {
+      const cleanSearch = search.trim();
+      const isNumberSearch = /^#?\d+$/.test(cleanSearch);
+
+      if (isNumberSearch) {
+        // Pure number search: strictly match batch number (e.g. 012, #012)
+        const numVal = cleanSearch.replace(/^#/, '');
+        const escapedNum = numVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        query.$or = [
+          { batchNumber: new RegExp(escapedNum, 'i') },
+        ];
+      } else {
+        const escapedSearch = cleanSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const searchRegex = new RegExp(escapedSearch, 'i');
+
+        // 1. Medicine Name / Alias
+        const matchedMeds = await MedicineMaster.find({
+          $or: [
+            { name: searchRegex },
+            { aliasName: searchRegex },
+          ],
+        })
+          .select('_id')
+          .lean();
+        const medIds = matchedMeds.map((m) => m._id);
+
+        // 2. Issuer User account (if worker is registered user who issued)
+        const matchedUsers = await User.find({
+          $or: [
+            { name: searchRegex },
+            { email: searchRegex },
+          ],
+        })
+          .select('_id')
+          .lean();
+        const userIds = matchedUsers.map((u) => u._id);
+
+        // 3. Search strictly across: Medicine name, Batch number, Issuer name, or Receiver name
+        query.$or = [
+          { batchNumber: searchRegex },
+          { issuedTo: searchRegex },
+          { issuedByName: searchRegex },
+          ...(medIds.length > 0 ? [{ medicine: { $in: medIds } }] : []),
+          ...(userIds.length > 0 ? [{ issuedBy: { $in: userIds } }] : []),
+        ];
+      }
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    // Allow up to 1000 items (or all) for full monthly printouts and audits
+    const limitNum = limit === 'all' ? 1000 : Math.max(1, Math.min(1000, parseInt(limit, 10) || 15));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [issues, total, unitSummary] = await Promise.all([
+      MedicineIssue.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .populate('medicine', 'code name unit category aliasName')
+        .populate('batch', 'batchNumber expiryDate quantityAvailable status')
+        .populate('farm', 'name code')
+        .populate('issuedBy', 'username name')
+        .lean(),
+      MedicineIssue.countDocuments(query),
+      MedicineIssue.aggregate([
+        { $match: query },
+        { $group: { _id: '$unit', total: { $sum: '$issuedQuantity' } } },
+        { $sort: { _id: 1 } },
+      ]),
+    ]);
+
+    return res.json({
+      success: true,
+      issues,
+      unitSummary: unitSummary.map((u) => ({
+        unit: u._id || 'Units',
+        total: Number((u.total || 0).toFixed(2)),
+      })),
+      pagination: {
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
+        limit: limitNum,
+      },
+    });
+  } catch (error) {
+    console.error('getIssues error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+}
+
+/**
+ * GET /api/medicine/issues/:id
+ * Fetch single issue details
+ */
+export async function getIssueById(req, res) {
+  try {
+    const { id } = req.params;
+    const issue = await MedicineIssue.findById(id)
+      .populate('medicine', 'code name unit category manufacturer aliasName')
+      .populate('batch', 'batchNumber manufacturingDate expiryDate quantityAvailable status')
+      .populate('farm', 'name code')
+      .populate('issuedBy', 'username name email');
+
+    if (!issue) {
+      throw notFoundError('Medicine issue record not found');
+    }
+
+    return res.json({ success: true, issue });
+  } catch (error) {
+    console.error('getIssueById error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+}
+

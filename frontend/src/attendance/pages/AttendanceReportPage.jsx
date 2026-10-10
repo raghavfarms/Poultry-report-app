@@ -1,5 +1,3 @@
-import { useAuth } from '../../context/AuthContext.jsx';
-import { canAccessMonthlyAttendance } from '../../utils/moduleAccess.js';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import DailyRegisterView from '../components/DailyRegisterView.jsx';
@@ -20,13 +18,7 @@ function getCurrentMonthString() {
 }
 
 export default function AttendanceReportPage() {
-  const { user } = useAuth();
-  const canViewMonthly = canAccessMonthlyAttendance(user);
-  const [selectedTab, setActiveTab] = useState('live');
-  const activeTab = selectedTab === 'monthly' && !canViewMonthly ? 'live' : selectedTab;
-  useEffect(() => {
-    if (!canViewMonthly) setActiveTab(current => current === 'monthly' ? 'live' : current);
-  }, [canViewMonthly]);
+  const [activeTab, setActiveTab] = useState('live');
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState(() => getStoredAttendanceFirm('all'));
   const [loadingFirms, setLoadingFirms] = useState(true);
@@ -72,15 +64,10 @@ export default function AttendanceReportPage() {
         const sorted = sortFirmsOrder(list);
         setFirms(sorted);
         const stored = getStoredAttendanceFirm();
-        if (sorted.length === 1) {
-          setFirmId(sorted[0]._id);
-          setStoredAttendanceFirm(sorted[0]._id);
-        } else if (stored) {
+        if (stored) {
           if (stored === 'all' || sorted.some((f) => String(f._id) === String(stored))) {
             setFirmId(stored);
           }
-        } else if (sorted.length > 0) {
-          setFirmId('all');
         }
       })
       .catch(() => {})
@@ -96,7 +83,6 @@ export default function AttendanceReportPage() {
   }, []);
 
   const visibleFirms = useMemo(() => {
-    if (firms.length === 1) return firms;
     if (!firmId || firmId === 'all') {
       // "All Firms" combines real poultry farms (Raghav, Sanjana), excluding Office
       return firms.filter((f) => f.code !== 'OFFICE');
@@ -125,7 +111,7 @@ export default function AttendanceReportPage() {
           </div>
 
           {/* Segmented Tabs: 3 equal buttons across width on mobile, inline on desktop */}
-          <div className={`grid ${canViewMonthly ? "grid-cols-3" : "grid-cols-2"} sm:inline-flex rounded-lg bg-slate-100 p-0.5 w-full sm:w-auto`} role="tablist">
+          <div className="grid grid-cols-3 sm:inline-flex rounded-lg bg-slate-100 p-0.5 w-full sm:w-auto" role="tablist">
             <button
               type="button"
               role="tab"
@@ -154,7 +140,6 @@ export default function AttendanceReportPage() {
               <span>📋</span>
               <span>Daily</span>
             </button>
-            {canViewMonthly && (
             <button
               type="button"
               role="tab"
@@ -169,7 +154,6 @@ export default function AttendanceReportPage() {
               <span>📅</span>
               <span>Monthly</span>
             </button>
-            )}
           </div>
         </div>
 
@@ -196,11 +180,9 @@ export default function AttendanceReportPage() {
                       setStoredAttendanceFirm(val);
                     }}
                   >
-                    {firms.length > 1 && (
-                      <option value="all">All Firms</option>
-                    )}
-
-
+                    <option value="all">
+                      All Firms
+                    </option>
                     {firms.map((f) => (
                       <option key={f._id} value={f._id}>
                         {f.name}
@@ -272,7 +254,7 @@ export default function AttendanceReportPage() {
                   &nbsp;
                 </label>
                 <Link
-                  to={`/attendance/scan${firmId && firmId !== 'all' ? `?firmId=${firmId}` : ''}`}
+                  to={`/attendance/scan${firmId && firmId !== 'all' ? `?firmId=${firmId}&date=${date}` : `?date=${date}`}`}
                   className={`flex ${
                     activeTab === 'daily'
                       ? 'flex-row min-h-[45px] h-[45px]'
@@ -381,7 +363,7 @@ export default function AttendanceReportPage() {
         </div>
       )}
 
-      {canViewMonthly && activeTab === 'monthly' && (
+      {activeTab === 'monthly' && (
         <div className="space-y-4 sm:space-y-6">
           {loadingFirms ? (
             <div className="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">

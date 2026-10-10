@@ -10,8 +10,13 @@ import transportVehicleRoutes from './routes/transportVehicles.routes.js';
 import transportEntryRoutes from './routes/transportEntries.routes.js';
 import transportStationRoutes from './routes/transportStations.routes.js';
 import attendanceRoutes from './attendance/routes.js';
-import userRoutes from './routes/user.routes.js';
-import roleRoutes from './routes/role.routes.js';
+import medicineRoutes from './medicine/routes/medicine.route.js';
+import supplierRoutes from './medicine/routes/supplier.route.js';
+import receiptRoutes from './medicine/routes/receipt.route.js';
+import issueRoutes from './medicine/routes/issue.route.js';
+import reportRoutes from './medicine/routes/report.route.js';
+import dailyActionRoutes from './medicine/routes/dailyAction.route.js';
+import transferRoutes from './medicine/routes/transfer.route.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -24,8 +29,6 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-reporting-api' }));   // check backend is running or not with logging 
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/roles', roleRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/entries', entryRoutes);
@@ -35,6 +38,13 @@ app.use('/api/transport-vehicles', transportVehicleRoutes);
 app.use('/api/transport-entries', transportEntryRoutes);
 app.use('/api/transport-stations', transportStationRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/medicine/masters', medicineRoutes);
+app.use('/api/medicine/suppliers', supplierRoutes);
+app.use('/api/medicine/receipts', receiptRoutes);
+app.use('/api/medicine/issues', issueRoutes);
+app.use('/api/medicine/reports', reportRoutes);
+app.use('/api/medicine/daily-action', dailyActionRoutes);
+app.use('/api/medicine/transfers', transferRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

@@ -1,6 +1,4 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { canEditAttendance, canAutoCutAttendance } from '../../utils/moduleAccess.js';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
@@ -52,9 +50,6 @@ export default function DailyRegisterView({
   date: propDate,
   setDate: propSetDate,
 }) {
-  const { user } = useAuth();
-  const canEdit = canEditAttendance(user);
-  const canAutoCut = canAutoCutAttendance(user);
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());
@@ -100,7 +95,7 @@ export default function DailyRegisterView({
 
   // 2. Load active work locations for selected firm
   useEffect(() => {
-    if (!firmId || firmId === 'all') {
+    if (!firmId) {
       setWorkLocations([]);
       return;
     }
@@ -120,7 +115,7 @@ export default function DailyRegisterView({
 
   // 3. Fetch Daily Register data
   const loadRegister = useCallback(() => {
-    if (!firmId || firmId === 'all') return;
+    if (!firmId) return;
     setLoadingData(true);
     const params = { firmId, date };
     if (selectedLocation) params.workLocationId = selectedLocation;
@@ -209,7 +204,6 @@ export default function DailyRegisterView({
   };
 
   const renderAutoCutColumn = (r) => {
-    if (!canAutoCut) return renderMiniMapLink(r);
     if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
       return <span className="text-slate-300">—</span>;
     }
@@ -333,7 +327,6 @@ export default function DailyRegisterView({
       </div>
 
       {error && <Alert type="error">{error}</Alert>}
-      {autoCutNotice && <Alert type="success">{autoCutNotice}</Alert>}
 
       {/* KPI Badges Strip + Quick Export Actions */}
       <div className="flex items-center justify-between gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/90 py-1 px-1.5 text-xs shadow-2xs">
