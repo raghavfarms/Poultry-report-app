@@ -1,6 +1,7 @@
 import { requireRegisteredWorker } from '../attendance/services/registeredUser.service.js';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { getPermittedFirmsForModule } from '../utils/userFirms.js';
 
 export async function protect(req, res, next) {
   try {
@@ -140,13 +141,19 @@ export function developerOnly(req, res, next) {
   next();
 }
 
-export function canAccessFirm(user, firmId) {
-  return ['admin', 'developer'].includes(user.role) || user.firms.some((id) => String(id) === String(firmId));
+export function canAccessFirm(user, firmId, moduleName) {
+  if (['admin', 'developer'].includes(user?.role)) return true;
+  if (moduleName) {
+    const permitted = getPermittedFirmsForModule(user, moduleName);
+    if (permitted !== null) return permitted.some((id) => String(id) === String(firmId));
+  }
+  return (user?.firms || []).some((id) => String(id?._id || id) === String(firmId));
 }
 
 export function requireFirmAccess(req, res, next) {
   const firmId = req.params.firmId || req.query.firmId || req.body.firmId;
-  if (!firmId || !canAccessFirm(req.user, firmId)) {
+  const moduleName = req.baseUrl?.includes('entries') ? 'diesel' : undefined;
+  if (!firmId || !canAccessFirm(req.user, firmId, moduleName)) {
     return res.status(403).json({ message: 'You do not have access to this firm.' });
   }
   next();

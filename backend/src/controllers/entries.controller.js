@@ -5,6 +5,7 @@ import Firm from '../models/Firm.js';
 import { calculateReport, calculateServiceBeforeDate, latestFullStatuses } from '../services/report.service.js';
 import { addDays, assertDate, todayUtc } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
+import { getPermittedFirmsForModule } from '../utils/userFirms.js';
 
 async function loadFirm(id) {
   if (!mongoose.isValidObjectId(id)) throw badRequest('Invalid firm.');
@@ -67,7 +68,8 @@ export async function getOverview(req, res) {
   const to = req.query.to || todayUtc();
   const from = addDays(to, -(days - 1));
   assertDate(to, 'to');
-  const firmFilter = ['admin', 'developer'].includes(req.user.role) ? { active: true } : { _id: { $in: req.user.firms }, active: true };
+  const permitted = getPermittedFirmsForModule(req.user, 'diesel');
+  const firmFilter = permitted === null ? { active: true } : { _id: { $in: permitted }, active: true };
   const firms = await Firm.find(firmFilter).sort({ name: 1 }).lean();
   const reports = [];
   for (const firm of firms) {
