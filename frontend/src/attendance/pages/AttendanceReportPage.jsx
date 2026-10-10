@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
 import DailyRegisterView from '../components/DailyRegisterView.jsx';
 import MonthlySummaryView from '../components/MonthlySummaryView.jsx';
 import { inputClass, Spinner } from '../../components/Ui.jsx';
@@ -18,6 +19,10 @@ function getCurrentMonthString() {
 }
 
 export default function AttendanceReportPage() {
+  const { user } = useAuth();
+  const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const canViewMonthlyReport = isAdminOrDev || user?.permissions?.attendance_report === true;
+
   const [activeTab, setActiveTab] = useState('live');
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState(() => getStoredAttendanceFirm('all'));
@@ -49,12 +54,19 @@ export default function AttendanceReportPage() {
   };
 
   const handleTabChange = (newTab) => {
+    if (newTab === 'monthly' && !canViewMonthlyReport) return;
     setActiveTab(newTab);
     // Keep date defaulting to live today
     if (!date) {
       setDate(getTodayString());
     }
   };
+
+  useEffect(() => {
+    if (!canViewMonthlyReport && activeTab === 'monthly') {
+      setActiveTab('live');
+    }
+  }, [canViewMonthlyReport, activeTab]);
 
   // Load accessible firms once at the report page level
   useEffect(() => {
@@ -119,8 +131,8 @@ export default function AttendanceReportPage() {
             </h1>
           </div>
 
-          {/* Segmented Tabs: 3 equal buttons across width on mobile, inline on desktop */}
-          <div className="grid grid-cols-3 sm:inline-flex rounded-lg bg-slate-100 p-0.5 w-full sm:w-auto" role="tablist">
+          {/* Segmented Tabs: 2 or 3 buttons depending on permission */}
+          <div className={`grid ${canViewMonthlyReport ? 'grid-cols-3' : 'grid-cols-2'} sm:inline-flex rounded-lg bg-slate-100 p-0.5 w-full sm:w-auto`} role="tablist">
             <button
               type="button"
               role="tab"
@@ -149,20 +161,22 @@ export default function AttendanceReportPage() {
               <span>📋</span>
               <span>Daily</span>
             </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'monthly'}
-              onClick={() => handleTabChange('monthly')}
-              className={`inline-flex items-center justify-center gap-1 rounded-md py-1.5 sm:py-1 px-3 text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                activeTab === 'monthly'
-                  ? 'bg-white text-cyan-900 shadow-2xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <span>📅</span>
-              <span>Monthly</span>
-            </button>
+            {canViewMonthlyReport && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'monthly'}
+                onClick={() => handleTabChange('monthly')}
+                className={`inline-flex items-center justify-center gap-1 rounded-md py-1.5 sm:py-1 px-3 text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                  activeTab === 'monthly'
+                    ? 'bg-white text-cyan-900 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span>📅</span>
+                <span>Monthly</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -205,7 +219,7 @@ export default function AttendanceReportPage() {
 
               {/* Date Selector (for Daily & Live) or Month Selector (for Monthly) */}
               <div className="w-full sm:w-56">
-                {activeTab === 'monthly' ? (
+                {canViewMonthlyReport && activeTab === 'monthly' ? (
                   <div>
                     <label className="block text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
                       Attendance Month
@@ -374,7 +388,7 @@ export default function AttendanceReportPage() {
         </div>
       )}
 
-      {activeTab === 'monthly' && (
+      {canViewMonthlyReport && activeTab === 'monthly' && (
         <div className="space-y-4 sm:space-y-6">
           {loadingFirms ? (
             <div className="rounded-2xl bg-white p-6 shadow-xs border border-slate-100">
