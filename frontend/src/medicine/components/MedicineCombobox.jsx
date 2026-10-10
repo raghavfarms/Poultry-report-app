@@ -45,8 +45,8 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
         aria-activedescendant={open && activeIndex >= 0 ? `${id}-${activeIndex}` : undefined}
         autoComplete="off"
         required={required}
-        placeholder="Type medicine name to search..."
-        value={selected ? `${selected.name} (${selected.unit})` : query}
+        placeholder="Type medicine name or alias to search..."
+        value={selected ? (selected.aliasName ? `${selected.name} (${selected.aliasName}) [${selected.unit}]` : `${selected.name} [${selected.unit}]`) : query}
         onFocus={(event) => { setOpen(true); setActive(0); event.target.select(); }}
         onClick={() => setOpen(true)}
         onChange={(event) => {
@@ -79,9 +79,15 @@ export default function MedicineCombobox({ medicines, value, onChange, required 
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => choose(medicine)}
               className={`px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 ${index === activeIndex ? 'bg-blue-50 text-blue-900' : 'text-slate-800'}`}>
-              <span className="font-semibold">{medicine.name}</span> ({medicine.unit})
-              {(medicine.aliasName || medicine.code) && (
-                <span className="block text-[10px] text-slate-500">{[medicine.aliasName, medicine.code].filter(Boolean).join(' · ')}</span>
+              <div className="flex items-baseline gap-1.5 flex-wrap">
+                <span className="font-semibold">{medicine.name}</span>
+                {medicine.aliasName && (
+                  <span className="text-emerald-700 font-medium">({medicine.aliasName})</span>
+                )}
+                <span className="text-slate-500 font-normal text-[11px]">[{medicine.unit}]</span>
+              </div>
+              {medicine.code && (
+                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">{medicine.code}</span>
               )}
             </li>
           ))}

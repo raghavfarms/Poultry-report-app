@@ -689,6 +689,7 @@ export default function MedicineMasterPage() {
                   <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                     <th className="py-3 px-4">Code</th>
                     <th className="py-3 px-4">Medicine Name</th>
+                    <th className="py-3 px-4">Alias Name</th>
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Unit</th>
                     <th className="py-3 px-4 text-center">Stock & Alert</th>
@@ -702,12 +703,16 @@ export default function MedicineMasterPage() {
                     return (
                       <tr key={med._id} className="hover:bg-slate-50 transition">
                         <td className="py-3 px-4 font-mono font-bold text-slate-800">{med.code}</td>
-                        <td className="py-3 px-4 font-medium text-slate-900">
-                          <div className="font-semibold text-slate-900">{med.name}</div>
-                          {med.aliasName && (
-                            <div className="text-[11px] text-emerald-700 font-medium italic mt-0.5">
-                              Alias: {med.aliasName}
-                            </div>
+                        <td className="py-3 px-4 font-semibold text-slate-900">
+                          {med.name}
+                        </td>
+                        <td className="py-3 px-4 font-medium">
+                          {med.aliasName ? (
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                              {med.aliasName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 italic text-xs">—</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -1340,19 +1345,35 @@ export default function MedicineMasterPage() {
                 </div>
               )}
 
-              {/* 1. Essential Field: Medicine Name */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1">
-                  Medicine Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+              {/* 1. Essential Fields: Medicine Name & Alias Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                    Medicine Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="e.g. Paracetamol"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                    Alias Name <span className="text-slate-400 font-normal text-[10px]">(Brand / Nickname)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Calpol / Dolo"
+                    value={formData.aliasName}
+                    onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
+                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  />
+                </div>
               </div>
 
               {/* 2. Essential Fields Grid: Category & Unit */}
@@ -1474,37 +1495,25 @@ export default function MedicineMasterPage() {
                           type="text"
                           disabled={Boolean(editingId)}
                           value={formData.code}
+                          placeholder="Auto-generated"
                           onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                           className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs uppercase focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 focus:outline-none bg-white font-mono"
                         />
                       </div>
 
-                      {/* Alias / Brand Name */}
+                      {/* Low Stock Alert Level */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-0.5">
-                          Brand <span className="text-slate-400 font-normal">(opt)</span>
+                          Low Stock Alert <span className="text-slate-400 font-normal">(opt)</span>
                         </label>
                         <input
-                          type="text"
-                          value={formData.aliasName}
-                          onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
+                          type="number"
+                          min="0"
+                          value={formData.reorderLevel}
+                          onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
                           className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
                         />
                       </div>
-                    </div>
-
-                    {/* Low Stock Alert Level */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-0.5">
-                        Low Stock Alert <span className="text-slate-400 font-normal">(opt)</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.reorderLevel}
-                        onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
-                        className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
-                      />
                     </div>
                   </div>
                 )}
