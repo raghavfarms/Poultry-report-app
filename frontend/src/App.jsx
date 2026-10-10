@@ -30,7 +30,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/setup" element={<SetupPage />} />
       <Route
         element={

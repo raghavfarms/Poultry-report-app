@@ -191,23 +191,16 @@ export function LoginPage() {
         </button>
       </form>
 
-      <div className="mt-4 space-y-1.5 text-center text-xs text-slate-600">
-        <p>
-          New user?{" "}
-          <Link className="font-semibold text-emerald-700 hover:underline" to="/register">
-            Create an account
-          </Link>
-        </p>
-
-        {setupRequired && (
+      {setupRequired && (
+        <div className="mt-4 space-y-1.5 text-center text-xs text-slate-600">
           <p>
             First use?{" "}
             <Link className="font-semibold text-amber-700 hover:underline" to="/setup">
               Set up the admin
             </Link>
           </p>
-        )}
-      </div>
+        </div>
+      )}
     </AuthShell>
   );
 }
