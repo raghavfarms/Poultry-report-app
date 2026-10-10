@@ -404,38 +404,38 @@ export default function MedicineReportPage() {
     }
   };
 
-  const renderShelfBadge = (urgency, daysLeft) => {
+  const renderShelfBadge = (urgency, daysLeft, isCompact = false) => {
     if (urgency === 'EXPIRED') {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1">
-          🔴 Expired ({Math.abs(daysLeft)}d ago)
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1 shrink-0">
+          🔴 {isCompact ? 'Expired' : `Expired (${Math.abs(daysLeft)}d ago)`}
         </span>
       );
     }
     if (urgency === 'CRITICAL') {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1" title="Expires within 1 month">
-          🔴 Use Soon ({daysLeft}d left)
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1 shrink-0" title="Expires within 1 month">
+          🔴 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
         </span>
       );
     }
     if (urgency === 'CAUTION') {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1" title="Expires within 2 months">
-          🟠 Use Soon ({daysLeft}d left)
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1 shrink-0" title="Expires within 2 months">
+          🟠 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
         </span>
       );
     }
     if (urgency === 'WARNING') {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1" title="Expires within 3 months">
-          🟡 Use Soon ({daysLeft}d left)
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 shrink-0" title="Expires within 3 months">
+          🟡 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
         </span>
       );
     }
     return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1" title="Safe (> 3 months)">
-        🟢 Safe ({daysLeft}d left)
+      <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1 shrink-0" title="Safe (> 3 months)">
+        🟢 {isCompact ? 'Safe' : `Safe (${daysLeft}d left)`}
       </span>
     );
   };
@@ -451,7 +451,7 @@ export default function MedicineReportPage() {
             <div className="flex items-center gap-1.5">
               <span className="text-base sm:text-lg">💊</span>
               <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-                Farm Medicines
+                General Medicine
               </h1>
             </div>
             <p className="hidden sm:block text-[10px] sm:text-[11px] text-slate-500">
@@ -647,12 +647,12 @@ export default function MedicineReportPage() {
             </div>
 
             {/* Filter Pills & Expand Toggle */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 whitespace-nowrap">
+            <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <div className="flex gap-1 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
                 <button
                   type="button"
                   onClick={() => setStockFilter('ALL')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 border ${
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0 border ${
                     stockFilter === 'ALL'
                       ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
                       : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
@@ -663,7 +663,7 @@ export default function MedicineReportPage() {
                 <button
                   type="button"
                   onClick={() => setStockFilter('SAFE')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'SAFE'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                       : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
@@ -674,7 +674,7 @@ export default function MedicineReportPage() {
                 <button
                   type="button"
                   onClick={() => setStockFilter('SOON')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'SOON'
                       ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
                       : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
@@ -685,7 +685,7 @@ export default function MedicineReportPage() {
                 <button
                   type="button"
                   onClick={() => setStockFilter('EXPIRED')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'EXPIRED'
                       ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
                       : 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100'
@@ -697,13 +697,13 @@ export default function MedicineReportPage() {
                   <button
                     type="button"
                     onClick={() => setStockFilter('LOW')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                    className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                       stockFilter === 'LOW'
                         ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
                         : 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100'
                     }`}
                   >
-                    <span>⚠️</span> Low Stock ({groupedMedicines.filter((m) => m.isLowStock).length})
+                    <span>⚠️</span> Low ({groupedMedicines.filter((m) => m.isLowStock).length})
                   </button>
                 )}
               </div>
@@ -712,11 +712,12 @@ export default function MedicineReportPage() {
                 <button
                   type="button"
                   onClick={toggleAllExpand}
-                  className="self-start sm:self-auto text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 inline-flex items-center gap-1.5"
+                  className="text-[10px] sm:text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer shrink-0 inline-flex items-center gap-1 whitespace-nowrap"
                   title={isAllExpanded ? 'Collapse all medicine batches' : 'Expand all medicine batches'}
                 >
-                  <span className="text-[10px]">{isAllExpanded ? '▲' : '▼'}</span>
-                  <span>{isAllExpanded ? 'Collapse All' : 'Expand All'}</span>
+                  <span className="text-[9px]">{isAllExpanded ? '▲' : '▼'}</span>
+                  <span className="hidden sm:inline">{isAllExpanded ? 'Collapse All' : 'Expand All'}</span>
+                  <span className="sm:hidden">{isAllExpanded ? 'Collapse' : 'Expand'}</span>
                 </button>
               )}
             </div>
@@ -1066,7 +1067,7 @@ export default function MedicineReportPage() {
                   </table>
                 </div>
 
-                {/* Mobile Responsive Cards View */}
+                {/* Mobile Responsive Cards View (Compact, High Density & Clean) */}
                 <div className="md:hidden divide-y divide-slate-100 bg-white">
                   {filteredMedicines.map((m) => {
                     const isExpanded = Boolean(expandedMeds[m.key]);
@@ -1078,154 +1079,192 @@ export default function MedicineReportPage() {
                     return (
                       <div
                         key={m.key}
-                        className={`p-3.5 space-y-2.5 transition-colors ${
+                        className={`p-2.5 transition-colors ${
                           isExpanded
-                            ? 'bg-blue-50/30'
+                            ? 'bg-blue-50/20'
                             : isExpired
-                            ? 'bg-rose-50/40'
+                            ? 'bg-rose-50/30'
                             : isCritical
-                            ? 'bg-rose-50/20'
+                            ? 'bg-rose-50/15'
                             : isCaution
-                            ? 'bg-orange-50/20'
+                            ? 'bg-orange-50/15'
                             : isWarning
-                            ? 'bg-amber-50/15'
-                            : ''
+                            ? 'bg-amber-50/10'
+                            : 'hover:bg-slate-50/60'
                         }`}
                       >
-                        {/* Header: Medicine Name & Earliest Shelf Status */}
-                        <div className="flex justify-between items-start gap-2">
+                        {/* Row 1: Header (Name, Meta & Earliest Shelf Status) */}
+                        <div
+                          onClick={() => toggleExpand(m.key)}
+                          className="flex justify-between items-start gap-1.5 cursor-pointer select-none"
+                        >
                           <div className="min-w-0 flex-1">
-                            <h3 className="font-bold text-sm text-slate-900 truncate">
-                              {m.medicineName}
-                            </h3>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`text-[9px] font-black transition-transform duration-200 shrink-0 ${
+                                  isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
+                                }`}
+                              >
+                                ▶
+                              </span>
+                              <h3 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                                {m.medicineName}
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5 ml-3 flex-wrap">
                               {m.farmList?.map((farm) => (
                                 <span
                                   key={farm._id || farm.name}
-                                  className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200"
+                                  className="font-medium bg-slate-100 text-slate-600 px-1 py-0.2 rounded border border-slate-200/70"
                                 >
                                   🏢 {farm.name}
                                 </span>
                               ))}
-                              {m.medicineAlias && <span>({m.medicineAlias})</span>}
+                              {m.medicineAlias && <span className="text-slate-400">({m.medicineAlias})</span>}
                               {m.medicineCode && (
-                                <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200 text-[10px]">
+                                <span className="font-mono bg-slate-100 px-1 py-0.2 rounded border border-slate-200/70 text-[9px] text-slate-500">
                                   {m.medicineCode}
                                 </span>
                               )}
                             </div>
                           </div>
-                          <div>{renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}</div>
+
+                          <div className="shrink-0 pt-0.5">
+                            {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft, true)}
+                          </div>
                         </div>
 
-                        {/* Medicine Stock & Batches Accordion Bar */}
-                        <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200/70 text-xs">
-                          <div>
-                            <span className="text-[9px] uppercase font-bold text-slate-400 block leading-tight">
-                              Total Stock
-                            </span>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {m.isLowStock && (
-                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700">
-                                  ⚠️ Low
-                                </span>
-                              )}
-                              <span
-                                className={`font-black text-sm ${
-                                  m.isLowStock ? 'text-rose-700' : 'text-slate-900'
-                                }`}
-                              >
-                                {m.totalStock}
+                        {/* Row 2: Stock Bar & Compact Batch Pill Button */}
+                        <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-slate-100/90 text-xs">
+                          {/* Stock Info */}
+                          <div className="flex items-center gap-1.5">
+                            {m.isLowStock && (
+                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 shrink-0">
+                                ⚠️ Low
                               </span>
-                              <span className="text-[11px] text-slate-500 font-semibold">{m.unit}</span>
+                            )}
+                            <div>
+                              <span className="text-[10px] text-slate-400 font-medium mr-1">Stock:</span>
+                              <span className={`font-black text-xs ${m.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
+                                {m.totalStock}
+                              </span>{' '}
+                              <span className="text-[10px] text-slate-500 font-semibold">{m.unit}</span>
                             </div>
                           </div>
 
+                          {/* Next Expiry (Compact) */}
+                          {m.earliestBatch?.expiryDate && (
+                            <span className="text-[10px] font-mono text-slate-400 hidden xs:inline">
+                              Exp: <strong className="text-slate-600 font-normal">{m.earliestBatch.expiryDate}</strong>
+                            </span>
+                          )}
+
+                          {/* Batch Toggle Button */}
                           <button
                             type="button"
                             onClick={() => toggleExpand(m.key)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shrink-0 ${
                               isExpanded
                                 ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                             }`}
                           >
                             <span>📦</span>
                             <span>
                               {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
                             </span>
-                            <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
+                            <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
                           </button>
                         </div>
 
-                        {/* Mobile Expanded Drawer */}
+                        {/* Mobile Expanded Drawer: Clean High-Density Batch List */}
                         {isExpanded && (
-                          <div className="pt-1 space-y-2 border-t border-blue-200/60 mt-2">
-                            <div className="text-[11px] font-bold text-blue-900 flex items-center justify-between">
-                              <span>Batches Details (Earliest Expiry First):</span>
-                              <span className="text-[10px] text-slate-500 font-medium">
-                                Next: {m.earliestBatch?.expiryDate}
+                          <div className="mt-2 pt-2 border-t border-blue-200/50 space-y-1.5">
+                            <div className="text-[10px] font-bold text-blue-900 flex items-center justify-between px-0.5">
+                              <span>Active Batches (FEFO):</span>
+                              <span className="text-[9px] text-slate-400 font-normal">
+                                Total: {m.batches.length}
                               </span>
                             </div>
 
-                            <div className="space-y-2">
+                            <div className="space-y-1">
                               {m.batches.map((b) => (
                                 <div
                                   key={b._id}
-                                  className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs space-y-1.5 text-xs"
+                                  className="bg-white p-1.5 sm:p-2 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between gap-1.5 text-xs"
                                 >
-                                  <div className="flex justify-between items-center">
-                                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-xs">
+                                  {/* Left: Batch # & Location */}
+                                  <div className="min-w-0 flex items-center gap-1.5">
+                                    <span className="font-mono font-bold text-[10px] text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
                                       {b.batchNumber}
                                     </span>
-                                    {renderShelfBadge(b.urgency, b.daysLeft)}
+                                    {b.farm?.name && (
+                                      <span className="text-[9px] text-slate-500 font-medium truncate max-w-[65px] hidden xs:inline">
+                                        {b.farm.name}
+                                      </span>
+                                    )}
                                   </div>
 
-                                  <div className="flex justify-between items-center text-[11px] text-slate-600 pt-1 border-t border-slate-100">
-                                    <span>
-                                      Stock: <strong className="text-slate-900">{b.quantityAvailable}</strong> {b.unit}
-                                    </span>
-                                    <span className="font-mono">
-                                      Exp: <strong className="text-slate-800">{b.expiryDate}</strong>
-                                    </span>
-                                  </div>
-
-                                  {canAccessTraceAndAction && (
-                                    <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-100">
-                                      {b.urgency === 'EXPIRED' && canDispose ? (
-                                        <button
-                                          type="button"
-                                          disabled={Boolean(disposing)}
-                                          onClick={() => disposeStock(b)}
-                                          className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 cursor-pointer"
-                                        >
-                                          {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveTab('traceability');
-                                            setSearchBatch(b.batchNumber);
-                                            handleTraceSearch(null, b.batchNumber, b._id);
-                                          }}
-                                          className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 cursor-pointer inline-flex items-center gap-1"
-                                        >
-                                          <span>🔍</span> Trace
-                                        </button>
-                                      )}
-                                      {canEditBatch && (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenEditBatchModal(b)}
-                                          className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 cursor-pointer"
-                                          title="Edit Batch"
-                                        >
-                                          ✏️
-                                        </button>
-                                      )}
+                                  {/* Center: Stock & Expiry */}
+                                  <div className="text-right shrink-0">
+                                    <div className="text-[11px] leading-tight">
+                                      <strong className="text-slate-900 font-bold">{b.quantityAvailable}</strong>{' '}
+                                      <span className="text-[10px] text-slate-500">{b.unit}</span>
                                     </div>
-                                  )}
+                                    <div className="text-[9px] font-mono text-slate-400 leading-tight">
+                                      {b.expiryDate}
+                                    </div>
+                                  </div>
+
+                                  {/* Right: Shelf Status & Actions */}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {renderShelfBadge(b.urgency, b.daysLeft, true)}
+
+                                    {canAccessTraceAndAction && (
+                                      <div className="flex items-center gap-0.5 ml-0.5">
+                                        {b.urgency === 'EXPIRED' && canDispose ? (
+                                          <button
+                                            type="button"
+                                            disabled={Boolean(disposing)}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              disposeStock(b);
+                                            }}
+                                            className="text-[9px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 cursor-pointer"
+                                          >
+                                            {disposing === b._id ? '...' : 'Dispose'}
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveTab('traceability');
+                                              setSearchBatch(b.batchNumber);
+                                              handleTraceSearch(null, b.batchNumber, b._id);
+                                            }}
+                                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-1.5 py-0.5 cursor-pointer inline-flex items-center gap-0.5"
+                                            title="Trace batch"
+                                          >
+                                            <span>🔍</span> Trace
+                                          </button>
+                                        )}
+                                        {canEditBatch && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleOpenEditBatchModal(b);
+                                            }}
+                                            className="text-[10px] font-bold text-slate-600 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 rounded px-1 py-0.5 cursor-pointer"
+                                            title="Edit Batch"
+                                          >
+                                            ✏️
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>

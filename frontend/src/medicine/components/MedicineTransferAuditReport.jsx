@@ -315,7 +315,7 @@ export default function MedicineTransferAuditReport({
             </table>
           </div>
 
-          {/* Mobile Responsive Cards View */}
+          {/* Mobile Responsive Cards View (Compact, High-Density & Clean) */}
           <div className="md:hidden divide-y divide-slate-100">
             {transfers.map((t) => {
               const statusColors = {
@@ -325,19 +325,21 @@ export default function MedicineTransferAuditReport({
                 CANCELLED: 'bg-slate-100 text-slate-700 border-slate-200',
               };
 
+              const isIncoming =
+                farmFilter && (t.toFarm?._id || t.toFarm)?.toString() === farmFilter.toString();
+
               return (
-                <div key={t._id} className="p-3 space-y-2 text-xs">
-                  {/* Top Bar: Ref & Status */}
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="font-mono font-bold text-slate-900 text-xs block">
+                <div key={t._id} className="p-2.5 space-y-1 hover:bg-slate-50/70 transition text-xs">
+                  {/* Line 1: Ref #, Date/Time & Status */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono font-bold text-slate-900 text-xs truncate">
                         {t.transferNumber}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-semibold">
+                      <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">
                         {new Date(t.createdAt).toLocaleDateString('en-IN', {
                           day: '2-digit',
                           month: 'short',
-                          year: 'numeric',
                         })}{' '}
                         •{' '}
                         {new Date(t.createdAt).toLocaleTimeString('en-IN', {
@@ -349,7 +351,7 @@ export default function MedicineTransferAuditReport({
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${
                         statusColors[t.status] || 'bg-slate-100'
                       }`}
                     >
@@ -357,43 +359,49 @@ export default function MedicineTransferAuditReport({
                     </span>
                   </div>
 
-                  {/* Direction Card */}
-                  <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between text-[11px] font-bold">
-                    <span className="text-blue-700">🏢 {t.fromFarm?.name}</span>
-                    <div className="flex items-center gap-1">
+                  {/* Line 2: Route & Quantity */}
+                  <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                    <div className="flex items-center gap-1 text-[11px] font-bold truncate">
+                      <span className="text-blue-700 truncate max-w-[85px]">{t.fromFarm?.name}</span>
+                      <span className="text-slate-400 text-[10px] shrink-0">➔</span>
+                      <span className="text-emerald-700 truncate max-w-[85px]">{t.toFarm?.name}</span>
                       {farmFilter && (
-                        (t.toFarm?._id || t.toFarm)?.toString() === farmFilter.toString() ? (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            📥 INWARD
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-200">
-                            📤 OUTWARD
-                          </span>
-                        )
+                        <span
+                          className={`px-1 py-0.2 rounded text-[8px] font-black shrink-0 ${
+                            isIncoming
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {isIncoming ? 'IN' : 'OUT'}
+                        </span>
                       )}
-                      <span className="text-slate-400">➔</span>
                     </div>
-                    <span className="text-emerald-700">🏢 {t.toFarm?.name}</span>
-                  </div>
 
-                  {/* Medicine & Qty */}
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="font-bold text-slate-900 text-sm">{t.medicine?.name}</div>
-                      <div className="text-[10px] text-slate-500">
-                        Batch #{t.batchNumber} • Exp: {t.expiryDate}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-black text-sm text-indigo-700">{t.quantity}</span>{' '}
+                    <div className="text-right shrink-0">
+                      <span className="font-black text-xs text-indigo-700">{t.quantity}</span>{' '}
                       <span className="text-[10px] font-semibold text-slate-500">{t.unit}</span>
                     </div>
                   </div>
 
-                  {/* Rejection reason if any */}
+                  {/* Line 3: Medicine Name, Batch & Expiry */}
+                  <div className="flex items-center justify-between gap-1.5 text-[11px] text-slate-500 pt-0.5">
+                    <div className="truncate flex items-center gap-1">
+                      <span className="font-bold text-slate-800 text-xs truncate">
+                        {t.medicine?.name}
+                      </span>
+                      <span className="font-mono text-[9px] bg-slate-100 text-slate-600 px-1 py-0.2 rounded border border-slate-200 shrink-0">
+                        #{t.batchNumber}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                      Exp: {t.expiryDate}
+                    </span>
+                  </div>
+
+                  {/* Rejection Reason (Only if rejected/cancelled with reason) */}
                   {t.rejectionReason && (
-                    <div className="text-[10px] text-rose-700 bg-rose-50 p-1.5 rounded border border-rose-200">
+                    <div className="text-[10px] text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200 italic mt-0.5">
                       Reason: "{t.rejectionReason}"
                     </div>
                   )}

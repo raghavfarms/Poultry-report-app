@@ -6,7 +6,7 @@ export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
-  ["medicine", "Medicine Report", "💊"],
+  ["medicine", "General Medicine", "💊"],
   ["egg-stock", "Egg Stock", "🥚"],
   ["hatching-egg", "Hatching Egg Summary", "◉"],
   ["packing", "Packing Material", "□"],
@@ -117,7 +117,7 @@ function Sidebar({ open, close }) {
               </NavLink>
               {["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user?.role) && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
-                  <span>💊</span>Medicine Master
+                  <span>💊</span>General Medicine
                 </NavLink>
               )}
             </>

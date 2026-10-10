@@ -535,20 +535,21 @@ export default function MedicineMasterPage() {
   return (
     <div className="space-y-3 sm:space-y-4 w-full max-w-5xl mx-auto px-0 sm:px-2">
       {/* Top Navigation Tabs */}
-      <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-2xs">
+      <div className="flex items-center gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 shadow-2xs overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           type="button"
           onClick={() => setActiveTab('medicines')}
-          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer ${
+          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
             activeTab === 'medicines'
               ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
           <span>💊</span>
-          <span>Medicines Catalog</span>
+          <span>Medicines</span>
+          <span className="hidden sm:inline">Catalog</span>
           <span
-            className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+            className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
               activeTab === 'medicines'
                 ? 'bg-emerald-100 text-emerald-800'
                 : 'bg-slate-200 text-slate-600'
@@ -561,7 +562,7 @@ export default function MedicineMasterPage() {
         <button
           type="button"
           onClick={() => setActiveTab('suppliers')}
-          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer ${
+          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
             activeTab === 'suppliers'
               ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -570,7 +571,7 @@ export default function MedicineMasterPage() {
           <span>🏭</span>
           <span>Suppliers</span>
           <span
-            className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+            className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
               activeTab === 'suppliers'
                 ? 'bg-emerald-100 text-emerald-800'
                 : 'bg-slate-200 text-slate-600'
@@ -583,14 +584,15 @@ export default function MedicineMasterPage() {
         <button
           type="button"
           onClick={() => setActiveTab('transfers')}
-          className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer ${
+          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
             activeTab === 'transfers'
               ? 'bg-white text-blue-800 shadow-xs border border-slate-200'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
           }`}
         >
           <span>🔄</span>
-          <span>Transfer Audit</span>
+          <span>Transfers</span>
+          <span className="hidden sm:inline">Audit</span>
         </button>
       </div>
 
@@ -599,8 +601,8 @@ export default function MedicineMasterPage() {
           {/* 1. Header Section */}
           <div className="flex justify-between items-center gap-3 bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-base sm:text-2xl font-bold text-slate-800">Medicine Master</h1>
-          <p className="text-xs text-slate-500 hidden sm:block">Manage medicine catalog, specifications, and stock alert levels</p>
+          <h1 className="text-base sm:text-2xl font-bold text-slate-800">General Medicine</h1>
+          <p className="text-xs text-slate-500 hidden sm:block">Manage general medicine catalog, specifications, and stock alert levels</p>
         </div>
         {canManage && (
           <button
@@ -1013,9 +1015,9 @@ export default function MedicineMasterPage() {
   {activeTab === 'suppliers' && (
     <div className="space-y-3 sm:space-y-4">
       {/* Suppliers Header */}
-      <div className="flex justify-between items-center gap-3 bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
-        <div>
-          <h1 className="text-base sm:text-2xl font-bold text-slate-800">Suppliers Directory</h1>
+      <div className="flex justify-between items-center gap-2 bg-white p-2.5 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-2xl font-bold text-slate-800 truncate">Suppliers Directory</h1>
           <p className="text-xs text-slate-500 hidden sm:block">
             Manage vendors & suppliers. All active suppliers show in the Stock In entry dropdown.
           </p>
@@ -1024,9 +1026,10 @@ export default function MedicineMasterPage() {
           <button
             type="button"
             onClick={handleOpenAddSupplierModal}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer text-xs sm:text-sm shrink-0"
           >
-            <span className="text-base leading-none font-bold">+</span> Add Supplier
+            <span className="text-base leading-none font-bold">+</span>
+            <span>Add Supplier</span>
           </button>
         )}
       </div>
@@ -1044,33 +1047,62 @@ export default function MedicineMasterPage() {
       )}
 
       {/* Suppliers Search & Filters */}
-      <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 shadow-xs space-y-2 sm:space-y-0 sm:flex sm:gap-4 sm:items-center">
-        <div className="flex-1">
-          <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 uppercase mb-0.5">
-            Search Suppliers
-          </label>
+      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
+        <div className="relative flex-1">
           <input
             type="text"
-            placeholder="Search supplier name, code, contact person, mobile, GSTIN..."
+            placeholder="Search supplier, contact, phone, GSTIN..."
             value={supplierSearch}
             onChange={(e) => setSupplierSearch(e.target.value)}
-            className="w-full h-8 sm:h-10 px-2.5 sm:px-3 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            className="w-full h-8 sm:h-9 pl-7 pr-7 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-slate-50/50"
           />
+          <span className="absolute left-2 top-2 text-xs text-slate-400">🔍</span>
+          {supplierSearch && (
+            <button
+              type="button"
+              onClick={() => setSupplierSearch('')}
+              className="absolute right-2 top-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        <div className="sm:w-44">
-          <label className="block text-[10px] sm:text-[11px] font-semibold text-slate-600 uppercase mb-0.5">
-            Status
-          </label>
-          <select
-            value={supplierStatusFilter}
-            onChange={(e) => setSupplierStatusFilter(e.target.value)}
-            className="w-full h-8 sm:h-10 px-2 sm:px-3 border border-slate-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white cursor-pointer font-medium"
+        {/* Filter Pills */}
+        <div className="flex gap-1 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5">
+          <button
+            type="button"
+            onClick={() => setSupplierStatusFilter('all')}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer shrink-0 ${
+              supplierStatusFilter === 'all'
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+            }`}
           >
-            <option value="all">All ({allSuppliers.length})</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-          </select>
+            All ({allSuppliers.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSupplierStatusFilter('active')}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 cursor-pointer shrink-0 ${
+              supplierStatusFilter === 'active'
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            <span>🟢</span> Active ({allSuppliers.filter((s) => s.active !== false).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSupplierStatusFilter('inactive')}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer shrink-0 ${
+              supplierStatusFilter === 'inactive'
+                ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
+                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            Inactive ({allSuppliers.filter((s) => s.active === false).length})
+          </button>
         </div>
       </div>
 
@@ -1161,79 +1193,101 @@ export default function MedicineMasterPage() {
           </table>
         </div>
 
-        {/* Mobile View */}
+        {/* Mobile View (Compact, High Density & Clean) */}
         <div className="sm:hidden divide-y divide-slate-100">
           {filteredSuppliers.length === 0 ? (
             <div className="p-6 text-center text-xs text-slate-400">
               No suppliers found matching your filters.
             </div>
           ) : (
-            filteredSuppliers.map((s) => (
-              <div key={s._id} className="p-3 space-y-2 hover:bg-slate-50/80 transition">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="font-bold text-xs text-slate-900 truncate">
-                      {s.name}
-                    </span>
+            filteredSuppliers.map((s) => {
+              const hasContact = Boolean(s.contactPerson);
+              const hasPhone = Boolean(s.mobile);
+              const hasAddress = Boolean(s.address);
+              const isActive = s.active !== false;
+
+              return (
+                <div key={s._id} className="p-2.5 space-y-1.5 hover:bg-slate-50/80 transition">
+                  {/* Row 1: Name, Code & Status / Actions */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="min-w-0 flex items-center gap-1.5 flex-1">
+                      <h4 className="font-bold text-xs text-slate-900 truncate">
+                        {s.name}
+                      </h4>
+                      {s.code && (
+                        <span className="font-mono text-[9px] bg-slate-100 text-slate-500 px-1 py-0.2 rounded border border-slate-200 shrink-0">
+                          {s.code}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span
+                        className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
+                          isActive
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {isActive ? 'Active' : 'Inactive'}
+                      </span>
+
+                      {canManage && (
+                        <div className="flex items-center gap-1 ml-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditSupplierModal(s)}
+                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold border border-slate-200 transition cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSupplierStatus(s)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                              isActive
+                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            {isActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
-                      s.active !== false
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {s.active !== false ? 'Active' : 'Inactive'}
-                  </span>
+
+                  {/* Row 2: Details (Only displayed if details exist, inline & compact) */}
+                  {(hasContact || hasPhone) && (
+                    <div className="flex items-center gap-3 text-[10px] text-slate-600 flex-wrap">
+                      {hasContact && (
+                        <span className="flex items-center gap-1">
+                          <span className="text-slate-400">👤</span>
+                          <span className="font-medium text-slate-700">{s.contactPerson}</span>
+                        </span>
+                      )}
+                      {hasPhone && (
+                        <a
+                          href={`tel:${s.mobile}`}
+                          className="flex items-center gap-1 text-emerald-700 font-medium hover:underline"
+                        >
+                          <span>📞</span>
+                          <span>{s.mobile}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row 3: Address (if any) */}
+                  {hasAddress && (
+                    <div className="text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 truncate flex items-center gap-1">
+                      <span>📍</span>
+                      <span className="truncate">{s.address}</span>
+                    </div>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-600">
-                  <div>
-                    <span className="text-slate-400 text-[10px]">Contact: </span>
-                    <span>{s.contactPerson || '--'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 text-[10px]">Phone: </span>
-                    {s.mobile ? (
-                      <a href={`tel:${s.mobile}`} className="font-medium text-slate-800">
-                        {s.mobile}
-                      </a>
-                    ) : (
-                      '--'
-                    )}
-                  </div>
-                </div>
-
-                {s.address && (
-                  <div className="text-[10px] text-slate-500 bg-slate-50 p-1.5 rounded border border-slate-100">
-                    📍 {s.address}
-                  </div>
-                )}
-
-                {canManage && (
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditSupplierModal(s)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold cursor-pointer"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleSupplierStatus(s)}
-                      className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer ${
-                        s.active !== false
-                          ? 'bg-rose-50 hover:bg-rose-100 text-rose-700'
-                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      {s.active !== false ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

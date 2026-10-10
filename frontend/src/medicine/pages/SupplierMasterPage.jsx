@@ -238,63 +238,90 @@ export default function SupplierMasterPage() {
             </table>
           </div>
 
-          {/* MOBILE CARDS (md:hidden) */}
-          <div className="space-y-3 md:hidden">
-            {suppliers.map((sup) => (
-              <div
-                key={sup._id}
-                className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm space-y-2 text-xs"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="font-bold text-slate-900">{sup.name}</h2>
-                  </div>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      sup.active
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
-                    }`}
-                  >
-                    {sup.active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
+          {/* MOBILE CARDS (md:hidden - Compact, Clean & Responsive) */}
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white md:hidden">
+            {suppliers.map((sup) => {
+              const hasContact = Boolean(sup.contactPerson);
+              const hasPhone = Boolean(sup.mobile);
+              const hasAddress = Boolean(sup.address);
+              const isActive = sup.active !== false;
 
-                <div className="grid grid-cols-2 gap-2 text-slate-600 text-[11px] pt-1 border-t border-slate-100">
-                  <div>
-                    <span className="text-slate-400">Contact: </span>
-                    {sup.contactPerson || '—'}
+              return (
+                <div
+                  key={sup._id}
+                  className="p-2.5 space-y-1.5 hover:bg-slate-50/80 transition text-xs"
+                >
+                  {/* Row 1: Name, Status & Actions */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="min-w-0 flex items-center gap-1.5 flex-1">
+                      <h2 className="font-bold text-xs text-slate-900 truncate">{sup.name}</h2>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+                          isActive
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        }`}
+                      >
+                        {isActive ? 'Active' : 'Inactive'}
+                      </span>
+
+                      <div className="flex items-center gap-1 ml-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditModal(sup)}
+                          className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold border border-slate-200 transition cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(sup._id)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
+                            isActive
+                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          {isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400">Mobile: </span>
-                    {sup.mobile || '—'}
-                  </div>
-                  {sup.address && (
-                    <div className="col-span-2 truncate">
-                      <span className="text-slate-400">Address: </span>
-                      {sup.address}
+
+                  {/* Row 2: Details (Only if present) */}
+                  {(hasContact || hasPhone) && (
+                    <div className="flex items-center gap-3 text-[10px] text-slate-600 flex-wrap">
+                      {hasContact && (
+                        <span className="flex items-center gap-1">
+                          <span className="text-slate-400">👤</span>
+                          <span className="font-medium text-slate-700">{sup.contactPerson}</span>
+                        </span>
+                      )}
+                      {hasPhone && (
+                        <a
+                          href={`tel:${sup.mobile}`}
+                          className="flex items-center gap-1 text-emerald-700 font-medium hover:underline"
+                        >
+                          <span>📞</span>
+                          <span>{sup.mobile}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Row 3: Address (if any) */}
+                  {hasAddress && (
+                    <div className="text-[10px] text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100 truncate flex items-center gap-1">
+                      <span>📍</span>
+                      <span className="truncate">{sup.address}</span>
                     </div>
                   )}
                 </div>
-
-                <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                  <button
-                    onClick={() => handleOpenEditModal(sup)}
-                    className="font-medium text-emerald-600 hover:text-emerald-800"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleToggleStatus(sup._id)}
-                    className={`font-medium ${
-                      sup.active ? 'text-red-600' : 'text-emerald-600'
-                    }`}
-                  >
-                    {sup.active ? 'Deactivate' : 'Activate'}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

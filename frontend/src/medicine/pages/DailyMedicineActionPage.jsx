@@ -1006,7 +1006,7 @@ export default function DailyMedicineActionPage({
                 {/* Pop-down Dropdown Menu (Normal Flow Dynamic Shift) */}
                 {isMedDropdownOpen && (
                   <div
-                    className="w-full mt-1.5 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[235px] overflow-y-auto divide-y divide-slate-100 transition-all duration-200 animate-in fade-in"
+                    className="w-full mt-1 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[186px] overflow-y-auto overscroll-contain divide-y divide-slate-100 transition-all duration-200 animate-in fade-in [scrollbar-width:thin] [scrollbar-color:#94a3b8_#f1f5f9]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {(() => {
@@ -1046,7 +1046,7 @@ export default function DailyMedicineActionPage({
                                   setInwardMedicineId('');
                                   setIsMedDropdownOpen(false);
                                 }}
-                                className="px-3 py-2 min-h-[44px] bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center justify-between cursor-pointer font-bold text-xs transition"
+                                className="px-3 py-1.5 min-h-[40px] bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex items-center justify-between cursor-pointer font-bold text-xs transition"
                               >
                                 <span className="flex items-center gap-1.5 truncate">
                                   <span>➕</span> Add "{inwardMedicineName.trim()}" as new medicine
@@ -1083,22 +1083,22 @@ export default function DailyMedicineActionPage({
                                     setInwardMedicineName(m.name);
                                     setIsMedDropdownOpen(false);
                                   }}
-                                  className={`px-3 py-1.5 min-h-[46px] max-h-[46px] flex items-center justify-between cursor-pointer transition text-xs ${
+                                  className={`px-3 py-1 min-h-[40px] max-h-[40px] flex items-center justify-between cursor-pointer transition text-xs ${
                                     isSelected
                                       ? 'bg-emerald-50 text-emerald-900 font-bold'
                                       : 'hover:bg-slate-50 text-slate-800'
                                   }`}
                                 >
                                   <div className="flex flex-col truncate pr-2">
-                                    <span className="font-bold truncate">{m.name}</span>
-                                    <span className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                                      <span className="bg-slate-100 px-1 rounded">{m.category}</span>
+                                    <span className="font-bold truncate text-xs leading-tight">{m.name}</span>
+                                    <span className="text-[10px] text-slate-500 flex items-center gap-1.5 leading-tight">
+                                      <span className="bg-slate-100 px-1 rounded text-[9px] font-medium">{m.category}</span>
                                       <span>•</span>
                                       <span>Unit: {m.unit}</span>
                                     </span>
                                   </div>
                                   {isSelected && (
-                                    <span className="text-emerald-600 font-bold">✓</span>
+                                    <span className="text-emerald-600 font-bold text-xs">✓</span>
                                   )}
                                 </div>
                               );
@@ -1750,7 +1750,7 @@ export default function DailyMedicineActionPage({
                 {/* Dynamic Shift Dropdown Menu (Normal Flow - Pushes content below when open, shifts back up when selected) */}
                 {isOutwardMedDropdownOpen && (
                   <div
-                    className="w-full mt-1.5 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[235px] overflow-y-auto divide-y divide-slate-100 transition-all duration-200 animate-in fade-in"
+                    className="w-full mt-1 bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden max-h-[186px] overflow-y-auto overscroll-contain divide-y divide-slate-100 transition-all duration-200 animate-in fade-in [scrollbar-width:thin] [scrollbar-color:#94a3b8_#f1f5f9]"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {(() => {
@@ -1797,30 +1797,30 @@ export default function DailyMedicineActionPage({
                                     setOutwardMedicineName(m.name);
                                     setIsOutwardMedDropdownOpen(false);
                                   }}
-                                  className={`px-3 py-1.5 min-h-[46px] max-h-[46px] flex items-center justify-between cursor-pointer transition text-xs ${
+                                  className={`px-3 py-1 min-h-[40px] max-h-[40px] flex items-center justify-between cursor-pointer transition text-xs ${
                                     isSelected
                                       ? 'bg-blue-50 text-blue-900 font-bold'
                                       : 'hover:bg-slate-50 text-slate-800'
                                   }`}
                                 >
                                   <div className="flex flex-col truncate pr-2">
-                                    <span className="font-bold truncate">{m.name}</span>
-                                    <span className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                                    <span className="font-bold truncate text-xs leading-tight">{m.name}</span>
+                                    <span className="text-[10px] text-slate-500 flex items-center gap-1.5 leading-tight">
                                       {m.category && (
                                         <>
-                                          <span className="bg-slate-100 px-1 rounded">{m.category}</span>
+                                          <span className="bg-slate-100 px-1 rounded text-[9px] font-medium">{m.category}</span>
                                           <span>•</span>
                                         </>
                                       )}
                                       <span>Unit: {m.unit}</span>
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2 shrink-0">
+                                  <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                                       Stock: {stockQty} {m.unit}
                                     </span>
                                     {isSelected && (
-                                      <span className="text-blue-600 font-bold">✓</span>
+                                      <span className="text-blue-600 font-bold text-xs">✓</span>
                                     )}
                                   </div>
                                 </div>
