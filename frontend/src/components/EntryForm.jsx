@@ -232,8 +232,9 @@ export default function EntryForm({
       <div className="mt-2.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_70px] items-start gap-2">
         <Field label="Firm">
           <select
-            className={`${inputClass} !min-h-8 !rounded-md !px-2 !py-0.5`}
+            className={`${inputClass} !min-h-8 !rounded-md !px-2 !py-0.5 disabled:bg-slate-100 disabled:cursor-not-allowed`}
             value={firmId}
+            disabled={Boolean(initialDate)}
             onChange={(e) => setFirmId(e.target.value)}
           >
             {firms.map((firm) => (
@@ -247,10 +248,11 @@ export default function EntryForm({
           <input
             required
             type="date"
-            className={`${inputClass} cursor-pointer !min-h-8 !rounded-md !px-2 !py-0.5`}
+            className={`${inputClass} cursor-pointer !min-h-8 !rounded-md !px-2 !py-0.5 disabled:bg-slate-100 disabled:cursor-not-allowed`}
             value={date}
+            disabled={Boolean(initialDate)}
             max={["admin", "developer"].includes(user.role) ? undefined : today()}
-            onClick={(e) => e.currentTarget.showPicker?.()}
+            onClick={(e) => !initialDate && e.currentTarget.showPicker?.()}
             onChange={(e) => setDate(e.target.value)}
           />
         </Field>

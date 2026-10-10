@@ -3,6 +3,7 @@ import Asset from '../models/Asset.js';
 import DieselEntry from '../models/DieselEntry.js';
 import Firm from '../models/Firm.js';
 import { calculateReport, calculateServiceBeforeDate, latestFullStatuses } from '../services/report.service.js';
+import { canEditDieselEntry } from '../services/dieselAccess.service.js';
 import { addDays, assertDate, todayUtc } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 import { getPermittedFirmsForModule } from '../utils/userFirms.js';
@@ -106,8 +107,8 @@ export async function saveEntry(req, res) {
     return res.status(403).json({ message: 'Labour cannot enter a future date.' });
   }
   if (!['admin', 'developer'].includes(req.user.role)) {
-    if (existing && req.params.date !== todayUtc()) {
-      return res.status(403).json({ message: 'Users can edit only today’s saved entry.' });
+    if (existing && !canEditDieselEntry({ date: req.params.date, role: req.user.role })) {
+      return res.status(403).json({ message: 'Users can edit only saved entries from the last 48 hours (today or yesterday).' });
     }
     if (!existing) {
       const nextDate = await earliestMissingDate(firm._id);
