@@ -14,7 +14,15 @@ async function start() {
   // 1. Convert all old labour accounts to 'user'
   await User.updateMany({ role: 'labour' }, { $set: { role: 'user' } }).catch(() => {});
 
-
+  // 2. Permanently remove legacy / test 'Sudheer' user account
+  try {
+    const deletedSudheer = await User.deleteMany({ email: 'sudheer@gmail.com' });
+    if (deletedSudheer.deletedCount > 0) {
+      console.log(`✅ Permanently removed ${deletedSudheer.deletedCount} legacy Sudheer account(s).`);
+    }
+  } catch (err) {
+    console.error('Sudheer cleanup note:', err.message);
+  }
 
   // 3. Ensure Head Office firm, default designations, and office location exist
   try {
