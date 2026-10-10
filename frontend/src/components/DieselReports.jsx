@@ -15,25 +15,69 @@ import ReportView from "./ReportView.jsx";  // display save entries ina report t
 const openDatePicker = (event) => event.currentTarget.showPicker?.();     //  when click date input field, open the date picker if supported by browser
 
 export default function DieselReports({ compact = false, showHeading = true }) {    // accept two optional props, compact -- small display version  and showHeading, to control the display of the component
-  const [firms, setFirms] = useState([]);  //  stores the firms the loggedin  user can acess
+  const [firms, setFirms] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("diesel_firms_cache");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [firmsLoaded, setFirmsLoaded] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("diesel_firms_cache");
+      return Boolean(cached && JSON.parse(cached).length > 0);
+    } catch {
+      return false;
+    }
+  });
   const [firmFilter, setFirmFilter] = useState("all"); // stores the currently selected firm filter 
   const [to, setTo] = useState(today());
   const [from, setFrom] = useState(addDays(today(), -6));   //   create 7 day default day range 
-  const [reports, setReports] = useState([]);  //  stores report responses  returned by backend 
-  const [loading, setLoading] = useState(true);
+  const [reports, setReports] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem(`diesel_reports_cache_all_${addDays(today(), -6)}_${today()}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem(`diesel_reports_cache_all_${addDays(today(), -6)}_${today()}`);
+      return !(cached && JSON.parse(cached).length > 0);
+    } catch {
+      return true;
+    }
+  });
   const [error, setError] = useState("");
   const [form, setForm] = useState(null);    // controls the add/edit entry form, null means no form is open
   const [exporting, setExporting] = useState(false);   // track pdf creation is running 
   const reportsRef = useRef(null);     // stores a reference to the report HTML that should expect 
 
-  useEffect(() => {   //  Loading firms -- this run once when the component opens 
+  useEffect(() => {   //  Loading firms -- this runs once when the component opens 
+    let active = true;
     api("/firms")
-      .then(({ firms }) => setFirms(firms))
-      .catch((err) => setError(err.message));
-  }, []);  // []  means runs only once when the component is mounted
+      .then(({ firms: data }) => {
+        if (!active) return;
+        const list = Array.isArray(data) ? data : [];
+        setFirms(list);
+        setFirmsLoaded(true);
+        try {
+          sessionStorage.setItem("diesel_firms_cache", JSON.stringify(list));
+        } catch {}
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.message);
+        setFirmsLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-
-  const visibleFirms = useMemo(  //  selecting visible firms based on the selected firm filter, if "all" is selected, all firms are visible, otherwise only the selected firm is visible
+  const visibleFirms = useMemo(  //  selecting visible firms based on the selected firm filter
     () =>
       firmFilter === "all"
         ? firms
@@ -41,7 +85,10 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     [firms, firmFilter],
   );
 
-  const load = useCallback(async () => {  // Loading reports --check whether firm is exist 
+  const load = useCallback(async () => {  // Loading reports
+    // Prevent premature empty check until firms have actually loaded
+    if (!firmsLoaded) return;
+
     if (!visibleFirms.length) {
       setReports([]);
       setLoading(false);
@@ -50,23 +97,28 @@ export default function DieselReports({ compact = false, showHeading = true }) {
     setLoading(true);
     setError("");
     try {
-      setReports(
-        await Promise.all(       //   if both firms are visible , it sends 2 requests to the backend API to fetch reports for each firm in the visibleFirms array. The Promise.all method is used to wait for all the requests to complete before updating the reports state with the results.
-          visibleFirms.map((firm) =>
-            api(`/entries/report?firmId=${firm._id}&from=${from}&to=${to}`),
-          ),
+      const data = await Promise.all(
+        visibleFirms.map((firm) =>
+          api(`/entries/report?firmId=${firm._id}&from=${from}&to=${to}`),
         ),
       );
+      setReports(data);
+      try {
+        sessionStorage.setItem(
+          `diesel_reports_cache_${firmFilter}_${from}_${to}`,
+          JSON.stringify(data),
+        );
+      } catch {}
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [visibleFirms, from, to]);
+  }, [firmsLoaded, visibleFirms, from, to, firmFilter]);
 
   useEffect(() => {  //  automatically calling load()
     load();
-  }, [load]); // this call load when firm finsh loading , firm filter changes , from date changes to date changes
+  }, [load]);
 
 
   const openNew = () => // open a new entry  -- when Add entry button is clicked , If a specififc firm selected,it use that firm ,if all  then acessible all firms
@@ -172,7 +224,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
       </button>
       <button
         onClick={openNew}
-        disabled={!firms.length}
+        disabled={!firmsLoaded || !firms.length}
         className={`${primaryButton} col-start-2 row-start-1 !min-h-8 w-36 !rounded-lg !py-0.5 !text-xs sm:!min-h-9 sm:w-40 sm:!py-1 sm:!text-sm`}
       >
         ＋ Add entry
@@ -224,7 +276,7 @@ export default function DieselReports({ compact = false, showHeading = true }) {
           </div>
         </div>
       )}
-      {loading ? (
+      {!firmsLoaded || loading ? (
         <Spinner label="Loading report…" />
       ) : reports.length ? (
         <div ref={reportsRef} className="report-export-content space-y-3">

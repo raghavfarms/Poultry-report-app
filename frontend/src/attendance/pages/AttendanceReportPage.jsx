@@ -8,7 +8,6 @@ import { api } from '../../api/client.js';
 import { attendancePath, sortFirmsOrder, getStoredAttendanceFirm, setStoredAttendanceFirm } from '../services/adminApi.js';
 import LiveDashboardView from '../components/LiveDashboardView.jsx';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
-import { loadFaceModels } from '../services/faceModelLoader.js';
 
 function getTodayString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -92,13 +91,7 @@ export default function AttendanceReportPage() {
       .finally(() => setLoadingFirms(false));
   }, []);
 
-  // Pre-warm neural vision models in background so "Take Attendance" opens instantly
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadFaceModels().catch(() => {});
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   const visibleFirms = useMemo(() => {
     if (firms.length === 1) {

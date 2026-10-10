@@ -11,14 +11,36 @@ import { canAccessModule } from "../utils/moduleAccess.js";
 export default function OverviewPage() {
   const { user } = useAuth();
   const accessibleModules = modules.filter(([slug]) => canAccessModule(user, slug));
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem("overview_active_tab");
+      if (saved && (saved === "all" || accessibleModules.some(([slug]) => slug === saved))) {
+        return saved;
+      }
+    } catch {}
+    return accessibleModules[0]?.[0] || "diesel";
+  });
   const [openReport, setOpenReport] = useState(() => {
-    return accessibleModules.length === 1 ? accessibleModules[0][0] : null;
+    try {
+      const saved = sessionStorage.getItem("overview_active_tab");
+      if (saved && accessibleModules.some(([slug]) => slug === saved)) {
+        return saved;
+      }
+    } catch {}
+    return accessibleModules[0]?.[0] || null;
   });
   const [desktop, setDesktop] = useState(
     () => window.matchMedia("(min-width: 1024px)").matches,
   );
-  const toggle = (slug) =>
-    setOpenReport((current) => (current === slug ? null : slug));
+  const toggle = (slug) => {
+    setOpenReport((current) => {
+      const next = current === slug ? null : slug;
+      if (next) {
+        try { sessionStorage.setItem("overview_active_tab", next); } catch {}
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     const query = window.matchMedia("(min-width: 1024px)");
@@ -39,16 +61,54 @@ export default function OverviewPage() {
   if (desktop)
     return (
       <div className="space-y-6">
-        {hasDiesel && <DieselReports compact />}
-        {hasTransport && <TransportPage />}
-        {hasAttendance && (
+        {accessibleModules.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-xs">
+            {accessibleModules.map(([slug, label, icon]) => (
+              <button
+                key={slug}
+                type="button"
+                onClick={() => {
+                  setActiveTab(slug);
+                  try { sessionStorage.setItem("overview_active_tab", slug); } catch {}
+                }}
+                className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
+                  activeTab === slug
+                    ? "bg-emerald-700 text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("all");
+                try { sessionStorage.setItem("overview_active_tab", "all"); } catch {}
+              }}
+              className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === "all"
+                  ? "bg-emerald-700 text-white shadow-xs"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              <span>📑</span>
+              <span>All Modules</span>
+            </button>
+          </div>
+        )}
+
+        {(activeTab === "diesel" || activeTab === "all") && hasDiesel && <DieselReports compact />}
+        {(activeTab === "transport" || activeTab === "all") && hasTransport && <TransportPage />}
+        {(activeTab === "attendance" || activeTab === "all") && hasAttendance && (
           isStaffOrAdmin ? (
             <AttendanceReportPage />
           ) : (
             <WorkerAttendancePortal />
           )
         )}
-        {hasMedicine && <MedicineReportPage />}
+        {(activeTab === "medicine" || activeTab === "all") && hasMedicine && <MedicineReportPage />}
         {!hasDiesel && !hasTransport && !hasAttendance && !hasMedicine && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
             No active report modules assigned to your account. Please contact your administrator.

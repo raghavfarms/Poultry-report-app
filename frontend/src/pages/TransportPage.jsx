@@ -221,15 +221,48 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
 }
 
 export default function TransportPage() {
-  const [vehicles, setVehicles] = useState([]), [vehicleId, setVehicleId] = useState("all");
-  const [rows, setRows] = useState([]), [stations, setStations] = useState([]), [loading, setLoading] = useState(true);
+  const [vehicles, setVehicles] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("cached_transport_vehicles");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [vehicleId, setVehicleId] = useState("all");
+  const [rows, setRows] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("cached_transport_rows");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [stations, setStations] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("cached_transport_stations");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("cached_transport_rows");
+      return !(cached && JSON.parse(cached).length > 0);
+    } catch {
+      return true;
+    }
+  });
   const [entryProgress, setEntryProgress] = useState({});
   const [error, setError] = useState(""), [form, setForm] = useState(null), [exporting, setExporting] = useState(false);
   const [to, setTo] = useState(today());
   const [from, setFrom] = useState(addDays(today(), -6));
   const reportRef = useRef(null);
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    // Only show spinner if we don't already have cached rows
+    if (!rows.length) setLoading(true);
+    setError("");
     try {
       const params = new URLSearchParams();
       if (vehicleId !== "all") params.set("vehicleId", vehicleId);
@@ -248,12 +281,17 @@ export default function TransportPage() {
         ...(stationData.stations || []),
       ])];
       setStations(combined);
+      try {
+        sessionStorage.setItem("cached_transport_vehicles", JSON.stringify(reportData.vehicles || []));
+        sessionStorage.setItem("cached_transport_rows", JSON.stringify(reportData.rows || []));
+        sessionStorage.setItem("cached_transport_stations", JSON.stringify(combined || []));
+      } catch {}
     } catch (error) {
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [vehicleId, from, to]);
+  }, [vehicleId, from, to, rows.length]);
   useEffect(() => { load(); }, [load]);
   const shownVehicles = useMemo(() => vehicles.filter((vehicle) => vehicle.active && (vehicleId === "all" || vehicle._id === vehicleId)), [vehicles, vehicleId]);
   const exportPdf = async () => {

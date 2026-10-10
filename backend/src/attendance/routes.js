@@ -91,28 +91,28 @@ router.get('/supervisor/workers', async (req, res) => res.json(await supervisorS
 router.get('/supervisor/sessions', requireModuleAccess('attendance'), async (req, res) => res.json(await supervisorService.supervisorSessions(req.user, req.query)));
 router.post('/supervisor/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
 
+let isOfficeFirmEnsured = false;
+
 // Master data & firms
 router.get('/firms', async (req, res) => {
-  try {
-    const officeFirm = await Firm.findOneAndUpdate(
-      { code: 'OFFICE' },
-      {
-        $setOnInsert: {
+  if (!isOfficeFirmEnsured) {
+    try {
+      let officeFirm = await Firm.findOne({ code: 'OFFICE' }).lean();
+      if (!officeFirm) {
+        officeFirm = await Firm.create({
           name: 'Head Office',
           code: 'OFFICE',
           active: true,
-        },
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
-    if (officeFirm) {
-      await User.updateMany(
-        { role: { $in: ['admin', 'developer'] } },
-        { $addToSet: { firms: officeFirm._id } }
-      );
+        });
+        await User.updateMany(
+          { role: { $in: ['admin', 'developer'] } },
+          { $addToSet: { firms: officeFirm._id } }
+        );
+      }
+      isOfficeFirmEnsured = true;
+    } catch (err) {
+      console.error('Office firm auto-seed note:', err.message);
     }
-  } catch (err) {
-    console.error('Office firm auto-seed note:', err.message);
   }
 
   const scope = firmScope(req.user);
