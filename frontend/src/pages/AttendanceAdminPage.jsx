@@ -7,7 +7,7 @@ import DeploymentPanel from '../attendance/components/DeploymentPanel.jsx';
 import MastersPanel from '../attendance/components/MastersPanel.jsx';
 import GeofencePanel from '../attendance/components/GeofencePanel.jsx';
 import AuditLogPanel from '../attendance/components/AuditLogPanel.jsx';
-import { attendancePath, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFirm } from '../attendance/services/adminApi.js';
+import { attendancePath, sortFirmsOrder, getDefaultFirmId, getStoredAttendanceFirm, setStoredAttendanceFirm } from '../attendance/services/adminApi.js';
 
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
