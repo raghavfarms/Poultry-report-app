@@ -342,7 +342,7 @@ export default function MonthlySummaryView({
             <p className="text-sm font-semibold">No attendance records found for this month.</p>
           </div>
         ) : (
-          <div className="attendance-month-matrix overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll" tabIndex={0} role="region" aria-label="Monthly attendance matrix; scroll horizontally to see all days">
+          <div className="attendance-month-matrix overflow-x-auto overflow-y-auto max-h-[420px] sm:max-h-[520px] print:max-h-none print:overflow-visible report-scroll" tabIndex={0} role="region" aria-label="Monthly attendance matrix; scroll horizontally to see all days">
             <table className="attendance-month-table w-full text-left text-xs border-collapse print:text-[7.5px] print:w-full print:table-fixed">
               <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)] print:table-header-group">
                 <tr>
