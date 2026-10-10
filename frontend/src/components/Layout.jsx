@@ -39,6 +39,8 @@ function Sidebar({ open, close }) {
   const canManageMedicine =
     (user?.permissions?.medicine_master === true || (isAdminOrDev && user?.permissions?.medicine_master !== false)) &&
     (Array.isArray(user?.allowedModules) ? user.allowedModules.includes("medicine") : true);
+  const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
+  const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
 
   const visibleModules = modules.filter(([slug]) => {
     if (Array.isArray(user?.allowedModules)) {
@@ -105,7 +107,7 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {(canManageAssets || canManageTransport || isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master || ["office", "supervisor", "farm_incharge"].includes(user?.role)) && (
+          {(canManageAssets || canManageTransport || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
@@ -125,11 +127,15 @@ function Sidebar({ open, close }) {
                   <span>🚚</span>Transport Vehicles
                 </NavLink>
               )}
-              {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master || ["office", "supervisor", "farm_incharge"].includes(user?.role)) && (
+              {hasAttendanceMaster ? (
                 <NavLink to="/admin/attendance" className={linkClass}>
                   <span>👤</span>Attendance Admin
                 </NavLink>
-              )}
+              ) : hasWorkerMaster ? (
+                <NavLink to="/admin/attendance" className={linkClass}>
+                  <span>👤</span>Worker Master
+                </NavLink>
+              ) : null}
               {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
                   <span>💊</span>General Medicine

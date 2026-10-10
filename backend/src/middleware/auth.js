@@ -115,9 +115,8 @@ export function supervisorOrAdminOnly(req, res, next) {
 export function attendanceAdminOnly(req, res, next) {
   if (
     ['admin', 'developer'].includes(req.user?.role) ||
-    req.user?.permissions?.worker_master ||
-    req.user?.permissions?.attendance_admin_master ||
-    ['office', 'supervisor', 'farm_incharge'].includes(req.user?.role)
+    req.user?.permissions?.worker_master === true ||
+    req.user?.permissions?.attendance_admin_master === true
   ) {
     return next();
   }
@@ -127,11 +126,11 @@ export function attendanceAdminOnly(req, res, next) {
 export function attendanceFullMasterOnly(req, res, next) {
   if (
     ['admin', 'developer'].includes(req.user?.role) ||
-    req.user?.permissions?.attendance_admin_master
+    req.user?.permissions?.attendance_admin_master === true
   ) {
     return next();
   }
-  return res.status(403).json({ message: 'Full Master Admin access is required (Geofence, Sheds, Designations).' });
+  return res.status(403).json({ message: 'Attendance Master access is required (Geofence, Sheds, Designations).' });
 }
 
 export function developerOnly(req, res, next) {

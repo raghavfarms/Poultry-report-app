@@ -53,8 +53,7 @@ export default function ProtectedRoute({
   if (
     attendanceAdmin &&
     !user.permissions?.worker_master &&
-    !user.permissions?.attendance_admin_master &&
-    !["office", "supervisor", "farm_incharge"].includes(user.role)
+    !user.permissions?.attendance_admin_master
   ) {
     return <Navigate to="/" replace />;
   }

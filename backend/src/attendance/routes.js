@@ -183,7 +183,7 @@ router.get('/reports/daily', requireModuleAccess('attendance'), async (req, res)
 router.get('/reports/monthly', attendanceReportsOnly, async (req, res) => res.json(await reportService.getMonthlyAttendanceSummary(req.user, req.query)));
 
 // Audit Logs
-router.get('/audit-logs', attendanceAdminOnly, async (req, res) => res.json(await auditService.listAuditLogs(req.user, req.query)));
+router.get('/audit-logs', attendanceFullMasterOnly, async (req, res) => res.json(await auditService.listAuditLogs(req.user, req.query)));
 
 // Error handling
 router.use((error, req, res, next) => {

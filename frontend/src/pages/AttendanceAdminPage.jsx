@@ -11,7 +11,10 @@ import { attendancePath, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFi
 
 export default function AttendanceAdminPage() {
   const { user } = useAuth();
-  const canTransferOrDeploy = ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
+  const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
+  const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
+  const canTransferOrDeploy = hasWorkerMaster && ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
 
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState('');
@@ -21,6 +24,13 @@ export default function AttendanceAdminPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [revision, setRevision] = useState(0);
+
+  // Fallback to workers tab if non-attendance master user was on an admin tab
+  useEffect(() => {
+    if (!hasAttendanceMaster && !['workers', 'deployments'].includes(tab)) {
+      setTab('workers');
+    }
+  }, [hasAttendanceMaster, tab]);
 
   // Load authorized firms for attendance
   useEffect(() => {
@@ -36,16 +46,16 @@ export default function AttendanceAdminPage() {
       .finally(() => setLoadingFirms(false));
   }, []);
 
-  // Load firm bird capacity summary
+  // Load firm bird capacity summary (Attendance Master only)
   useEffect(() => {
-    if (!firmId) {
+    if (!firmId || !hasAttendanceMaster) {
       setCapacityData(null);
       return;
     }
     api(attendancePath('capacity', { firmId }))
       .then((data) => setCapacityData(data))
       .catch(() => setCapacityData(null));
-  }, [firmId, revision]);
+  }, [firmId, revision, hasAttendanceMaster]);
 
   const handleChanged = (message) => {
     setNotice(message);
@@ -55,16 +65,30 @@ export default function AttendanceAdminPage() {
 
   const activeFirm = firms.find((f) => f._id === firmId);
 
+  if (!hasAttendanceMaster && !hasWorkerMaster) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center mt-4">
+        <span className="text-3xl">🔒</span>
+        <h2 className="mt-2 text-lg font-bold text-slate-800">Access Denied</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          You do not have permission to access Worker Master or Attendance Administration.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="attendance-page space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700">
-            Attendance Administration
+            {hasAttendanceMaster ? 'Attendance Administration' : 'Worker Master'}
           </p>
           <h1 className="mt-0.5 text-xl font-black text-slate-900 sm:text-2xl">
-            {activeFirm?.code === 'OFFICE' ? 'Staff & Office Management' : 'Worker & Shed Management'}
+            {hasAttendanceMaster
+              ? (activeFirm?.code === 'OFFICE' ? 'Staff & Office Management' : 'Worker & Shed Management')
+              : (activeFirm?.code === 'OFFICE' ? 'Employee Master' : 'Worker Master')}
           </h1>
         </div>
 
@@ -103,8 +127,8 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      {/* Bird Capacity Summary Widget (Farms Only) */}
-      {capacityData?.firms?.[0] && activeFirm?.code !== 'OFFICE' && (
+      {/* Bird Capacity Summary Widget (Farms Only - Attendance Master) */}
+      {hasAttendanceMaster && capacityData?.firms?.[0] && activeFirm?.code !== 'OFFICE' && (
         <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50/70 to-cyan-50/40 p-4 shadow-2xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -146,10 +170,14 @@ export default function AttendanceAdminPage() {
         {[
           ['workers', activeFirm?.code === 'OFFICE' ? '👤 Employees' : '👤 Workers'],
           ...(canTransferOrDeploy ? [['deployments', '📍 Deployments']] : []),
-          ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
-          ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
-          ['designations', '🏷️ Designations'],
-          ['audit', '📜 Audit History'],
+          ...(hasAttendanceMaster
+            ? [
+                ['geofences', activeFirm?.code === 'OFFICE' ? '📍 Office Geofence' : '📍 Farm Geofences'],
+                ['work-locations', activeFirm?.code === 'OFFICE' ? '🏢 Office Locations' : '🏠 Sheds & Locations'],
+                ['designations', '🏷️ Designations'],
+                ['audit', '📜 Audit History'],
+              ]
+            : []),
         ].map(([key, label]) => (
           <button
             key={key}
@@ -175,7 +203,7 @@ export default function AttendanceAdminPage() {
         <DeploymentPanel key={firmId} firmId={firmId} revision={revision} />
       )}
 
-      {tab === 'geofences' && (
+      {hasAttendanceMaster && tab === 'geofences' && (
         <GeofencePanel
           key={`${firmId}-${tab}`}
           firmId={firmId}
@@ -185,7 +213,7 @@ export default function AttendanceAdminPage() {
         />
       )}
 
-      {tab === 'work-locations' && (
+      {hasAttendanceMaster && tab === 'work-locations' && (
         <MastersPanel
           key={`${firmId}-${tab}`}
           kind="work-locations"
@@ -196,7 +224,7 @@ export default function AttendanceAdminPage() {
         />
       )}
 
-      {tab === 'designations' && (
+      {hasAttendanceMaster && tab === 'designations' && (
         <MastersPanel
           kind="designations"
           firmId={firmId}
@@ -206,7 +234,7 @@ export default function AttendanceAdminPage() {
         />
       )}
 
-      {tab === 'audit' && (
+      {hasAttendanceMaster && tab === 'audit' && (
         <AuditLogPanel key={firmId} firmId={firmId} firms={firms} />
       )}
     </div>
