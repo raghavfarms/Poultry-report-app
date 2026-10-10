@@ -1,17 +1,10 @@
 import mongoose from 'mongoose';
 
-const userSchema = new mongoose.Schema(
+const roleSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true, maxlength: 80 },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true },
-    role: {
-      type: String,
-      required: true,
-      trim: true,
-      default: 'supervisor',
-    },
-    firms: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Firm', required: true }],
+    name: { type: String, required: true, trim: true },
+    code: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    description: { type: String, trim: true, default: '' },
     allowedModules: {
       type: [String],
       default: ['attendance'],
@@ -25,19 +18,17 @@ const userSchema = new mongoose.Schema(
       attendance_autocut: { type: Boolean, default: false },
       asset_master: { type: Boolean, default: false },
       transport_master: { type: Boolean, default: false },
-      attendance_scan: { type: Boolean, default: true },
+      attendance_scan: { type: Boolean, default: false },
       attendance_report: { type: Boolean, default: false },
-      worker_master: { type: Boolean, default: true },
+      worker_master: { type: Boolean, default: false },
       attendance_admin_master: { type: Boolean, default: false },
     },
+    isSystem: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
   },
   { timestamps: true },
 );
 
-export default mongoose.model('User', userSchema);
-
-
- 
+export default mongoose.model('Role', roleSchema);
 
 

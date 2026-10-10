@@ -17,6 +17,8 @@ import issueRoutes from './medicine/routes/issue.route.js';
 import reportRoutes from './medicine/routes/report.route.js';
 import dailyActionRoutes from './medicine/routes/dailyAction.route.js';
 import transferRoutes from './medicine/routes/transfer.route.js';
+import userRoutes from './routes/user.routes.js';
+import roleRoutes from './routes/role.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 const app = express();
@@ -29,6 +31,8 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-reporting-api' }));   // check backend is running or not with logging 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/entries', entryRoutes);

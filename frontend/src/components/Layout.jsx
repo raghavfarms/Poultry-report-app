@@ -33,16 +33,24 @@ export const moduleIconStyles = {
 
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
-  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
+  const isAdminOrDev = ["admin", "developer"].includes(user?.role);
+  const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
+  const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
   const visibleModules =
     user?.role === "developer"
       ? modules
       : modules.filter(([slug]) => {
+          if (isAdminOrDev) return true;
+          if (user?.allowedModules && user?.allowedModules.length > 0) {
+            return user.allowedModules.includes(slug);
+          }
           if (user?.role === "security") {
             return slug === "attendance";
           }
-          if (slug === "attendance") return hasAttendanceAccess;
-          return ["diesel", "transport", "medicine"].includes(slug);
+          if (slug === "medicine") {
+            return ["office", "supervisor", "farm_incharge"].includes(user?.role);
+          }
+          return ["diesel", "transport", "attendance"].includes(slug);
         });
     
 
@@ -97,24 +105,31 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {["admin", "developer","office","supervisor","farm_incharge"].includes(user?.role) && (
+          {(canManageAssets || canManageTransport || isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master || ["office", "supervisor", "farm_incharge"].includes(user?.role)) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
               </p>
-              {["admin", "developer"].includes(user?.role) && (
-                <>
-                  <NavLink to="/admin/assets" className={linkClass}>
-                    <span>⚙</span>Firms & Assets
-                  </NavLink>
-                  <NavLink to="/admin/transport" className={linkClass}>
-                    <span>🚚</span>Transport Vehicles
-                  </NavLink>
-                </>
+              {isAdminOrDev && (
+                <NavLink to="/admin/users" className={linkClass}>
+                  <span>👥</span>Users & Roles
+                </NavLink>
               )}
-              <NavLink to="/admin/attendance" className={linkClass}>
-                <span>👤</span>Attendance Admin
-              </NavLink>
+              {canManageAssets && (
+                <NavLink to="/admin/assets" className={linkClass}>
+                  <span>⚙</span>Firms & Assets
+                </NavLink>
+              )}
+              {canManageTransport && (
+                <NavLink to="/admin/transport" className={linkClass}>
+                  <span>🚚</span>Transport Vehicles
+                </NavLink>
+              )}
+              {(isAdminOrDev || user?.permissions?.worker_master || user?.permissions?.attendance_admin_master || ["office", "supervisor", "farm_incharge"].includes(user?.role)) && (
+                <NavLink to="/admin/attendance" className={linkClass}>
+                  <span>👤</span>Attendance Admin
+                </NavLink>
+              )}
               {["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user?.role) && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
                   <span>💊</span>General Medicine

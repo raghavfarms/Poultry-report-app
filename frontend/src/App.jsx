@@ -9,6 +9,7 @@ import AssetAdminPage from "./pages/AssetAdminPage.jsx";
 import TransportPage from "./pages/TransportPage.jsx";
 import TransportAdminPage from "./pages/TransportAdminPage.jsx";
 import AttendanceAdminPage from "./pages/AttendanceAdminPage.jsx";
+import UserAdminPage from "./pages/UserAdminPage.jsx";
 import AttendanceReportPage from "./attendance/pages/AttendanceReportPage.jsx";
 import FaceAttendancePage from "./attendance/pages/FaceAttendancePage.jsx";
 import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.jsx";
@@ -73,6 +74,14 @@ export default function App() {
         <Route path="medicine/master" element={<Navigate to="/admin/medicine/master" replace />} />
         <Route path="medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
 
+        <Route
+          path="admin/users"
+          element={
+            <ProtectedRoute admin>
+              <UserAdminPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="admin/assets"
           element={
