@@ -156,7 +156,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
 
     const latestSession = workerSessions[workerSessions.length - 1];
     const workLocationId = latestSession?.workLocation ? String(latestSession.workLocation) : (deployment?.workLocation ? String(deployment.workLocation) : null);
-    const workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'Unassigned';
+    const workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'None';
     const designationName = latestSession?.designationNameSnapshot || worker.designation?.name || deployment?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
 
@@ -389,7 +389,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
     const workerIdStr = String(worker._id);
     const deployment = deploymentByWorker.get(workerIdStr);
     const workLocationId = deployment?.workLocation ? String(deployment.workLocation) : null;
-    const workLocationName = deployment?.workLocationNameSnapshot || 'Unassigned';
+    const workLocationName = deployment?.workLocationNameSnapshot || 'None';
     const designationName = worker.designation?.name || deployment?.designationNameSnapshot || '—';
 
     const effectiveJoining = worker.dateOfJoining

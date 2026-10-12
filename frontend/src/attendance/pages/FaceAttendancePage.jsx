@@ -362,25 +362,21 @@ export default function FaceAttendancePage() {
     setStatusPill(`⚡ Marking Attendance: ${worker.fullName}...`);
 
     try {
-      // 1. Resolve Location: zero-delay lookup using pre-warmed / background watched GPS
+      // 1. Resolve Location: must be live fresh location (< 10 min) for fast punch; re-queries satellite if cache expired
       let loc = latestLocationRef.current;
-      if (!loc || loc.status !== 'CAPTURED') {
+      const isLiveFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
+        (Date.now() - new Date(loc.capturedAt).getTime() < 10 * 60 * 1000);
+
+      if (!isLiveFresh) {
         try {
-          // Instant cache fallback (0ms), with fast 800ms fallback if cache absent
-          loc = await captureLocation({ timeoutMs: 800, preferCache: true });
+          // Acquire fresh device GPS from satellite when 10 min cache window expires
+          loc = await captureLocation({ timeoutMs: 3000, preferCache: false });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
           }
         } catch {
           loc = latestLocationRef.current || { status: 'UNAVAILABLE' };
         }
-      } else {
-        // Non-blocking background fresh location update so future punches remain 0ms
-        captureLocation({ timeoutMs: 2500, preferCache: false })
-          .then((fresh) => {
-            if (fresh?.status === 'CAPTURED') latestLocationRef.current = fresh;
-          })
-          .catch(() => {});
       }
 
       // 2. Call unified backend attendance service

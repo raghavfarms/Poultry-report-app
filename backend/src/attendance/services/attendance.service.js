@@ -7,6 +7,7 @@ import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
 import WorkLocation from '../models/WorkLocation.js';
+import Designation from '../models/Designation.js';
 import AttendanceGeofence from '../models/AttendanceGeofence.js';
 import Firm from '../../models/Firm.js';
 import { findEffectiveDeployment } from './deployment.service.js';
@@ -114,8 +115,37 @@ export async function recordAttendance(user, payload = {}, options = {}) {
       if (earliestDeployment) {
         deployment = earliestDeployment;
       } else {
-        throw badRequest(`Worker ${worker.fullName} has no active deployment at this time. Assign a work location before recording attendance.`);
+        // Auto-heal missing deployment for worker (e.g. security guards with no shed assigned)
+        const firmDoc = await Firm.findById(worker.firm).select('name').session(dbSession).lean();
+        const desigDoc = await Designation.findById(worker.designation).select('name').session(dbSession).lean();
+
+        const [newDep] = await WorkerDeployment.create([{
+          worker: worker._id,
+          firm: worker.firm,
+          workLocation: null,
+          designation: worker.designation,
+          supervisor: null,
+          workerCodeSnapshot: worker.workerCode,
+          workerNameSnapshot: worker.fullName,
+          firmNameSnapshot: firmDoc?.name || '',
+          workLocationNameSnapshot: 'None',
+          designationNameSnapshot: desigDoc?.name || '',
+          supervisorNameSnapshot: '',
+          allocationType: 'INITIAL',
+          effectiveFrom: worker.dateOfJoining ? new Date(`${worker.dateOfJoining}T00:00:00+05:30`) : now,
+          effectiveTo: null,
+          reason: 'Initial deployment with location None',
+          createdBy: user._id,
+        }], { session: dbSession });
+
+        deployment = newDep.toObject();
       }
+    }
+
+    // 2c. If worker's deployment has no workLocation, keep it cleanly as None (do not override)
+    if (!deployment.workLocation) {
+      deployment.workLocation = null;
+      deployment.workLocationNameSnapshot = deployment.workLocationNameSnapshot || 'None';
     }
 
     // 2b. Geofence Boundary Check (enforced on FACE and SELF scans against active Geofence Master records)
