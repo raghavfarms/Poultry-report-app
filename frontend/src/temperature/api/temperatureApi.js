@@ -34,9 +34,39 @@ export async function updateSpot(spotId, spotData) {
     body: spotData,
   }) }
 
-  //Spot ko Activate / Deactivate karne ke liye (PATCH)
+// Spot ko Activate / Deactivate karne ke liye (PATCH)
 export async function toggleSpotStatus(spotId) {
   return await api(`/temperature/spots/${spotId}/toggle-status`, {
     method: 'PATCH',
   });
+}
+
+// Record temperature reading (QR verified or manual)
+export async function recordTemperature(logData) {
+  return await api('/temperature/logs', {
+    method: 'POST',
+    body: logData,
+  });
+}
+
+// Fetch recent readings to show round progress checklist
+export async function fetchRecentLogs(firmId, shed = '') {
+  if (!firmId) return { data: [] };
+  let url = `/temperature/logs/recent?firm=${encodeURIComponent(firmId)}`;
+  if (shed) url += `&shed=${encodeURIComponent(shed)}`;
+  return await api(url);
+}
+
+// Fetch 6-column night temperature report with KPIs
+export async function fetchTemperatureReport(firmId, date = '', shed = '', shift = 'all') {
+  if (!firmId) return { success: false, rows: [], kpis: {} };
+  let url = `/temperature/logs/report?firm=${encodeURIComponent(firmId)}`;
+  if (date) url += `&date=${encodeURIComponent(date)}`;
+  if (shed && shed !== 'All sheds' && shed !== 'All Sheds') {
+    url += `&shed=${encodeURIComponent(shed)}`;
+  }
+  if (shift) {
+    url += `&shift=${encodeURIComponent(shift)}`;
+  }
+  return await api(url);
 }

@@ -1,32 +1,25 @@
-import express from 'express'
-import { getSpots,
-        createSpot,
-        quickSetupSpots,
-        deleteSpot,
-        updateSpot,
-        toggleSpotStatus
- } from '../controllers/spotController.js'
+import express from 'express';
+import {
+  getSpots,
+  createSpot,
+  quickSetupSpots,
+  deleteSpot,
+  updateSpot,
+  toggleSpotStatus,
+} from '../controllers/spotController.js';
+import { protect, adminOnly, requireModuleAccess } from '../../middleware/auth.js';
 
-  const router=express.Router();
+const router = express.Router();
 
-//  Route for getting all spots & creating a single spot 
+// Route for getting spots (requires temperature module access)
+router.get('/', protect, requireModuleAccess('temperature'), getSpots);
 
-router.route('/')
-      .get(getSpots)
-      .post(createSpot);
-
-      // Route for 1-click auto-setup of Sheds 1 to 4
-router.post('/quick-setup',quickSetupSpots);
-
-// Route for deleting a spot by its MongoDB _id
-  router.route('/:id')
-  .put(updateSpot)
-  .delete(deleteSpot);
-
-
-
-// Route for toggling active/inactive status (PATCH)
-router.patch('/:id/toggle-status', toggleSpotStatus);
+// Admin-only spot management routes
+router.post('/', protect, adminOnly, createSpot);
+router.post('/quick-setup', protect, adminOnly, quickSetupSpots);
+router.put('/:id', protect, adminOnly, updateSpot);
+router.delete('/:id', protect, adminOnly, deleteSpot);
+router.patch('/:id/toggle-status', protect, adminOnly, toggleSpotStatus);
 
 export default router;
 

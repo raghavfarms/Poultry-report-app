@@ -11,7 +11,7 @@ export async function getUsers(req, res) {
     .sort({ createdAt: -1 })
     .lean();
 
-  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine'];
+  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine', 'temperature'];
 
   const mapped = users.map((u) => {
     const isAdminOrDev = ['admin', 'developer'].includes(u.role);

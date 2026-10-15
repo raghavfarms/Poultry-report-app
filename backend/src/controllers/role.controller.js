@@ -20,10 +20,10 @@ export async function getRoles(req, res) {
         .join(' ');
 
       const defaultModules = ['admin', 'developer', 'office', 'farm_incharge'].includes(lower)
-        ? ['diesel', 'transport', 'attendance', 'medicine']
+        ? ['diesel', 'transport', 'attendance', 'medicine', 'temperature']
         : lower === 'user'
         ? ['diesel']
-        : ['attendance', 'medicine'];
+        : ['attendance', 'medicine', 'temperature'];
 
       const created = await Role.findOneAndUpdate(
         { code: lower },

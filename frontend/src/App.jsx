@@ -17,6 +17,8 @@ import MedicineMasterPage from "./medicine/pages/MedicineMasterPage.jsx";
 import MedicineReportPage from "./medicine/pages/MedicineReportPage.jsx";
 import DailyMedicineActionPage from "./medicine/pages/DailyMedicineActionPage.jsx";
 import TemperatureMasterPage from "./temperature/pages/TemperatureMaster.jsx";
+import TemperatureEntryPage from "./temperature/pages/TemperatureEntryPage.jsx";
+import TemperatureReportPage from "./temperature/pages/TemperatureReportPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
@@ -74,6 +76,16 @@ export default function App() {
           }
         />
         <Route
+          path="reports/temperature"
+          element={
+            <ProtectedRoute module="temperature">
+              <TemperatureReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="temperature/report" element={<Navigate to="/reports/temperature" replace />} />
+        <Route path="temperature" element={<Navigate to="/reports/temperature" replace />} />
+        <Route
           path="reports/:slug"
           element={<ProtectedRoute developer><ComingSoonPage /></ProtectedRoute>}
         />
@@ -110,11 +122,22 @@ export default function App() {
         <Route path="medicine/master" element={<Navigate to="/admin/medicine/master" replace />} />
         <Route path="medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
 
+        {/* Worker Night Temperature Entry & QR Scanner */}
+        <Route
+          path="temperature/entry"
+          element={
+            <ProtectedRoute module="temperature">
+              <TemperatureEntryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="worker/temperature" element={<Navigate to="/temperature/entry" replace />} />
+
         {/* Administration: Temperature Master */}
         <Route
           path="admin/temperature/master"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute admin>
               <TemperatureMasterPage />
             </ProtectedRoute>
           }

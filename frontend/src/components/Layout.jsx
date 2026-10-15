@@ -7,13 +7,7 @@ export const modules = [
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
   ["medicine", "General Medicine", "💊"],
-  ["egg-stock", "Egg Stock", "🥚"],
-  ["hatching-egg", "Hatching Egg Summary", "◉"],
-  ["packing", "Packing Material", "□"],
-  ["vermicompost", "Vermicompost", "♻"],
-  ["feed-production", "Feed Production", "◫"],
-  ["solar", "Solar Status", "☀"],
-  ["vaccination", "Vaccination Status", "✓"],
+  ["temperature", "Temperature Monitoring", "🌡️"],
 ];
 
 export const moduleIconStyles = {
@@ -24,6 +18,7 @@ export const moduleIconStyles = {
   "egg-stock": "bg-yellow-100 text-yellow-700",
   "hatching-egg": "bg-indigo-100 text-indigo-700",
   medicine: "bg-rose-100 text-rose-700",
+  temperature: "bg-emerald-100 text-emerald-700",
   packing: "bg-violet-100 text-violet-700",
   vermicompost: "bg-lime-100 text-lime-700",
   attendance: "bg-cyan-100 text-cyan-700",
@@ -43,16 +38,15 @@ function Sidebar({ open, close }) {
   const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
 
   const visibleModules = modules.filter(([slug]) => {
+    if (isAdminOrDev) return true;
     if (Array.isArray(user?.allowedModules)) {
       return user.allowedModules.includes(slug);
     }
-    if (user?.role === "developer") return true;
-    if (isAdminOrDev) return ["diesel", "transport", "attendance", "medicine"].includes(slug);
     if (user?.role === "security") return slug === "attendance";
     if (slug === "medicine") {
       return ["office", "supervisor", "farm_incharge"].includes(user?.role);
     }
-    return ["diesel", "transport", "attendance"].includes(slug);
+    return ["diesel", "transport", "attendance", "temperature"].includes(slug);
   });
     
 
@@ -107,6 +101,7 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
+
           {(canManageAssets || canManageTransport || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">

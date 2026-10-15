@@ -12,8 +12,11 @@ import transportStationRoutes from './routes/transportStations.routes.js';
 import attendanceRoutes from './attendance/routes.js';
 import medicineRoutes from './medicine/routes/medicine.route.js';
 import supplierRoutes from './medicine/routes/supplier.route.js';
-import { errorHandler, notFound } from './middleware/error.js';  
 import temperatureSpotRoutes from './temperature/routes/spotRoutes.js';
+import TemperatureLogRoutes from './temperature/routes/temperatureLogRoutes.js';
+import userRoutes from './routes/user.routes.js';
+import roleRoutes from './routes/role.routes.js';
+import { errorHandler, notFound } from './middleware/error.js';
 
 
 
@@ -29,7 +32,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-
 app.use('/api/auth', authRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);
-app.use('/api/entries', entryRoutes);  // 
+app.use('/api/entries', entryRoutes);  
 
 
 //  transport vehicles and transport entries are separate routes for managing transportation-related data in the application
@@ -40,10 +43,14 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/medicine/masters',medicineRoutes);
 app.use('/api/medicine/suppliers', supplierRoutes);
 app.use('/api/temperature/spots', temperatureSpotRoutes);
+app.use('/api/temperature/logs', TemperatureLogRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
 app.use(notFound);
 app.use(errorHandler);  
 
 export default app;
     
-                        
+                          
 
+//  

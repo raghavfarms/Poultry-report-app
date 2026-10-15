@@ -1,11 +1,16 @@
-export const AVAILABLE_MODULES = ['diesel', 'transport', 'attendance', 'medicine'];
+export const AVAILABLE_MODULES = ['diesel', 'transport', 'attendance', 'medicine', 'temperature'];
 
 export function canAccessModule(user, module) {
   if (!user) return false;
 
-  // Non-developer users (including admin) cannot access unbuilt / building modules
-  if (!AVAILABLE_MODULES.includes(module) && user.role !== 'developer') {
+  // Unbuilt / un-implemented modules should NOT be accessible or visible to anyone
+  if (!AVAILABLE_MODULES.includes(module)) {
     return false;
+  }
+
+  // Admin and developer always have access to all built modules
+  if (['admin', 'developer'].includes(user.role)) {
+    return true;
   }
 
   // If user has allowedModules configured, respect it strictly
@@ -13,15 +18,11 @@ export function canAccessModule(user, module) {
     return user.allowedModules.includes(module);
   }
 
-  if (['admin', 'developer'].includes(user.role)) {
-    return true;
-  }
-
   if (module === 'medicine') {
     return ['office', 'supervisor', 'farm_incharge'].includes(user.role);
   }
 
-  return ['diesel', 'transport', 'attendance'].includes(module);
+  return ['diesel', 'transport', 'attendance', 'temperature'].includes(module);
 }
 
 export function canAccessReport(user, module) {

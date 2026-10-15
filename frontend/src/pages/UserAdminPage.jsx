@@ -16,7 +16,7 @@ const DEFAULT_ROLES = [
     code: "admin",
     name: "Administrator",
     description: "Full system administration, user management, and firm configuration.",
-    allowedModules: ["diesel", "transport", "attendance", "medicine"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine", "temperature"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -33,7 +33,7 @@ const DEFAULT_ROLES = [
     code: "developer",
     name: "Developer",
     description: "System developer with unrestricted access and debugging tools.",
-    allowedModules: ["diesel", "transport", "attendance", "medicine"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine", "temperature"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -50,7 +50,7 @@ const DEFAULT_ROLES = [
     code: "office",
     name: "Head Office",
     description: "Office staff with full report & operational visibility.",
-    allowedModules: ["diesel", "transport", "attendance", "medicine"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine", "temperature"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -67,7 +67,7 @@ const DEFAULT_ROLES = [
     code: "farm_incharge",
     name: "Farm Incharge",
     description: "Farm Incharge with attendance registers and worker master.",
-    allowedModules: ["attendance", "medicine"],
+    allowedModules: ["attendance", "medicine", "temperature"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -84,7 +84,7 @@ const DEFAULT_ROLES = [
     code: "supervisor",
     name: "Supervisor",
     description: "Farm supervisor for attendance and worker enrolment.",
-    allowedModules: ["attendance", "medicine"],
+    allowedModules: ["attendance", "medicine", "temperature"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
