@@ -141,6 +141,11 @@ function Sidebar({ open, close }) {
                   <span>💊</span>General Medicine
                 </NavLink>
               )}
+              {isAdminOrDev && (
+                <NavLink to="/admin/temperature/master" className={linkClass}>
+                  <span>🌡️</span>Temperature Master
+                </NavLink>
+              )}
             </>
           )}
         </nav>

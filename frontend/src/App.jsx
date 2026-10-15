@@ -16,6 +16,7 @@ import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.js
 import MedicineMasterPage from "./medicine/pages/MedicineMasterPage.jsx";
 import MedicineReportPage from "./medicine/pages/MedicineReportPage.jsx";
 import DailyMedicineActionPage from "./medicine/pages/DailyMedicineActionPage.jsx";
+import TemperatureMasterPage from "./temperature/pages/TemperatureMaster.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
@@ -108,6 +109,18 @@ export default function App() {
         <Route path="admin/medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
         <Route path="medicine/master" element={<Navigate to="/admin/medicine/master" replace />} />
         <Route path="medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
+
+        {/* Administration: Temperature Master */}
+        <Route
+          path="admin/temperature/master"
+          element={
+            <ProtectedRoute>
+              <TemperatureMasterPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="admin/temperature" element={<Navigate to="/admin/temperature/master" replace />} />
+        <Route path="temperature/master" element={<Navigate to="/admin/temperature/master" replace />} />
 
         <Route
           path="admin/users"
