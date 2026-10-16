@@ -258,6 +258,10 @@ export const getTemperatureReport = async (req, res) => {
           shedLine: isAllFirms ? `${firmName} · ${log.shed} · ${log.line}` : `${log.shed} · ${log.line}`,
           shed: log.shed,
           line: log.line,
+          logIds: [],
+          padLogId: null,
+          midLogId: null,
+          fanLogId: null,
           pad: null,
           mid: null,
           fan: null,
@@ -271,20 +275,26 @@ export const getTemperatureReport = async (req, res) => {
       }
 
       const row = rowsMap.get(key);
+      if (log._id) {
+        row.logIds.push(String(log._id));
+      }
       if (log.capturedAt) {
         row.timestamps.push(new Date(log.capturedAt).getTime());
       }
       if (log.position === 'Pad Side') {
         row.pad = temp;
         row.padVerified = Boolean(log.verifiedByqr);
+        row.padLogId = String(log._id);
       }
       if (log.position === 'Middle') {
         row.mid = temp;
         row.midVerified = Boolean(log.verifiedByqr);
+        row.midLogId = String(log._id);
       }
       if (log.position === 'Fan Side') {
         row.fan = temp;
         row.fanVerified = Boolean(log.verifiedByqr);
+        row.fanLogId = String(log._id);
       }
     }
 
@@ -509,6 +519,37 @@ export const scanThermometerAi = async (req, res) => {
     });
   }
 };
+
+/**
+ * Delete temperature log(s) - Admin/Dev only
+ * Can delete by a specific ID or an array of IDs (e.g. all spot readings in a round row)
+ */
+export const deleteTemperatureLog = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ids } = req.body || {};
+
+    const targetIds = Array.isArray(ids) && ids.length > 0 ? ids : (id ? [id] : []);
+    if (targetIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'Log ID(s) required for deletion' });
+    }
+
+    const deleteResult = await TemperatureLog.deleteMany({ _id: { $in: targetIds } });
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} temperature reading(s)`,
+      deletedCount: deleteResult.deletedCount,
+    });
+  } catch (error) {
+    console.error('Error deleting temperature log:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error deleting temperature reading',
+    });
+  }
+};
+
 
 
 

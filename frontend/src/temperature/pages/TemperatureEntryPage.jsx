@@ -18,6 +18,7 @@ export default function TemperatureEntryPage() {
   // 3. Scanned Data & Reading State
   const [scannedSpot, setScannedSpot] = useState(null);
   const [temperature, setTemperature] = useState('');
+  const [baseTemperature, setBaseTemperature] = useState(null); // The original AI/scanned value
   const [currentTimeFormatted, setCurrentTimeFormatted] = useState('');
 
   // 4. Manual Fallback Form State
@@ -42,6 +43,7 @@ export default function TemperatureEntryPage() {
   const [aiDetails, setAiDetails] = useState(null);
   const [capturedImage, setCapturedImage] = useState(null);
   const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' | 'user'
+  const [cameraModalError, setCameraModalError] = useState('');
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -170,8 +172,10 @@ export default function TemperatureEntryPage() {
       }
 
       setScannedSpot(spotData);
-      setTemperature((prev) => prev || '26');
       setEntryMode('scanned');
+      // If not yet scanned with thermometer AI, default base temp to 26
+      setBaseTemperature(26);
+      setTemperature('26');
     } catch (err) {
       console.error('Scan parse error:', err);
       setError('Invalid QR code format. Please scan a valid thermometer sticker.');
@@ -185,6 +189,7 @@ export default function TemperatureEntryPage() {
   // Start AI Thermometer Camera Stream
   const startThermometerCamera = async () => {
     setError('');
+    setCameraModalError('');
     setThermometerCameraOpen(true);
     setAiScanning(false);
 
@@ -261,11 +266,20 @@ export default function TemperatureEntryPage() {
       mediaStreamRef.current = null;
     }
     setThermometerCameraOpen(false);
+    setCameraModalError('');
   };
 
   // Capture current frame at high resolution (using ImageCapture if supported, or HD canvas)
   const captureAndScanThermometer = async () => {
     if (!videoRef.current) return;
+    const video = videoRef.current;
+
+    // Verify video stream is active and has rendered dimensions
+    if (video.readyState < 2 || !video.videoWidth) {
+      setCameraModalError('Camera stream is still starting, please wait a moment and try again.');
+      return;
+    }
+    setCameraModalError('');
 
     // Try native ImageCapture API on mobile Chrome for maximum sensor focus & resolution
     try {
@@ -290,19 +304,32 @@ export default function TemperatureEntryPage() {
       console.warn('ImageCapture error:', e);
     }
 
-    // High-resolution Canvas snapshot fallback
-    const video = videoRef.current;
+    // Optimized Canvas snapshot with crisp resolution and quality for instant upload & AI scan
     const canvas = canvasRef.current || document.createElement('canvas');
 
-    const width = video.videoWidth || 1920;
-    const height = video.videoHeight || 1080;
+    const vWidth = video.videoWidth || 1280;
+    const vHeight = video.videoHeight || 720;
+    const maxDim = 1280;
+    let width = vWidth;
+    let height = vHeight;
+
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
     canvas.width = width;
     canvas.height = height;
 
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
     processThermometerImageWithAi(dataUrl);
   };
 
@@ -325,6 +352,7 @@ export default function TemperatureEntryPage() {
   // Send image to backend Gemini Vision API
   const processThermometerImageWithAi = async (dataUrl) => {
     setAiScanning(true);
+    setCameraModalError('');
     setError('');
 
     try {
@@ -332,28 +360,31 @@ export default function TemperatureEntryPage() {
       const res = await scanThermometerWithAi(dataUrl);
 
       if (res.success && res.data && typeof res.data.temperature === 'number') {
-        const detectedTemp = Math.round(res.data.temperature).toString();
+        const detectedTempNum = Math.round(res.data.temperature);
+        const detectedTemp = detectedTempNum.toString();
+        setBaseTemperature(detectedTempNum);
         setTemperature(detectedTemp);
         setManualForm((prev) => ({ ...prev, temperature: detectedTemp }));
         setAiVerified(true);
         setAiDetails(res.data);
         setSuccessMsg(
-          `✨ Gemini AI successfully read ${detectedTemp}°C (${Math.round((res.data.confidence || 0.9) * 100)}% match)!`
+          `✨ Gemini AI successfully read ${detectedTemp}°C (${Math.round((res.data.confidence || 0.9) * 100)}% match)! You can adjust by ±4°C if needed.`
         );
         if (typeof window !== 'undefined' && window.navigator?.vibrate) {
           window.navigator.vibrate([80, 50, 80]);
         }
         stopThermometerCamera();
       } else {
-        setError(res.message || 'Could not clearly read thermometer. Please take a closer photo with good lighting.');
+        const errMsg = res.message || 'Could not clearly read thermometer. Please take a closer photo with good lighting.';
+        setCameraModalError(errMsg);
       }
     } catch (err) {
       console.error('AI Scan Error:', err);
+      let errMsg = err.message || 'Failed to analyze thermometer image with AI';
       if (err.message?.includes('GEMINI_API_KEY')) {
-        setError('Google Gemini API Key is missing in backend/.env. Please configure GEMINI_API_KEY.');
-      } else {
-        setError(err.message || 'Failed to analyze thermometer image with AI');
+        errMsg = 'Google Gemini API Key is missing in backend/.env. Please configure GEMINI_API_KEY.';
       }
+      setCameraModalError(errMsg);
     } finally {
       setAiScanning(false);
     }
@@ -509,15 +540,6 @@ export default function TemperatureEntryPage() {
             </button>
           </div>
 
-          <div className="text-center">
-            <button
-              onClick={() => setEntryMode('manual')}
-              className="text-xs font-semibold text-slate-400 hover:text-slate-600 cursor-pointer underline transition"
-            >
-              or fill the form yourself
-            </button>
-          </div>
-
           {/* Summary Preview Table */}
           <div className="divide-y divide-slate-100 border-t border-b border-slate-100 text-xs">
             <div className="py-2.5 flex justify-between items-center text-slate-600">
@@ -614,7 +636,7 @@ export default function TemperatureEntryPage() {
       {/* ========================================================================= */}
       {thermometerCameraOpen && (
         <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-3">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[320px] w-full p-4 text-white shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[340px] w-full p-4 text-white shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex justify-between items-center mb-3">
               <div>
@@ -622,7 +644,7 @@ export default function TemperatureEntryPage() {
                   <span className="text-indigo-400">🤖</span>
                   Thermometer AI Vision
                 </h3>
-                <p className="text-[10px] text-slate-400">Precision auto-reading (Google Lens style)</p>
+                <p className="text-[10px] text-slate-400">Google Gemini Vision auto-reader</p>
               </div>
               <button
                 type="button"
@@ -634,7 +656,7 @@ export default function TemperatureEntryPage() {
             </div>
 
             {/* Video Viewfinder with Alignment Reticle */}
-            <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center aspect-[4/5] max-h-[320px]">
+            <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center aspect-[4/5] max-h-[300px]">
               <video
                 ref={videoRef}
                 autoPlay
@@ -645,7 +667,7 @@ export default function TemperatureEntryPage() {
               <canvas ref={canvasRef} className="hidden" />
 
               {/* Target Box Overlay */}
-              <div className="absolute inset-6 border-2 border-indigo-400/70 rounded-2xl pointer-events-none flex flex-col justify-between p-2 shadow-[0_0_20px_rgba(99,102,241,0.25)]">
+              <div className="absolute inset-5 border-2 border-indigo-400/70 rounded-2xl pointer-events-none flex flex-col justify-between p-2 shadow-[0_0_20px_rgba(99,102,241,0.25)]">
                 <div className="flex justify-between text-[9px] text-indigo-300 font-mono">
                   <span>┌ SCALE</span>
                   <span>┐</span>
@@ -666,33 +688,89 @@ export default function TemperatureEntryPage() {
 
               {/* Analyzing Spinner during Gemini processing */}
               {aiScanning && (
-                <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 p-3 text-center z-10 animate-in fade-in duration-150">
+                <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 p-3 text-center z-10 animate-in fade-in duration-150">
                   <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
                   <div>
                     <h4 className="text-xs font-bold text-white">Gemini Vision Analyzing</h4>
-                    <p className="text-[10px] text-indigo-300 mt-0.5">Reading spirit tube / digital display...</p>
+                    <p className="text-[10px] text-indigo-300 mt-0.5">Reading spirit tube / digits...</p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Camera Actions (reduced width by 30%) */}
+            {/* Real-time Error & Fallback Banner inside Modal */}
+            {cameraModalError && (
+              <div className="mt-2.5 bg-rose-950/90 border border-rose-500/60 rounded-2xl p-3 text-left space-y-2 animate-in fade-in">
+                <div className="flex items-start gap-2">
+                  <span className="text-sm">⚠️</span>
+                  <p className="text-[11px] text-rose-200 leading-tight font-medium">
+                    {cameraModalError}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t border-rose-800/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBaseTemperature(26);
+                      setTemperature('26');
+                      setAiVerified(false);
+                      setAiDetails({ explanation: 'Adjusted within ±4°C' });
+                      setCameraModalError('');
+                      stopThermometerCamera();
+                    }}
+                    className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-xl transition cursor-pointer text-center shadow-sm"
+                  >
+                    Use 26°C & adjust (±4°C) →
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCameraModalError('')}
+                    className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded-xl transition cursor-pointer"
+                  >
+                    Retry 📸
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Hidden native camera file input for phone capture */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              capture="environment"
+              onChange={handleNativeImageUpload}
+              className="hidden"
+            />
+
+            {/* Camera Actions */}
             <div className="mt-3 space-y-2">
               <button
                 type="button"
                 onClick={captureAndScanThermometer}
                 disabled={aiScanning}
-                className="w-[80%] mx-auto bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-2.5 px-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer disabled:opacity-50 text-xs"
+                className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-2.5 px-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer disabled:opacity-50 text-xs"
               >
                 <span className="text-base">📸</span>
                 <span>{aiScanning ? 'Analyzing with AI...' : 'Capture & Read'}</span>
               </button>
 
-              <div className="flex items-center justify-center">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={aiScanning}
+                  className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  title="Take photo with native camera app"
+                >
+                  <span>📱</span>
+                  <span>Phone Photo</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={toggleCameraFacing}
-                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <span>🔄</span>
                   <span>Flip Camera</span>
@@ -768,7 +846,7 @@ export default function TemperatureEntryPage() {
                       className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200"
                       title={aiDetails?.explanation || 'AI Verified'}
                     >
-                      {aiDetails?.modelUsed?.includes('Claude') ? 'Claude ✓' : 'AI ✓'}
+                      {aiDetails?.modelUsed?.includes('Gemini') ? 'Gemini ✓' : 'AI ✓'}
                     </span>
                   )}
                 </div>
@@ -792,40 +870,58 @@ export default function TemperatureEntryPage() {
                   <span className="font-semibold text-[10px]">{aiScanning ? '...' : 'Scan'}</span>
                 </button>
 
-                {/* Stepper Buttons [ - ] [ input ] [ + ] °C */}
+                {/* Stepper Buttons [ - ] [ input ] [ + ] °C with strict ±4°C limit */}
                 <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-300 rounded-xl p-0.5">
-                  {/* Minus button */}
+                  {/* Minus button (limited to base - 4) */}
                   <button
                     type="button"
                     onClick={() => {
-                      const cur = parseInt(temperature, 10) || 26;
-                      setTemperature(String(Math.max(10, cur - 1)));
+                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
+                      const minAllowed = base - 4;
+                      const cur = parseInt(temperature, 10) || base;
+                      if (cur > minAllowed) {
+                        setTemperature(String(cur - 1));
+                      }
                     }}
-                    className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
-                    title="Decrease by 1°C"
+                    disabled={(() => {
+                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
+                      const cur = parseInt(temperature, 10) || base;
+                      return cur <= base - 4;
+                    })()}
+                    className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
+                    title="Decrease by 1°C (Max -4°C allowed)"
                   >
                     −
                   </button>
 
                   <input
-                    type="number"
-                    step="1"
+                    type="text"
+                    readOnly
                     required
                     placeholder="26"
-                    value={temperature}
-                    onChange={(e) => setTemperature(e.target.value)}
-                    className="w-10 bg-transparent text-center text-sm font-black text-slate-900 focus:outline-none"
+                    value={temperature ? `${temperature}` : '26'}
+                    className="w-8 bg-transparent text-center text-sm font-black text-slate-900 select-none cursor-default focus:outline-none"
+                    title={`Scanned: ${baseTemperature || 26}°C (Adjustment allowed: ±4°C)`}
                   />
 
-                  {/* Plus button */}
+                  {/* Plus button (limited to base + 4) */}
                   <button
                     type="button"
                     onClick={() => {
-                      const cur = parseInt(temperature, 10) || 26;
-                      setTemperature(String(Math.min(50, cur + 1)));
+                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
+                      const maxAllowed = base + 4;
+                      const cur = parseInt(temperature, 10) || base;
+                      if (cur < maxAllowed) {
+                        setTemperature(String(cur + 1));
+                      }
                     }}
-                    className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
-                    title="Increase by 1°C"
+                    disabled={(() => {
+                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
+                      const cur = parseInt(temperature, 10) || base;
+                      return cur >= base + 4;
+                    })()}
+                    className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
+                    title="Increase by 1°C (Max +4°C allowed)"
                   >
                     +
                   </button>
@@ -833,6 +929,16 @@ export default function TemperatureEntryPage() {
                 <span className="text-xs font-bold text-slate-700">°C</span>
               </div>
             </div>
+
+            {/* Small helper text showing the ±4°C limitation */}
+            {baseTemperature !== null && (
+              <div className="flex justify-between items-center text-[10px] text-slate-400 px-0.5">
+                <span>Scanned: {baseTemperature}°C</span>
+                <span className="font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  Allowed range: {baseTemperature - 4}°C to {baseTemperature + 4}°C
+                </span>
+              </div>
+            )}
 
             <div className="py-2 flex justify-between items-center">
               <span className="text-slate-500 font-medium">Date and time</span>
@@ -863,145 +969,6 @@ export default function TemperatureEntryPage() {
           </div>
         </form>
       )}
-
-      {/* ========================================================================= */}
-      {/* SCREEN 4: MANUAL ENTRY (Fallback when physical scan unavailable)          */}
-      {/* ========================================================================= */}
-      {entryMode === 'manual' && (
-        <form onSubmit={handleSaveManualEntry} className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in duration-150">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Manual entry</h2>
-              <p className="text-xs text-slate-500">Temperature entry</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEntryMode('initial')}
-              className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
-            >
-              Back to scan
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Shed
-              </label>
-              <select
-                value={manualForm.shed}
-                onChange={(e) => setManualForm({ ...manualForm, shed: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
-              >
-                <option value="Shed 1">Shed 1</option>
-                <option value="Shed 2">Shed 2</option>
-                <option value="Shed 3">Shed 3</option>
-                <option value="Shed 4">Shed 4</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-                Line
-              </label>
-              <select
-                value={manualForm.line}
-                onChange={(e) => setManualForm({ ...manualForm, line: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
-              >
-                <option value="Line 1">Line 1</option>
-                <option value="Line 2">Line 2</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-600 uppercase mb-1">
-              Position
-            </label>
-            <select
-              value={manualForm.position}
-              onChange={(e) => setManualForm({ ...manualForm, position: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500"
-            >
-              <option value="Pad Side">Pad Side (Front)</option>
-              <option value="Middle">Middle (Center)</option>
-              <option value="Fan Side">Fan Side (Back)</option>
-            </select>
-          </div>
-
-          {/* Temperature row for Manual Form */}
-          <div className="flex justify-between items-center py-2 border-t border-slate-100">
-            <label className="block text-xs font-bold text-slate-700">
-              Temperature
-            </label>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={startThermometerCamera}
-                className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-[10px] py-1.5 px-2 rounded-lg shadow-sm flex items-center gap-1 transition cursor-pointer"
-              >
-                <span className="text-xs">📷</span>
-                <span className="font-semibold text-[10px]">AI Scan</span>
-              </button>
-
-              <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-300 rounded-xl p-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cur = parseInt(manualForm.temperature, 10) || 26;
-                    setManualForm({ ...manualForm, temperature: String(Math.max(10, cur - 1)) });
-                  }}
-                  className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
-                  title="Decrease by 1°C"
-                >
-                  −
-                </button>
-
-                <input
-                  type="number"
-                  step="1"
-                  required
-                  placeholder="26"
-                  value={manualForm.temperature}
-                  onChange={(e) => setManualForm({ ...manualForm, temperature: e.target.value })}
-                  className="w-10 bg-transparent text-center text-sm font-black text-slate-900 focus:outline-none"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cur = parseInt(manualForm.temperature, 10) || 26;
-                    setManualForm({ ...manualForm, temperature: String(Math.min(50, cur + 1)) });
-                  }}
-                  className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
-                  title="Increase by 1°C"
-                >
-                  +
-                </button>
-              </div>
-              <span className="text-xs font-bold text-slate-700">°C</span>
-            </div>
-          </div>
-
-          {/* Amber Warning Notice for Manual Entry */}
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-xs font-semibold flex items-center gap-2">
-            <span>⚠️</span>
-            <span>Marked as manual entry in the report</span>
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={saving || !manualForm.temperature}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-2xl text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
-          >
-            {saving ? 'Saving...' : 'Save entry'}
-          </button>
-        </form>
-      )}
-
 
     </div>
   );

@@ -1,13 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 
 /**
  * Precision Thermometer Reading Vision Service.
  * 
- * Uses Anthropic Claude (Claude 3.5 Sonnet / 3.7 Sonnet) as the PRIMARY high-precision vision engine
- * for accurate analog spirit column meniscus reading (preventing +/- 3°C to 4°C drift).
- * 
- * Falls back to Google Gemini Vision if Anthropic key is not supplied or fails.
+ * Powered by Google Gemini Vision (gemini-2.5-flash / gemini-2.0-flash)
+ * for ultra-fast, high-precision thermometer reading.
  * 
  * @param {string} base64Image - Base64 encoded image string (with or without data:image/...;base64, prefix)
  * @param {string} [mimeType='image/jpeg'] - MIME type of the image
@@ -29,10 +26,6 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     cleanMimeType = parts[0].replace('data:', '') || mimeType;
     cleanBase64 = parts[1];
   }
-
-  // Validate supported image media types for Anthropic
-  const validAnthropicMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  const anthropicMediaType = validAnthropicMimes.includes(cleanMimeType) ? cleanMimeType : 'image/jpeg';
 
   const prompt = `You are an expert precision measurement instrument reader specializing in poultry farm thermometers (specifically liquid-in-glass red alcohol/spirit thermometers and digital units).
 
@@ -72,154 +65,83 @@ If the image is completely blurry, unreadable, or doesn't show a thermometer:
 }`;
 
   // ---------------------------------------------------------------------------
-  // 1. PRIMARY ENGINE: Anthropic Claude 3.5 Sonnet Vision
-  // ---------------------------------------------------------------------------
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey && anthropicKey.trim() !== '' && anthropicKey !== 'YOUR_ANTHROPIC_API_KEY') {
-    try {
-      const anthropic = new Anthropic({ apiKey: anthropicKey.trim() });
-      
-      const candidateClaudeModels = [
-        'claude-3-5-sonnet-20241022',
-        'claude-3-5-sonnet-latest',
-        'claude-3-7-sonnet-20250219',
-        'claude-3-5-haiku-20241022',
-      ];
-
-      for (const model of candidateClaudeModels) {
-        try {
-          const response = await anthropic.messages.create({
-            model,
-            max_tokens: 500,
-            temperature: 0,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: anthropicMediaType,
-                      data: cleanBase64,
-                    },
-                  },
-                  {
-                    type: 'text',
-                    text: prompt,
-                  },
-                ],
-              },
-            ],
-          });
-
-          const responseText = response.content
-            .filter((c) => c.type === 'text')
-            .map((c) => c.text)
-            .join('')
-            .trim();
-
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.success && typeof parsed.temperature === 'number') {
-              return {
-                success: true,
-                temperature: Math.round(parsed.temperature),
-                confidence: parsed.confidence || 0.98,
-                detectedType: parsed.detectedType || 'thermometer',
-                explanation: parsed.explanation || `${Math.round(parsed.temperature)}°C verified by Claude Vision`,
-                modelUsed: `Claude (${model})`,
-              };
-            } else if (parsed.error) {
-              return {
-                success: false,
-                error: parsed.error,
-                modelUsed: `Claude (${model})`,
-              };
-            }
-          }
-        } catch (mErr) {
-          console.warn(`[Claude Vision] Model ${model} failed, trying next:`, mErr.message);
-        }
-      }
-    } catch (claudeErr) {
-      console.error('[Claude Vision] Anthropic API failed:', claudeErr.message);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 2. SECONDARY / FALLBACK ENGINE: Google Gemini Vision
+  // Google Gemini Vision (Ultra Fast: Flash & Flash Lite)
+  // Typically responds in 1.0 - 1.8 seconds
   // ---------------------------------------------------------------------------
   const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey && geminiKey.trim() !== '' && geminiKey !== 'YOUR_GEMINI_API_KEY') {
-    try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey.trim() });
-      const candidateGeminiModels = [
-        'gemini-2.5-flash',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-3.5-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-2.5-flash-lite',  
-      ];
-
-      for (const model of candidateGeminiModels) {
-        try {
-          const response = await ai.models.generateContent({
-            model,
-            contents: [
-              {
-                inlineData: {
-                  data: cleanBase64,
-                  mimeType: cleanMimeType,
-                },
-              },
-              prompt,
-            ],
-            config: {
-              responseMimeType: 'application/json',
-              temperature: 0.0,
-            },
-          });
-
-          const responseText = response.text?.trim() || '';
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.success && typeof parsed.temperature === 'number') {
-              return {
-                success: true,
-                temperature: Math.round(parsed.temperature),
-                confidence: parsed.confidence || 0.9,
-                detectedType: parsed.detectedType || 'thermometer',
-                explanation: parsed.explanation || 'Reading extracted by Gemini Vision',
-                modelUsed: `Gemini (${model})`,
-              };
-            } else if (parsed.error) {
-              return {
-                success: false,
-                error: parsed.error,
-                modelUsed: `Gemini (${model})`,
-              };
-            }
-          }   
-        } catch (gErr) {
-          console.warn(`[Gemini Vision] Model ${model} attempt failed:`, gErr.message);
-        }
-      }
-    } catch (geminiErr) {
-      console.error('[Gemini Vision] Google GenAI failed:', geminiErr.message);
-    }
+  if (!geminiKey || geminiKey.trim() === '' || geminiKey === 'YOUR_GEMINI_API_KEY') {
+    return {
+      success: false,
+      keyMissing: true,
+      error: 'Google Gemini API Key is missing. Please configure GEMINI_API_KEY in backend/.env',
+    };
   }
 
-  // Both missing or failed
+  try {
+    const ai = new GoogleGenAI({ apiKey: geminiKey.trim() });
+    const candidateGeminiModels = [
+      'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-3.7-flash',
+      'gemini-3.8-flash',
+    ];
+
+    for (const model of candidateGeminiModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: [
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: cleanMimeType,
+              },
+            },
+            prompt,
+          ],
+          config: {
+            responseMimeType: 'application/json',
+            temperature: 0.0,                                        
+          },
+        });
+
+        const responseText = response.text?.trim() || '';
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.success && typeof parsed.temperature === 'number') {
+            return {
+              success: true,
+              temperature: Math.round(parsed.temperature),
+              confidence: parsed.confidence || 0.95,
+              detectedType: parsed.detectedType || 'thermometer',
+              explanation: parsed.explanation || 'Reading extracted by Gemini Vision',
+              modelUsed: `Gemini (${model})`,
+            };
+          } else if (parsed.error) {
+            return {
+              success: false,
+              error: parsed.error,
+              modelUsed: `Gemini (${model})`,
+            };
+          }
+        }
+      } catch (gErr) {
+        console.warn(`[Gemini Vision] Model ${model} attempt failed:`, gErr.message);
+      }
+    }
+  } catch (geminiErr) {
+    console.error('[Gemini Vision] Google GenAI failed:', geminiErr.message);
+    return {
+      success: false,
+      error: geminiErr.message || 'Error processing thermometer image with Gemini Vision',
+    };
+  }
+
   return {
     success: false,
-    keyMissing: !anthropicKey && !geminiKey,
-    error: 'AI Vision key not configured. Please add ANTHROPIC_API_KEY in backend/.env to scan with Claude.',
+    error: 'Failed to extract temperature reading. Please ensure the scale is clearly visible in the camera frame.',
   };
 }
-    
-  
-
+ 

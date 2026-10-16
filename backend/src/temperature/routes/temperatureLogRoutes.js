@@ -4,8 +4,9 @@ import {
   getRecentLogs,
   getTemperatureReport,
   scanThermometerAi,
+  deleteTemperatureLog,
 } from '../controllers/temperatureLogController.js';
-import { protect, requireModuleAccess, temperaturePermission } from '../../middleware/auth.js';
+import { protect, requireModuleAccess, temperaturePermission, adminOnly } from '../../middleware/auth.js';
 
 const router = express.Router();
 
@@ -23,5 +24,9 @@ router.get('/recent', getRecentLogs);
 
 // Route for generating full 5-column temperature report with KPIs
 router.get('/report', temperaturePermission('temperature_report'), getTemperatureReport);
+
+// Admin-only routes to delete temperature readings
+router.delete('/:id', adminOnly, deleteTemperatureLog);
+router.delete('/', adminOnly, deleteTemperatureLog);
 
 export default router;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { api } from '../../api/client.js';
-import { fetchTemperatureReport } from '../api/temperatureApi.js';
+import { fetchTemperatureReport, deleteTemperatureLogs } from '../api/temperatureApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -10,6 +10,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const [deletingId, setDeletingId] = useState(null);
 
   // 1. Data States
   const [firms, setFirms] = useState([]);
@@ -224,6 +225,34 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     }
   };
 
+  // Delete reading row (Admin only)
+  const handleDeleteRow = async (row) => {
+    const ids = row.logIds || [row.padLogId, row.midLogId, row.fanLogId].filter(Boolean);
+    if (!ids || ids.length === 0) {
+      alert('No reading records found to delete for this slot.');
+      return;
+    }
+
+    const confirmMsg = `Are you sure you want to delete this temperature reading?\nTime: ${row.time}\nShed: ${row.shed} · ${row.line}`;
+    if (!window.confirm(confirmMsg)) return;
+
+    const rowKey = `${row.time}-${row.shedLine}`;
+    setDeletingId(rowKey);
+    try {
+      const res = await deleteTemperatureLogs(ids);
+      if (res && res.success) {
+        await loadReport();
+      } else {
+        alert(res?.message || 'Failed to delete temperature reading');
+      }
+    } catch (err) {
+      console.error('Error deleting reading:', err);
+      alert(err.message || 'Failed to delete temperature reading');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // Helper for temp cell styling
   const renderTempCell = (val, isVerified) => {
     if (val === null || val === undefined) {
@@ -416,12 +445,15 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                           <th className="py-2.5 px-4 text-center">Pad</th>
                           <th className="py-2.5 px-4 text-center">Mid</th>
                           <th className="py-2.5 px-4 text-center">Fan</th>
+                          {isAdminOrDev && (
+                            <th className="py-2.5 px-3 text-center w-16">Action</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {group.rows.length === 0 ? (
                           <tr>
-                            <td colSpan="5" className="py-6 text-center text-slate-400">
+                            <td colSpan={isAdminOrDev ? 6 : 5} className="py-6 text-center text-slate-400">
                               <p className="text-sm font-medium text-slate-500">
                                 No temperature records found for {group.firmName} on {formattedDisplayDate}
                               </p>
@@ -441,7 +473,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                   <td className="py-2.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
                                     {row.shed} · {row.line}
                                   </td>
-                                  <td colSpan="3" className="py-2.5 px-4 text-center">
+                                  <td colSpan={isAdminOrDev ? 4 : 3} className="py-2.5 px-4 text-center">
                                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 italic">
                                       <span>⚠️</span>
                                       <span>No round saved for this hour (Missed)</span>
@@ -450,6 +482,8 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                 </tr>
                               );
                             }
+
+                            const isDeletingThis = deletingId === `${row.time}-${row.shedLine}`;
 
                             return (
                               <tr
@@ -488,6 +522,37 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                 <td className="py-2.5 px-4 text-center">
                                   {renderTempCell(row.fan, row.fanVerified)}
                                 </td>
+
+                                {/* 6. Action (Admin only) */}
+                                {isAdminOrDev && (
+                                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteRow(row)}
+                                      disabled={isDeletingThis}
+                                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
+                                      title="Delete reading"
+                                    >
+                                      {isDeletingThis ? (
+                                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-rose-600 border-t-transparent" />
+                                      ) : (
+                                        <svg
+                                          className="h-4 w-4"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                          />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </td>
+                                )}
                               </tr>
                             );
                           })

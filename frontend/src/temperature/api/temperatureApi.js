@@ -78,3 +78,13 @@ export async function scanThermometerWithAi(imageData, mimeType = 'image/jpeg') 
     body: { image: imageData, mimeType },
   });
 }
+
+// Delete temperature reading(s) (Admin only)
+export async function deleteTemperatureLogs(logIds) {
+  const ids = Array.isArray(logIds) ? logIds : [logIds];
+  return await api('/temperature/logs', {
+    method: 'DELETE',
+    body: { ids },
+  });
+}
+
