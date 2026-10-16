@@ -3,6 +3,7 @@ import ThermometerSpot from "../models/ThermometerSpot.js";
 import User from "../../models/User.js";
 import Firm from "../../models/Firm.js";
 import { extractTemperatureFromImage } from "../services/thermometerAiService.js";
+import { getPermittedFirmsForModule } from "../../utils/userFirms.js";
 
        const getHourSlot = (date = new Date()) => {
        const hours = date.getHours();
@@ -26,6 +27,13 @@ import { extractTemperatureFromImage } from "../services/thermometerAiService.js
             if (!firm) {
                 return res.status(400).json({ success: false, message: 'Farm ID is required' });
              }
+
+            // Verify worker has permission for this firm
+            const permittedFirms = getPermittedFirmsForModule(req.user, 'temperature');
+            if (permittedFirms !== null && !permittedFirms.includes(String(firm))) {
+              return res.status(403).json({ success: false, message: 'You do not have permission to record readings for this farm.' });
+            }
+
                 if (temperature === undefined || temperature === null || isNaN(temperature)) {
               return res.status(400).json({ success: false, message: 'Valid temperature reading is required' });
             }
@@ -96,14 +104,29 @@ import { extractTemperatureFromImage } from "../services/thermometerAiService.js
 export const getRecentLogs = async (req, res) => {
   try {
     const { firm, shed, limit = 20 } = req.query;
-    if (!firm) {
-      return res.status(400).json({ success: false, message: 'Firm is required' });
+    const permittedFirms = getPermittedFirmsForModule(req.user, 'temperature');
+    let targetFirmIds = [];
+
+    if (!firm || firm === 'all') {
+      if (permittedFirms === null) {
+        const allFarms = await Firm.find({ active: true, code: { $ne: 'OFFICE' } }).select('_id').lean();
+        targetFirmIds = allFarms.map((f) => f._id);
+      } else {
+        targetFirmIds = permittedFirms;
+      }
+    } else {
+      if (permittedFirms !== null && !permittedFirms.includes(String(firm))) {
+        return res.status(403).json({ success: false, message: 'You do not have access to this farm.' });
+      }
+      targetFirmIds = [firm];
     }
-    const query = { firm };
-    if (shed) query.shed = shed;
+
+    const query = { firm: { $in: targetFirmIds } };
+    if (shed && shed !== 'All sheds' && shed !== 'All Sheds') query.shed = shed;
     const logs = await TemperatureLog.find(query)
       .sort({ capturedAt: -1 })
       .limit(Number(limit))
+      .populate('firm', 'name code')
       .populate('spot', 'spotCode active')
       .populate('worker', 'name');
     return res.status(200).json({
@@ -131,6 +154,24 @@ export const getTemperatureReport = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Firm ID is required' });
     }
 
+    const permittedFirms = getPermittedFirmsForModule(req.user, 'temperature');
+    let targetFirmIds = [];
+    const isAllFirms = firm === 'all';
+
+    if (isAllFirms) {
+      if (permittedFirms === null) {
+        const allFarms = await Firm.find({ active: true, code: { $ne: 'OFFICE' } }).select('_id name code').lean();
+        targetFirmIds = allFarms.map((f) => f._id);
+      } else {
+        targetFirmIds = permittedFirms;
+      }
+    } else {
+      if (permittedFirms !== null && !permittedFirms.includes(String(firm))) {
+        return res.status(403).json({ success: false, message: 'You do not have access to this farm.' });
+      }
+      targetFirmIds = [firm];
+    }
+
     let targetYear, targetMonth, targetDay;
     if (date && typeof date === 'string' && date.includes('-')) {
       const parts = date.split('-');
@@ -155,7 +196,7 @@ export const getTemperatureReport = async (req, res) => {
     }
 
     const query = {
-      firm,
+      firm: { $in: targetFirmIds },
       capturedAt: { $gte: dayStart, $lte: dayEnd },
     };
     if (shed && shed !== 'All sheds' && shed !== 'All Sheds') {
@@ -164,6 +205,7 @@ export const getTemperatureReport = async (req, res) => {
 
     const logs = await TemperatureLog.find(query)
       .sort({ capturedAt: 1 })
+      .populate('firm', 'name code')
       .populate('spot', 'spotCode orderIndex')
       .populate('worker', 'name');
 
@@ -186,20 +228,24 @@ export const getTemperatureReport = async (req, res) => {
         hour12: true,
       });
 
+      const firmName = log.firm?.name || 'Farm';
+      const firmIdStr = String(log.firm?._id || log.firm || '');
+      const spotLoc = isAllFirms ? `${firmName} · ${log.shed} · ${timeStr}` : `${log.shed} · ${timeStr}`;
+
       if (minTemp === null || temp < minTemp) {
         minTemp = temp;
-        minSpot = `${log.shed} · ${timeStr}`;
+        minSpot = spotLoc;
       }
       if (maxTemp === null || temp > maxTemp) {
         maxTemp = temp;
-        maxSpot = `${log.shed} · ${timeStr}`;
+        maxSpot = spotLoc;
       }
       if (temp < 22 || temp > 30) {
         alertsCount++;
       }
 
       const slotKey = log.roundSlot || timeStr;
-      const key = `${slotKey}_${log.shed}_${log.line}`;
+      const key = `${slotKey}_${firmIdStr}_${log.shed}_${log.line}`;
 
       if (!rowsMap.has(key)) {
         rowsMap.set(key, {
@@ -207,7 +253,9 @@ export const getTemperatureReport = async (req, res) => {
           time: timeStr,
           timestamps: [],
           rawTime: log.capturedAt,
-          shedLine: `${log.shed} · ${log.line}`,
+          firmId: firmIdStr,
+          firmName,
+          shedLine: isAllFirms ? `${firmName} · ${log.shed} · ${log.line}` : `${log.shed} · ${log.line}`,
           shed: log.shed,
           line: log.line,
           pad: null,
@@ -240,27 +288,31 @@ export const getTemperatureReport = async (req, res) => {
       }
     }
 
-    // Active spots & sheds for this farm to detect missed hourly rounds
-    const spots = await ThermometerSpot.find({ firm, active: true });
+    // Active spots & sheds for these target firms to detect missed hourly rounds
+    const spots = await ThermometerSpot.find({ firm: { $in: targetFirmIds }, active: true }).populate('firm', 'name');
     let shedLines = [];
     const shedLineSet = new Set();
     for (const sp of spots) {
       if (shed && shed !== 'All sheds' && shed !== 'All Sheds' && sp.shed !== shed) {
         continue;
       }
-      const slKey = `${sp.shed}_${sp.line}`;
+      const fId = String(sp.firm?._id || sp.firm || '');
+      const fName = sp.firm?.name || 'Farm';
+      const slKey = `${fId}_${sp.shed}_${sp.line}`;
       if (!shedLineSet.has(slKey)) {
         shedLineSet.add(slKey);
-        shedLines.push({ shed: sp.shed, line: sp.line });
+        shedLines.push({ firmId: fId, firmName: fName, shed: sp.shed, line: sp.line });
       }
     }
     // Fallback if no spots set up yet: extract from logs
     if (shedLines.length === 0) {
       for (const log of logs) {
-        const slKey = `${log.shed}_${log.line}`;
+        const fId = String(log.firm?._id || log.firm || '');
+        const fName = log.firm?.name || 'Farm';
+        const slKey = `${fId}_${log.shed}_${log.line}`;
         if (!shedLineSet.has(slKey)) {
           shedLineSet.add(slKey);
-          shedLines.push({ shed: log.shed, line: log.line });
+          shedLines.push({ firmId: fId, firmName: fName, shed: log.shed, line: log.line });
         }
       }
     }
@@ -291,15 +343,18 @@ export const getTemperatureReport = async (req, res) => {
         const hasPassed = slotDate <= now || dayEnd < now;
 
         for (const sl of shedLines) {
-          const key = `${slot}_${sl.shed}_${sl.line}`;
+          const key = `${slot}_${sl.firmId}_${sl.shed}_${sl.line}`;
           if (!rowsMap.has(key)) {
             // If the time has passed, mark as missed round
             if (hasPassed) {
               missedRoundsCount++;
               rowsMap.set(key, {
+                slotKey: slot,
                 time: slot,
                 rawTime: slotDate,
-                shedLine: `${sl.shed} · ${sl.line}`,
+                firmId: sl.firmId,
+                firmName: sl.firmName,
+                shedLine: isAllFirms ? `${sl.firmName} · ${sl.shed} · ${sl.line}` : `${sl.shed} · ${sl.line}`,
                 shed: sl.shed,
                 line: sl.line,
                 pad: null,
@@ -371,13 +426,20 @@ export const getTemperatureReport = async (req, res) => {
       };
     });
 
-    // Chronological sorting
+    // Sort: First by Firm Name (e.g. Raghav, Sanjana), then by Time Slot, then Shed, then Line
     rows.sort((a, b) => {
+      // 1. Group by Firm Name
+      const firmCompare = (a.firmName || '').localeCompare(b.firmName || '');
+      if (firmCompare !== 0) return firmCompare;
+
+      // 2. Then chronological time slot within each farm
       const keyA = a.slotKey || a.time;
       const keyB = b.slotKey || b.time;
       const orderA = slotOrder[keyA] !== undefined ? slotOrder[keyA] : 999;
       const orderB = slotOrder[keyB] !== undefined ? slotOrder[keyB] : 999;
       if (orderA !== orderB) return orderA - orderB;
+
+      // 3. Then by Shed and Line
       if (a.shed !== b.shed) return a.shed.localeCompare(b.shed);
       return (a.line || '').localeCompare(b.line || '');
     });

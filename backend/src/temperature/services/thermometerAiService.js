@@ -156,10 +156,12 @@ If the image is completely blurry, unreadable, or doesn't show a thermometer:
     try {
       const ai = new GoogleGenAI({ apiKey: geminiKey.trim() });
       const candidateGeminiModels = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
         'gemini-3.5-flash',
         'gemini-3.5-flash-lite',
-        'gemini-3-flash-preview',
-        'gemini-3.8-flash',
+        'gemini-2.5-flash-lite',  
       ];
 
       for (const model of candidateGeminiModels) {
@@ -201,7 +203,7 @@ If the image is completely blurry, unreadable, or doesn't show a thermometer:
                 modelUsed: `Gemini (${model})`,
               };
             }
-          }
+          }   
         } catch (gErr) {
           console.warn(`[Gemini Vision] Model ${model} attempt failed:`, gErr.message);
         }

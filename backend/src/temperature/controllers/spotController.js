@@ -1,6 +1,6 @@
 
 import ThermometerSpot from "../models/ThermometerSpot.js";
-
+import { getPermittedFirmsForModule } from "../../utils/userFirms.js";
 
   //  GET all spot 
    export const getSpots=async(req,res)=>{
@@ -14,9 +14,19 @@ import ThermometerSpot from "../models/ThermometerSpot.js";
       })
     }
     
-    const spots= await ThermometerSpot.find({
-      firm,active:true
-    }).sort({
+    const permittedFirms = getPermittedFirmsForModule(req.user, 'temperature');
+    if (firm !== 'all' && permittedFirms !== null && !permittedFirms.includes(String(firm))) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have access to spots for this farm.',
+      });
+    }
+
+    const query = firm === 'all'
+      ? (permittedFirms === null ? { active: true } : { firm: { $in: permittedFirms }, active: true })
+      : { firm, active: true };
+
+    const spots= await ThermometerSpot.find(query).sort({
       shed:1,
       line:1,
       orderIndex:1,

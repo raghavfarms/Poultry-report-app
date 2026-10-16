@@ -61,9 +61,9 @@ export default function TemperatureEntryPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load farms on mount
+  // Load farms on mount (strictly respecting user module permissions)
   useEffect(() => {
-    api('/firms')
+    api('/firms?module=temperature')
       .then((data) => {
         const firmList = data.firms || data || [];
         setFirms(firmList);
@@ -441,7 +441,7 @@ export default function TemperatureEntryPage() {
   const currentFirmName = firms.find((f) => f._id === selectedFirm)?.name || 'Select Farm';
 
   return (
-    <div className="p-2 sm:p-4 max-w-[420px] mx-auto space-y-4">
+    <div className="p-2 sm:p-4 max-w-[440px] mx-auto space-y-4">
       {/* Top Header & Farm Selector */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">

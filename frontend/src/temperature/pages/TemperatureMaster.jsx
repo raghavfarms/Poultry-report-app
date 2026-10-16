@@ -60,9 +60,9 @@ export default function TemperatureMasterPage() {
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Load all poultry farms on initial page load
+  // Load permitted poultry farms on initial page load
   useEffect(() => {
-    api('/firms')
+    api('/firms?module=temperature')
       .then((data) => {
         const firmList = data.firms || data || [];
         setFirms(firmList);
