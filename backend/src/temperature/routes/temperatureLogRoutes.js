@@ -3,21 +3,25 @@ import {
   recordTemperature,
   getRecentLogs,
   getTemperatureReport,
+  scanThermometerAi,
 } from '../controllers/temperatureLogController.js';
-import { protect, requireModuleAccess } from '../../middleware/auth.js';
+import { protect, requireModuleAccess, temperaturePermission } from '../../middleware/auth.js';
 
 const router = express.Router();
 
 // All temperature logging and reporting requires authenticated user with temperature module access
 router.use(protect, requireModuleAccess('temperature'));
 
+// AI Thermometer Vision Reading (Google Gemini Vision API)
+router.post('/scan-ai', temperaturePermission('temperature_entry'), scanThermometerAi);
+
 // Route for saving temperature reading
-router.post('/', recordTemperature);
+router.post('/', temperaturePermission('temperature_entry'), recordTemperature);
 
 // Route for fetching recent temperature readings for the farm
 router.get('/recent', getRecentLogs);
 
-// Route for generating full 6-column temperature report with KPIs
-router.get('/report', getTemperatureReport);
+// Route for generating full 5-column temperature report with KPIs
+router.get('/report', temperaturePermission('temperature_report'), getTemperatureReport);
 
 export default router;

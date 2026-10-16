@@ -70,3 +70,11 @@ export async function fetchTemperatureReport(firmId, date = '', shed = '', shift
   }
   return await api(url);
 }
+
+// AI Thermometer Reading via Google Gemini Vision API
+export async function scanThermometerWithAi(imageData, mimeType = 'image/jpeg') {
+  return await api('/temperature/logs/scan-ai', {
+    method: 'POST',
+    body: { image: imageData, mimeType },
+  });
+}

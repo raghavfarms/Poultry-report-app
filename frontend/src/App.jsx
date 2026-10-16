@@ -19,6 +19,7 @@ import DailyMedicineActionPage from "./medicine/pages/DailyMedicineActionPage.js
 import TemperatureMasterPage from "./temperature/pages/TemperatureMaster.jsx";
 import TemperatureEntryPage from "./temperature/pages/TemperatureEntryPage.jsx";
 import TemperatureReportPage from "./temperature/pages/TemperatureReportPage.jsx";
+import TemperatureHubPage from "./temperature/pages/TemperatureHubPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
@@ -79,11 +80,11 @@ export default function App() {
           path="reports/temperature"
           element={
             <ProtectedRoute module="temperature">
-              <TemperatureReportPage />
+              <TemperatureHubPage />
             </ProtectedRoute>
           }
         />
-        <Route path="temperature/report" element={<Navigate to="/reports/temperature" replace />} />
+        <Route path="temperature/report" element={<Navigate to="/reports/temperature?tab=report" replace />} />
         <Route path="temperature" element={<Navigate to="/reports/temperature" replace />} />
         <Route
           path="reports/:slug"

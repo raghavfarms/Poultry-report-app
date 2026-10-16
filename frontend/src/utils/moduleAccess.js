@@ -49,3 +49,18 @@ export function canAutoCutAttendance(user) {
     user?.permissions?.attendance_edit === true
   );
 }
+
+export function canAccessTemperatureEntry(user) {
+  if (!user) return false;
+  if (!canAccessModule(user, 'temperature')) return false;
+  if (['admin', 'developer'].includes(user.role)) return true;
+  return user.permissions?.temperature_entry !== false;
+}
+
+export function canAccessTemperatureReport(user) {
+  if (!user) return false;
+  if (!canAccessModule(user, 'temperature')) return false;
+  if (['admin', 'developer'].includes(user.role)) return true;
+  return user.permissions?.temperature_report === true;
+}
+

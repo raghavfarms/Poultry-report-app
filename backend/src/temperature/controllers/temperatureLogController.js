@@ -2,7 +2,7 @@ import TemperatureLog from "../models/TemperatureLog.js";
 import ThermometerSpot from "../models/ThermometerSpot.js";
 import User from "../../models/User.js";
 import Firm from "../../models/Firm.js";
-
+import { extractTemperatureFromImage } from "../services/thermometerAiService.js";
 
        const getHourSlot = (date = new Date()) => {
        const hours = date.getHours();
@@ -11,18 +11,16 @@ import Firm from "../../models/Firm.js";
       return `${String(displayHours).padStart(2, '0')}:00 ${period}`;
      };
 
-
  //  worker submit a single temperature reading via QR scan or manual 
-
   export const recordTemperature =async(req,res)=>{
-
          try{
-            
              const {
                 firm,spotId,
                 spotCode,shed,
                 line,position,
-                temperature,verifiedQr
+                temperature,verifiedQr,
+                verifiedByQr,verifiedByAi,
+                aiConfidence,thermometerImageUrl
              }=req.body;
 
             if (!firm) {
@@ -63,7 +61,10 @@ import Firm from "../../models/Firm.js";
       line: finalLine,
       position: finalPosition,
       temperature: Number(temperature),
-      verifiedByqr: Boolean(verifiedQr),
+      verifiedByqr: Boolean(verifiedQr || verifiedByQr),
+      verifiedByAi: Boolean(verifiedByAi),
+      aiConfidence: aiConfidence ? Number(aiConfidence) : null,
+      thermometerImageUrl: thermometerImageUrl || null,
       roundSlot,
       capturedAt: new Date(),
       worker: req.user ? req.user._id : null,
@@ -202,7 +203,9 @@ export const getTemperatureReport = async (req, res) => {
 
       if (!rowsMap.has(key)) {
         rowsMap.set(key, {
-          time: slotKey,
+          slotKey,
+          time: timeStr,
+          timestamps: [],
           rawTime: log.capturedAt,
           shedLine: `${log.shed} · ${log.line}`,
           shed: log.shed,
@@ -220,6 +223,9 @@ export const getTemperatureReport = async (req, res) => {
       }
 
       const row = rowsMap.get(key);
+      if (log.capturedAt) {
+        row.timestamps.push(new Date(log.capturedAt).getTime());
+      }
       if (log.position === 'Pad Side') {
         row.pad = temp;
         row.padVerified = Boolean(log.verifiedByqr);
@@ -320,16 +326,57 @@ export const getTemperatureReport = async (req, res) => {
       if (row.missed) return row;
       const vals = [row.pad, row.mid, row.fan].filter((v) => v !== null && v !== undefined);
       const avg = vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
+
+      // Calculate true display time (average time across the taken readings)
+      let displayTime = row.time;
+      let timeSpan = '';
+      if (row.timestamps && row.timestamps.length > 0) {
+        if (row.timestamps.length === 1) {
+          // Single reading: show exact capture time
+          displayTime = new Date(row.timestamps[0]).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+        } else {
+          // Multiple readings: show average round time
+          const avgMillis = Math.round(
+            row.timestamps.reduce((sum, t) => sum + t, 0) / row.timestamps.length
+          );
+          displayTime = new Date(avgMillis).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+
+          const minTime = new Date(Math.min(...row.timestamps)).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+          const maxTime = new Date(Math.max(...row.timestamps)).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+          timeSpan = `${minTime} – ${maxTime}`;
+        }
+      }
+
       return {
         ...row,
+        time: displayTime,
+        timeSpan,
         avg: avg !== '—' ? Number(avg) : '—',
       };
     });
 
     // Chronological sorting
     rows.sort((a, b) => {
-      const orderA = slotOrder[a.time] !== undefined ? slotOrder[a.time] : 999;
-      const orderB = slotOrder[b.time] !== undefined ? slotOrder[b.time] : 999;
+      const keyA = a.slotKey || a.time;
+      const keyB = b.slotKey || b.time;
+      const orderA = slotOrder[keyA] !== undefined ? slotOrder[keyA] : 999;
+      const orderB = slotOrder[keyB] !== undefined ? slotOrder[keyB] : 999;
       if (orderA !== orderB) return orderA - orderB;
       if (a.shed !== b.shed) return a.shed.localeCompare(b.shed);
       return (a.line || '').localeCompare(b.line || '');
@@ -363,5 +410,43 @@ export const getTemperatureReport = async (req, res) => {
     });
   }
 };
+
+/**
+ * AI Thermometer Image Scanning using Google Gemini Vision
+ * Accepts an image (base64) of a thermometer and automatically detects reading in °C
+ */
+export const scanThermometerAi = async (req, res) => {
+  try {
+    const { image, mimeType } = req.body;
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image data is required for thermometer AI scan',
+      });
+    }
+
+    const result = await extractTemperatureFromImage(image, mimeType);
+    if (!result.success) {
+      return res.status(result.keyMissing ? 400 : 422).json({
+        success: false,
+        message: result.error,
+        keyMissing: Boolean(result.keyMissing),
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Temperature successfully extracted by ${result.modelUsed || 'AI Vision'}`,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error in scanThermometerAi controller:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error processing thermometer scan',
+    });
+  }
+};
+
 
 

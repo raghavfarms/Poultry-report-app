@@ -39,6 +39,18 @@ const temperatureLogSchema=new mongoose.Schema({
           type: Boolean,
          default: false,
   },
+  verifiedByAi:{
+          type: Boolean,
+         default: false,
+  },
+  aiConfidence:{
+          type: Number,
+         default: null,
+  },
+  thermometerImageUrl:{
+          type: String,
+         default: null,
+  },
   capturedAt:{
        type: Date,
       default: Date.now,
