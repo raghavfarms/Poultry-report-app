@@ -231,9 +231,9 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
           return {
             Time: row.time,
             'Shed · Line': row.shedLine,
-            Pad: row.pad !== null && row.pad !== undefined ? `${row.pad}°C` : '—',
-            Mid: row.mid !== null && row.mid !== undefined ? `${row.mid}°C` : '—',
-            Fan: row.fan !== null && row.fan !== undefined ? `${row.fan}°C` : '—',
+            Pad: row.pad !== null && row.pad !== undefined ? `${Math.round(Number(row.pad))}°C` : '—',
+            Mid: row.mid !== null && row.mid !== undefined ? `${Math.round(Number(row.mid))}°C` : '—',
+            Fan: row.fan !== null && row.fan !== undefined ? `${Math.round(Number(row.fan))}°C` : '—',
             Status: 'On time',
           };
       });
@@ -284,19 +284,14 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     if (val === null || val === undefined) {
       return <span className="text-slate-400 font-light">—</span>;
     }
-    const num = Number(val);
+    const num = Math.round(Number(val));
 
     return (
       <span
-        className="inline-flex items-center gap-1 font-semibold text-slate-800"
-        title={captureTime ? `${spotLabel}: ${num.toFixed(1)}°C recorded at ${captureTime}` : undefined}
+        className="inline-flex items-center font-semibold text-slate-800"
+        title={captureTime ? `${spotLabel}: ${num}°C recorded at ${captureTime}` : undefined}
       >
-        <span>{num.toFixed(1)}°C</span>
-        {isVerified && (
-          <span title="QR Verified" className="text-[10px] text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded font-bold">
-            ✓
-          </span>
-        )}
+        <span>{num}°C</span>
       </span>
     );
   };

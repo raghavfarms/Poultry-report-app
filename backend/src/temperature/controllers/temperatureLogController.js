@@ -83,7 +83,7 @@ const getHourSlot = (date = new Date()) => {
       shed: finalShed,
       line: finalLine,
       position: finalPosition,
-      temperature: Number(temperature),
+      temperature: Math.round(Number(temperature)),
       verifiedByqr: Boolean(verifiedQr || verifiedByQr),
       verifiedByAi: Boolean(verifiedByAi),
       aiConfidence: aiConfidence ? Number(aiConfidence) : null,
@@ -96,7 +96,7 @@ const getHourSlot = (date = new Date()) => {
 
     return res.status(201).json({
       success: true,
-      message: `Temperature ${temperature}°C recorded for ${finalShed} - ${finalPosition}`,
+      message: `Temperature ${Math.round(Number(temperature))}°C recorded for ${finalShed} - ${finalPosition}`,
       data: newLog,
     });
          } catch(error){
@@ -231,7 +231,7 @@ export const getTemperatureReport = async (req, res) => {
     const rowsMap = new Map();
 
     for (const log of logs) {
-      const temp = log.temperature;
+      const temp = Math.round(log.temperature);
       totalTemp += temp;
 
       const logTime = new Date(log.capturedAt);
@@ -379,7 +379,7 @@ export const getTemperatureReport = async (req, res) => {
     const rows = Array.from(rowsMap.values()).map((row) => {
       if (row.missed) return row;
       const vals = [row.pad, row.mid, row.fan].filter((v) => v !== null && v !== undefined);
-      const avg = vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
+      const avg = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : '—';
 
       // Calculate display time:
       // If 1 reading: exact same time as that reading
@@ -426,7 +426,7 @@ export const getTemperatureReport = async (req, res) => {
       return (a.line || '').localeCompare(b.line || '');
     });
 
-    const avgTemp = logs.length > 0 ? (totalTemp / logs.length).toFixed(1) : '—';
+    const avgTemp = logs.length > 0 ? Math.round(totalTemp / logs.length) : '—';
 
     return res.status(200).json({
       success: true,
@@ -435,9 +435,9 @@ export const getTemperatureReport = async (req, res) => {
         totalReadings: logs.length,
         roundsDone: `${rows.length}`,
         avgTemp: avgTemp !== '—' ? `${avgTemp}°C` : '—',
-        lowest: minTemp !== null ? `${minTemp}°C` : '—',
+        lowest: minTemp !== null ? `${Math.round(minTemp)}°C` : '—',
         lowestInfo: minSpot || '',
-        highest: maxTemp !== null ? `${maxTemp}°C` : '—',
+        highest: maxTemp !== null ? `${Math.round(maxTemp)}°C` : '—',
         highestInfo: maxSpot || '',
         alertsCount,
         missedRoundsCount: 0,
