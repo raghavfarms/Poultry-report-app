@@ -25,6 +25,17 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
   });
   const [selectedShed, setSelectedShed] = useState('All sheds');
 
+  // Change selected date by delta days (e.g. -1 for previous day, +1 for next day)
+  const handleDateChange = (days) => {
+    if (!selectedDate) return;
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    const dateObj = new Date(Date.UTC(y, m - 1, d + days));
+    const newY = dateObj.getUTCFullYear();
+    const newM = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const newD = String(dateObj.getUTCDate()).padStart(2, '0');
+    setSelectedDate(`${newY}-${newM}-${newD}`);
+  };
+
   const [reportData, setReportData] = useState({
     rows: [],
     availableSheds: [],
@@ -361,17 +372,41 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
             </select>
           </div>
 
-          {/* Date Selector */}
+          {/* Date Selector with Previous/Next Arrows */}
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
               Date
             </label>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
-            />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleDateChange(-1)}
+                title="Previous Day"
+                aria-label="Previous Day"
+                className="h-8 w-7 shrink-0 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-200 active:bg-slate-300 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-1 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => handleDateChange(1)}
+                title="Next Day"
+                aria-label="Next Day"
+                className="h-8 w-7 shrink-0 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-200 active:bg-slate-300 text-slate-600 hover:text-slate-900 transition cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           {/* Shed filter (spans 2 columns on mobile if alone, or neat fit) */}
