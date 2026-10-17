@@ -5,12 +5,27 @@ import Firm from "../../models/Firm.js";
 import { extractTemperatureFromImage } from "../services/thermometerAiService.js";
 import { getPermittedFirmsForModule } from "../../utils/userFirms.js";
 
-       const getHourSlot = (date = new Date()) => {
-       const hours = date.getHours();
-       const period = hours >= 12 ? 'PM' : 'AM';
-       const displayHours = hours % 12 || 12;
-      return `${String(displayHours).padStart(2, '0')}:00 ${period}`;
-     };
+const formatTimeIST = (date) => {
+  if (!date) return '';
+  const d = typeof date === 'number' ? new Date(date) : new Date(date);
+  return d.toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+const getHourSlot = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    hour12: true,
+  }).formatToParts(date);
+  const hourPart = parts.find((p) => p.type === 'hour')?.value || '12';
+  const dayPeriod = parts.find((p) => p.type === 'dayPeriod')?.value?.toUpperCase() || 'AM';
+  return `${hourPart.padStart(2, '0')}:00 ${dayPeriod}`;
+};
 
  //  worker submit a single temperature reading via QR scan or manual 
   export const recordTemperature =async(req,res)=>{
@@ -172,27 +187,24 @@ export const getTemperatureReport = async (req, res) => {
       targetFirmIds = [firm];
     }
 
-    let targetYear, targetMonth, targetDay;
+    let targetDateStr;
     if (date && typeof date === 'string' && date.includes('-')) {
-      const parts = date.split('-');
-      targetYear = parseInt(parts[0], 10);
-      targetMonth = parseInt(parts[1], 10) - 1;
-      targetDay = parseInt(parts[2], 10);
+      targetDateStr = date.trim();
     } else {
-      const now = new Date();
-      targetYear = now.getFullYear();
-      targetMonth = now.getMonth();
-      targetDay = now.getDate();
+      targetDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
     }
 
     let dayStart, dayEnd;
     if (shift === 'night') {
-      // Night shift spans from 18:00 (6 PM) of target date to 09:00 (9 AM) next morning
-      dayStart = new Date(targetYear, targetMonth, targetDay, 18, 0, 0, 0);
-      dayEnd = new Date(targetYear, targetMonth, targetDay + 1, 9, 30, 0, 0);
+      // Night shift spans from 18:00 (6 PM) of target date to 09:30 AM next morning in Asia/Kolkata
+      const [y, m, d] = targetDateStr.split('-').map((v) => parseInt(v, 10));
+      const nextDayDate = new Date(Date.UTC(y, m - 1, d + 1));
+      const nextDayStr = nextDayDate.toISOString().slice(0, 10);
+      dayStart = new Date(`${targetDateStr}T18:00:00+05:30`);
+      dayEnd = new Date(`${nextDayStr}T09:30:00+05:30`);
     } else {
-      dayStart = new Date(targetYear, targetMonth, targetDay, 0, 0, 0, 0);
-      dayEnd = new Date(targetYear, targetMonth, targetDay, 23, 59, 59, 999);
+      dayStart = new Date(`${targetDateStr}T00:00:00+05:30`);
+      dayEnd = new Date(`${targetDateStr}T23:59:59.999+05:30`);
     }
 
     const query = {
@@ -223,11 +235,7 @@ export const getTemperatureReport = async (req, res) => {
       totalTemp += temp;
 
       const logTime = new Date(log.capturedAt);
-      const timeStr = logTime.toLocaleTimeString('en-US', {
-        hour: '2-digit',  
-        minute: '2-digit',
-        hour12: true,
-      });
+      const timeStr = formatTimeIST(logTime);
 
       const firmName = log.firm?.name || 'Farm';
       const firmIdStr = String(log.firm?._id || log.firm || '');
@@ -381,31 +389,15 @@ export const getTemperatureReport = async (req, res) => {
       const count = row.timestamps ? row.timestamps.length : 0;
 
       if (count === 1) {
-        displayTime = new Date(row.timestamps[0]).toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
+        displayTime = formatTimeIST(row.timestamps[0]);
       } else if (count > 1) {
         const avgMillis = Math.round(
           row.timestamps.reduce((sum, t) => sum + t, 0) / count
         );
-        displayTime = new Date(avgMillis).toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
+        displayTime = formatTimeIST(avgMillis);
 
-        const minTime = new Date(Math.min(...row.timestamps)).toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
-        const maxTime = new Date(Math.max(...row.timestamps)).toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
+        const minTime = formatTimeIST(Math.min(...row.timestamps));
+        const maxTime = formatTimeIST(Math.max(...row.timestamps));
         timeSpan = `${minTime} – ${maxTime}`;
       }
 
@@ -418,18 +410,16 @@ export const getTemperatureReport = async (req, res) => {
       };
     });
 
-    // Sort: First by Firm Name (e.g. Raghav, Sanjana), then by Time Slot, then Shed, then Line
+    // Sort: First by Firm Name (e.g. Raghav, Sanjana), then by actual Time, then Shed, then Line
     rows.sort((a, b) => {
       // 1. Group by Firm Name
       const firmCompare = (a.firmName || '').localeCompare(b.firmName || '');
       if (firmCompare !== 0) return firmCompare;
 
-      // 2. Then chronological time slot within each farm
-      const keyA = a.slotKey || a.time;
-      const keyB = b.slotKey || b.time;
-      const orderA = slotOrder[keyA] !== undefined ? slotOrder[keyA] : 999;
-      const orderB = slotOrder[keyB] !== undefined ? slotOrder[keyB] : 999;
-      if (orderA !== orderB) return orderA - orderB;
+      // 2. Chronological order by actual timestamp
+      const timeA = a.timestamps?.[0] || 0;
+      const timeB = b.timestamps?.[0] || 0;
+      if (timeA !== timeB) return timeA - timeB;
 
       // 3. Then by Shed and Line
       if (a.shed !== b.shed) return a.shed.localeCompare(b.shed);
