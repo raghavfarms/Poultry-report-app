@@ -11,7 +11,7 @@ export async function getUsers(req, res) {
     .sort({ createdAt: -1 })
     .lean();
 
-  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine'];
+  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine', 'temperature'];
 
   const mapped = users.map((u) => {
     const isAdminOrDev = ['admin', 'developer'].includes(u.role);
@@ -33,6 +33,8 @@ export async function getUsers(req, res) {
         transport_master: u.permissions?.transport_master ?? (isAdminOrDev ? true : false),
         medicine_master: u.permissions?.medicine_master ?? (isAdminOrDev ? true : false),
         attendance_admin_master: u.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
+        temperature_entry: u.permissions?.temperature_entry ?? true,
+        temperature_report: u.permissions?.temperature_report ?? (isAdminOrDev ? true : false),
       },
     };
   });
@@ -76,6 +78,8 @@ export async function createUser(req, res) {
     transport_master: req.body.permissions?.transport_master ?? roleDoc?.permissions?.transport_master ?? false,
     medicine_master: req.body.permissions?.medicine_master ?? roleDoc?.permissions?.medicine_master ?? false,
     attendance_admin_master: req.body.permissions?.attendance_admin_master ?? roleDoc?.permissions?.attendance_admin_master ?? false,
+    temperature_entry: req.body.permissions?.temperature_entry ?? roleDoc?.permissions?.temperature_entry ?? true,
+    temperature_report: req.body.permissions?.temperature_report ?? roleDoc?.permissions?.temperature_report ?? false,
   };
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -150,6 +154,8 @@ export async function updateUser(req, res) {
       transport_master: req.body.permissions.transport_master ?? user.permissions.transport_master,
       medicine_master: req.body.permissions.medicine_master ?? user.permissions.medicine_master,
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? user.permissions.attendance_admin_master,
+      temperature_entry: req.body.permissions.temperature_entry ?? user.permissions.temperature_entry,
+      temperature_report: req.body.permissions.temperature_report ?? user.permissions.temperature_report,
     };
   }
 

@@ -12,45 +12,46 @@ import transportStationRoutes from './routes/transportStations.routes.js';
 import attendanceRoutes from './attendance/routes.js';
 import medicineRoutes from './medicine/routes/medicine.route.js';
 import supplierRoutes from './medicine/routes/supplier.route.js';
-import receiptRoutes from './medicine/routes/receipt.route.js';
-import issueRoutes from './medicine/routes/issue.route.js';
-import reportRoutes from './medicine/routes/report.route.js';
-import dailyActionRoutes from './medicine/routes/dailyAction.route.js';
-import transferRoutes from './medicine/routes/transfer.route.js';
+import temperatureSpotRoutes from './temperature/routes/spotRoutes.js';
+import TemperatureLogRoutes from './temperature/routes/temperatureLogRoutes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
+
+
 
 const app = express();
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map((item) => item.trim());
 
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));   // credentials are cookies, authorization headers or TLS client certificates
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poultry-reporting-api' }));   // check backend is running or not with logging 
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/roles', roleRoutes);
 app.use('/api/firms', firmRoutes);
 app.use('/api/assets', assetRoutes);
-app.use('/api/entries', entryRoutes);
+app.use('/api/entries', entryRoutes);  
+
 
 //  transport vehicles and transport entries are separate routes for managing transportation-related data in the application
 app.use('/api/transport-vehicles', transportVehicleRoutes);
 app.use('/api/transport-entries', transportEntryRoutes);
 app.use('/api/transport-stations', transportStationRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/medicine/masters', medicineRoutes);
+app.use('/api/attendance', attendanceRoutes);  
+app.use('/api/medicine/masters',medicineRoutes);
 app.use('/api/medicine/suppliers', supplierRoutes);
-app.use('/api/medicine/receipts', receiptRoutes);
-app.use('/api/medicine/issues', issueRoutes);
-app.use('/api/medicine/reports', reportRoutes);
-app.use('/api/medicine/daily-action', dailyActionRoutes);
-app.use('/api/medicine/transfers', transferRoutes);
+app.use('/api/temperature/spots', temperatureSpotRoutes);
+app.use('/api/temperature/logs', TemperatureLogRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/roles', roleRoutes);
 app.use(notFound);
-app.use(errorHandler);
+app.use(errorHandler);  
 
 export default app;
+    
+                          
 
+//  

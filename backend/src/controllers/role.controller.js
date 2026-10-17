@@ -20,10 +20,10 @@ export async function getRoles(req, res) {
         .join(' ');
 
       const defaultModules = ['admin', 'developer', 'office', 'farm_incharge'].includes(lower)
-        ? ['diesel', 'transport', 'attendance', 'medicine']
+        ? ['diesel', 'transport', 'attendance', 'medicine', 'temperature']
         : lower === 'user'
         ? ['diesel']
-        : ['attendance', 'medicine'];
+        : ['attendance', 'medicine', 'temperature'];
 
       const created = await Role.findOneAndUpdate(
         { code: lower },
@@ -86,6 +86,8 @@ export async function createRole(req, res) {
     transport_master: Boolean(req.body.permissions?.transport_master),
     medicine_master: Boolean(req.body.permissions?.medicine_master),
     attendance_admin_master: Boolean(req.body.permissions?.attendance_admin_master),
+    temperature_entry: req.body.permissions?.temperature_entry !== undefined ? Boolean(req.body.permissions.temperature_entry) : true,
+    temperature_report: Boolean(req.body.permissions?.temperature_report),
   };
 
   const moduleFirms = typeof req.body.moduleFirms === 'object' && req.body.moduleFirms !== null
@@ -134,6 +136,8 @@ export async function updateRole(req, res) {
       transport_master: req.body.permissions.transport_master ?? role.permissions.transport_master,
       medicine_master: req.body.permissions.medicine_master ?? role.permissions.medicine_master,
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? role.permissions.attendance_admin_master,
+      temperature_entry: req.body.permissions.temperature_entry ?? role.permissions.temperature_entry,
+      temperature_report: req.body.permissions.temperature_report ?? role.permissions.temperature_report,
     };
   }
 

@@ -4,9 +4,11 @@ import TransportPage from "./TransportPage.jsx";
 import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
 import WorkerAttendancePortal from "../attendance/pages/WorkerAttendancePortal.jsx";
 import MedicineReportPage from "../medicine/pages/MedicineReportPage.jsx";
+import TemperatureReportPage from "../temperature/pages/TemperatureReportPage.jsx";
+import TemperatureEntryPage from "../temperature/pages/TemperatureEntryPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { canAccessModule } from "../utils/moduleAccess.js";
+import { canAccessModule, canAccessTemperatureReport } from "../utils/moduleAccess.js";
 
 export default function OverviewPage() {
   const { user } = useAuth();
@@ -53,6 +55,7 @@ export default function OverviewPage() {
   const hasTransport = canAccessModule(user, "transport");
   const hasAttendance = canAccessModule(user, "attendance");
   const hasMedicine = canAccessModule(user, "medicine");
+  const hasTemperature = canAccessModule(user, "temperature");
 
   const isStaffOrAdmin =
     ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role) ||
@@ -109,39 +112,17 @@ export default function OverviewPage() {
           )
         )}
         {(activeTab === "medicine" || activeTab === "all") && hasMedicine && <MedicineReportPage />}
-        {!hasDiesel && !hasTransport && !hasAttendance && !hasMedicine && (
+        {(activeTab === "temperature" || activeTab === "all") && hasTemperature && (
+          canAccessTemperatureReport(user) ? (
+            <TemperatureReportPage compact />
+          ) : (
+            <TemperatureEntryPage />
+          )
+        )}
+        {!hasDiesel && !hasTransport && !hasAttendance && !hasMedicine && !hasTemperature && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
             No active report modules assigned to your account. Please contact your administrator.
           </div>
-        )}
-        {user.role === "developer" && (
-          <section>
-            <h2 className="mb-4 text-xl font-black text-slate-900">
-              Next report modules
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {modules.filter(([slug]) => !["diesel", "transport", "attendance", "medicine"].includes(slug)).map(([slug, label, icon]) => (
-              <article
-                key={slug}
-                className="rounded-2xl border border-slate-200 bg-white p-5"
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl text-lg ${moduleIconStyles[slug]}`}
-                  >
-                    {icon}
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-slate-800">{label}</h3>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
-                      Ready for next phase
-                    </p>
-                  </div>
-                </div>
-              </article>
-              ))}
-            </div>
-          </section>
         )}
       </div>
     );
@@ -186,9 +167,9 @@ export default function OverviewPage() {
                     {label}
                   </span>
                   <span
-                    className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport", "attendance", "medicine"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
+                    className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport", "attendance", "medicine", "temperature"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
                   >
-                    {["diesel", "transport", "attendance", "medicine"].includes(slug) ? "Available" : "Ready for next phase"}
+                    {["diesel", "transport", "attendance", "medicine", "temperature"].includes(slug) ? "Available" : "Ready for next phase"}
                   </span>
                 </span>
                 <svg
@@ -223,6 +204,12 @@ export default function OverviewPage() {
                     )
                   ) : slug === "medicine" ? (
                     <MedicineReportPage />
+                  ) : slug === "temperature" ? (
+                    canAccessTemperatureReport(user) ? (
+                      <TemperatureReportPage compact />
+                    ) : (
+                      <TemperatureEntryPage />
+                    )
                   ) : (
                     <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
                       <h2 className="font-bold text-slate-800">{label}</h2>

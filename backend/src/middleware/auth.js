@@ -65,11 +65,11 @@ export function attendanceReportsOnly(req, res, next) {
 
 export function requireModuleAccess(module) {
   return (req, res, next) => {
+    if (['admin', 'developer'].includes(req.user?.role)) return next();
     if (Array.isArray(req.user?.allowedModules)) {
       if (req.user.allowedModules.includes(module)) return next();
       return res.status(403).json({ message: 'You do not have access to this report module.' });
     }
-    if (['admin', 'developer'].includes(req.user?.role) || req.user?.allowedModules?.includes(module)) return next();
     return res.status(403).json({ message: 'You do not have access to this report module.' });
   };
 }
@@ -79,6 +79,25 @@ export function masterOnly(permission) {
     if (req.user?.permissions?.[permission] === true) return next();
     if (['admin', 'developer'].includes(req.user?.role) && req.user?.permissions?.[permission] !== false) return next();
     return res.status(403).json({ message: 'Master access is required.' });
+  };
+}
+
+export function temperaturePermission(perm) {
+  return (req, res, next) => {
+    if (['admin', 'developer'].includes(req.user?.role)) return next();
+    if (perm === 'temperature_entry') {
+      if (req.user?.permissions?.temperature_entry === false) {
+        return res.status(403).json({ message: 'Temperature entry access is required.' });
+      }
+      return next();
+    }
+    if (perm === 'temperature_report') {
+      if (req.user?.permissions?.temperature_report === true) {
+        return next();
+      }
+      return res.status(403).json({ message: 'Temperature report access is required.' });
+    }
+    next();
   };
 }
 
