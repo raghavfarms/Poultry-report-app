@@ -222,8 +222,9 @@ export const getTemperatureReport = async (req, res) => {
       const temp = log.temperature;
       totalTemp += temp;
 
-      const timeStr = new Date(log.capturedAt).toLocaleTimeString('en-US', {
-        hour: '2-digit',
+      const logTime = new Date(log.capturedAt);
+      const timeStr = logTime.toLocaleTimeString('en-US', {
+        hour: '2-digit',  
         minute: '2-digit',
         hour12: true,
       });
@@ -244,12 +245,35 @@ export const getTemperatureReport = async (req, res) => {
         alertsCount++;
       }
 
-      const slotKey = log.roundSlot || timeStr;
-      const key = `${slotKey}_${firmIdStr}_${log.shed}_${log.line}`;
+      // Smart clustering: find if there is an existing round for this firm, shed, line
+      // captured within a 45-minute window or matching roundSlot where this position is not yet filled
+      let matchedKey = null;
+      const logEpoch = logTime.getTime();
+
+      for (const [k, r] of rowsMap.entries()) {
+        if (r.firmId === firmIdStr && r.shed === log.shed && r.line === log.line) {
+          const isPosFilled =
+            (log.position === 'Pad Side' && r.pad !== null) ||
+            (log.position === 'Middle' && r.mid !== null) ||
+            (log.position === 'Fan Side' && r.fan !== null);
+
+          if (!isPosFilled && r.timestamps.length > 0) {
+            const minT = Math.min(...r.timestamps);
+            const maxT = Math.max(...r.timestamps);
+            const withinWindow = Math.abs(logEpoch - minT) <= 45 * 60 * 1000 || Math.abs(logEpoch - maxT) <= 45 * 60 * 1000;
+            if (withinWindow || r.slotKey === log.roundSlot) {
+              matchedKey = k;
+              break;
+            }
+          }
+        }
+      }
+
+      const key = matchedKey || `${log.roundSlot || timeStr}_${firmIdStr}_${log.shed}_${log.line}_${logEpoch}`;
 
       if (!rowsMap.has(key)) {
         rowsMap.set(key, {
-          slotKey,
+          slotKey: log.roundSlot || timeStr,
           time: timeStr,
           timestamps: [],
           rawTime: log.capturedAt,
@@ -265,6 +289,9 @@ export const getTemperatureReport = async (req, res) => {
           pad: null,
           mid: null,
           fan: null,
+          padTime: null,
+          midTime: null,
+          fanTime: null,
           padVerified: false,
           midVerified: false,
           fanVerified: false,
@@ -279,27 +306,34 @@ export const getTemperatureReport = async (req, res) => {
         row.logIds.push(String(log._id));
       }
       if (log.capturedAt) {
-        row.timestamps.push(new Date(log.capturedAt).getTime());
+        row.timestamps.push(logEpoch);
       }
       if (log.position === 'Pad Side') {
         row.pad = temp;
         row.padVerified = Boolean(log.verifiedByqr);
         row.padLogId = String(log._id);
+        row.padTime = timeStr;
       }
       if (log.position === 'Middle') {
         row.mid = temp;
         row.midVerified = Boolean(log.verifiedByqr);
         row.midLogId = String(log._id);
+        row.midTime = timeStr;
       }
       if (log.position === 'Fan Side') {
         row.fan = temp;
         row.fanVerified = Boolean(log.verifiedByqr);
         row.fanLogId = String(log._id);
+        row.fanTime = timeStr;
       }
     }
 
     // Active spots & sheds for these target firms to detect missed hourly rounds
     const spots = await ThermometerSpot.find({ firm: { $in: targetFirmIds }, active: true }).populate('firm', 'name');
+    
+    // Extract all distinct configured sheds across target firms for the filter dropdown
+    const allAvailableSheds = Array.from(new Set(spots.map((sp) => sp.shed))).sort();
+
     let shedLines = [];
     const shedLineSet = new Set();
     for (const sp of spots) {
@@ -327,60 +361,7 @@ export const getTemperatureReport = async (req, res) => {
       }
     }
 
-    // Standard night slots
-    const standardNightSlots = [
-      { slot: '08:00 PM', hourOffset: 20 },
-      { slot: '09:00 PM', hourOffset: 21 },
-      { slot: '10:00 PM', hourOffset: 22 },
-      { slot: '11:00 PM', hourOffset: 23 },
-      { slot: '12:00 AM', hourOffset: 24 },
-      { slot: '01:00 AM', hourOffset: 25 },
-      { slot: '02:00 AM', hourOffset: 26 },
-      { slot: '03:00 AM', hourOffset: 27 },
-      { slot: '04:00 AM', hourOffset: 28 },
-      { slot: '05:00 AM', hourOffset: 29 },
-      { slot: '06:00 AM', hourOffset: 30 },
-      { slot: '07:00 AM', hourOffset: 31 },
-    ];
-
-    const now = new Date();
-    let missedRoundsCount = 0;
-
-    if (shift === 'night' && shedLines.length > 0) {
-      for (const { slot, hourOffset } of standardNightSlots) {
-        // Calculate date/time this slot represents
-        const slotDate = new Date(targetYear, targetMonth, targetDay, hourOffset, 0, 0, 0);
-        const hasPassed = slotDate <= now || dayEnd < now;
-
-        for (const sl of shedLines) {
-          const key = `${slot}_${sl.firmId}_${sl.shed}_${sl.line}`;
-          if (!rowsMap.has(key)) {
-            // If the time has passed, mark as missed round
-            if (hasPassed) {
-              missedRoundsCount++;
-              rowsMap.set(key, {
-                slotKey: slot,
-                time: slot,
-                rawTime: slotDate,
-                firmId: sl.firmId,
-                firmName: sl.firmName,
-                shedLine: isAllFirms ? `${sl.firmName} · ${sl.shed} · ${sl.line}` : `${sl.shed} · ${sl.line}`,
-                shed: sl.shed,
-                line: sl.line,
-                pad: null,
-                mid: null,
-                fan: null,
-                avg: '—',
-                worker: '—',
-                status: 'Missed',
-                missed: true,
-              });
-            }
-          }
-        }
-      }
-    }
-
+    // Extract actual recorded rows from logs only
     const slotOrder = {
       '08:00 PM': 0, '09:00 PM': 1, '10:00 PM': 2, '11:00 PM': 3,
       '12:00 AM': 4, '01:00 AM': 5, '02:00 AM': 6, '03:00 AM': 7,
@@ -392,45 +373,46 @@ export const getTemperatureReport = async (req, res) => {
       const vals = [row.pad, row.mid, row.fan].filter((v) => v !== null && v !== undefined);
       const avg = vals.length > 0 ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '—';
 
-      // Calculate true display time (average time across the taken readings)
+      // Calculate display time:
+      // If 1 reading: exact same time as that reading
+      // If multiple readings (2 or 3 of Pad, Mid, Fan): true average timestamp of the readings
       let displayTime = row.time;
       let timeSpan = '';
-      if (row.timestamps && row.timestamps.length > 0) {
-        if (row.timestamps.length === 1) {
-          // Single reading: show exact capture time
-          displayTime = new Date(row.timestamps[0]).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
-        } else {
-          // Multiple readings: show average round time
-          const avgMillis = Math.round(
-            row.timestamps.reduce((sum, t) => sum + t, 0) / row.timestamps.length
-          );
-          displayTime = new Date(avgMillis).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
+      const count = row.timestamps ? row.timestamps.length : 0;
 
-          const minTime = new Date(Math.min(...row.timestamps)).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
-          const maxTime = new Date(Math.max(...row.timestamps)).toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
-          timeSpan = `${minTime} – ${maxTime}`;
-        }
+      if (count === 1) {
+        displayTime = new Date(row.timestamps[0]).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      } else if (count > 1) {
+        const avgMillis = Math.round(
+          row.timestamps.reduce((sum, t) => sum + t, 0) / count
+        );
+        displayTime = new Date(avgMillis).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+
+        const minTime = new Date(Math.min(...row.timestamps)).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        const maxTime = new Date(Math.max(...row.timestamps)).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        timeSpan = `${minTime} – ${maxTime}`;
       }
 
       return {
         ...row,
         time: displayTime,
+        readingsCount: count,
         timeSpan,
         avg: avg !== '—' ? Number(avg) : '—',
       };
@@ -454,22 +436,21 @@ export const getTemperatureReport = async (req, res) => {
       return (a.line || '').localeCompare(b.line || '');
     });
 
-    const recordedRows = rows.filter((r) => !r.missed);
-    const totalExpectedSlots = shedLines.length > 0 ? standardNightSlots.length * shedLines.length : 12;
     const avgTemp = logs.length > 0 ? (totalTemp / logs.length).toFixed(1) : '—';
 
     return res.status(200).json({
       success: true,
+      availableSheds: ['All sheds', ...allAvailableSheds],
       kpis: {
         totalReadings: logs.length,
-        roundsDone: `${recordedRows.length} of ${Math.max(recordedRows.length + missedRoundsCount, 12)}`,
+        roundsDone: `${rows.length}`,
         avgTemp: avgTemp !== '—' ? `${avgTemp}°C` : '—',
         lowest: minTemp !== null ? `${minTemp}°C` : '—',
         lowestInfo: minSpot || '',
         highest: maxTemp !== null ? `${maxTemp}°C` : '—',
         highestInfo: maxSpot || '',
-        alertsCount: alertsCount + missedRoundsCount,
-        missedRoundsCount,
+        alertsCount,
+        missedRoundsCount: 0,
       },
       rows,
       logs,
@@ -552,4 +533,4 @@ export const deleteTemperatureLog = async (req, res) => {
 
 
 
-
+    

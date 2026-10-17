@@ -30,3 +30,6 @@ router.delete('/:id', adminOnly, deleteTemperatureLog);
 router.delete('/', adminOnly, deleteTemperatureLog);
 
 export default router;
+
+
+ 

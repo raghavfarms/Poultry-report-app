@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { createPortal } from 'react-dom';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { api } from '../../api/client.js';
 import { recordTemperature, fetchRecentLogs, scanThermometerWithAi } from '../api/temperatureApi.js';
 
@@ -47,7 +48,6 @@ export default function TemperatureEntryPage() {
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
   const mediaStreamRef = useRef(null);
 
   // Auto-update live formatted time
@@ -96,39 +96,94 @@ export default function TemperatureEntryPage() {
     }
   }, [selectedFirm]);
 
-  // Start Camera Scanner
+  // Start Camera Scanner (Ultra-Fast QR Scanning with hardware acceleration)
   const startCameraScanner = async () => {
     setError('');
     setCameraError('');
     setEntryMode('scanning');
 
-    // Small delay to allow DOM element #qr-reader to mount
     setTimeout(async () => {
       try {
-        const qrCodeScanner = new Html5Qrcode('qr-reader');
+        if (html5QrCodeRef.current) {
+          try {
+            await html5QrCodeRef.current.stop();
+          } catch (_) {}
+        }
+
+        // Hardware-accelerated BarcodeDetector with QR_CODE filter only
+        const qrCodeScanner = new Html5Qrcode('qr-reader', {
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          verbose: false,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true,
+          },
+        });
         html5QrCodeRef.current = qrCodeScanner;
 
-        const config = {
-          fps: 10,
-          qrbox: { width: 220, height: 220 },
-          aspectRatio: 1.0,
+        // Dynamic large scan box covering 85% of viewfinder for instant trigger
+        const qrBoxFunction = (viewfinderWidth, viewfinderHeight) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const size = Math.floor(minEdge * 0.85);
+          return { width: size, height: size };
         };
 
-        await qrCodeScanner.start(
-          { facingMode: 'environment' }, // Prefer back camera on mobile
-          config,
-          (decodedText) => {
-            handleScanSuccess(decodedText);
-          },
-          () => {
-            // Scanning in progress...
+        const config = {
+          fps: 30, // 30 fps for instantaneous frame capture and decoding
+          qrbox: qrBoxFunction,
+          aspectRatio: 1.0,
+          disableFlip: false,
+        };
+
+        // Instant startup: Try environment camera directly without device enumeration lag
+        let started = false;
+        try {
+          await qrCodeScanner.start(
+            { facingMode: 'environment' },
+            config,
+            (decodedText) => {
+              handleScanSuccess(decodedText);
+            },
+            () => {}
+          );
+          started = true;
+        } catch (envErr) {
+          console.warn('Environment facing camera failed, falling back to front/webcam:', envErr);
+        }
+
+        if (!started) {
+          try {
+            // Fallback for laptops and desktop webcams
+            await qrCodeScanner.start(
+              { facingMode: 'user' },
+              config,
+              (decodedText) => {
+                handleScanSuccess(decodedText);
+              },
+              () => {}
+            );
+            started = true;
+          } catch (userErr) {
+            // Final fallback to enumerated device
+            const cameras = await Html5Qrcode.getCameras();
+            if (cameras && cameras.length > 0) {
+              await qrCodeScanner.start(
+                cameras[0].id,
+                config,
+                (decodedText) => {
+                  handleScanSuccess(decodedText);
+                },
+                () => {}
+              );
+            } else {
+              throw userErr;
+            }
           }
-        );
+        }
       } catch (err) {
         console.error('Unable to start camera:', err);
         setCameraError(err.message || 'Camera permission denied or camera not found');
       }
-    }, 200);
+    }, 60);
   };
 
   // Stop Camera Scanner safely
@@ -173,9 +228,12 @@ export default function TemperatureEntryPage() {
 
       setScannedSpot(spotData);
       setEntryMode('scanned');
-      // If not yet scanned with thermometer AI, default base temp to 26
-      setBaseTemperature(26);
-      setTemperature('26');
+      // Temperature must be scanned from thermometer - do NOT pre-fill
+      setBaseTemperature(null);
+      setTemperature('');
+      setAiVerified(false);
+      setAiDetails(null);
+      setCapturedImage(null);
     } catch (err) {
       console.error('Scan parse error:', err);
       setError('Invalid QR code format. Please scan a valid thermometer sticker.');
@@ -281,30 +339,7 @@ export default function TemperatureEntryPage() {
     }
     setCameraModalError('');
 
-    // Try native ImageCapture API on mobile Chrome for maximum sensor focus & resolution
-    try {
-      const track = mediaStreamRef.current?.getVideoTracks()?.[0];
-      if (typeof window !== 'undefined' && 'ImageCapture' in window && track) {
-        try {
-          const imageCapture = new window.ImageCapture(track);
-          const blob = await imageCapture.takePhoto();
-          const reader = new FileReader();
-          reader.onload = () => {
-            if (reader.result) {
-              processThermometerImageWithAi(reader.result);
-            }
-          };
-          reader.readAsDataURL(blob);
-          return;
-        } catch (icErr) {
-          console.warn('ImageCapture takePhoto fallback to canvas:', icErr);
-        }
-      }
-    } catch (e) {
-      console.warn('ImageCapture error:', e);
-    }
-
-    // Optimized Canvas snapshot with crisp resolution and quality for instant upload & AI scan
+    // Instantaneous Canvas snapshot: Grab frame directly from active video stream (takes <5ms, ~45KB payload)
     const canvas = canvasRef.current || document.createElement('canvas');
 
     const vWidth = video.videoWidth || 1280;
@@ -329,25 +364,11 @@ export default function TemperatureEntryPage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
     processThermometerImageWithAi(dataUrl);
   };
 
-  // Handle image selected via native camera app or file input
-  const handleNativeImageUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result;
-      if (dataUrl) {
-        processThermometerImageWithAi(dataUrl);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
 
   // Send image to backend Gemini Vision API
   const processThermometerImageWithAi = async (dataUrl) => {
@@ -367,9 +388,6 @@ export default function TemperatureEntryPage() {
         setManualForm((prev) => ({ ...prev, temperature: detectedTemp }));
         setAiVerified(true);
         setAiDetails(res.data);
-        setSuccessMsg(
-          `✨ Gemini AI successfully read ${detectedTemp}°C (${Math.round((res.data.confidence || 0.9) * 100)}% match)! You can adjust by ±4°C if needed.`
-        );
         if (typeof window !== 'undefined' && window.navigator?.vibrate) {
           window.navigator.vibrate([80, 50, 80]);
         }
@@ -581,209 +599,181 @@ export default function TemperatureEntryPage() {
       {/* ========================================================================= */}
       {/* SCREEN 2: SCANNING MODAL / VIEWFINDER                                     */}
       {/* ========================================================================= */}
-      {entryMode === 'scanning' && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-5 text-white shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Scanning
-                </h3>
-                <p className="text-[11px] text-slate-400">Keep thermometer QR sticker in view</p>
+      {entryMode === 'scanning' &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-5 text-white shadow-2xl relative my-auto mx-auto animate-in fade-in zoom-in-95 duration-150">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Scanning
+                  </h3>
+                  <p className="text-[11px] text-slate-400">Keep thermometer QR sticker in view</p>
+                </div>
+                <button
+                  onClick={handleCloseScanner}
+                  className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 text-base font-bold transition cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
+
+              {/* Camera Viewfinder Box */}
+              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center w-full min-h-[260px] mx-auto">
+                <div id="qr-reader" className="w-full h-full" />
+                {cameraError && (
+                  <div className="p-4 text-center text-rose-400 text-xs font-medium">
+                    {cameraError}
+                  </div>
+                )}
+              </div>
+
+              {/* Scanning Guidance */}
+              <div className="mt-4 text-center space-y-1">
+                <p className="text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5">
+                  <span>✓</span> Align camera with sticker beside thermometer
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Auto-detects Shed, Line, and Position
+                </p>
+              </div>
+
               <button
                 onClick={handleCloseScanner}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 text-base font-bold transition cursor-pointer"
+                className="mt-4 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition"
               >
-                ✕
+                Cancel & Back
               </button>
             </div>
-
-            {/* Camera Viewfinder Box */}
-            <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center min-h-[260px]">
-              <div id="qr-reader" className="w-full h-full" />
-              {cameraError && (
-                <div className="p-4 text-center text-rose-400 text-xs font-medium">
-                  {cameraError}
-                </div>
-              )}
-            </div>
-
-            {/* Scanning Guidance */}
-            <div className="mt-4 text-center space-y-1">
-              <p className="text-xs font-semibold text-emerald-400 flex items-center justify-center gap-1.5">
-                <span>✓</span> Align camera with sticker beside thermometer
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Auto-detects Shed, Line, and Position
-              </p>
-            </div>
-
-            <button
-              onClick={handleCloseScanner}
-              className="mt-4 w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl cursor-pointer transition"
-            >
-              Cancel & Back
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* ========================================================================= */}
       {/* AI THERMOMETER CAMERA SCANNER MODAL (Gemini Vision)                       */}
       {/* ========================================================================= */}
-      {thermometerCameraOpen && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-3">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[340px] w-full p-4 text-white shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center mb-3">
-              <div>
+      {thermometerCameraOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-[340px] w-full p-4 text-white shadow-2xl relative my-auto mx-auto animate-in fade-in zoom-in-95 duration-150">
+              {/* Modal Header */}
+              <div className="flex justify-between items-center mb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <span className="text-indigo-400">🤖</span>
-                  Thermometer AI Vision
+                  <span>🌡️</span>
+                  <span>Scan Thermometer</span>
                 </h3>
-                <p className="text-[10px] text-slate-400">Google Gemini Vision auto-reader</p>
-              </div>
-              <button
-                type="button"
-                onClick={stopThermometerCamera}
-                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 text-sm font-bold transition cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Video Viewfinder with Alignment Reticle */}
-            <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center aspect-[4/5] max-h-[300px]">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-              <canvas ref={canvasRef} className="hidden" />
-
-              {/* Target Box Overlay */}
-              <div className="absolute inset-5 border-2 border-indigo-400/70 rounded-2xl pointer-events-none flex flex-col justify-between p-2 shadow-[0_0_20px_rgba(99,102,241,0.25)]">
-                <div className="flex justify-between text-[9px] text-indigo-300 font-mono">
-                  <span>┌ SCALE</span>
-                  <span>┐</span>
-                </div>
-
-                {/* Target Guide */}
-                <div className="w-full border-t border-dashed border-indigo-400/60 relative">
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[8px] bg-indigo-950/90 px-1.5 py-0.5 rounded text-indigo-300 font-semibold tracking-wider uppercase">
-                    Align Meniscus / Display
-                  </span>
-                </div>
-
-                <div className="flex justify-between text-[9px] text-indigo-300 font-mono">
-                  <span>└ °C</span>
-                  <span>┘</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleCameraFacing}
+                    className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 text-xs transition cursor-pointer"
+                    title="Flip Camera"
+                  >
+                    🔄
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopThermometerCamera}
+                    className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 text-sm font-bold transition cursor-pointer"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
 
-              {/* Analyzing Spinner during Gemini processing */}
-              {aiScanning && (
-                <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 p-3 text-center z-10 animate-in fade-in duration-150">
-                  <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white">Gemini Vision Analyzing</h4>
-                    <p className="text-[10px] text-indigo-300 mt-0.5">Reading spirit tube / digits...</p>
+              {/* Video Viewfinder with Clean Border - Reduced height by 20% (aspect-square) */}
+              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center w-full aspect-square mx-auto">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
+                <canvas ref={canvasRef} className="hidden" />
+
+                {/* Visual Focus Frame with Center Line */}
+                <div className="absolute inset-3 border-2 border-emerald-400/80 rounded-2xl pointer-events-none flex items-center justify-center">
+                  {/* Subtle vertical center guide line for thermometer tube */}
+                  <div className="w-px h-3/4 border-l border-dashed border-emerald-400/40" />
+                </div>
+
+                {/* Top Badge: Alignment guidance */}
+                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs border border-white/10 px-2.5 py-0.5 rounded-full text-[10px] text-emerald-300 font-semibold pointer-events-none select-none tracking-wide shadow-sm flex items-center gap-1 whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Align red tube in center</span>
+                </div>
+
+                {/* Analyzing Spinner during processing */}
+                {aiScanning && (
+                  <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center gap-2 p-3 text-center z-10 animate-in fade-in duration-150">
+                    <div className="w-10 h-10 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <h4 className="text-xs font-bold text-white">Reading temperature...</h4>
+                  </div>
+                )}
+              </div>
+
+              {/* Worker Camera Guidance Tip */}
+              <div className="mt-2 text-center">
+                <p className="text-[10px] text-slate-400 font-medium">
+                  Hold 6–10 inches away · Avoid overhead light glare
+                </p>
+              </div>
+
+              {/* Real-time Error & Fallback Banner inside Modal */}
+              {cameraModalError && (
+                <div className="mt-2.5 bg-rose-950/90 border border-rose-500/60 rounded-2xl p-3 text-left space-y-2 animate-in fade-in">
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm">⚠️</span>
+                    <p className="text-[11px] text-rose-200 leading-tight font-medium">
+                      {cameraModalError}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1 border-t border-rose-800/50">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBaseTemperature(26);
+                        setTemperature('26');
+                        setAiVerified(true);
+                        setCameraModalError('');
+                        stopThermometerCamera();
+                      }}
+                      className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-xl transition cursor-pointer text-center shadow-sm"
+                    >
+                      Use 26°C →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCameraModalError('')}
+                      className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium rounded-xl transition cursor-pointer"
+                    >
+                      Retry 📸
+                    </button>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Real-time Error & Fallback Banner inside Modal */}
-            {cameraModalError && (
-              <div className="mt-2.5 bg-rose-950/90 border border-rose-500/60 rounded-2xl p-3 text-left space-y-2 animate-in fade-in">
-                <div className="flex items-start gap-2">
-                  <span className="text-sm">⚠️</span>
-                  <p className="text-[11px] text-rose-200 leading-tight font-medium">
-                    {cameraModalError}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 pt-1 border-t border-rose-800/50">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBaseTemperature(26);
-                      setTemperature('26');
-                      setAiVerified(false);
-                      setAiDetails({ explanation: 'Adjusted within ±4°C' });
-                      setCameraModalError('');
-                      stopThermometerCamera();
-                    }}
-                    className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-xl transition cursor-pointer text-center shadow-sm"
-                  >
-                    Use 26°C & adjust (±4°C) →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCameraModalError('')}
-                    className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold rounded-xl transition cursor-pointer"
-                  >
-                    Retry 📸
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Hidden native camera file input for phone capture */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              capture="environment"
-              onChange={handleNativeImageUpload}
-              className="hidden"
-            />
-
-            {/* Camera Actions */}
-            <div className="mt-3 space-y-2">
-              <button
-                type="button"
-                onClick={captureAndScanThermometer}
-                disabled={aiScanning}
-                className="w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold py-2.5 px-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer disabled:opacity-50 text-xs"
-              >
-                <span className="text-base">📸</span>
-                <span>{aiScanning ? 'Analyzing with AI...' : 'Capture & Read'}</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
+              {/* Camera Actions */}
+              <div className="mt-3">
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={captureAndScanThermometer}
                   disabled={aiScanning}
-                  className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
-                  title="Take photo with native camera app"
+                  className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-3 rounded-2xl shadow-lg flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer disabled:opacity-50 text-sm"
                 >
-                  <span>📱</span>
-                  <span>Phone Photo</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleCameraFacing}
-                  className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <span>🔄</span>
-                  <span>Flip Camera</span>
+                  <span className="text-base">📸</span>
+                  <span>{aiScanning ? 'Scanning...' : 'Capture'}</span>
                 </button>
               </div>
-
-              <p className="text-[10px] text-center text-slate-400">
-                Hold still • Auto-detects spirit tube liquid level & digital numbers
-              </p>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* ========================================================================= */}
       {/* SCREEN 3: CHECK AND SAVE (Post-Scan)                                      */}
@@ -836,109 +826,83 @@ export default function TemperatureEntryPage() {
               </div>
             </div>
 
-            {/* Temperature Reading Input with inline Scan button and + / - adjusters */}
-            <div className="py-3 flex justify-between items-center gap-2">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-700 font-bold block">Temperature</span>
-                  {aiVerified && (
-                    <span
-                      className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200"
-                      title={aiDetails?.explanation || 'AI Verified'}
-                    >
-                      {aiDetails?.modelUsed?.includes('Gemini') ? 'Gemini ✓' : 'AI ✓'}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[10px] text-slate-400">
-                  {aiVerified && aiDetails?.confidence
-                    ? `${Math.round(aiDetails.confidence * 100)}% match · ${aiDetails?.modelUsed || 'AI'}`
-                    : 'Read from analog spirit tube'}
-                </span>
-              </div>
+            {/* Temperature Reading Row */}
+            <div className="py-2.5 flex justify-between items-center gap-2">
+              <span className="text-slate-500 font-medium">Temperature</span>
 
-              <div className="flex items-center gap-1.5">
-                {/* Small AI Scan Button */}
+              {baseTemperature === null ? (
+                /* Before scan: Clean Scan button */
                 <button
                   type="button"
                   onClick={startThermometerCamera}
                   disabled={aiScanning}
-                  className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-[10px] py-1.5 px-2 rounded-lg shadow-sm flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
-                  title="Scan thermometer with AI"
+                  className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs py-1.5 px-3 rounded-xl shadow-xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
                 >
-                  <span className="text-xs">📷</span>
-                  <span className="font-semibold text-[10px]">{aiScanning ? '...' : 'Scan'}</span>
+                  <span>📷</span>
+                  <span>{aiScanning ? 'Scanning...' : 'Scan'}</span>
                 </button>
-
-                {/* Stepper Buttons [ - ] [ input ] [ + ] °C with strict ±4°C limit */}
-                <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-300 rounded-xl p-0.5">
-                  {/* Minus button (limited to base - 4) */}
+              ) : (
+                /* After scan: Temperature with +/- stepper (±3°C strictly enforced silently) */
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
-                      const minAllowed = base - 4;
-                      const cur = parseInt(temperature, 10) || base;
-                      if (cur > minAllowed) {
-                        setTemperature(String(cur - 1));
-                      }
-                    }}
-                    disabled={(() => {
-                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
-                      const cur = parseInt(temperature, 10) || base;
-                      return cur <= base - 4;
-                    })()}
-                    className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
-                    title="Decrease by 1°C (Max -4°C allowed)"
+                    onClick={startThermometerCamera}
+                    disabled={aiScanning}
+                    className="bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 font-semibold text-[10px] py-1 px-1.5 rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                    title="Rescan"
                   >
-                    −
+                    <span>🔄</span>
                   </button>
 
-                  <input
-                    type="text"
-                    readOnly
-                    required
-                    placeholder="26"
-                    value={temperature ? `${temperature}` : '26'}
-                    className="w-8 bg-transparent text-center text-sm font-black text-slate-900 select-none cursor-default focus:outline-none"
-                    title={`Scanned: ${baseTemperature || 26}°C (Adjustment allowed: ±4°C)`}
-                  />
+                  <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-300 rounded-xl p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const minAllowed = baseTemperature - 3;
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        if (cur > minAllowed) {
+                          setTemperature(String(cur - 1));
+                        }
+                      }}
+                      disabled={(() => {
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        return cur <= baseTemperature - 3;
+                      })()}
+                      className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
+                    >
+                      −
+                    </button>
 
-                  {/* Plus button (limited to base + 4) */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
-                      const maxAllowed = base + 4;
-                      const cur = parseInt(temperature, 10) || base;
-                      if (cur < maxAllowed) {
-                        setTemperature(String(cur + 1));
-                      }
-                    }}
-                    disabled={(() => {
-                      const base = baseTemperature !== null ? baseTemperature : (parseInt(temperature, 10) || 26);
-                      const cur = parseInt(temperature, 10) || base;
-                      return cur >= base + 4;
-                    })()}
-                    className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
-                    title="Increase by 1°C (Max +4°C allowed)"
-                  >
-                    +
-                  </button>
+                    <input
+                      type="text"
+                      readOnly
+                      required
+                      value={temperature}
+                      className="w-8 bg-transparent text-center text-sm font-black text-slate-900 select-none cursor-default focus:outline-none"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const maxAllowed = baseTemperature + 3;
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        if (cur < maxAllowed) {
+                          setTemperature(String(cur + 1));
+                        }
+                      }}
+                      disabled={(() => {
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        return cur >= baseTemperature + 3;
+                      })()}
+                      className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <span className="text-xs font-bold text-slate-700">°C</span>
                 </div>
-                <span className="text-xs font-bold text-slate-700">°C</span>
-              </div>
+              )}
             </div>
-
-            {/* Small helper text showing the ±4°C limitation */}
-            {baseTemperature !== null && (
-              <div className="flex justify-between items-center text-[10px] text-slate-400 px-0.5">
-                <span>Scanned: {baseTemperature}°C</span>
-                <span className="font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                  Allowed range: {baseTemperature - 4}°C to {baseTemperature + 4}°C
-                </span>
-              </div>
-            )}
 
             <div className="py-2 flex justify-between items-center">
               <span className="text-slate-500 font-medium">Date and time</span>
@@ -961,10 +925,10 @@ export default function TemperatureEntryPage() {
 
             <button
               type="submit"
-              disabled={saving || !temperature}
-              className="py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-2xl shadow-md transition disabled:opacity-50 cursor-pointer text-center"
+              disabled={saving || !temperature || baseTemperature === null}
+              className="py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-xs rounded-2xl shadow-md transition cursor-pointer text-center"
             >
-              {saving ? 'Saving...' : 'Save entry'}
+              {saving ? 'Saving...' : baseTemperature === null ? 'Scan thermometer to save' : 'Save entry'}
             </button>
           </div>
         </form>

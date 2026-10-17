@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { api } from '../../api/client.js';
-import { fetchTemperatureReport, deleteTemperatureLogs } from '../api/temperatureApi.js';
+import { fetchTemperatureReport, deleteTemperatureLogs, fetchSpots } from '../api/temperatureApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -15,6 +15,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
   // 1. Data States
   const [firms, setFirms] = useState([]);
   const [selectedFirm, setSelectedFirm] = useState('');
+  const [configuredSheds, setConfiguredSheds] = useState([]);
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date();
     const y = today.getFullYear();
@@ -26,6 +27,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
 
   const [reportData, setReportData] = useState({
     rows: [],
+    availableSheds: [],
     kpis: {
       totalReadings: 0,
       roundsDone: '0 of 12',
@@ -70,6 +72,22 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     };
   }, []);
 
+  // Proactively fetch all active configured spots/sheds for selected farm so dropdown always has Shed 1, 2, 3, 4
+  useEffect(() => {
+    if (!selectedFirm) return;
+    const firmParam = selectedFirm === 'all' ? 'all' : selectedFirm;
+    fetchSpots(firmParam)
+      .then((res) => {
+        const spotsList = res.data || [];
+        const set = new Set();
+        spotsList.forEach((s) => {
+          if (s.shed && s.active !== false) set.add(s.shed);
+        });
+        setConfiguredSheds(Array.from(set).sort());
+      })
+      .catch((err) => console.error('Failed to load sheds for filter:', err));
+  }, [selectedFirm]);
+
   // Fetch report when farm, date, or shed change
   const loadReport = async () => {
     if (!selectedFirm) return;
@@ -80,11 +98,13 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
       if (res && res.success) {
         setReportData({
           rows: res.rows || [],
+          availableSheds: res.availableSheds || [],
           kpis: res.kpis || {},
         });
       } else {
         setReportData({
           rows: [],
+          availableSheds: [],
           kpis: {},
         });
       }
@@ -100,16 +120,22 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     loadReport();
   }, [selectedFirm, selectedDate, selectedShed]);
 
-  // Extract distinct sheds for filter dropdown
+  // Extract distinct sheds for filter dropdown (combining spots, report API response, and historical rows)
   const availableSheds = useMemo(() => {
     const set = new Set();
-    if (reportData.rows) {
+    configuredSheds.forEach((s) => set.add(s));
+    if (reportData?.availableSheds) {
+      reportData.availableSheds.forEach((s) => {
+        if (s && s !== 'All sheds' && s !== 'All Sheds') set.add(s);
+      });
+    }
+    if (reportData?.rows) {
       reportData.rows.forEach((r) => {
         if (r.shed) set.add(r.shed);
       });
     }
     return ['All sheds', ...Array.from(set).sort()];
-  }, [reportData.rows]);
+  }, [configuredSheds, reportData?.availableSheds, reportData?.rows]);
 
   // Formatted date string for subtitle (e.g., "14 Oct 2026")
   const formattedDisplayDate = useMemo(() => {
@@ -254,14 +280,17 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
   };
 
   // Helper for temp cell styling
-  const renderTempCell = (val, isVerified) => {
+  const renderTempCell = (val, isVerified, captureTime, spotLabel) => {
     if (val === null || val === undefined) {
       return <span className="text-slate-400 font-light">—</span>;
     }
     const num = Number(val);
 
     return (
-      <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
+      <span
+        className="inline-flex items-center gap-1 font-semibold text-slate-800"
+        title={captureTime ? `${spotLabel}: ${num.toFixed(1)}°C recorded at ${captureTime}` : undefined}
+      >
         <span>{num.toFixed(1)}°C</span>
         {isVerified && (
           <span title="QR Verified" className="text-[10px] text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded font-bold">
@@ -490,13 +519,23 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                 key={`row-${row.time}-${row.shedLine}-${idx}`}
                                 className="hover:bg-slate-50/70 transition"
                               >
-                                {/* 1. Time */}
+                                {/* 1. Time (Average of readings if 2 or 3, or exact time if 1) */}
                                 <td
                                   className="py-2.5 px-4 font-bold text-slate-800 whitespace-nowrap"
                                   title={row.timeSpan ? `Round span: ${row.timeSpan}` : undefined}
                                 >
-                                  <div>{row.time}</div>
-                                  {row.timeSpan && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{row.time}</span>
+                                    {row.readingsCount > 1 && (
+                                      <span
+                                        className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded"
+                                        title={`Average time of ${row.readingsCount} readings (${row.timeSpan})`}
+                                      >
+                                        Avg
+                                      </span>
+                                    )}
+                                  </div>
+                                  {row.timeSpan && row.readingsCount > 1 && (
                                     <div className="text-[10px] text-slate-400 font-normal">
                                       {row.timeSpan}
                                     </div>
@@ -510,17 +549,17 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
 
                                 {/* 3. Pad */}
                                 <td className="py-2.5 px-4 text-center">
-                                  {renderTempCell(row.pad, row.padVerified)}
+                                  {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side')}
                                 </td>
 
                                 {/* 4. Mid */}
                                 <td className="py-2.5 px-4 text-center">
-                                  {renderTempCell(row.mid, row.midVerified)}
+                                  {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle')}
                                 </td>
 
                                 {/* 5. Fan */}
                                 <td className="py-2.5 px-4 text-center">
-                                  {renderTempCell(row.fan, row.fanVerified)}
+                                  {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
                                 </td>
 
                                 {/* 6. Action (Admin only) */}
