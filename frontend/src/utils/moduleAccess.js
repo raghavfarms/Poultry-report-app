@@ -8,21 +8,27 @@ export function canAccessModule(user, module) {
     return false;
   }
 
-  // Admin and developer always have access to all built modules
-  if (['admin', 'developer'].includes(user.role)) {
-    return true;
-  }
-
-  // If user has allowedModules configured, respect it strictly
+  // If user has allowedModules configured, respect it strictly for all users, including admin/developer
   if (Array.isArray(user.allowedModules)) {
     return user.allowedModules.includes(module);
+  }
+
+  // For temperature module, strict opt-in is required: no user gets access unless explicitly in allowedModules
+  if (module === 'temperature') {
+    return false;
+  }
+
+  // Legacy fallback when allowedModules is not configured on the user:
+  // Admin and developer have access to all built modules (except temperature which requires explicit opt-in)
+  if (['admin', 'developer'].includes(user.role)) {
+    return true;
   }
 
   if (module === 'medicine') {
     return ['office', 'supervisor', 'farm_incharge'].includes(user.role);
   }
 
-  return ['diesel', 'transport', 'attendance', 'temperature'].includes(module);
+  return ['diesel', 'transport', 'attendance'].includes(module);
 }
 
 export function canAccessReport(user, module) {
@@ -63,4 +69,11 @@ export function canAccessTemperatureReport(user) {
   if (['admin', 'developer'].includes(user.role)) return true;
   return user.permissions?.temperature_report === true;
 }
+
+export function canAccessTemperatureMaster(user) {
+  if (!user) return false;
+  if (!canAccessModule(user, 'temperature')) return false;
+  return ['admin', 'developer'].includes(user.role) || user.permissions?.temperature_master === true;
+}
+
 

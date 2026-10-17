@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { canAccessModule, canAccessTemperatureMaster } from "../utils/moduleAccess.js";
 
 export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
@@ -34,20 +35,11 @@ function Sidebar({ open, close }) {
   const canManageMedicine =
     (user?.permissions?.medicine_master === true || (isAdminOrDev && user?.permissions?.medicine_master !== false)) &&
     (Array.isArray(user?.allowedModules) ? user.allowedModules.includes("medicine") : true);
+  const canManageTemperature = canAccessTemperatureMaster(user);
   const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
   const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
 
-  const visibleModules = modules.filter(([slug]) => {
-    if (isAdminOrDev) return true;
-    if (Array.isArray(user?.allowedModules)) {
-      return user.allowedModules.includes(slug);
-    }
-    if (user?.role === "security") return slug === "attendance";
-    if (slug === "medicine") {
-      return ["office", "supervisor", "farm_incharge"].includes(user?.role);
-    }
-    return ["diesel", "transport", "attendance", "temperature"].includes(slug);
-  });
+  const visibleModules = modules.filter(([slug]) => canAccessModule(user, slug));
     
 
 
@@ -102,7 +94,7 @@ function Sidebar({ open, close }) {
             </NavLink>
           ))}
 
-          {(canManageAssets || canManageTransport || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster) && (
+          {(canManageAssets || canManageTransport || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster || canManageTemperature) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
@@ -136,7 +128,7 @@ function Sidebar({ open, close }) {
                   <span>💊</span>General Medicine
                 </NavLink>
               )}
-              {isAdminOrDev && (
+              {canManageTemperature && (
                 <NavLink to="/admin/temperature/master" className={linkClass}>
                   <span>🌡️</span>Temperature Master
                 </NavLink>

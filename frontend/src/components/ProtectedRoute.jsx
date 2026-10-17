@@ -9,6 +9,7 @@ export default function ProtectedRoute({
   attendanceStaff = false,
   attendanceAdmin = false,
   medicineAdmin = false,
+  temperatureAdmin = false,
   module = null,
   permission = null,
   children,
@@ -35,6 +36,14 @@ export default function ProtectedRoute({
     const hasMedicineAccess = canAccessModule(user, "medicine");
     const hasMasterPerm = user.permissions?.medicine_master === true || (isAdminOrDev && user.permissions?.medicine_master !== false);
     if (!hasMedicineAccess || !hasMasterPerm) {
+      return <Navigate to="/" replace />;
+    }
+  }
+
+  if (temperatureAdmin) {
+    const hasTempAccess = canAccessModule(user, "temperature");
+    const hasMasterPerm = user.permissions?.temperature_master === true || (isAdminOrDev && user.permissions?.temperature_master !== false);
+    if (!hasTempAccess || !hasMasterPerm) {
       return <Navigate to="/" replace />;
     }
   }

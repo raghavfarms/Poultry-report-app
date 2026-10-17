@@ -16,7 +16,7 @@ const DEFAULT_ROLES = [
     code: "admin",
     name: "Administrator",
     description: "Full system administration, user management, and firm configuration.",
-    allowedModules: ["diesel", "transport", "attendance", "medicine", "temperature"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -26,8 +26,9 @@ const DEFAULT_ROLES = [
       transport_master: true,
       medicine_master: true,
       attendance_admin_master: true,
-      temperature_entry: true,
-      temperature_report: true,
+      temperature_entry: false,
+      temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -35,7 +36,7 @@ const DEFAULT_ROLES = [
     code: "developer",
     name: "Developer",
     description: "System developer with unrestricted access and debugging tools.",
-    allowedModules: ["diesel", "transport", "attendance", "medicine", "temperature"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -45,8 +46,9 @@ const DEFAULT_ROLES = [
       transport_master: true,
       medicine_master: true,
       attendance_admin_master: true,
-      temperature_entry: true,
-      temperature_report: true,
+      temperature_entry: false,
+      temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -54,7 +56,7 @@ const DEFAULT_ROLES = [
     code: "office",
     name: "Head Office",
     description: "Office staff with full report & operational visibility.",
-    allowedModules: ["diesel", "transport", "attendance", "medicine", "temperature"],
+    allowedModules: ["diesel", "transport", "attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -64,8 +66,9 @@ const DEFAULT_ROLES = [
       transport_master: false,
       medicine_master: false,
       attendance_admin_master: false,
-      temperature_entry: true,
-      temperature_report: true,
+      temperature_entry: false,
+      temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -73,7 +76,7 @@ const DEFAULT_ROLES = [
     code: "farm_incharge",
     name: "Farm Incharge",
     description: "Farm Incharge with attendance registers and worker master.",
-    allowedModules: ["attendance", "medicine", "temperature"],
+    allowedModules: ["attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -83,8 +86,9 @@ const DEFAULT_ROLES = [
       transport_master: false,
       medicine_master: false,
       attendance_admin_master: false,
-      temperature_entry: true,
-      temperature_report: true,
+      temperature_entry: false,
+      temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -92,7 +96,7 @@ const DEFAULT_ROLES = [
     code: "supervisor",
     name: "Supervisor",
     description: "Farm supervisor for attendance and worker enrolment.",
-    allowedModules: ["attendance", "medicine", "temperature"],
+    allowedModules: ["attendance", "medicine"],
     permissions: {
       attendance_scan: true,
       attendance_report: true,
@@ -102,8 +106,9 @@ const DEFAULT_ROLES = [
       transport_master: false,
       medicine_master: false,
       attendance_admin_master: false,
-      temperature_entry: true,
+      temperature_entry: false,
       temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -123,6 +128,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -142,6 +148,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_master: false,
     },
     isSystem: true,
   },
@@ -153,7 +160,7 @@ const INITIAL_USER_FORM = {
   password: "",
   role: "supervisor",
   firms: [],
-  allowedModules: ["attendance", "medicine", "temperature"],
+  allowedModules: ["attendance", "medicine"],
   moduleFirms: {},
   permissions: {
     attendance_scan: true,
@@ -165,8 +172,9 @@ const INITIAL_USER_FORM = {
     transport_master: false,
     medicine_master: false,
     attendance_admin_master: false,
-    temperature_entry: true,
+    temperature_entry: false,
     temperature_report: false,
+    temperature_master: false,
   },
 };
 
@@ -174,7 +182,7 @@ const INITIAL_ROLE_FORM = {
   name: "",
   code: "",
   description: "",
-  allowedModules: ["attendance", "medicine", "temperature"],
+  allowedModules: ["attendance", "medicine"],
   permissions: {
     attendance_scan: true,
     attendance_report: false,
@@ -185,18 +193,21 @@ const INITIAL_ROLE_FORM = {
     transport_master: false,
     medicine_master: false,
     attendance_admin_master: false,
-    temperature_entry: true,
+    temperature_entry: false,
     temperature_report: false,
+    temperature_master: false,
   },
 };
 
 /**
  * Renders ONLY the allowed masters and operational permissions (never shows disabled X items)
  */
-function renderAllowedMasters(permissions = {}, role) {
+function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
   const unrestricted = ["admin", "developer"].includes(role);
   permissions = permissions || {};
   const allowed = [];
+  const hasTemp = Array.isArray(allowedModules) && allowedModules.includes("temperature");
+
   if (unrestricted || permissions.attendance_edit) allowed.push("Edit Attendance");
   if (unrestricted || permissions.attendance_autocut) allowed.push("Auto Cut Attendance");
   if (unrestricted || permissions.asset_master) allowed.push("Firms & Assets");
@@ -206,8 +217,13 @@ function renderAllowedMasters(permissions = {}, role) {
   if (unrestricted || permissions.worker_master) allowed.push("Worker Master");
   if (unrestricted || permissions.attendance_admin_master) allowed.push("Attendance Master");
   if (unrestricted || permissions.attendance_report) allowed.push("Monthly Attendance Report");
-  if (unrestricted || permissions.temperature_entry) allowed.push("Temp Entry");
-  if (unrestricted || permissions.temperature_report) allowed.push("Temp Report");
+
+  // Temperature permissions are strictly conditional on having the temperature module granted
+  if (hasTemp) {
+    if (unrestricted || permissions.temperature_master) allowed.push("Temp Master");
+    if (unrestricted || permissions.temperature_entry) allowed.push("Temp Entry");
+    if (unrestricted || permissions.temperature_report) allowed.push("Temp Report");
+  }
 
   if (allowed.length === 0) {
     return <span className="text-slate-400 italic text-[11px]">—</span>;
@@ -491,8 +507,9 @@ export default function UserAdminPage() {
         transport_master: false,
         medicine_master: false,
         attendance_admin_master: false,
-        temperature_entry: true,
+        temperature_entry: false,
         temperature_report: false,
+        temperature_master: false,
       },
     });
     setUserModalError("");
@@ -507,7 +524,7 @@ export default function UserAdminPage() {
     const activeFirms = assignedFirmIds.length ? assignedFirmIds : firms.map((f) => f._id);
     const allowedModules = Array.isArray(u.allowedModules) && u.allowedModules.length
       ? u.allowedModules
-      : ["attendance", "medicine", "temperature"];
+      : ["attendance", "medicine"];
 
     const initModuleFirms = {};
     allowedModules.forEach((mod) => {
@@ -536,8 +553,9 @@ export default function UserAdminPage() {
         transport_master: u.permissions?.transport_master ?? false,
         medicine_master: u.permissions?.medicine_master ?? (["admin", "developer"].includes(u.role) ? true : false),
         attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
-        temperature_entry: u.permissions?.temperature_entry ?? true,
-        temperature_report: u.permissions?.temperature_report ?? (["admin", "developer"].includes(u.role) ? true : false),
+        temperature_entry: u.permissions?.temperature_entry ?? false,
+        temperature_report: u.permissions?.temperature_report ?? false,
+        temperature_master: u.permissions?.temperature_master ?? (["admin", "developer"].includes(u.role) ? true : false),
       },
     });
     setUserModalError("");
@@ -775,8 +793,9 @@ export default function UserAdminPage() {
         transport_master: role.permissions?.transport_master ?? false,
         medicine_master: role.permissions?.medicine_master ?? (["admin", "developer"].includes(role.code) ? true : false),
         attendance_admin_master: role.permissions?.attendance_admin_master ?? false,
-        temperature_entry: role.permissions?.temperature_entry ?? true,
-        temperature_report: role.permissions?.temperature_report ?? (["admin", "developer"].includes(role.code) ? true : false),
+        temperature_entry: role.permissions?.temperature_entry ?? false,
+        temperature_report: role.permissions?.temperature_report ?? false,
+        temperature_master: role.permissions?.temperature_master ?? (["admin", "developer"].includes(role.code) ? true : false),
       },
     });
     setRoleModalError("");
@@ -1086,7 +1105,7 @@ export default function UserAdminPage() {
 
                     {/* All Masters Access - SHOW ONLY ALLOWED */}
                     <div className="pt-1.5 border-t border-slate-100">
-                      {renderAllowedMasters(u.permissions, u.role)}
+                      {renderAllowedMasters(u.permissions, u.role, u.allowedModules)}
                     </div>
                   </div>
                 );
@@ -1185,7 +1204,7 @@ export default function UserAdminPage() {
 
                           {/* ALL MASTERS & PERMISSIONS Column - SHOW ONLY ALLOWED */}
                           <td className="px-4 py-3.5 align-middle">
-                            {renderAllowedMasters(u.permissions, u.role)}
+                            {renderAllowedMasters(u.permissions, u.role, u.allowedModules)}
                           </td>
 
                           {/* STATUS Column */}
@@ -1279,7 +1298,7 @@ export default function UserAdminPage() {
 
                   {/* Allowed Masters */}
                   <div className="pt-1.5 border-t border-slate-100">
-                    {renderAllowedMasters(r.permissions, r.code)}
+                    {renderAllowedMasters(r.permissions, r.code, r.allowedModules)}
                   </div>
                 </div>
               ))}
@@ -1337,7 +1356,7 @@ export default function UserAdminPage() {
 
                         {/* ALL MASTERS & PERMISSIONS Column (ONLY allowed masters) */}
                         <td className="px-4 py-3.5 align-middle">
-                          {renderAllowedMasters(r.permissions, r.code)}
+                          {renderAllowedMasters(r.permissions, r.code, r.allowedModules)}
                         </td>
 
                         {/* STATUS Column */}
@@ -1610,6 +1629,9 @@ export default function UserAdminPage() {
                     ["asset_master", "Firms & Assets"],
                     ["transport_master", "Transport Vehicles & Stations"],
                     ["medicine_master", "General Medicine"],
+                    ...(userForm.allowedModules?.includes("temperature")
+                      ? [["temperature_master", "Temperature Master"]]
+                      : []),
                   ].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={Boolean(userForm.permissions[key])} onChange={() => toggleUserPermission(key)} className="h-3.5 w-3.5 rounded text-emerald-700" />
@@ -1680,37 +1702,41 @@ export default function UserAdminPage() {
                     <span className="truncate text-xs">Monthly Attendance Report</span>
                   </label>
 
-                  <label
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
-                      userForm.permissions.temperature_entry
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(userForm.permissions.temperature_entry)}
-                      onChange={() => toggleUserPermission("temperature_entry")}
-                      className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
-                    />
-                    <span className="truncate text-xs">Temperature Entry (Scan)</span>
-                  </label>
+                  {userForm.allowedModules?.includes("temperature") && (
+                    <>
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          userForm.permissions.temperature_entry
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(userForm.permissions.temperature_entry)}
+                          onChange={() => toggleUserPermission("temperature_entry")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Temperature Entry (Scan)</span>
+                      </label>
 
-                  <label
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
-                      userForm.permissions.temperature_report
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(userForm.permissions.temperature_report)}
-                      onChange={() => toggleUserPermission("temperature_report")}
-                      className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
-                    />
-                    <span className="truncate text-xs">Temperature Report</span>
-                  </label>
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          userForm.permissions.temperature_report
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(userForm.permissions.temperature_report)}
+                          onChange={() => toggleUserPermission("temperature_report")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Temperature Report</span>
+                      </label>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1831,6 +1857,9 @@ export default function UserAdminPage() {
                     ["asset_master", "Firms & Assets"],
                     ["transport_master", "Transport Vehicles & Stations"],
                     ["medicine_master", "General Medicine"],
+                    ...(roleForm.allowedModules?.includes("temperature")
+                      ? [["temperature_master", "Temperature Master"]]
+                      : []),
                   ].map(([key, label]) => (
                     <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 cursor-pointer">
                       <input type="checkbox" checked={Boolean(roleForm.permissions[key])} onChange={() => toggleRolePermission(key)} className="h-3.5 w-3.5 rounded text-emerald-700" />
@@ -1901,37 +1930,41 @@ export default function UserAdminPage() {
                     <span className="truncate text-xs">Monthly Attendance Report</span>
                   </label>
 
-                  <label
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
-                      roleForm.permissions.temperature_entry
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(roleForm.permissions.temperature_entry)}
-                      onChange={() => toggleRolePermission("temperature_entry")}
-                      className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
-                    />
-                    <span className="truncate text-xs">Temperature Entry (Scan)</span>
-                  </label>
+                  {roleForm.allowedModules?.includes("temperature") && (
+                    <>
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          roleForm.permissions.temperature_entry
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(roleForm.permissions.temperature_entry)}
+                          onChange={() => toggleRolePermission("temperature_entry")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Temperature Entry (Scan)</span>
+                      </label>
 
-                  <label
-                    className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
-                      roleForm.permissions.temperature_report
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={Boolean(roleForm.permissions.temperature_report)}
-                      onChange={() => toggleRolePermission("temperature_report")}
-                      className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
-                    />
-                    <span className="truncate text-xs">Temperature Report</span>
-                  </label>
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          roleForm.permissions.temperature_report
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(roleForm.permissions.temperature_report)}
+                          onChange={() => toggleRolePermission("temperature_report")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Temperature Report</span>
+                      </label>
+                    </>
+                  )}
                 </div>
               </div>
 

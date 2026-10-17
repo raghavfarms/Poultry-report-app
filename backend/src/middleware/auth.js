@@ -65,17 +65,35 @@ export function attendanceReportsOnly(req, res, next) {
 
 export function requireModuleAccess(module) {
   return (req, res, next) => {
-    if (['admin', 'developer'].includes(req.user?.role)) return next();
+    // If allowedModules is configured on the user, strictly enforce it for ALL roles including admin/developer
     if (Array.isArray(req.user?.allowedModules)) {
       if (req.user.allowedModules.includes(module)) return next();
       return res.status(403).json({ message: 'You do not have access to this report module.' });
     }
+
+    // For temperature module, strict opt-in is required: no user gets access unless explicitly configured
+    if (module === 'temperature') {
+      return res.status(403).json({ message: 'You do not have access to the temperature monitoring module.' });
+    }
+
+    if (['admin', 'developer'].includes(req.user?.role)) return next();
+
     return res.status(403).json({ message: 'You do not have access to this report module.' });
   };
 }
 
 export function masterOnly(permission) {
   return (req, res, next) => {
+    if (permission === 'temperature_master') {
+      const hasModule = Array.isArray(req.user?.allowedModules) && req.user.allowedModules.includes('temperature');
+      if (!hasModule) {
+        return res.status(403).json({ message: 'Temperature module access is required.' });
+      }
+      if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.temperature_master === true) {
+        return next();
+      }
+      return res.status(403).json({ message: 'Temperature master access is required.' });
+    }
     if (req.user?.permissions?.[permission] === true) return next();
     if (['admin', 'developer'].includes(req.user?.role) && req.user?.permissions?.[permission] !== false) return next();
     return res.status(403).json({ message: 'Master access is required.' });
@@ -84,6 +102,10 @@ export function masterOnly(permission) {
 
 export function temperaturePermission(perm) {
   return (req, res, next) => {
+    const hasModule = Array.isArray(req.user?.allowedModules) && req.user.allowedModules.includes('temperature');
+    if (!hasModule) {
+      return res.status(403).json({ message: 'Temperature module access is required.' });
+    }
     if (['admin', 'developer'].includes(req.user?.role)) return next();
     if (perm === 'temperature_entry') {
       if (req.user?.permissions?.temperature_entry === false) {

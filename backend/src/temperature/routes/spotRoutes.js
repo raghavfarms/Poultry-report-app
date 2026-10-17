@@ -7,19 +7,22 @@ import {
   updateSpot,
   toggleSpotStatus,
 } from '../controllers/spotController.js';
-import { protect, adminOnly, requireModuleAccess } from '../../middleware/auth.js';
+import { protect, masterOnly, requireModuleAccess } from '../../middleware/auth.js';
 
 const router = express.Router();
 
-// Route for getting spots (requires temperature module access)
-router.get('/', protect, requireModuleAccess('temperature'), getSpots);
+// All spot routes require authenticated user with temperature module access
+router.use(protect, requireModuleAccess('temperature'));
 
-// Admin-only spot management routes
-router.post('/', protect, adminOnly, createSpot);
-router.post('/quick-setup', protect, adminOnly, quickSetupSpots);
-router.put('/:id', protect, adminOnly, updateSpot);
-router.delete('/:id', protect, adminOnly, deleteSpot);
-router.patch('/:id/toggle-status', protect, adminOnly, toggleSpotStatus);
+// Route for getting spots (requires temperature module access)
+router.get('/', getSpots);
+
+// Master spot management routes (requires temperature_master permission)
+router.post('/', masterOnly('temperature_master'), createSpot);
+router.post('/quick-setup', masterOnly('temperature_master'), quickSetupSpots);
+router.put('/:id', masterOnly('temperature_master'), updateSpot);
+router.delete('/:id', masterOnly('temperature_master'), deleteSpot);
+router.patch('/:id/toggle-status', masterOnly('temperature_master'), toggleSpotStatus);
 
 export default router;
 

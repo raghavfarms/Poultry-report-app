@@ -138,7 +138,7 @@ export default function App() {
         <Route
           path="admin/temperature/master"
           element={
-            <ProtectedRoute admin>
+            <ProtectedRoute temperatureAdmin>
               <TemperatureMasterPage />
             </ProtectedRoute>
           }
