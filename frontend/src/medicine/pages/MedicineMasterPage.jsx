@@ -1364,11 +1364,11 @@ export default function MedicineMasterPage() {
 
                 <div>
                   <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
-                    Alias Name <span className="text-slate-400 font-normal text-[10px]">(Brand / Nickname)</span>
+                    Alias Name
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Calpol / Dolo"
+                    placeholder="e.g. Calpol / Dolo (optional)"
                     value={formData.aliasName}
                     onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
                     className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
