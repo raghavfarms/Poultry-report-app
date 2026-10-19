@@ -57,7 +57,7 @@ export default function FaceAttendancePage() {
   const [loadingWorkers, setLoadingWorkers] = useState(false);
 
   const [mode, setMode] = useState('DUTY_IN'); // 'DUTY_IN' | 'LUNCH_OUT' | 'LUNCH_IN' | 'DUTY_OUT'
-  const [facingMode, setFacingMode] = useState('user');
+  const [facingMode, setFacingMode] = useState('environment');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
