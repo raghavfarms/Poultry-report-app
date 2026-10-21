@@ -46,42 +46,48 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Strict physical liquid meniscus verification prompt
-  const prompt = `LOOK CLOSELY AT THIS IMAGE:
-1. Is this a photograph of a physical liquid-in-glass thermometer?
-2. Examine the central vertical glass capillary tube between the scales:
-   - Does it contain a colored indicator liquid column (e.g. bright red or blue spirit, or silver mercury)?
-   - Where does the liquid column end (the top meniscus)?
+  // Precision physical liquid meniscus verification prompt
+  const prompt = `You are a precision computer vision analyzer for physical liquid-in-glass poultry shed thermometers.
 
-CRITICAL REJECTION RULES (NO GUESSING):
-- If this is NOT a thermometer: return detected = false, error = "NOT_A_THERMOMETER".
-- If the capillary tube is EMPTY or clear throughout the visible frame (no liquid column inside this photo): return detected = false, error = "MENISCUS_NOT_VISIBLE".
-- If the meniscus is cut off or not inside this photo (e.g. photo shows only high numbers like 30°C-50°C and the liquid has not reached this section): return detected = false, error = "MENISCUS_NOT_VISIBLE".
-- DO NOT GUESS OR ESTIMATE A READING. Only return detected = true if the colored liquid column AND its top meniscus are clearly visible.
+TASK:
+1. Determine if this image shows a physical thermometer.
+2. Locate the glass capillary tube and the colored indicator liquid column (usually red or blue spirit, or mercury).
+3. Find the top meniscus (where the colored liquid column ends).
+4. Read the corresponding temperature in degrees Celsius (°C) from the Celsius scale (marked with °C, usually with gradations like 0, 10, 20, 30, 40, 50°C).
+
+RULES:
+- If this is a real thermometer and the colored liquid meniscus is visible:
+  Set detected = true, hasLiquid = true, and provide the exact Celsius temperature (e.g. 24, 25, 26).
+- If this is NOT a thermometer (e.g. wall, random paper, floor, blank):
+  Set detected = false, hasLiquid = false, error = "NOT_A_THERMOMETER", reasoning = "Please point the camera directly at the thermometer."
+- If the thermometer tube is visible but completely empty/clear with NO colored liquid meniscus in this view:
+  Set detected = false, hasLiquid = false, error = "MENISCUS_NOT_VISIBLE", reasoning = "Liquid level not visible in frame. Move camera to include where the red liquid line ends."
 
 Return strictly JSON:
-If colored liquid column and meniscus are clearly visible:
+If meniscus is visible:
 {
   "hasLiquid": true,
   "detected": true,
-  "temperature": <exact integer or half-degree in Celsius on the left scale>,
-  "reasoning": "<concise description of liquid color and exact meniscus tick mark level>"
+  "temperature": <number in Celsius>,
+  "reasoning": "<short description of liquid meniscus position>"
 }
 
-If no liquid is visible or image is unclear:
+If no meniscus or not a thermometer:
 {
   "hasLiquid": false,
   "detected": false,
   "error": "MENISCUS_NOT_VISIBLE" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
-  "reasoning": "<clear message explaining why no reading was taken and to rescan>"
+  "reasoning": "<helpful rescan tip for user>"
 }`;
 
-  // Prioritize frontier vision reasoning models (avoiding flash-lite hallucination)
+  // Prioritize active quota-available fast vision models first, then frontier fallbacks
   const candidateGeminiModels = [
+    'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
+    'gemini-3.1-flash-lite',
     'gemini-3.8-flash',
     'gemini-3.7-flash',
     'gemini-3.5-flash',
-    'gemini-2.5-pro',
   ];
 
   for (const model of candidateGeminiModels) {
@@ -90,7 +96,7 @@ If no liquid is visible or image is unclear:
         responseMimeType: 'application/json',
       };
 
-      // 12-second timeout for thorough reasoning and accurate verification
+      // 8-second timeout for prompt response
       const generatePromise = ai.models.generateContent({
         model,
         contents: [
@@ -106,7 +112,7 @@ If no liquid is visible or image is unclear:
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after 12000ms on ${model}`)), 12000)
+        setTimeout(() => reject(new Error(`Timeout after 8000ms on ${model}`)), 8000)
       );
 
       const response = await Promise.race([generatePromise, timeoutPromise]);
