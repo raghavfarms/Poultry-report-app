@@ -300,8 +300,8 @@ export default function DailyRegisterView({
               <option value="ALL">All Staff</option>
               <option value="ON_DUTY">On Duty Now</option>
               <option value="COMPLETED">{"Full Day (>= 7h 55m)"}</option>
-              <option value="HALF_DAY">{"Half Day (4h–7h 55m)"}</option>
-              <option value="ABSENT">{"Absent (< 4h)"}</option>
+              <option value="HALF_DAY">{"Half Day (3h 55m–7h 55m)"}</option>
+              <option value="ABSENT">{"Absent (< 3h 55m)"}</option>
             </select>
           </div>
 
@@ -503,11 +503,6 @@ export default function DailyRegisterView({
                                 🍱 {r.lunchMinutes}m lunch
                               </span>
                             )}
-                            {r.lunchOut && !r.lunchIn && (
-                              <span className="text-[9px] font-semibold text-rose-600 mt-0.5" title="Worker left at lunch and did not return">
-                                🚫 Left at lunch
-                              </span>
-                            )}
                             {r.sessionsCount > 1 && (
                               <span className="text-[10px] font-semibold text-cyan-700" title={`${r.sessionsCount} work sessions recorded today (lunch/breaks excluded)`}>
                                 ({r.sessionsCount} shifts)
@@ -534,10 +529,10 @@ export default function DailyRegisterView({
                           </span>
                         ) : r.lunchOut && !r.lunchIn ? (
                           <span
-                            className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-800 border border-rose-200 whitespace-nowrap"
-                            title={`Went for lunch at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} and did not return`}
+                            className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 border border-rose-200 whitespace-nowrap"
+                            title={`Left for lunch at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} and did not return`}
                           >
-                            🚫 Left at Lunch ({new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })})
+                            Left at {new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}
                           </span>
                         ) : (
                           <span className="text-slate-400">—</span>

@@ -210,7 +210,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
         if (dayWorkedMinutes >= 475) {
           status = 'COMPLETED';
           completedCount++;
-        } else if (dayWorkedMinutes >= 240) {
+        } else if (dayWorkedMinutes >= 235) {
           status = 'HALF_DAY';
           halfDayCount++;
         } else {
@@ -437,7 +437,7 @@ export async function getMonthlyAttendanceSummary(user, query = {}) {
         } else if (isOpen || dayMinutes >= 475) {
           days[dayStr] = 'P'; // Full day (>= 7 hrs 55 mins or auto-cut)
           presentDays += 1;
-        } else if (dayMinutes >= 240) {
+        } else if (dayMinutes >= 235) {
           days[dayStr] = 'HD'; // Half day (>= 4 hrs & < 7 hrs 55 mins)
           presentDays += 0.5;
           absentDays += 0.5;

@@ -44,7 +44,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
           if (s) {
             if (s.status === 'ABSENT') {
               map[w._id] = 'A';
-            } else if (s.status === 'DUTY_COMPLETED' && s.workedMinutes >= 240 && s.workedMinutes < 475) {
+            } else if (s.status === 'DUTY_COMPLETED' && s.workedMinutes >= 235 && s.workedMinutes < 475) {
               map[w._id] = 'HD';
             } else {
               map[w._id] = 'P';

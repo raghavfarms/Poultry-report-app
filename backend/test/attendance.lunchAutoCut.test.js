@@ -16,11 +16,11 @@ test('auto-cut calculations for workers who left at lunch without returning', ()
 
   // Classification verification according to attendance business rules:
   // >= 475 mins: COMPLETED (Full day, 1.0)
-  // >= 240 mins and < 475 mins: HALF_DAY (0.5)
-  // < 240 mins: ABSENT (0.0)
+  // >= 235 mins and < 475 mins: HALF_DAY (0.5)
+  // < 235 mins: ABSENT (0.0)
   const classifyAttendance = (mins) => {
     if (mins >= 475) return 'COMPLETED';
-    if (mins >= 240) return 'HALF_DAY';
+    if (mins >= 235) return 'HALF_DAY';
     return 'ABSENT';
   };
 
@@ -37,7 +37,7 @@ test('auto-cut for early departure at lunch (< 4 hours) awards ABSENT', () => {
 
   const classifyAttendance = (mins) => {
     if (mins >= 475) return 'COMPLETED';
-    if (mins >= 240) return 'HALF_DAY';
+    if (mins >= 235) return 'HALF_DAY';
     return 'ABSENT';
   };
 
