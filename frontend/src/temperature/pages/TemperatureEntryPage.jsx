@@ -388,40 +388,7 @@ export default function TemperatureEntryPage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
 
-    // Instant physical pre-check: verify presence of indicator liquid in central viewing column
-    try {
-      const imgData = ctx.getImageData(0, 0, width, height);
-      const px = imgData.data;
-      let liquidPixels = 0;
-      const minX = Math.floor(width * 0.25);
-      const maxX = Math.floor(width * 0.75);
-
-      for (let y = 0; y < height; y += 4) {
-        for (let x = minX; x < maxX; x += 4) {
-          const idx = (y * width + x) * 4;
-          const r = px[idx];
-          const g = px[idx + 1];
-          const b = px[idx + 2];
-
-          // Red spirit dominance
-          const isRed = r > 115 && r > g * 1.35 && r > b * 1.35;
-          // Blue spirit dominance
-          const isBlue = b > 115 && b > r * 1.35 && b > g * 1.15;
-          if (isRed || isBlue) liquidPixels++;
-        }
-      }
-
-      // If zero or almost zero colored liquid pixels are found in the frame
-      if (liquidPixels < 6) {
-        setCameraModalError('No thermometer liquid column detected in view. Please point camera directly at the thermometer where the liquid line is visible.');
-        return;
-      }
-    } catch (checkErr) {
-      console.warn('Pre-check skipped:', checkErr);
-    }
-
-    // Optimized 0.82 quality produces ~80KB payload for sub-second upload over mobile 4G
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
     processThermometerImageWithAi(dataUrl);
   };
 
@@ -752,8 +719,8 @@ export default function TemperatureEntryPage() {
                 </div>
               </div>
 
-              {/* Video Viewfinder - 3:4 portrait view so full thermometer fits without cutting off */}
-              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center w-full aspect-[3/4] max-h-[410px] mx-auto">
+              {/* Video Viewfinder with Clean Border */}
+              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center w-full aspect-square mx-auto">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -763,37 +730,16 @@ export default function TemperatureEntryPage() {
                 />
                 <canvas ref={canvasRef} className="hidden" />
 
-                {/* Professional Thermometer Stencil Guide Overlay */}
-                <div className="absolute inset-3 pointer-events-none flex flex-col items-center justify-between border-2 border-dashed border-emerald-400/60 rounded-2xl p-2 bg-emerald-500/[0.02]">
-                  {/* Top scale guide */}
-                  <div className="w-full flex justify-between items-center px-1 text-[9px] font-bold text-emerald-300/80 uppercase">
-                    <span>50°C</span>
-                    <span className="text-[10px] bg-slate-900/70 px-1.5 py-0.2 rounded">▲ TOP</span>
-                    <span>120°F</span>
-                  </div>
-
-                  {/* Center capillary hairline + Meniscus target box */}
-                  <div className="relative flex-1 w-full flex items-center justify-center my-1">
-                    <div className="w-0.5 h-full bg-gradient-to-b from-transparent via-emerald-400/50 to-transparent" />
-                    <div className="absolute w-28 h-20 border border-emerald-400/80 rounded-xl bg-emerald-400/10 flex items-center justify-center shadow-xs">
-                      <span className="text-[9px] font-bold text-emerald-200 tracking-wider uppercase bg-slate-900/90 px-2 py-0.5 rounded shadow">
-                        Liquid Tip Here
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Bottom scale guide */}
-                  <div className="w-full flex justify-between items-center px-1 text-[9px] font-bold text-emerald-300/80 uppercase">
-                    <span>0°C</span>
-                    <span className="text-[10px] bg-slate-900/70 px-1.5 py-0.2 rounded">▼ BULB</span>
-                    <span>32°F</span>
-                  </div>
+                {/* Visual Focus Frame with Center Line */}
+                <div className="absolute inset-3 border-2 border-emerald-400/80 rounded-2xl pointer-events-none flex items-center justify-center">
+                  {/* Subtle vertical center guide line for thermometer tube */}
+                  <div className="w-px h-3/4 border-l border-dashed border-emerald-400/40" />
                 </div>
 
                 {/* Top Badge: Alignment guidance */}
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs border border-white/10 px-2.5 py-0.5 rounded-full text-[10px] text-emerald-300 font-semibold pointer-events-none select-none tracking-wide shadow-sm flex items-center gap-1 whitespace-nowrap">
+                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs border border-white/10 px-2.5 py-0.5 rounded-full text-[10px] text-emerald-300 font-semibold pointer-events-none select-none tracking-wide shadow-sm flex items-center gap-1 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Align liquid tip inside target box</span>
+                  <span>Align red tube in center</span>
                 </div>
 
                 {/* Analyzing Spinner during processing */}
