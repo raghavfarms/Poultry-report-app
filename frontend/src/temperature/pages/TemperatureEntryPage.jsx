@@ -736,23 +736,30 @@ export default function TemperatureEntryPage() {
                   <div className="flex items-center gap-2 pt-1 border-t border-rose-800/50">
                     <button
                       type="button"
-                      onClick={() => {
-                        setBaseTemperature(26);
-                        setTemperature('26');
-                        setAiVerified(true);
-                        setCameraModalError('');
-                        stopThermometerCamera();
-                      }}
-                      className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-xl transition cursor-pointer text-center shadow-sm"
+                      onClick={() => setCameraModalError('')}
+                      className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-xl transition cursor-pointer text-center shadow-sm"
                     >
-                      Use 26°C →
+                      Retry Photo 📸
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCameraModalError('')}
+                      onClick={() => {
+                        stopThermometerCamera();
+                        const manualVal = window.prompt('Enter observed thermometer reading in °C:');
+                        if (manualVal !== null && manualVal.trim() !== '') {
+                          const parsed = Math.round(parseFloat(manualVal.trim()));
+                          if (!isNaN(parsed) && parsed >= -20 && parsed <= 60) {
+                            setBaseTemperature(parsed);
+                            setTemperature(parsed.toString());
+                            setAiVerified(false);
+                            setAiDetails({ manualOverride: true, temperature: parsed });
+                            setCameraModalError('');
+                          }
+                        }
+                      }}
                       className="py-1.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium rounded-xl transition cursor-pointer"
                     >
-                      Retry 📸
+                      Enter Manually ✍️
                     </button>
                   </div>
                 </div>

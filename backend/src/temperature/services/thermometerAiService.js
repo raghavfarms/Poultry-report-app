@@ -18,7 +18,7 @@ function getAiClient() {
 
 /**
  * Precision Thermometer Reading Vision Service.
- * Powered by Google Gemini Vision for sub-second, ultra-fast reading.
+ * Powered by Google Gemini Vision with strict meniscus detection and universal scale support.
  */
 export async function extractTemperatureFromImage(base64Image, mimeType = 'image/jpeg') {
   if (!base64Image || typeof base64Image !== 'string') {
@@ -46,27 +46,54 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Precision dual-scale poultry farm spirit thermometer reading prompt
-  const prompt = `You are a precision poultry instrumentation optical reader.
-Read the exact temperature in Celsius (°C) from this poultry shed spirit thermometer image.
+  // Universal dual-scale spirit & mercury thermometer reading prompt
+  const prompt = `You are a precision industrial optical instrument reader for liquid-in-glass thermometers (spirit, alcohol, mercury, or galinstan).
+Read the exact temperature in Celsius (°C) from this thermometer photograph.
 
 THERMOMETER CHARACTERISTICS:
-1. Two vertical printed scales on a white plastic plate with a central glass capillary tube.
-2. LEFT SCALE is Celsius (°C): numbers 50, 40, 30, 20, 10, 0, -10, -20.
-   - Long lines every 10°C (with numerals at 10, 20, 30, 40, 50).
-   - Medium line at 5°C marks (e.g. 25°C, 35°C).
-   - Individual tick marks are 1°C each.
-3. RIGHT SCALE is Fahrenheit (°F): numbers 120, 100, 80, 60, 40, 20, 0.
-4. The capillary tube has RED LIQUID (spirit).
-5. READING METHOD:
-   - Identify the top of the RED liquid column (meniscus).
-   - Read the line level on the LEFT (Celsius) scale.
-   - Cross-check with Fahrenheit on the right: Celsius ≈ (Fahrenheit - 32) * 5/9.
-   - In poultry sheds, temperature is typically between 18°C and 38°C.
-   - Never confuse the right-side Fahrenheit number (e.g. 78-80) with Celsius.
+1. Two vertical printed scales flanking a central capillary tube.
+2. LEFT SCALE is Celsius (°C): numbers such as 50, 40, 30, 20, 10, 0, -10, -20, -30.
+   - Long lines every 10°C (with numerals).
+   - Medium line every 5°C.
+   - Small tick marks every 1°C.
+3. RIGHT SCALE is Fahrenheit (°F): numbers such as 120, 100, 80, 60, 40, 20, 0, -20.
+4. INDICATOR LIQUID: The capillary tube contains an indicator liquid column of ANY color:
+   - Red spirit / alcohol
+   - Blue spirit / alcohol
+   - Silver / metallic grey mercury or galinstan
+   - Green spirit / alcohol, or dark liquid.
 
-Return ONLY this JSON:
-{"temperature": <number in Celsius rounded to 0.5 or 1 degree>, "fahrenheit": <number>, "reasoning": "<short description of meniscus level>"}`;
+CRITICAL READING & VERIFICATION RULES:
+1. MENISCUS DETECTION (STRICT):
+   - You MUST locate the exact top boundary (meniscus) where the filled liquid column ends against the empty capillary tube above it.
+   - If the liquid column meniscus is NOT visible inside this photo (e.g. the photo only captures a cropped top section like 30°C–50°C where the liquid has not reached, or the tube is empty, or the photo only shows numbers without the liquid tip):
+     YOU MUST RETURN "detected": false and "error": "MENISCUS_NOT_VISIBLE". DO NOT GUESS OR ESTIMATE.
+2. OUT OF FOCUS / UNCLEAR:
+   - If the image is blurry, glaring, or does not clearly show the scale tick marks and meniscus:
+     RETURN "detected": false and "error": "UNCLEAR_IMAGE".
+3. READING THE TEMPERATURE:
+   - When the meniscus IS clearly visible: read the exact Celsius degree level on the LEFT scale aligned with the top of the liquid.
+   - Support ANY physical temperature on the scale (from -30°C to +60°C, e.g. 10°C, 16°C, 24°C, 35°C, 42°C). Do NOT assume or bias towards any specific range.
+   - Cross-check with Fahrenheit on the right: Celsius ≈ (Fahrenheit - 32) * 5/9.
+   - Never report Fahrenheit as Celsius (e.g. 78°F is ~25.5°C, NOT 78°C).
+
+OUTPUT FORMAT:
+Return strictly a valid JSON object:
+If meniscus is clearly visible:
+{
+  "detected": true,
+  "temperature": <exact integer or rounded number in Celsius, e.g. 16, 26, 32>,
+  "fahrenheit": <number>,
+  "liquidColor": "<red|blue|silver|green|other>",
+  "reasoning": "<short description of meniscus level relative to scale marks>"
+}
+
+If meniscus is NOT visible or image is unclear:
+{
+  "detected": false,
+  "error": "MENISCUS_NOT_VISIBLE" | "UNCLEAR_IMAGE",
+  "message": "<clear explanation to worker on how to frame the camera properly>"
+}`;
 
   // Prioritize active models with available quota and lowest latency
   const candidateGeminiModels = [
@@ -116,14 +143,30 @@ Return ONLY this JSON:
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
+
+          // Handle explicit rejection when liquid/meniscus is not in frame
+          if (parsed.detected === false) {
+            return {
+              success: false,
+              error: parsed.message || (parsed.error === 'MENISCUS_NOT_VISIBLE'
+                ? 'Liquid level (meniscus) not visible in photo. Please frame the thermometer lower so where the liquid column ends is clearly visible.'
+                : 'Could not clearly read thermometer. Please take a closer photo with good lighting.'),
+              errorCode: parsed.error || 'DETECTION_FAILED',
+              modelUsed: `Gemini (${model})`,
+            };
+          }
+
           const rawVal = parsed.temperature ?? parsed.temp ?? parsed.celsius ?? parsed.reading;
           if (rawVal !== undefined && rawVal !== null) {
             const numVal = parseFloat(rawVal);
-            if (!isNaN(numVal) && numVal >= 10 && numVal <= 50) {
+            // Universal range: support full physical thermometer scale (-30°C to +60°C)
+            if (!isNaN(numVal) && numVal >= -30 && numVal <= 60) {
               return {
                 success: true,
                 temperature: Math.round(numVal),
                 confidence: 0.98,
+                liquidColor: parsed.liquidColor || 'detected',
+                reasoning: parsed.reasoning || '',
                 modelUsed: `Gemini (${model})`,
               };
             }
@@ -131,15 +174,16 @@ Return ONLY this JSON:
         } catch (_) {}
       }
 
-      // Regex fallback if JSON was not cleanly formatted
-      const regexMatch = responseText.match(/(-?\d+(?:\.\d+)?)\s*°?C?/);
+      // Regex fallback ONLY if JSON was not cleanly formatted but contained valid temperature
+      const regexMatch = responseText.match(/"temperature":\s*(-?\d+(?:\.\d+)?)/i) ||
+                         responseText.match(/(-?\d+(?:\.\d+)?)\s*°?C/);
       if (regexMatch) {
         const numVal = parseFloat(regexMatch[1]);
-        if (!isNaN(numVal) && numVal >= 10 && numVal <= 50) {
+        if (!isNaN(numVal) && numVal >= -30 && numVal <= 60) {
           return {
             success: true,
             temperature: Math.round(numVal),
-            confidence: 0.95,
+            confidence: 0.92,
             modelUsed: `Gemini (${model})`,
           };
         }
@@ -149,13 +193,10 @@ Return ONLY this JSON:
     }
   }
 
-  // Graceful fallback to default shed temperature (26°C) so worker is never trapped
+  // Honest failure - never return a hardcoded/hallucinated number like 26°C
   return {
-    success: true,
-    temperature: 26,
-    confidence: 0.85,
-    modelUsed: 'Gemini Auto-Detect',
+    success: false,
+    error: 'Could not detect thermometer liquid level. Please ensure the top of the liquid column is inside the camera frame.',
+    errorCode: 'NO_READING_DETECTED',
   };
 }
-  
-//    
