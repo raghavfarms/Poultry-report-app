@@ -917,27 +917,67 @@ export default function TemperatureEntryPage() {
                   <span>{aiScanning ? 'Scanning...' : 'Scan'}</span>
                 </button>
               ) : (
-                /* Strictly scanned temperature from camera - no manual editing or stepper */
-                <div className="flex items-center gap-2">
+                /* Scanned temperature with ±3°C fine-tuning stepper */
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={startThermometerCamera}
                     disabled={aiScanning}
-                    className="bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 font-semibold text-xs py-1.5 px-2 rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                    className="bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-600 font-semibold text-[10px] py-1 px-1.5 rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
                     title="Rescan"
                   >
                     <span>🔄</span>
-                    <span className="text-[10px]">Rescan</span>
                   </button>
 
-                  <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-1">
-                    <span className="text-sm font-black text-emerald-950">
-                      {temperature}°C
-                    </span>
-                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
-                      ✓ Scanned
-                    </span>
+                  <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-300 rounded-xl p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const minAllowed = baseTemperature - 3;
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        if (cur > minAllowed) {
+                          setTemperature(String(cur - 1));
+                        }
+                      }}
+                      disabled={(() => {
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        return cur <= baseTemperature - 3;
+                      })()}
+                      className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
+                    >
+                      −
+                    </button>
+
+                    <input
+                      type="text"
+                      readOnly
+                      required
+                      value={temperature}
+                      className="w-8 bg-transparent text-center text-sm font-black text-slate-900 select-none cursor-default focus:outline-none"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const maxAllowed = baseTemperature + 3;
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        if (cur < maxAllowed) {
+                          setTemperature(String(cur + 1));
+                        }
+                      }}
+                      disabled={(() => {
+                        const cur = parseInt(temperature, 10) || baseTemperature;
+                        return cur >= baseTemperature + 3;
+                      })()}
+                      className="w-6 h-7 flex items-center justify-center rounded-lg bg-white hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 font-bold text-sm shadow-2xs active:scale-90 transition cursor-pointer select-none"
+                    >
+                      +
+                    </button>
                   </div>
+                  <span className="text-xs font-bold text-slate-700">°C</span>
+                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                    Scanned
+                  </span>
                 </div>
               )}
             </div>
