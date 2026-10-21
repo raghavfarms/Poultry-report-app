@@ -45,6 +45,8 @@ export default function TemperatureEntryPage() {
   const [capturedImage, setCapturedImage] = useState(null);
   const [cameraFacing, setCameraFacing] = useState('environment'); // 'environment' | 'user'
   const [cameraModalError, setCameraModalError] = useState('');
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -282,6 +284,11 @@ export default function TemperatureEntryPage() {
       }
 
       mediaStreamRef.current = stream;
+      const track = stream.getVideoTracks()[0];
+      if (track && typeof track.getCapabilities === 'function') {
+        const caps = track.getCapabilities();
+        setTorchSupported(Boolean(caps?.torch));
+      }
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
@@ -317,12 +324,29 @@ export default function TemperatureEntryPage() {
     }
   };
 
+  // Toggle Flashlight / Torch for dim shed lighting
+  const toggleTorch = async () => {
+    try {
+      if (!mediaStreamRef.current) return;
+      const track = mediaStreamRef.current.getVideoTracks()[0];
+      if (track) {
+        const next = !torchOn;
+        await track.applyConstraints({ advanced: [{ torch: next }] });
+        setTorchOn(next);
+      }
+    } catch (e) {
+      console.warn('Torch toggle error:', e);
+    }
+  };
+
   // Stop AI Thermometer Camera
   const stopThermometerCamera = () => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
     }
+    setTorchOn(false);
+    setTorchSupported(false);
     setThermometerCameraOpen(false);
     setCameraModalError('');
   };
@@ -344,7 +368,7 @@ export default function TemperatureEntryPage() {
 
     const vWidth = video.videoWidth || 1280;
     const vHeight = video.videoHeight || 720;
-    const maxDim = 1280;
+    const maxDim = 1000;
     let width = vWidth;
     let height = vHeight;
 
@@ -364,7 +388,8 @@ export default function TemperatureEntryPage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    // Optimized 0.82 quality produces ~80KB payload for sub-second upload over mobile 4G
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
     processThermometerImageWithAi(dataUrl);
   };
 
@@ -667,6 +692,16 @@ export default function TemperatureEntryPage() {
                   <span>Scan Thermometer</span>
                 </h3>
                 <div className="flex items-center gap-2">
+                  {torchSupported && (
+                    <button
+                      type="button"
+                      onClick={toggleTorch}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition cursor-pointer ${torchOn ? 'bg-amber-400 text-slate-950 font-bold shadow-xs' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
+                      title="Toggle Flashlight / Torch"
+                    >
+                      🔦
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={toggleCameraFacing}
@@ -685,8 +720,8 @@ export default function TemperatureEntryPage() {
                 </div>
               </div>
 
-              {/* Video Viewfinder with Clean Border - Reduced height by 20% (aspect-square) */}
-              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center w-full aspect-square mx-auto">
+              {/* Video Viewfinder - 3:4 portrait view so full thermometer fits without cutting off */}
+              <div className="relative overflow-hidden rounded-2xl bg-black border border-slate-800 flex items-center justify-center w-full aspect-[3/4] max-h-[410px] mx-auto">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -696,16 +731,37 @@ export default function TemperatureEntryPage() {
                 />
                 <canvas ref={canvasRef} className="hidden" />
 
-                {/* Visual Focus Frame with Center Line */}
-                <div className="absolute inset-3 border-2 border-emerald-400/80 rounded-2xl pointer-events-none flex items-center justify-center">
-                  {/* Subtle vertical center guide line for thermometer tube */}
-                  <div className="w-px h-3/4 border-l border-dashed border-emerald-400/40" />
+                {/* Professional Thermometer Stencil Guide Overlay */}
+                <div className="absolute inset-3 pointer-events-none flex flex-col items-center justify-between border-2 border-dashed border-emerald-400/60 rounded-2xl p-2 bg-emerald-500/[0.02]">
+                  {/* Top scale guide */}
+                  <div className="w-full flex justify-between items-center px-1 text-[9px] font-bold text-emerald-300/80 uppercase">
+                    <span>50°C</span>
+                    <span className="text-[10px] bg-slate-900/70 px-1.5 py-0.2 rounded">▲ TOP</span>
+                    <span>120°F</span>
+                  </div>
+
+                  {/* Center capillary hairline + Meniscus target box */}
+                  <div className="relative flex-1 w-full flex items-center justify-center my-1">
+                    <div className="w-0.5 h-full bg-gradient-to-b from-transparent via-emerald-400/50 to-transparent" />
+                    <div className="absolute w-28 h-20 border border-emerald-400/80 rounded-xl bg-emerald-400/10 flex items-center justify-center shadow-xs">
+                      <span className="text-[9px] font-bold text-emerald-200 tracking-wider uppercase bg-slate-900/90 px-2 py-0.5 rounded shadow">
+                        Liquid Tip Here
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bottom scale guide */}
+                  <div className="w-full flex justify-between items-center px-1 text-[9px] font-bold text-emerald-300/80 uppercase">
+                    <span>0°C</span>
+                    <span className="text-[10px] bg-slate-900/70 px-1.5 py-0.2 rounded">▼ BULB</span>
+                    <span>32°F</span>
+                  </div>
                 </div>
 
                 {/* Top Badge: Alignment guidance */}
-                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs border border-white/10 px-2.5 py-0.5 rounded-full text-[10px] text-emerald-300 font-semibold pointer-events-none select-none tracking-wide shadow-sm flex items-center gap-1 whitespace-nowrap">
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xs border border-white/10 px-2.5 py-0.5 rounded-full text-[10px] text-emerald-300 font-semibold pointer-events-none select-none tracking-wide shadow-sm flex items-center gap-1 whitespace-nowrap">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Align red tube in center</span>
+                  <span>Align liquid tip inside target box</span>
                 </div>
 
                 {/* Analyzing Spinner during processing */}
