@@ -388,6 +388,38 @@ export default function TemperatureEntryPage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, width, height);
 
+    // Instant physical pre-check: verify presence of indicator liquid in central viewing column
+    try {
+      const imgData = ctx.getImageData(0, 0, width, height);
+      const px = imgData.data;
+      let liquidPixels = 0;
+      const minX = Math.floor(width * 0.25);
+      const maxX = Math.floor(width * 0.75);
+
+      for (let y = 0; y < height; y += 4) {
+        for (let x = minX; x < maxX; x += 4) {
+          const idx = (y * width + x) * 4;
+          const r = px[idx];
+          const g = px[idx + 1];
+          const b = px[idx + 2];
+
+          // Red spirit dominance
+          const isRed = r > 115 && r > g * 1.35 && r > b * 1.35;
+          // Blue spirit dominance
+          const isBlue = b > 115 && b > r * 1.35 && b > g * 1.15;
+          if (isRed || isBlue) liquidPixels++;
+        }
+      }
+
+      // If zero or almost zero colored liquid pixels are found in the frame
+      if (liquidPixels < 6) {
+        setCameraModalError('No thermometer liquid column detected in view. Please point camera directly at the thermometer where the liquid line is visible.');
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('Pre-check skipped:', checkErr);
+    }
+
     // Optimized 0.82 quality produces ~80KB payload for sub-second upload over mobile 4G
     const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
     processThermometerImageWithAi(dataUrl);

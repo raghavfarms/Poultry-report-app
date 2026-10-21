@@ -17,8 +17,8 @@ function getAiClient() {
 }
 
 /**
- * Precision Thermometer Reading Vision Service.
- * Powered by Google Gemini Vision with strict meniscus presence verification.
+ * High-Precision Thermometer Vision Service.
+ * Powered by Gemini 3.8 / 3.7 Vision with strict physical liquid column verification.
  */
 export async function extractTemperatureFromImage(base64Image, mimeType = 'image/jpeg') {
   if (!base64Image || typeof base64Image !== 'string') {
@@ -46,41 +46,42 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Strict negative-first meniscus verification prompt
-  const prompt = `EXAMINE THIS THERMOMETER IMAGE:
-Is this a photograph of a thermometer?
-Is the indicator liquid (red, blue, green, or silver) actually present and visible in the central capillary tube?
-Where is the meniscus (top boundary of the liquid column)?
+  // Strict physical liquid meniscus verification prompt
+  const prompt = `LOOK CLOSELY AT THIS IMAGE:
+1. Is this a photograph of a physical liquid-in-glass thermometer?
+2. Examine the central vertical glass capillary tube between the scales:
+   - Does it contain a colored indicator liquid column (e.g. bright red or blue spirit, or silver mercury)?
+   - Where does the liquid column end (the top meniscus)?
 
-CRITICAL NEGATIVE CHECK:
-- If this is NOT a thermometer: return detected = false.
-- If the capillary tube is EMPTY or clear: return detected = false.
-- If the meniscus / top level of the liquid is NOT inside this photo (e.g. photo was taken only of 30°C-50°C and the liquid has not reached this section, or the liquid is cut off): return detected = false.
-- DO NOT GUESS OR ESTIMATE. Only return detected = true if the meniscus is clearly visible against the scale marks.
+CRITICAL REJECTION RULES (NO GUESSING):
+- If this is NOT a thermometer: return detected = false, error = "NOT_A_THERMOMETER".
+- If the capillary tube is EMPTY or clear throughout the visible frame (no liquid column inside this photo): return detected = false, error = "MENISCUS_NOT_VISIBLE".
+- If the meniscus is cut off or not inside this photo (e.g. photo shows only high numbers like 30°C-50°C and the liquid has not reached this section): return detected = false, error = "MENISCUS_NOT_VISIBLE".
+- DO NOT GUESS OR ESTIMATE A READING. Only return detected = true if the colored liquid column AND its top meniscus are clearly visible.
 
 Return strictly JSON:
-If meniscus is clearly visible:
+If colored liquid column and meniscus are clearly visible:
 {
-  "detected": true,
   "hasLiquid": true,
-  "temperature": <integer or half-degree number in Celsius on LEFT scale>,
-  "liquidColor": "<red|blue|silver|green|other>",
-  "reasoning": "<short description of meniscus level relative to scale marks>"
+  "detected": true,
+  "temperature": <exact integer or half-degree in Celsius on the left scale>,
+  "reasoning": "<concise description of liquid color and exact meniscus tick mark level>"
 }
 
-If NOT visible or NOT a thermometer:
+If no liquid is visible or image is unclear:
 {
-  "detected": false,
   "hasLiquid": false,
+  "detected": false,
   "error": "MENISCUS_NOT_VISIBLE" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
-  "reasoning": "<clear explanation why no reading can be taken>"
+  "reasoning": "<clear message explaining why no reading was taken and to rescan>"
 }`;
 
-  // Prioritize active fast vision models
+  // Prioritize frontier vision reasoning models (avoiding flash-lite hallucination)
   const candidateGeminiModels = [
-    'gemini-3.5-flash-lite',
-    'gemini-3.1-flash-lite-preview',
     'gemini-3.8-flash',
+    'gemini-3.7-flash',
+    'gemini-3.5-flash',
+    'gemini-2.5-pro',
   ];
 
   for (const model of candidateGeminiModels) {
@@ -89,7 +90,7 @@ If NOT visible or NOT a thermometer:
         responseMimeType: 'application/json',
       };
 
-      // 9-second timeout to handle mobile image upload + inference without false failure
+      // 12-second timeout for thorough reasoning and accurate verification
       const generatePromise = ai.models.generateContent({
         model,
         contents: [
@@ -105,7 +106,7 @@ If NOT visible or NOT a thermometer:
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after 9000ms on ${model}`)), 9000)
+        setTimeout(() => reject(new Error(`Timeout after 12000ms on ${model}`)), 12000)
       );
 
       const response = await Promise.race([generatePromise, timeoutPromise]);
@@ -117,7 +118,7 @@ If NOT visible or NOT a thermometer:
         try {
           const parsed = JSON.parse(jsonMatch[0]);
 
-          // Handle rejection when meniscus is not in frame or not a thermometer
+          // Strictly reject when meniscus is not in frame, no liquid, or not a thermometer
           if (parsed.detected === false || parsed.hasLiquid === false) {
             return {
               success: false,
@@ -134,8 +135,7 @@ If NOT visible or NOT a thermometer:
               return {
                 success: true,
                 temperature: Math.round(numVal),
-                confidence: 0.98,
-                liquidColor: parsed.liquidColor || 'detected',
+                confidence: 0.99,
                 reasoning: parsed.reasoning || '',
                 modelUsed: `Gemini (${model})`,
               };
@@ -148,11 +148,10 @@ If NOT visible or NOT a thermometer:
     }
   }
 
-  // Never return a hardcoded or random number
+  // Never return any fake or random number
   return {
     success: false,
-    error: 'Could not detect thermometer liquid level. Please ensure the top of the liquid column is inside the camera frame.',
+    error: 'Could not detect thermometer liquid level. Please ensure the top of the liquid column is inside the camera frame and rescan.',
     errorCode: 'NO_READING_DETECTED',
   };
 }
-
