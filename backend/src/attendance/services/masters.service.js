@@ -499,3 +499,4 @@ export async function deleteWorker(user, id) {
   return { message: `Worker ${worker.fullName} (${worker.workerCode}) deleted successfully.` };
 }
 
+  
