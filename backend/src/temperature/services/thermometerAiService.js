@@ -155,3 +155,4 @@ If NOT visible or NOT a thermometer:
     errorCode: 'NO_READING_DETECTED',
   };
 }
+
