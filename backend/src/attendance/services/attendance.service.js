@@ -217,11 +217,20 @@ export async function recordAttendance(user, payload = {}, options = {}) {
         } else if (elapsedHours >= 15) {
           anyOpenSession.status = 'DUTY_COMPLETED';
           if (!anyOpenSession.dutyOut) {
-            const { shiftMinutes } = getAutoCutShiftDetails(anyOpenSession.dutyIn);
-            anyOpenSession.dutyOut = new Date(anyOpenSession.dutyIn.getTime() + shiftMinutes * 60 * 1000);
-            anyOpenSession.workedMinutes = Math.max(0, shiftMinutes - (anyOpenSession.lunchMinutes || 0));
-            anyOpenSession.remarks = anyOpenSession.remarks ? `${anyOpenSession.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]';
+            if ((anyOpenSession.onLunch || !anyOpenSession.lunchIn) && anyOpenSession.lunchOut) {
+              anyOpenSession.dutyOut = anyOpenSession.lunchOut;
+              anyOpenSession.workedMinutes = Math.max(0, Math.round((anyOpenSession.lunchOut.getTime() - anyOpenSession.dutyIn.getTime()) / (60 * 1000)));
+              anyOpenSession.remarks = anyOpenSession.remarks
+                ? `${anyOpenSession.remarks}; [Auto-Cut: Left at lunch - Did not return]`
+                : '[Auto-Cut: Left at lunch - Did not return]';
+            } else {
+              const { shiftMinutes } = getAutoCutShiftDetails(anyOpenSession.dutyIn);
+              anyOpenSession.dutyOut = new Date(anyOpenSession.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+              anyOpenSession.workedMinutes = Math.max(0, shiftMinutes - (anyOpenSession.lunchMinutes || 0));
+              anyOpenSession.remarks = anyOpenSession.remarks ? `${anyOpenSession.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]';
+            }
           }
+          anyOpenSession.onLunch = false;
           await anyOpenSession.save({ session: dbSession });
         }
       }
@@ -849,17 +858,32 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
       const shouldAutoCut = elapsedHours >= 15;
 
       if (shouldAutoCut) {
-        const netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
+        let dutyOutTime;
+        let netMinutes;
+        let cutRemark;
+
+        if ((session.onLunch || !session.lunchIn) && session.lunchOut) {
+          // Worker left at lunch and never returned (no lunchIn, no dutyOut)
+          // Duty physically ended when they walked out for lunch!
+          dutyOutTime = session.lunchOut;
+          netMinutes = Math.max(0, Math.round((session.lunchOut.getTime() - session.dutyIn.getTime()) / (60 * 1000)));
+          cutRemark = '[Auto-Cut: Left at lunch - Did not return]';
+        } else {
+          dutyOutTime = new Date(session.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+          netMinutes = Math.max(0, shiftMinutes - (session.lunchMinutes || 0));
+          cutRemark = '[Auto-Cut: 15hr threshold]';
+        }
+
         try {
           await AttendanceSession.updateOne(
             { _id: session._id },
             {
               $set: {
-                dutyOut: new Date(session.dutyIn.getTime() + shiftMinutes * 60 * 1000),
+                dutyOut: dutyOutTime,
                 workedMinutes: netMinutes,
                 status: 'DUTY_COMPLETED',
                 onLunch: false,
-                remarks: session.remarks ? `${session.remarks}; [Auto-Cut: 15hr threshold]` : '[Auto-Cut: 15hr threshold]',
+                remarks: session.remarks ? `${session.remarks}; ${cutRemark}` : cutRemark,
               },
             }
           );
@@ -869,6 +893,48 @@ export async function autoCutExpiredSessions(firmId = null, now = new Date()) {
         }
       }
     }
+
+    // RETROACTIVE AUTO-CORRECTION:
+    // Automatically find past completed sessions where the worker left at lunch (lunchOut != null, lunchIn == null)
+    // and was incorrectly auto-cut to full shift hours. Correct them to lunchOut time and true worked minutes!
+    const pastIncorrectSessions = await AttendanceSession.find({
+      ...(firmId ? { firm: firmId } : {}),
+      status: 'DUTY_COMPLETED',
+      lunchOut: { $ne: null },
+      lunchIn: null,
+      remarks: { $regex: /Auto-Cut/i },
+    });
+
+    for (const pastSess of pastIncorrectSessions) {
+      if (!pastSess.dutyIn || !pastSess.lunchOut) continue;
+      const trueWorkedMinutes = Math.max(0, Math.round((pastSess.lunchOut.getTime() - pastSess.dutyIn.getTime()) / (60 * 1000)));
+      const timeDifference = pastSess.dutyOut ? Math.abs(pastSess.dutyOut.getTime() - pastSess.lunchOut.getTime()) : Infinity;
+
+      // If dutyOut differs from lunchOut by > 1 min or workedMinutes > trueWorkedMinutes + 15
+      if (timeDifference > 60 * 1000 || (pastSess.workedMinutes || 0) > trueWorkedMinutes + 15) {
+        try {
+          const updatedRemarks = pastSess.remarks && pastSess.remarks.includes('[Auto-Corrected: Left at lunch - Did not return]')
+            ? pastSess.remarks
+            : (pastSess.remarks ? `${pastSess.remarks}; [Auto-Corrected: Left at lunch - Did not return]` : '[Auto-Corrected: Left at lunch - Did not return]');
+
+          await AttendanceSession.updateOne(
+            { _id: pastSess._id },
+            {
+              $set: {
+                dutyOut: pastSess.lunchOut,
+                workedMinutes: trueWorkedMinutes,
+                onLunch: false,
+                remarks: updatedRemarks,
+              },
+            }
+          );
+          updatedCount++;
+        } catch (retroErr) {
+          console.error('autoCutExpiredSessions retroactive correction error for session:', pastSess._id, retroErr.message);
+        }
+      }
+    }
+
     return updatedCount;
   } catch (err) {
     console.error('autoCutExpiredSessions failed gracefully:', err.message);
@@ -911,20 +977,24 @@ export async function manualAutoCutSession(user, payload = {}) {
   const elapsedMs = Math.max(0, now.getTime() - sessionDoc.dutyIn.getTime());
   const grossMinutes = Math.max(0, Math.round(elapsedMs / (60 * 1000)));
   const effectiveGrossMinutes = Math.min(grossMinutes, shiftMinutes);
-  const netWorkedMinutes = Math.max(0, effectiveGrossMinutes - (sessionDoc.lunchMinutes || 0));
 
-  const outTime = grossMinutes <= shiftMinutes ? now : new Date(sessionDoc.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+  let outTime;
+  let netWorkedMinutes;
+  let cutReason = '';
 
-  // If worker was on lunch, end lunch
-  if (sessionDoc.onLunch && sessionDoc.lunchOut) {
-    const lunchElapsedMs = now.getTime() - sessionDoc.lunchOut.getTime();
-    sessionDoc.lunchMinutes = Math.max(0, Math.round(lunchElapsedMs / (60 * 1000)));
-    sessionDoc.lunchIn = now;
+  if ((sessionDoc.onLunch || !sessionDoc.lunchIn) && sessionDoc.lunchOut) {
+    // Worker stepped out for lunch and never returned
+    outTime = sessionDoc.lunchOut;
+    netWorkedMinutes = Math.max(0, Math.round((sessionDoc.lunchOut.getTime() - sessionDoc.dutyIn.getTime()) / (60 * 1000)));
     sessionDoc.onLunch = false;
+    cutReason = 'Left at lunch - Did not return';
+  } else {
+    outTime = grossMinutes <= shiftMinutes ? now : new Date(sessionDoc.dutyIn.getTime() + shiftMinutes * 60 * 1000);
+    netWorkedMinutes = Math.max(0, effectiveGrossMinutes - (sessionDoc.lunchMinutes || 0));
   }
 
   const actorName = user.fullName || user.username || user.role || 'Supervisor';
-  const cutRemark = remarks.trim() || `Auto-Cut by ${actorName}`;
+  const cutRemark = remarks.trim() || (cutReason ? `Auto-Cut by ${actorName}: ${cutReason}` : `Auto-Cut by ${actorName}`);
 
   // Record an immutable event
   const [event] = await AttendanceEvent.create([{

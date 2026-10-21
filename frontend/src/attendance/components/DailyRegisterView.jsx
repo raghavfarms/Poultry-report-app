@@ -503,6 +503,11 @@ export default function DailyRegisterView({
                                 🍱 {r.lunchMinutes}m lunch
                               </span>
                             )}
+                            {r.lunchOut && !r.lunchIn && (
+                              <span className="text-[9px] font-semibold text-rose-600 mt-0.5" title="Worker left at lunch and did not return">
+                                🚫 Left at lunch
+                              </span>
+                            )}
                             {r.sessionsCount > 1 && (
                               <span className="text-[10px] font-semibold text-cyan-700" title={`${r.sessionsCount} work sessions recorded today (lunch/breaks excluded)`}>
                                 ({r.sessionsCount} shifts)
@@ -526,6 +531,13 @@ export default function DailyRegisterView({
                             title={r.lunchOut && r.lunchIn ? `${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} – ${new Date(r.lunchIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}` : undefined}
                           >
                             🍱 {formatLunchBreak(r.lunchMinutes)}
+                          </span>
+                        ) : r.lunchOut && !r.lunchIn ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-800 border border-rose-200 whitespace-nowrap"
+                            title={`Went for lunch at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} and did not return`}
+                          >
+                            🚫 Left at Lunch ({new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })})
                           </span>
                         ) : (
                           <span className="text-slate-400">—</span>
