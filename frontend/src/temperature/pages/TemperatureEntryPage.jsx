@@ -920,10 +920,6 @@ export default function TemperatureEntryPage() {
                       +
                     </button>
                   </div>
-                  <span className="text-xs font-bold text-slate-700">°C</span>
-                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                    Scanned
-                  </span>
                 </div>
               )}
             </div>
