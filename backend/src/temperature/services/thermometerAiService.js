@@ -46,32 +46,39 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Dual-scale metrology cross-validation prompt for 100% precision
-  const prompt = `You are a precision metrology and vision inspector for physical liquid-in-glass poultry shed thermometers.
+  // Comprehensive physical metrology validator closing all loopholes (empty tubes, full tubes, low temps)
+  const prompt = `You are a precision physical metrology validator for physical liquid-in-glass poultry shed thermometers.
 
-STEP-BY-STEP RIGOROUS INSPECTION:
-1. PHYSICAL AUTHENTICITY VALIDATION:
-   - Verify this is an authentic physical liquid-in-glass thermometer.
-   - Locate the vertical glass tube with colored indicator liquid (red spirit).
-   - If this is a piece of paper, handwritten number, digital display, screen, wall, or NOT a real liquid-in-glass thermometer: REJECT.
-   - If the capillary tube is empty/clear with NO meniscus inside this photo view: REJECT.
+FULL OPERATING TEMPERATURE RANGE:
+- The thermometer operates across the full range from -10°C to 50°C.
+- In cold sheds or winter conditions, temperatures below 15°C (such as 5°C, 8°C, 10°C, 12°C, 14°C) ARE COMPLETELY VALID.
+- Do NOT assume or bias towards 20°C-30°C. Read the genuine position of the liquid meniscus wherever it rests on the scale.
 
-2. PRECISE MENISCUS PINPOINTING:
-   - Find the exact top meniscus (where the colored liquid column ends and clear glass begins).
-   - Trace horizontally across both scales at this meniscus height.
+MANDATORY PHYSICAL MENISCUS RULES (CLOSING ALL LOOPHOLES):
+1. WHAT IS THE MENISCUS:
+   The meniscus is the visible physical boundary where the colored liquid column (red spirit) ENDS and the clear/empty capillary tube BEGINS.
 
-3. DUAL-SCALE CROSS-VALIDATION:
-   - CELSIUS SCALE (°C):
-     * Identify the nearest numbered label below the meniscus (e.g. 20°C).
-     * Count the 1°C tick marks from that number up to the meniscus.
-     * What is the exact Celsius value?
-   - FAHRENHEIT SCALE (°F):
-     * Check the Fahrenheit scale at the exact same horizontal height.
-     * What is the Fahrenheit value?
-   - Cross-check: Verify F ≈ C * 1.8 + 32. Both scales must be consistent.
+2. LOOPHOLE 1 - TUBE COMPLETELY EMPTY (Meniscus is below frame):
+   If the capillary tube in this photo is clear or empty with NO colored liquid column or no meniscus:
+   DO NOT guess or extract any number from the printed scale!
+   Return detected=false, error="MENISCUS_BELOW_FRAME", reasoning="Capillary tube is empty in this view. Please point camera lower towards the bulb to capture where the red liquid line ends."
+
+3. LOOPHOLE 2 - TUBE COMPLETELY FULL (Meniscus is above frame):
+   If the colored liquid fills the capillary tube from the bottom edge of the photo all the way through to the top edge with NO visible meniscus:
+   DO NOT take the top visible number on the scale as the reading! The true liquid level is higher outside this photo.
+   Return detected=false, error="MENISCUS_ABOVE_FRAME", reasoning="Liquid column fills the entire view past the top edge. Please point camera higher to capture where the red liquid line ends."
+
+4. LOOPHOLE 3 - NOT A REAL THERMOMETER (Paper / Digital Screen / Wall):
+   If this is a piece of paper, printed digits, phone screen, hand, wall, or not an authentic physical liquid-in-glass thermometer:
+   Return detected=false, error="NOT_A_THERMOMETER", reasoning="Please point the camera directly at an authentic physical liquid-in-glass poultry shed thermometer."
+
+5. VALID READING (Meniscus transition is clearly inside the frame):
+   Only when the actual top meniscus (red liquid stops, clear capillary begins) is visibly positioned between printed numbers inside the frame:
+   - Identify the exact Celsius temperature (°C) at the meniscus (can be < 15°C e.g. 10°C, 12°C, or > 20°C e.g. 25°C, 30°C).
+   - Cross-check with the Fahrenheit scale (°F) at the exact same horizontal height: F ≈ C * 1.8 + 32.
 
 Return strictly JSON:
-If meniscus is visible and authentic:
+If valid meniscus transition is visible and authentic:
 {
   "detected": true,
   "hasLiquid": true,
@@ -79,15 +86,15 @@ If meniscus is visible and authentic:
   "celsiusExact": <float or int>,
   "fahrenheitExact": <float or int>,
   "crossValidated": true,
-  "reasoning": "<concise description of meniscus at Celsius tick mark and Fahrenheit equivalent>"
+  "reasoning": "<clear explanation of meniscus level, Celsius tick, and Fahrenheit cross-check>"
 }
 
-If no meniscus, empty tube, paper with numbers, or not a physical thermometer:
+If rejected (empty tube, full tube, fake object, or unclear):
 {
   "detected": false,
   "hasLiquid": false,
-  "error": "MENISCUS_NOT_VISIBLE" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
-  "reasoning": "<clear explanation for rescan>"
+  "error": "MENISCUS_BELOW_FRAME" | "MENISCUS_ABOVE_FRAME" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
+  "reasoning": "<specific instruction telling the user how to move camera>"
 }`;
 
   // Prioritize active quota-available fast vision models first, then frontier fallbacks
