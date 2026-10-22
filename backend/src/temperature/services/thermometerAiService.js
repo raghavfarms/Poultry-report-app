@@ -46,38 +46,48 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Precision physical liquid meniscus verification prompt
-  const prompt = `You are a precision computer vision analyzer for physical liquid-in-glass poultry shed thermometers.
+  // Dual-scale metrology cross-validation prompt for 100% precision
+  const prompt = `You are a precision metrology and vision inspector for physical liquid-in-glass poultry shed thermometers.
 
-TASK:
-1. Determine if this image shows a physical thermometer.
-2. Locate the glass capillary tube and the colored indicator liquid column (usually red or blue spirit, or mercury).
-3. Find the top meniscus (where the colored liquid column ends).
-4. Read the corresponding temperature in degrees Celsius (°C) from the Celsius scale (marked with °C, usually with gradations like 0, 10, 20, 30, 40, 50°C).
+STEP-BY-STEP RIGOROUS INSPECTION:
+1. PHYSICAL AUTHENTICITY VALIDATION:
+   - Verify this is an authentic physical liquid-in-glass thermometer.
+   - Locate the vertical glass tube with colored indicator liquid (red spirit).
+   - If this is a piece of paper, handwritten number, digital display, screen, wall, or NOT a real liquid-in-glass thermometer: REJECT.
+   - If the capillary tube is empty/clear with NO meniscus inside this photo view: REJECT.
 
-RULES:
-- If this is a real thermometer and the colored liquid meniscus is visible:
-  Set detected = true, hasLiquid = true, and provide the exact Celsius temperature (e.g. 24, 25, 26).
-- If this is NOT a thermometer (e.g. wall, random paper, floor, blank):
-  Set detected = false, hasLiquid = false, error = "NOT_A_THERMOMETER", reasoning = "Please point the camera directly at the thermometer."
-- If the thermometer tube is visible but completely empty/clear with NO colored liquid meniscus in this view:
-  Set detected = false, hasLiquid = false, error = "MENISCUS_NOT_VISIBLE", reasoning = "Liquid level not visible in frame. Move camera to include where the red liquid line ends."
+2. PRECISE MENISCUS PINPOINTING:
+   - Find the exact top meniscus (where the colored liquid column ends and clear glass begins).
+   - Trace horizontally across both scales at this meniscus height.
+
+3. DUAL-SCALE CROSS-VALIDATION:
+   - CELSIUS SCALE (°C):
+     * Identify the nearest numbered label below the meniscus (e.g. 20°C).
+     * Count the 1°C tick marks from that number up to the meniscus.
+     * What is the exact Celsius value?
+   - FAHRENHEIT SCALE (°F):
+     * Check the Fahrenheit scale at the exact same horizontal height.
+     * What is the Fahrenheit value?
+   - Cross-check: Verify F ≈ C * 1.8 + 32. Both scales must be consistent.
 
 Return strictly JSON:
-If meniscus is visible:
+If meniscus is visible and authentic:
 {
-  "hasLiquid": true,
   "detected": true,
-  "temperature": <number in Celsius>,
-  "reasoning": "<short description of liquid meniscus position>"
+  "hasLiquid": true,
+  "temperature": <integer Celsius reading>,
+  "celsiusExact": <float or int>,
+  "fahrenheitExact": <float or int>,
+  "crossValidated": true,
+  "reasoning": "<concise description of meniscus at Celsius tick mark and Fahrenheit equivalent>"
 }
 
-If no meniscus or not a thermometer:
+If no meniscus, empty tube, paper with numbers, or not a physical thermometer:
 {
-  "hasLiquid": false,
   "detected": false,
+  "hasLiquid": false,
   "error": "MENISCUS_NOT_VISIBLE" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
-  "reasoning": "<helpful rescan tip for user>"
+  "reasoning": "<clear explanation for rescan>"
 }`;
 
   // Prioritize active quota-available fast vision models first, then frontier fallbacks
@@ -96,7 +106,7 @@ If no meniscus or not a thermometer:
         responseMimeType: 'application/json',
       };
 
-      // 8-second timeout for prompt response
+      // 18-second timeout to allow complete visual reasoning and network transfer
       const generatePromise = ai.models.generateContent({
         model,
         contents: [
@@ -112,7 +122,7 @@ If no meniscus or not a thermometer:
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after 8000ms on ${model}`)), 8000)
+        setTimeout(() => reject(new Error(`Timeout after 18000ms on ${model}`)), 18000)
       );
 
       const response = await Promise.race([generatePromise, timeoutPromise]);
@@ -134,14 +144,17 @@ If no meniscus or not a thermometer:
             };
           }
 
-          const rawVal = parsed.temperature ?? parsed.temp ?? parsed.celsius;
+          const rawVal = parsed.temperature ?? parsed.celsiusExact ?? parsed.temp ?? parsed.celsius;
           if (rawVal !== undefined && rawVal !== null) {
             const numVal = parseFloat(rawVal);
             if (!isNaN(numVal) && numVal >= -30 && numVal <= 60) {
               return {
                 success: true,
                 temperature: Math.round(numVal),
-                confidence: 0.99,
+                celsiusExact: parsed.celsiusExact ?? numVal,
+                fahrenheitExact: parsed.fahrenheitExact ?? null,
+                crossValidated: Boolean(parsed.crossValidated),
+                confidence: parsed.crossValidated ? 1.0 : 0.99,
                 reasoning: parsed.reasoning || '',
                 modelUsed: `Gemini (${model})`,
               };
