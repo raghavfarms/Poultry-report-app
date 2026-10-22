@@ -305,6 +305,12 @@ export default function MedicineReportPage() {
       }
 
       const entry = map.get(key);
+      if (b.packSize && Number(b.packSize) > 0) {
+        entry.packSize = Number(b.packSize);
+      }
+      if (b.packagingType) {
+        entry.packagingType = b.packagingType;
+      }
       entry.totalStock += Number(b.quantityAvailable || 0);
       entry.batches.push(b);
       if (b.farm?.name) {
@@ -776,6 +782,7 @@ export default function MedicineReportPage() {
                       <tr>
                         <th className="py-3 px-4 min-w-[240px]">Medicine Name</th>
                         <th className="py-3 px-4 text-center">Batches</th>
+                        <th className="py-3 px-4 text-center">Packaging (Packs)</th>
                         <th className="py-3 px-4 text-right">Total In Stock</th>
                         <th className="py-3 px-4 text-center">Next Expiry</th>
                         <th className="py-3 px-4 text-center">Shelf Status (FEFO)</th>
@@ -862,7 +869,40 @@ export default function MedicineReportPage() {
                                 </span>
                               </td>
 
-                              {/* Column 3: Total Stock */}
+                              {/* Column 3: Packaging & Physical Packs (Option 1) */}
+                              <td className="py-3.5 px-4 text-center">
+                                {(() => {
+                                  const size = Number(m.packSize) || 1;
+                                  const type = m.packagingType || 'Bottle';
+                                  const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+                                  const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                  const typeLabel = displayCount === 1 ? type : (type.endsWith('s') ? type : `${type}s`);
+
+                                  if (size > 1) {
+                                    return (
+                                      <div className="inline-flex flex-col items-center">
+                                        <span className="font-extrabold text-xs text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap">
+                                          📦 {displayCount} {typeLabel}
+                                        </span>
+                                        <span className="text-[10px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">
+                                          1 {type} = {size} {m.unit}
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="inline-flex flex-col items-center text-slate-600">
+                                      <span className="font-semibold text-xs whitespace-nowrap">
+                                        {displayCount} {typeLabel}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400">1:1 standard</span>
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+
+                              {/* Column 4: Total Stock */}
                               <td className="py-3.5 px-4 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
                                   {m.isLowStock && (
@@ -914,7 +954,7 @@ export default function MedicineReportPage() {
                             {/* Nested Accordion Drawer for Batches */}
                             {isExpanded && (
                               <tr className="bg-slate-50/70 border-y border-blue-200/60">
-                                <td colSpan={6} className="p-3.5 sm:p-4">
+                                <td colSpan={7} className="p-3.5 sm:p-4">
                                   <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-hidden">
                                     <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-4 py-2.5 border-b border-blue-100 flex items-center justify-between">
                                       <div className="flex items-center gap-2">
@@ -928,7 +968,7 @@ export default function MedicineReportPage() {
                                         </span>
                                       </div>
                                       <span className="text-xs text-slate-500 font-semibold">
-                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {m.unit} across{' '}
+                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {m.unit}{Number(m.packSize) > 1 ? ` (${Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} ${m.packagingType || 'Bottle'}${(m.totalStock / m.packSize) !== 1 ? 's' : ''})` : ''} across{' '}
                                         <strong className="text-blue-700">{m.batches.length}</strong> {m.batches.length === 1 ? 'batch' : 'batches'}
                                       </span>
                                     </div>
@@ -1152,6 +1192,11 @@ export default function MedicineReportPage() {
                                 {m.totalStock}
                               </span>{' '}
                               <span className="text-[10px] text-slate-500 font-semibold">{m.unit}</span>
+                              {Number(m.packSize) > 1 && (
+                                <span className="ml-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
+                                  📦 {Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} {m.packagingType || 'Bottle'}{(m.totalStock / m.packSize) !== 1 ? 's' : ''}
+                                </span>
+                              )}
                             </div>
                           </div>
 
