@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatStockDisplay } from '../utils/packagingHelper.js';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi } from '../api/reportApi.js';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -292,6 +293,8 @@ export default function MedicineReportPage() {
           medicineCode: b.medicineCode,
           medicineAlias: b.medicineAlias,
           unit: b.unit,
+          packSize: b.packSize || 1,
+          packagingType: b.packagingType || 'Bottle',
           reorderLevel: b.reorderLevel,
           totalStock: 0,
           batches: [],

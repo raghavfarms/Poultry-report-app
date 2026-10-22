@@ -99,7 +99,7 @@ export async function getDashboardStats(req, res) {
     quantityAvailable: { $gt: 0 },
     status: { $in: ['AVAILABLE', 'EXPIRED'] }
   })
-    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName')
+    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName packagingType packSize')
     .populate('supplier', 'name code')
     .populate('farm', 'name code')
     .sort({ expiryDate: 1 })
@@ -150,6 +150,8 @@ export async function getDashboardStats(req, res) {
       quantityAvailable: b.quantityAvailable,
       reorderLevel: b.medicine?.reorderLevel || 0,
       minimumStock: b.medicine?.minimumStock || 0,
+      packagingType: b.medicine?.packagingType || 'Bottle',
+      packSize: b.medicine?.packSize || 1,
       expiryDate: b.expiryDate,
       daysLeft,
       canIssue: b.status === 'AVAILABLE' && daysLeft >= 0,
@@ -213,6 +215,8 @@ export async function getDashboardStats(req, res) {
         currentStock,
         reorderLevel: med.reorderLevel,
         minimumStock: med.minimumStock,
+        packagingType: med.packagingType || 'Bottle',
+        packSize: med.packSize || 1,
         status: currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
       });
     }

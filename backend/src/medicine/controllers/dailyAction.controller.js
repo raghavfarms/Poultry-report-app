@@ -115,6 +115,8 @@ export async function fastInward(req, res) {
           name: trimmedName,
           category: newMedicineCategory.trim(),
           unit: newMedicineUnit.trim(),
+          packagingType: req.body.newMedicinePackagingType ? req.body.newMedicinePackagingType.trim() : 'Bottle',
+          packSize: (req.body.newMedicinePackSize !== undefined && Number(req.body.newMedicinePackSize) > 0) ? Number(req.body.newMedicinePackSize) : 1,
           createdBy: userId,
         });
       }
@@ -482,7 +484,7 @@ export async function getTodayActivity(req, res) {
       ...farmFilter,
       createdAt: { $gte: todayStart, $lte: todayEnd },
     })
-      .populate('medicine', 'name code unit')
+      .populate('medicine', 'name code unit packagingType packSize')
       .populate('farm', 'name code')
       .populate('receivedBy', 'name')
       .sort({ createdAt: -1 })
@@ -493,7 +495,7 @@ export async function getTodayActivity(req, res) {
       ...farmFilter,
       createdAt: { $gte: todayStart, $lte: todayEnd },
     })
-      .populate('medicine', 'name code unit')
+      .populate('medicine', 'name code unit packagingType packSize')
       .populate('farm', 'name code')
       .populate('issuedBy', 'name')
       .sort({ createdAt: -1 })
@@ -513,6 +515,8 @@ export async function getTodayActivity(req, res) {
         expiryDate: r.expiryDate,
         quantity: r.receivedQuantity,
         unit: r.unit,
+        packagingType: r.medicine?.packagingType || 'Bottle',
+        packSize: r.medicine?.packSize || 1,
         operator: r.recordedByName || r.receivedBy?.name || 'Worker',
         receiver: r.receiverName || r.receivedBy?.name || '',
         farmName: r.farm?.name || '',
@@ -530,6 +534,8 @@ export async function getTodayActivity(req, res) {
         batchNumber: i.batchNumber,
         quantity: i.issuedQuantity,
         unit: i.unit,
+        packagingType: i.medicine?.packagingType || 'Bottle',
+        packSize: i.medicine?.packSize || 1,
         operator: i.issuedByName || i.issuedBy?.name || 'Worker',
         receiver: i.issuedTo || '',
         farmName: i.farm?.name || '',

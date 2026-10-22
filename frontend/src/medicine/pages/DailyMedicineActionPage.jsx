@@ -12,6 +12,7 @@ import {
 } from '../api/dailyActionApi.js';
 import { fetchDashboardStats } from '../api/reportApi.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
+import { formatStockDisplay } from '../utils/packagingHelper.js';
 
 
 export default function DailyMedicineActionPage({
@@ -57,6 +58,7 @@ export default function DailyMedicineActionPage({
   const [inwardExpiry, setInwardExpiry] = useState('');
   const inwardExpiryRef = useRef(null);
   const [inwardQty, setInwardQty] = useState('');
+  const [inwardPacks, setInwardPacks] = useState('');
   const [inwardSupplierId, setInwardSupplierId] = useState('');
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   const [isInwardFarmDropdownOpen, setIsInwardFarmDropdownOpen] = useState(false);
@@ -497,6 +499,7 @@ export default function DailyMedicineActionPage({
       setInwardBatchNo('');
       setInwardExpiry('');
       setInwardQty('');
+      setInwardPacks('');
       setInwardNotes('');
       setInwardCategory('');
       setInwardUnit('');
@@ -817,7 +820,7 @@ export default function DailyMedicineActionPage({
                       }`}
                     >
                       {ev.type === 'IN' ? '+' : '-'}
-                      {ev.quantity} {ev.unit}
+                      {formatStockDisplay(ev.quantity, ev.packSize, ev.packagingType, ev.unit)}
                     </span>
                   </div>
                 </div>
@@ -1081,6 +1084,8 @@ export default function DailyMedicineActionPage({
                                   onClick={() => {
                                     setInwardMedicineId(m._id);
                                     setInwardMedicineName(m.name);
+                                    setInwardPacks('');
+                                    setInwardQty('');
                                     setIsMedDropdownOpen(false);
                                   }}
                                   className={`px-3 py-1 min-h-[40px] max-h-[40px] flex items-center justify-between cursor-pointer transition text-xs ${
@@ -1181,40 +1186,117 @@ export default function DailyMedicineActionPage({
                 </div>
               </div>
 
-              {/* Quantity Received & Receiver Name Grid */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
-                    Qty Received ({selectedInwardMed?.unit || inwardUnit || 'Units'}){' '}
-                    <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    step="any"
-                    required
-                    placeholder="e.g. 50"
-                    value={inwardQty}
-                    onChange={(e) => setInwardQty(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+              {/* Quantity Received with Pack Size Auto-Calculation */}
+              {selectedInwardMed && Number(selectedInwardMed.packSize) > 1 ? (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                        Packs ({selectedInwardMed.packagingType || 'Packs'})
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="e.g. 4"
+                        value={inwardPacks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInwardPacks(val);
+                          const size = Number(selectedInwardMed.packSize) || 1;
+                          if (val !== '' && Number(val) >= 0) {
+                            setInwardQty(Number((Number(val) * size).toFixed(3)));
+                          } else if (val === '') {
+                            setInwardQty('');
+                          }
+                        }}
+                        className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-emerald-50/40"
+                      />
+                    </div>
 
-                <div>
-                  <label htmlFor="inward-receiver" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
-                    Receiver <span className="text-slate-400 font-normal lowercase">(opt)</span>
-                  </label>
-                  <input
-                    id="inward-receiver"
-                    type="text"
-                    maxLength={120}
-                    value={inwardReceiver}
-                    onChange={(e) => setInwardReceiver(e.target.value)}
-                    placeholder="Received by"
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  />
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                        Total ({selectedInwardMed.unit || 'Units'}) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.001"
+                        required
+                        placeholder="e.g. 20"
+                        value={inwardQty}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInwardQty(val);
+                          const size = Number(selectedInwardMed.packSize) || 1;
+                          if (size > 1 && val !== '' && Number(val) >= 0) {
+                            setInwardPacks(Number((Number(val) / size).toFixed(3)));
+                          } else if (val === '') {
+                            setInwardPacks('');
+                          }
+                        }}
+                        className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-emerald-900 bg-emerald-50/90 px-2 py-1 rounded border border-emerald-200/70 flex items-center justify-between font-medium">
+                    <span>📦 1 {selectedInwardMed.packagingType || 'Container'} = {selectedInwardMed.packSize} {selectedInwardMed.unit}</span>
+                    {inwardPacks && inwardQty ? (
+                      <span className="font-bold text-emerald-950">Total: {inwardPacks} {selectedInwardMed.packagingType}s = {inwardQty} {selectedInwardMed.unit}</span>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label htmlFor="inward-receiver" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                      Receiver <span className="text-slate-400 font-normal lowercase">(opt)</span>
+                    </label>
+                    <input
+                      id="inward-receiver"
+                      type="text"
+                      maxLength={120}
+                      value={inwardReceiver}
+                      onChange={(e) => setInwardReceiver(e.target.value)}
+                      placeholder="Received by"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                      Qty Received ({selectedInwardMed?.unit || inwardUnit || 'Units'}{' '}
+                      <span className="text-rose-500">*</span>)
+                    </label>
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="any"
+                      required
+                      placeholder="e.g. 50"
+                      value={inwardQty}
+                      onChange={(e) => setInwardQty(e.target.value)}
+                      className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="inward-receiver" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                      Receiver <span className="text-slate-400 font-normal lowercase">(opt)</span>
+                    </label>
+                    <input
+                      id="inward-receiver"
+                      type="text"
+                      maxLength={120}
+                      value={inwardReceiver}
+                      onChange={(e) => setInwardReceiver(e.target.value)}
+                      placeholder="Received by"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Supplier Selector */}
               {/* Supplier Selector (Custom Dynamic Shift Dropdown) */}
@@ -1691,7 +1773,7 @@ export default function DailyMedicineActionPage({
                     return (
                       <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                         <span>📦 Stock:</span>
-                        <span>{availableStock} {selectedOutwardMed?.unit || 'Units'}</span>
+                        <span>{formatStockDisplay(availableStock, selectedOutwardMed?.packSize, selectedOutwardMed?.packagingType, selectedOutwardMed?.unit)}</span>
                       </span>
                     );
                   })()}

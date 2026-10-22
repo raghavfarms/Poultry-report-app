@@ -54,6 +54,20 @@ const medicineSchema=new mongoose.Schema({
           trim: true,
         },
 
+        // Packaging Container Type (e.g. Bottle, Bag, Box, Can, Packet, Vial)
+        packagingType: {
+          type: String,
+          trim: true,
+          default: 'Bottle',
+        },
+
+        // Pack Size: quantity in base unit per packaging container (e.g. 5 for 5 Litre Bottle, 25 for 25 Kg Bag)
+        packSize: {
+          type: Number,
+          min: [0.0001, 'Pack size must be greater than zero'],
+          default: 1,
+        },
+
         // Manufacturer/ Brand Name (Optional)
 
         manufacturer:{

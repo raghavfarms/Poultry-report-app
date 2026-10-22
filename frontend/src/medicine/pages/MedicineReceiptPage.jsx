@@ -9,6 +9,7 @@ import { fetchSuppliers } from '../api/supplierApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
+import { formatStockDisplay } from '../utils/packagingHelper.js';
 
 const STATUS_BADGES = {
   PENDING_STORE_VERIFICATION: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -534,9 +535,9 @@ export default function MedicineReceiptPage() {
                         </td>
                         <td className="py-2 px-3 text-right">
                           <div className="font-extrabold text-sm text-emerald-700">
-                            {b.quantityAvailable} <span className="text-[11px] font-normal text-slate-500">{b.unit}</span>
+                            {formatStockDisplay(b.quantityAvailable, b.medicine?.packSize, b.medicine?.packagingType, b.unit)}
                           </div>
-                          <div className="text-[10px] text-slate-400">Orig: {b.initialQuantity}</div>
+                          <div className="text-[10px] text-slate-400">Orig: {formatStockDisplay(b.initialQuantity, b.medicine?.packSize, b.medicine?.packagingType, b.unit)}</div>
                         </td>
                       </tr>
                     ))}
@@ -589,10 +590,10 @@ export default function MedicineReceiptPage() {
                     </div>
 
                     <div className="flex justify-between items-center pt-1 border-t border-slate-50">
-                      <span className="text-[10px] text-slate-400">Original Inward: {b.initialQuantity} {b.unit}</span>
+                      <span className="text-[10px] text-slate-400">Original Inward: {formatStockDisplay(b.initialQuantity, b.medicine?.packSize, b.medicine?.packagingType, b.unit)}</span>
                       <div className="text-right">
                         <span className="text-[10px] text-slate-400 block">Available</span>
-                        <span className="font-extrabold text-sm text-emerald-700">{b.quantityAvailable} {b.unit}</span>
+                        <span className="font-extrabold text-sm text-emerald-700">{formatStockDisplay(b.quantityAvailable, b.medicine?.packSize, b.medicine?.packagingType, b.unit)}</span>
                       </div>
                     </div>
                   </div>

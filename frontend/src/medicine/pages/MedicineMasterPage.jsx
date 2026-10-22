@@ -19,6 +19,7 @@ import {
 import { api } from '../../api/client.js';
 import MedicineTransferAuditReport from '../components/MedicineTransferAuditReport.jsx';
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
+import { DEFAULT_PACKAGING_TYPES, DEFAULT_MEASUREMENT_UNITS, formatStockDisplay } from '../utils/packagingHelper.js';
 
 const DEFAULT_CATEGORIES = [
   'General',
@@ -26,23 +27,17 @@ const DEFAULT_CATEGORIES = [
   'Spray',
 ];
 
-const DEFAULT_UNITS = [
-  'Bottle',
-  'Litre (L)',
-  'Millilitre (ml)',
-  'Kilogram (Kg)',
-  'Gram (g)',
-  'Vial',
-  'Packet',
-  'Tablet',
-];
+const DEFAULT_PACKAGINGS = DEFAULT_PACKAGING_TYPES;
+const DEFAULT_UNITS = DEFAULT_MEASUREMENT_UNITS;
 
 const INITIAL_FORM = {
   code: '',
   name: '',
   aliasName: '',
   category: 'General',
-  unit: 'Bottle',
+  packagingType: 'Bottle',
+  packSize: 1,
+  unit: 'Litre (L)',
   shelfLifeMonths: '',
   minimumStock: '',
   reorderLevel: '',
@@ -173,6 +168,7 @@ export default function MedicineMasterPage() {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isCustomPackaging, setIsCustomPackaging] = useState(false);
   const [isCustomUnit, setIsCustomUnit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [openActionId, setOpenActionId] = useState(null);
@@ -209,9 +205,14 @@ export default function MedicineMasterPage() {
     .filter((cat) => cat && !['Feed Medicine', 'Sanitizers & Disinfectants', 'Dewormers', 'Supplements & Feed Additives', 'Vaccines'].includes(cat));
   const availableCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...dbCategories]));
 
+  const dbPackagings = safeMedicines
+    .map((m) => m?.packagingType)
+    .filter(Boolean);
+  const availablePackagings = Array.from(new Set([...DEFAULT_PACKAGINGS, ...dbPackagings]));
+
   const dbUnits = safeMedicines
     .map((m) => m?.unit)
-    .filter((u) => u && !['Sachet / Packet', 'Tablet / Strip', 'Sachet', 'Strip'].includes(u));
+    .filter((u) => u && !['Bottle', 'Vial', 'Can', 'Packet', 'Box', 'Bag', 'Sachet / Packet', 'Tablet / Strip', 'Sachet', 'Strip'].includes(u));
   const availableUnits = Array.from(new Set([...DEFAULT_UNITS, ...dbUnits]));
 
   // Calculate 20 medicines per page
@@ -280,12 +281,15 @@ export default function MedicineMasterPage() {
       name: '',
       aliasName: '',
       category: availableCategories[0] || 'General',
-      unit: availableUnits[0] || 'Bottle',
+      packagingType: availablePackagings[0] || 'Bottle',
+      packSize: 1,
+      unit: availableUnits[0] || 'Litre (L)',
       shelfLifeMonths: '',
       minimumStock: '',
       reorderLevel: '',
     });
     setIsCustomCategory(false);
+    setIsCustomPackaging(false);
     setIsCustomUnit(false);
     setShowAdvanced(false);
     setError('');
@@ -299,12 +303,15 @@ export default function MedicineMasterPage() {
       name: med.name || '',
       aliasName: med.aliasName || '',
       category: med.category || '',
+      packagingType: med.packagingType || 'Bottle',
+      packSize: med.packSize || 1,
       unit: med.unit || '',
       shelfLifeMonths: med.shelfLifeMonths ?? '',
       minimumStock: med.minimumStock ?? '',
       reorderLevel: med.reorderLevel ?? '',
     });
     setIsCustomCategory(!availableCategories.includes(med.category));
+    setIsCustomPackaging(!availablePackagings.includes(med.packagingType));
     setIsCustomUnit(!availableUnits.includes(med.unit));
     setShowAdvanced(Boolean(med.aliasName || med.reorderLevel || med.code));
     setError('');
@@ -316,6 +323,7 @@ export default function MedicineMasterPage() {
     setEditingId(null);
     setFormData(INITIAL_FORM);
     setIsCustomCategory(false);
+    setIsCustomPackaging(false);
     setIsCustomUnit(false);
   };
 
@@ -433,11 +441,17 @@ export default function MedicineMasterPage() {
         throw new Error('Please select or enter a Unit of measurement');
       }
 
+      const trimmedPackaging = (formData.packagingType || 'Bottle').trim();
+      const parsedPackSize = Number(formData.packSize);
+      const finalPackSize = Number.isFinite(parsedPackSize) && parsedPackSize > 0 ? parsedPackSize : 1;
+
       const payload = {
         code: formData.code ? formData.code.trim().toUpperCase() : '',
         name: formData.name.trim(),
         aliasName: formData.aliasName ? formData.aliasName.trim() : '',
         category: trimmedCategory,
+        packagingType: trimmedPackaging,
+        packSize: finalPackSize,
         unit: trimmedUnit,
         shelfLifeMonths: formData.shelfLifeMonths ? Number(formData.shelfLifeMonths) : null,
         minimumStock: formData.minimumStock !== '' ? Number(formData.minimumStock) : 0,
@@ -720,13 +734,13 @@ export default function MedicineMasterPage() {
                             {med.category}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-600 font-medium">{med.unit}</td>
+                        <td className="py-3 px-4"><div className="font-semibold text-slate-800">{med.unit}</div><div className="text-[11px] text-emerald-700 font-medium">1 {med.packagingType || 'Bottle'} = {med.packSize || 1} {med.unit}</div></td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex flex-col items-center gap-0.5">
                             {med.currentStock !== undefined && (
                               med.isLowStock ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                                  <span>⚠️</span> {med.currentStock} {med.unit} (Low)
+                                  <span>⚠️</span> {formatStockDisplay(med.currentStock, med.packSize, med.packagingType, med.unit)} (Low)
                                 </span>
                               ) : med.currentStock === 0 ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
@@ -734,7 +748,7 @@ export default function MedicineMasterPage() {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <span>🟢</span> {med.currentStock} {med.unit}
+                                  <span>🟢</span> {formatStockDisplay(med.currentStock, med.packSize, med.packagingType, med.unit)}
                                 </span>
                               )
                             )}
@@ -1376,7 +1390,7 @@ export default function MedicineMasterPage() {
                 </div>
               </div>
 
-              {/* 2. Essential Fields Grid: Category & Unit */}
+              {/* 2. Category & Packaging Container */}
               <div className="grid grid-cols-2 gap-2">
                 {/* Category */}
                 <div>
@@ -1404,9 +1418,10 @@ export default function MedicineMasterPage() {
                       type="text"
                       required
                       autoFocus
+                      placeholder="e.g. Antibiotic"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                     />
                   ) : (
                     <ScrollDropdown
@@ -1422,11 +1437,76 @@ export default function MedicineMasterPage() {
                   )}
                 </div>
 
-                {/* Unit */}
+                {/* Packaging Type (Container) */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide">
-                      Unit <span className="text-rose-500">*</span>
+                      Packaging <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomPackaging(!isCustomPackaging);
+                        if (!isCustomPackaging) {
+                          setFormData({ ...formData, packagingType: '' });
+                        }
+                      }}
+                      className="text-emerald-600 hover:text-emerald-700 font-medium transition cursor-pointer inline-block"
+                      style={{ fontSize: '13px', transform: 'scale(0.85)', transformOrigin: 'right center' }}
+                    >
+                      {isCustomPackaging ? '← List' : '+ Custom'}
+                    </button>
+                  </div>
+
+                  {isCustomPackaging ? (
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder="e.g. Drum / Jar"
+                      value={formData.packagingType}
+                      onChange={(e) => setFormData({ ...formData, packagingType: e.target.value })}
+                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                    />
+                  ) : (
+                    <ScrollDropdown
+                      value={formData.packagingType}
+                      onChange={(val) => setFormData({ ...formData, packagingType: val })}
+                      options={availablePackagings}
+                      placeholder="-- Select Container --"
+                      onAddCustom={() => {
+                        setIsCustomPackaging(true);
+                        setFormData({ ...formData, packagingType: '' });
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Pack Size & Base Measurement Unit */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Pack Size */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                    Pack Size <span className="text-slate-400 font-normal">(Qty / Pack)</span> <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="any"
+                    required
+                    placeholder="e.g. 5"
+                    value={formData.packSize}
+                    onChange={(e) => setFormData({ ...formData, packSize: e.target.value })}
+                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  />
+                </div>
+
+                {/* Base Measurement Unit */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide">
+                      Unit (Measure) <span className="text-rose-500">*</span>
                     </label>
                     <button
                       type="button"
@@ -1448,16 +1528,17 @@ export default function MedicineMasterPage() {
                       type="text"
                       required
                       autoFocus
+                      placeholder="e.g. Litre (L)"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                     />
                   ) : (
                     <ScrollDropdown
                       value={formData.unit}
                       onChange={(val) => setFormData({ ...formData, unit: val })}
                       options={availableUnits}
-                      placeholder="-- Select --"
+                      placeholder="-- Select Unit --"
                       onAddCustom={() => {
                         setIsCustomUnit(true);
                         setFormData({ ...formData, unit: '' });
@@ -1465,6 +1546,18 @@ export default function MedicineMasterPage() {
                     />
                   )}
                 </div>
+              </div>
+
+              {/* Packaging Rule Formula Banner */}
+              <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-xs text-emerald-950 font-medium shadow-2xs">
+                <span className="flex items-center gap-1.5 truncate">
+                  <span>📦</span>
+                  <span className="text-emerald-800 font-semibold">Rule:</span>
+                  <strong className="text-emerald-950 font-bold">
+                    1 {formData.packagingType || 'Container'} = {formData.packSize || 1} {formData.unit || 'Unit'}
+                  </strong>
+                </span>
+                <span className="text-[10px] text-emerald-700 font-medium italic shrink-0">Auto-totals everywhere</span>
               </div>
 
               {/* 3. Optional Advanced Settings Toggle */}
