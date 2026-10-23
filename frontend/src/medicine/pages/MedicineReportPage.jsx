@@ -391,10 +391,12 @@ export default function MedicineReportPage() {
     return list;
   }, [allBatches]);
 
-  // Filtered grouped medicines
-  const isStockSearchPureNumber = /^\d+$/.test(stockSearch.trim());
+  // Use deferred value for search to guarantee smooth 60fps typing on mobile keyboards
+  const deferredStockSearch = React.useDeferredValue(stockSearch);
+  const isStockSearchPureNumber = /^\d+$/.test(deferredStockSearch.trim());
+
   const filteredMedicines = React.useMemo(() => {
-    const q = stockSearch.trim().toLowerCase();
+    const q = deferredStockSearch.trim().toLowerCase();
 
     return groupedMedicines.filter((m) => {
       // 1. Search match on Medicine Name, Code, Alias, or ANY child batch number
@@ -414,19 +416,22 @@ export default function MedicineReportPage() {
       if (stockFilter === 'LOW') return Boolean(m.isLowStock);
       return true;
     });
-  }, [groupedMedicines, stockSearch, isStockSearchPureNumber, stockFilter]);
+  }, [groupedMedicines, deferredStockSearch, isStockSearchPureNumber, stockFilter]);
 
-  // Auto-expand medicines matching search
+  // Only auto-expand when search query is specific (3+ chars and 1-3 results)
+  // This prevents freezing mobile phones by expanding dozens of batch tables on a single letter
   useEffect(() => {
-    const q = stockSearch.trim();
-    if (q) {
+    const q = deferredStockSearch.trim();
+    if (q.length >= 3 && filteredMedicines.length > 0 && filteredMedicines.length <= 3) {
       const autoExpand = {};
       filteredMedicines.forEach((m) => {
         autoExpand[m.key] = true;
       });
       setExpandedMeds(autoExpand);
+    } else if (!q) {
+      setExpandedMeds({});
     }
-  }, [stockSearch, filteredMedicines]);
+  }, [deferredStockSearch, filteredMedicines]);
 
   const toggleExpand = (key) => {
     setExpandedMeds((prev) => ({
@@ -676,6 +681,10 @@ export default function MedicineReportPage() {
             <div className="relative flex-1">
               <input
                 type="text"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 value={stockSearch}
                 onChange={(e) => setStockSearch(e.target.value)}
                 placeholder="Search medicine name, code, or batch..."
