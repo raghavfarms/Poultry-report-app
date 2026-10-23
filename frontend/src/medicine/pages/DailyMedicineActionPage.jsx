@@ -136,6 +136,7 @@ export default function DailyMedicineActionPage({
   const [customShed, setCustomShed] = useState('');
   const [outwardQty, setOutwardQty] = useState('');
   const [batchAllocations, setBatchAllocations] = useState({});
+  const [batchPackAllocations, setBatchPackAllocations] = useState({});
   const [outwardIssuer, setOutwardIssuer] = useState(user?.name || user?.username || '');
   const [outwardReceiver, setOutwardReceiver] = useState('');
   const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (safeFirms[0]?._id || ''));
@@ -313,8 +314,15 @@ export default function DailyMedicineActionPage({
 
   const oldestBatchForOutward = activeBatchesForOutward[0] || null;
 
+  // Reset allocations whenever selected outward medicine changes
+  useEffect(() => {
+    setBatchAllocations({});
+    setBatchPackAllocations({});
+    setOutwardQty('');
+  }, [outwardMedicineId]);
+
   // Batch-wise allocation and automatic total calculation
-  const handleBatchQtyChange = (batchId, rawVal, maxAvailable) => {
+  const handleBatchQtyChange = (batchId, rawVal, maxAvailable, packSize = 1) => {
     let val = rawVal;
     if (val !== '') {
       const num = Number(val);
@@ -322,6 +330,52 @@ export default function DailyMedicineActionPage({
       else if (num < 0) val = '0';
     }
     const next = { ...batchAllocations, [batchId]: val };
+    setBatchAllocations(next);
+
+    // Sync pack allocations
+    if (packSize > 1) {
+      const nextPack = { ...batchPackAllocations };
+      if (val === '' || isNaN(Number(val))) {
+        nextPack[batchId] = '';
+      } else {
+        nextPack[batchId] = String(Number((Number(val) / packSize).toFixed(3)));
+      }
+      setBatchPackAllocations(nextPack);
+    }
+
+    // Sum all non-empty batch quantities to automatically compute total!
+    let sum = 0;
+    let hasAny = false;
+    for (const b of activeBatchesForOutward) {
+      const q = Number(next[b._id]);
+      if (next[b._id] !== '' && !isNaN(q) && q > 0) {
+        sum += q;
+        hasAny = true;
+      }
+    }
+    setOutwardQty(hasAny ? String(Number(sum.toFixed(3))) : '');
+  };
+
+  const handleBatchPackChange = (batchId, rawPackVal, maxAvailable, packSize = 1) => {
+    let pVal = rawPackVal;
+    const maxPacks = packSize > 0 ? maxAvailable / packSize : maxAvailable;
+
+    if (pVal !== '') {
+      const numPacks = Number(pVal);
+      if (numPacks > maxPacks) pVal = String(Number(maxPacks.toFixed(2)));
+      else if (numPacks < 0) pVal = '0';
+    }
+
+    const nextPack = { ...batchPackAllocations, [batchId]: pVal };
+    setBatchPackAllocations(nextPack);
+
+    // Calculate base units
+    let calculatedBase = '';
+    if (pVal !== '' && !isNaN(Number(pVal))) {
+      calculatedBase = String(Number((Number(pVal) * packSize).toFixed(3)));
+    }
+
+    const next = { ...batchAllocations, [batchId]: calculatedBase };
     setBatchAllocations(next);
 
     // Sum all non-empty batch quantities to automatically compute total!
@@ -338,7 +392,8 @@ export default function DailyMedicineActionPage({
   };
 
   const handleSetBatchMax = (batchId, maxAvailable) => {
-    handleBatchQtyChange(batchId, String(maxAvailable), maxAvailable);
+    const pSize = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 ? Number(selectedOutwardMed.packSize) : 1;
+    handleBatchQtyChange(batchId, String(maxAvailable), maxAvailable, pSize);
   };
 
   const handleTotalQtyChange = (rawTotal) => {
@@ -346,22 +401,29 @@ export default function DailyMedicineActionPage({
     const totalNum = Number(rawTotal);
     if (!rawTotal || isNaN(totalNum) || totalNum <= 0) {
       setBatchAllocations({});
+      setBatchPackAllocations({});
       return;
     }
 
+    const size = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 ? Number(selectedOutwardMed.packSize) : 1;
     // Auto-distribute across batches in FEFO order
     let remaining = totalNum;
     const next = {};
+    const nextPack = {};
     for (const b of activeBatchesForOutward) {
       if (remaining <= 0) {
         next[b._id] = '';
+        nextPack[b._id] = '';
         continue;
       }
       const take = Math.min(b.quantityAvailable || 0, remaining);
-      next[b._id] = take > 0 ? String(Number(take.toFixed(3))) : '';
+      const takeStr = take > 0 ? String(Number(take.toFixed(3))) : '';
+      next[b._id] = takeStr;
+      nextPack[b._id] = takeStr && size > 1 ? String(Number((take / size).toFixed(3))) : '';
       remaining -= take;
     }
     setBatchAllocations(next);
+    setBatchPackAllocations(nextPack);
   };
 
   // Show all registered suppliers in system for stock-in (not restricted to a specific medicine)
@@ -426,6 +488,7 @@ export default function DailyMedicineActionPage({
     setIsOutwardFarmDropdownOpen(false);
     setOutwardQty('');
     setBatchAllocations({});
+    setBatchPackAllocations({});
     setOutwardIssuer(user?.name || user?.username || '');
     setOutwardReceiver('');
     const farmToUse = selectedFarm || (firms[0]?._id || '');
@@ -580,6 +643,7 @@ export default function DailyMedicineActionPage({
       setOutwardMedicineName('');
       setOutwardQty('');
       setBatchAllocations({});
+      setBatchPackAllocations({});
       setOutwardReceiver('');
       setOutwardIssuer(user?.name || user?.username || '');
       // Reload feed
@@ -1917,93 +1981,198 @@ export default function DailyMedicineActionPage({
               </div>
 
               {/* Physical Batches Available to Pick (Compact Table Layout) */}
-              {outwardMedicineId && activeBatchesForOutward.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between text-[9px] font-bold text-slate-700 px-0.5 mb-0.5">
-                    <span>🏷️ Batches ({activeBatchesForOutward.length}):</span>
-                    <span className="text-[9px] text-slate-400 font-normal">
-                      FEFO Auto-ordered
-                    </span>
-                  </div>
+              {outwardMedicineId && activeBatchesForOutward.length > 0 && (() => {
+                const hasPack = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1;
+                const packSize = hasPack ? Number(selectedOutwardMed.packSize) : 1;
+                const packType = selectedOutwardMed?.packagingType || 'Pack';
+                const medUnit = selectedOutwardMed?.unit || 'Unit';
 
-                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
-                    {/* Compact Table Header */}
-                    <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
-                      <div className="col-span-3 text-left">BATCH</div>
-                      <div className="col-span-3 text-center">SHELF</div>
-                      <div className="col-span-3 text-center">AVAILABLE</div>
-                      <div className="col-span-3 text-right">TAKE ({selectedOutwardMed?.unit})</div>
+                return (
+                  <div>
+                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-700 px-0.5 mb-0.5">
+                      <span>🏷️ Batches ({activeBatchesForOutward.length}):</span>
+                      <span className="text-[9px] text-slate-400 font-normal">
+                        FEFO Auto-ordered
+                      </span>
                     </div>
 
-                    {/* Compact Rows */}
-                    <div className="max-h-32 overflow-y-auto divide-y divide-slate-100">
-                      {activeBatchesForOutward.map((b) => {
-                        const isExpired = b.daysLeft < 0;
-                        const isCritical = b.daysLeft <= 30; // 1 month
-                        const isCaution = b.daysLeft <= 60;  // 2 months
-                        const isWarning = b.daysLeft <= 90;  // 3 months
-                        const allocVal = batchAllocations[b._id] ?? '';
+                    {/* Packaging Ratio conversion banner */}
+                    {hasPack && (
+                      <div className="text-[10px] text-emerald-900 bg-emerald-50/90 px-2 py-0.5 rounded-md border border-emerald-200/80 flex items-center justify-between font-medium mb-1">
+                        <span>📦 1 {packType} = {packSize} {medUnit}</span>
+                        <span className="text-[9px] text-emerald-700 font-semibold">Enter by Packs or {medUnit}</span>
+                      </div>
+                    )}
 
-                        return (
-                          <div
-                            key={b._id}
-                            className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
-                              isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
-                            }`}
-                          >
-                            {/* Col 1: Batch */}
-                            <div className="col-span-3 flex items-center">
-                              <span className="font-mono font-bold text-slate-900 text-[11px]">
-                                #{b.batchNumber}
-                              </span>
-                            </div>
+                    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+                      {/* Compact Table Header */}
+                      {hasPack ? (
+                        <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
+                          <div className="col-span-3 text-left">BATCH / EXP</div>
+                          <div className="col-span-3 text-center">AVAILABLE</div>
+                          <div className="col-span-3 text-center text-emerald-800">PACKS ({packType})</div>
+                          <div className="col-span-3 text-right">TAKE ({medUnit})</div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
+                          <div className="col-span-3 text-left">BATCH</div>
+                          <div className="col-span-3 text-center">SHELF</div>
+                          <div className="col-span-3 text-center">AVAILABLE</div>
+                          <div className="col-span-3 text-right">TAKE ({medUnit})</div>
+                        </div>
+                      )}
 
-                            {/* Col 2: Shelf (Middle between Batch and Available) */}
-                            <div className="col-span-3 flex justify-center">
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                  isExpired || isCritical
-                                    ? 'bg-rose-100 text-rose-700'
-                                    : isCaution
-                                    ? 'bg-orange-100 text-orange-800'
-                                    : isWarning
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-emerald-100 text-emerald-700'
+                      {/* Compact Rows */}
+                      <div className="max-h-36 overflow-y-auto divide-y divide-slate-100">
+                        {activeBatchesForOutward.map((b) => {
+                          const isExpired = b.daysLeft < 0;
+                          const isCritical = b.daysLeft <= 30; // 1 month
+                          const isCaution = b.daysLeft <= 60;  // 2 months
+                          const isWarning = b.daysLeft <= 90;  // 3 months
+                          const allocVal = batchAllocations[b._id] ?? '';
+                          const allocPackVal = batchPackAllocations[b._id] ?? (allocVal !== '' && !isNaN(Number(allocVal)) && packSize > 1 ? String(Number((Number(allocVal) / packSize).toFixed(3))) : '');
+                          const packsAvail = packSize > 1 ? Number((b.quantityAvailable / packSize).toFixed(2)) : 0;
+
+                          if (hasPack) {
+                            return (
+                              <div
+                                key={b._id}
+                                className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
+                                  isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
                                 }`}
                               >
-                                {isExpired ? 'Exp' : `${b.daysLeft}d`}
-                              </span>
-                            </div>
+                                {/* Col 1: Batch & Exp Stacked */}
+                                <div className="col-span-3 flex flex-col items-start justify-center pr-1 truncate">
+                                  <span className="font-mono font-bold text-slate-900 text-[11px] truncate leading-tight">
+                                    #{b.batchNumber}
+                                  </span>
+                                  <span
+                                    className={`text-[8.5px] font-bold px-1 py-0.1 rounded mt-0.5 leading-tight ${
+                                      isExpired || isCritical
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : isCaution
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : isWarning
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-emerald-100 text-emerald-700'
+                                    }`}
+                                  >
+                                    {isExpired ? 'Exp' : `${b.daysLeft}d`}
+                                  </span>
+                                </div>
 
-                            {/* Col 3: Available */}
-                            <div className="col-span-3 text-center font-bold text-slate-800 text-xs">
-                              {b.quantityAvailable}
-                            </div>
+                                {/* Col 2: Available (Base unit & Packs) */}
+                                <div className="col-span-3 flex flex-col items-center justify-center px-0.5">
+                                  <span className="font-bold text-slate-800 text-[11px] leading-tight">
+                                    {b.quantityAvailable} {medUnit}
+                                  </span>
+                                  <span className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.1 rounded border border-emerald-200 mt-0.5 leading-tight">
+                                    {packsAvail} {packType}{packsAvail !== 1 ? 's' : ''}
+                                  </span>
+                                </div>
 
-                            {/* Col 4: Take input */}
-                            <div className="col-span-3 flex justify-end">
-                              <input
-                                type="number"
-                                min="0"
-                                max={b.quantityAvailable}
-                                step="any"
-                                placeholder="0"
-                                value={allocVal}
-                                onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable)}
-                                className={`w-14 sm:w-16 h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                  Number(allocVal) > 0
-                                    ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
-                                    : 'border-slate-300'
-                                }`}
-                              />
+                                {/* Col 3: Packs Input */}
+                                <div className="col-span-3 flex justify-center px-0.5">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={packsAvail}
+                                    step="any"
+                                    placeholder="0"
+                                    value={allocPackVal}
+                                    onChange={(e) => handleBatchPackChange(b._id, e.target.value, b.quantityAvailable, packSize)}
+                                    className={`w-full max-w-[62px] h-7 px-1 text-center font-bold text-xs border rounded bg-emerald-50/40 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                      Number(allocPackVal) > 0
+                                        ? 'border-emerald-500 bg-emerald-100/70 text-emerald-950 ring-1 ring-emerald-300'
+                                        : 'border-slate-300'
+                                    }`}
+                                    title={`Enter ${packType} count`}
+                                  />
+                                </div>
+
+                                {/* Col 4: Take base units Input */}
+                                <div className="col-span-3 flex justify-end">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={b.quantityAvailable}
+                                    step="any"
+                                    placeholder="0"
+                                    value={allocVal}
+                                    onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable, packSize)}
+                                    className={`w-full max-w-[62px] h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                      Number(allocVal) > 0
+                                        ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
+                                        : 'border-slate-300'
+                                    }`}
+                                    title={`Enter ${medUnit}`}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={b._id}
+                              className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
+                                isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
+                              }`}
+                            >
+                              {/* Col 1: Batch */}
+                              <div className="col-span-3 flex items-center">
+                                <span className="font-mono font-bold text-slate-900 text-[11px]">
+                                  #{b.batchNumber}
+                                </span>
+                              </div>
+
+                              {/* Col 2: Shelf (Middle between Batch and Available) */}
+                              <div className="col-span-3 flex justify-center">
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                    isExpired || isCritical
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : isCaution
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : isWarning
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-700'
+                                  }`}
+                                >
+                                  {isExpired ? 'Exp' : `${b.daysLeft}d`}
+                                </span>
+                              </div>
+
+                              {/* Col 3: Available */}
+                              <div className="col-span-3 text-center font-bold text-slate-800 text-xs">
+                                {b.quantityAvailable}
+                              </div>
+
+                              {/* Col 4: Take input */}
+                              <div className="col-span-3 flex justify-end">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={b.quantityAvailable}
+                                  step="any"
+                                  placeholder="0"
+                                  value={allocVal}
+                                  onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable, 1)}
+                                  className={`w-14 sm:w-16 h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                    Number(allocVal) > 0
+                                      ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
+                                      : 'border-slate-300'
+                                  }`}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Issuer (Issued By) & Receiver (Received By) - Side-by-Side */}
               <div className="grid grid-cols-2 gap-1.5">
@@ -2056,9 +2225,15 @@ export default function DailyMedicineActionPage({
 
               {/* Submit / Cancel Buttons with Total Quantity Integrated (Pinned Sticky Footer) */}
               <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
-                <div className="text-xs font-bold text-blue-900 whitespace-nowrap">
-                  Total: <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
+                <div className="text-xs font-bold text-blue-900 whitespace-nowrap flex items-center gap-1.5 flex-wrap">
+                  <span>Total:</span>
+                  <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
                   <span className="text-[10px] text-slate-500 font-medium">{selectedOutwardMed?.unit || ''}</span>
+                  {selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 && outwardQty && Number(outwardQty) > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      📦 {Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2))} {selectedOutwardMed.packagingType || 'Packs'}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
