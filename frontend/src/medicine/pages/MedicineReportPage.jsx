@@ -315,13 +315,16 @@ export default function MedicineReportPage() {
   const lowStock = stats?.lowStockAlerts || [];
 
   // Flatten all available batches for live stock view, strictly sorted by earliest expiry date first (FEFO)
-  const allBatches = [
-    ...(radar.expired || []).map((b) => ({ ...b, urgency: 'EXPIRED' })),
-    ...(radar.critical30 || []).map((b) => ({ ...b, urgency: 'CRITICAL' })),
-    ...(radar.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
-    ...(radar.warning90 || []).map((b) => ({ ...b, urgency: 'WARNING' })),
-    ...(radar.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
-  ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  const allBatches = React.useMemo(() => {
+    const radarObj = stats?.expiryRadar || {};
+    return [
+      ...(radarObj.expired || []).map((b) => ({ ...b, urgency: 'EXPIRED' })),
+      ...(radarObj.critical30 || []).map((b) => ({ ...b, urgency: 'CRITICAL' })),
+      ...(radarObj.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
+      ...(radarObj.warning90 || []).map((b) => ({ ...b, urgency: 'WARNING' })),
+      ...(radarObj.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
+    ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  }, [stats]);
 
   // Group batches by unique Medicine
   const groupedMedicines = React.useMemo(() => {
@@ -426,20 +429,17 @@ export default function MedicineReportPage() {
     });
   }, [groupedMedicines, deferredStockSearch, isStockSearchPureNumber, stockFilter]);
 
-  // Only auto-expand when search query is specific (3+ chars and 1-3 results)
-  // This prevents freezing mobile phones by expanding dozens of batch tables on a single letter
+  // Only auto-expand when search query is typed (does NOT wipe expandedMeds on manual click)
   useEffect(() => {
     const q = deferredStockSearch.trim();
-    if (q.length >= 3 && filteredMedicines.length > 0 && filteredMedicines.length <= 3) {
+    if (q.length >= 2) {
       const autoExpand = {};
       filteredMedicines.forEach((m) => {
         autoExpand[m.key] = true;
       });
       setExpandedMeds(autoExpand);
-    } else if (!q) {
-      setExpandedMeds({});
     }
-  }, [deferredStockSearch, filteredMedicines]);
+  }, [deferredStockSearch]);
 
   const toggleExpand = (key) => {
     setExpandedMeds((prev) => ({
