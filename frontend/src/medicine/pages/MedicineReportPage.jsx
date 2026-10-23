@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { formatStockDisplay } from '../utils/packagingHelper.js';
-import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi } from '../api/reportApi.js';
+import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
+import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
@@ -114,13 +115,48 @@ export default function MedicineReportPage() {
   const [savingBatch, setSavingBatch] = useState(false);
   const [editBatchError, setEditBatchError] = useState('');
 
-  const handleOpenEditBatchModal = (batch) => {
+  const handleOpenEditBatchModal = async (batch) => {
     if (!batch) return;
     setEditingBatch(batch);
+    setEditMedicineId(batch.medicineId || batch.medicine?._id || '');
     setEditBatchNumber(batch.batchNumber || '');
     setEditExpiryDate(batch.expiryDate || '');
+    setEditQuantity(batch.quantityAvailable !== undefined ? batch.quantityAvailable : '');
     setEditBatchError('');
     setIsEditModalOpen(true);
+
+    if (allMedicinesList.length === 0) {
+      try {
+        const data = await fetchMedicines({ includeInactive: false });
+        setAllMedicinesList(data.medicines || []);
+      } catch (err) {
+        console.error('Failed to load medicines for edit modal', err);
+      }
+    }
+  };
+
+  const handleOpenDeleteBatch = (batch) => {
+    if (!batch) return;
+    setDeletingBatch(batch);
+    setDeleteError('');
+  };
+
+  const handleConfirmDeleteBatch = async () => {
+    if (!deletingBatch?._id) return;
+    try {
+      setDeleting(true);
+      setDeleteError('');
+      await deleteBatchApi(deletingBatch._id);
+      await loadStats();
+      if (activeTab === 'traceability') {
+        setTraceResult(null);
+      }
+      setDeletingBatch(null);
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete batch.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const disposeStock = async (batch) => {
@@ -244,8 +280,10 @@ export default function MedicineReportPage() {
       setSavingBatch(true);
       setEditBatchError('');
       await updateBatchApi(editingBatch._id, {
+        medicineId: editMedicineId || undefined,
         batchNumber: trimmedBatch,
         expiryDate: editExpiryDate,
+        quantityAvailable: editQuantity !== '' ? Number(editQuantity) : undefined,
       });
 
       // Refresh traceability if open
@@ -786,7 +824,7 @@ export default function MedicineReportPage() {
                         <th className="py-3 px-4 text-right">Total In Stock</th>
                         <th className="py-3 px-4 text-center">Next Expiry</th>
                         <th className="py-3 px-4 text-center">Shelf Status (FEFO)</th>
-                        <th className="py-3 px-4 text-center min-w-[130px]">Batches Breakdown</th>
+                        <th className="py-3 px-4 text-center min-w-[140px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -1085,10 +1123,20 @@ export default function MedicineReportPage() {
                                                       <button
                                                         type="button"
                                                         onClick={() => handleOpenEditBatchModal(b)}
-                                                        className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
-                                                        title="Edit Batch Number or Expiry Date (Admin/Developer)"
+                                                        className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                                        title="Edit Medicine, Batch, Expiry, Stock Qty"
                                                       >
-                                                        ✏️
+                                                        <span>✏️</span> Edit
+                                                      </button>
+                                                    )}
+                                                    {canEditBatch && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleOpenDeleteBatch(b)}
+                                                        className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                                                        title="Delete Stock Batch"
+                                                      >
+                                                        <span>🗑️</span> Delete
                                                       </button>
                                                     )}
                                                   </div>
@@ -1304,10 +1352,23 @@ export default function MedicineReportPage() {
                                               e.stopPropagation();
                                               handleOpenEditBatchModal(b);
                                             }}
-                                            className="text-[10px] font-bold text-slate-600 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 rounded px-1 py-0.5 cursor-pointer"
+                                            className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5 cursor-pointer"
                                             title="Edit Batch"
                                           >
                                             ✏️
+                                          </button>
+                                        )}
+                                        {canEditBatch && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleOpenDeleteBatch(b);
+                                            }}
+                                            className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 cursor-pointer"
+                                            title="Delete Batch"
+                                          >
+                                            🗑️
                                           </button>
                                         )}
                                       </div>
@@ -1621,6 +1682,83 @@ export default function MedicineReportPage() {
         />
       )}
 
+      {/* Delete Batch Confirmation Modal (Admin & Developer Only) */}
+      {deletingBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-rose-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-5 py-3.5 bg-rose-600 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🗑️</span>
+                <h3 className="font-bold text-sm">Delete Stock Batch</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingBatch(null)}
+                className="text-white/80 hover:text-white text-lg p-0.5 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5">
+              {deleteError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+                  ⚠️ {deleteError}
+                </div>
+              )}
+
+              <p className="text-xs text-slate-700">
+                Are you sure you want to permanently delete this batch from live inventory?
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Medicine:</span>
+                  <strong className="text-slate-900">{deletingBatch.medicineName || deletingBatch.medicine?.name || 'Medicine'}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Batch Number:</span>
+                  <span className="font-mono font-bold text-slate-800 bg-white px-1.5 py-0.2 rounded border border-slate-200">{deletingBatch.batchNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Stock Balance:</span>
+                  <strong className="text-emerald-700">{deletingBatch.quantityAvailable} {deletingBatch.unit}</strong>
+                </div>
+                {deletingBatch.expiryDate && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Expiry Date:</span>
+                    <span className="font-mono text-slate-700">{deletingBatch.expiryDate}</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-[11px] text-rose-600 font-medium">
+                ⚠️ Warning: This will remove this batch from stock and clean up linked ledger records.
+              </p>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setDeletingBatch(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={handleConfirmDeleteBatch}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : '🗑️ Delete Permanently'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Batch Modal (Admin & Developer Only) */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -1647,28 +1785,67 @@ export default function MedicineReportPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveBatchEdit} className="p-5 space-y-4">
+            <form onSubmit={handleSaveBatchEdit} className="p-5 space-y-3.5">
               {editBatchError && (
                 <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
                   ⚠️ {editBatchError}
                 </div>
               )}
 
+              {/* Medicine Selector (Allows changing medicine item if entered wrongly) */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Batch Number <span className="text-rose-500">*</span>
+                  Medicine Item <span className="text-rose-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   required
-                  value={editBatchNumber}
-                  onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. ENR-01, LAS-02"
-                  className="w-full h-10 px-3 font-mono font-bold text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Renaming updates all linked purchase receipts, shed issues, and ledger transactions.
+                  value={editMedicineId}
+                  onChange={(e) => setEditMedicineId(e.target.value)}
+                  className="w-full h-10 px-3 text-xs font-bold text-slate-900 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                >
+                  <option value="">-- Select Medicine --</option>
+                  {allMedicinesList.map((m) => (
+                    <option key={m._id} value={m._id}>
+                      {m.name} {m.aliasName ? `(${m.aliasName})` : ''} • {m.unit}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Reassigns this batch to a different medicine catalog item.
                 </p>
+              </div>
+
+              {/* Grid: Batch Number & Stock Quantity */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Batch Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editBatchNumber}
+                    onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
+                    placeholder="e.g. BATCH-01"
+                    className="w-full h-10 px-3 font-mono font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    In Stock Qty <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    required
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    placeholder="e.g. 50"
+                    className="w-full h-10 px-3 font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                  />
+                </div>
               </div>
 
               <div>

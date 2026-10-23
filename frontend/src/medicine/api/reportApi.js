@@ -74,3 +74,13 @@ export async function updateBatchApi(batchId, updateData) {
   });
 }
 
+
+/**
+ * 6. Delete Batch (Admin / Developer Only)
+ * @param {string} batchId
+ */
+export async function deleteBatchApi(batchId) {
+  return await api(`/medicine/reports/batches/${batchId}`, {
+    method: 'DELETE',
+  });
+}

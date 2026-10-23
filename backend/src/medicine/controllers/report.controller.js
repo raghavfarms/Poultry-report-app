@@ -621,7 +621,7 @@ export async function getFlockCostingReport(req, res) {
  */
 export async function updateBatchDetails(req, res) {
   const { id } = req.params;
-  const { batchNumber, expiryDate } = req.body;
+  const { batchNumber, expiryDate, quantityAvailable, medicineId } = req.body;
 
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     throw badRequest('Invalid batch ID');
@@ -632,9 +632,30 @@ export async function updateBatchDetails(req, res) {
     throw notFoundError('Batch not found');
   }
 
+  // 1. Reassign Medicine if requested
+  if (medicineId && mongoose.Types.ObjectId.isValid(medicineId) && medicineId.toString() !== batch.medicine.toString()) {
+    const newMed = await MedicineMaster.findById(medicineId);
+    if (!newMed) throw notFoundError('Selected medicine not found');
+    batch.medicine = newMed._id;
+    batch.unit = newMed.unit;
+  }
+
+  // 2. Update Quantity Available if provided
+  if (quantityAvailable !== undefined && quantityAvailable !== null && quantityAvailable !== '') {
+    const parsedQty = Number(quantityAvailable);
+    if (isNaN(parsedQty) || parsedQty < 0) {
+      throw badRequest('Quantity available must be a valid non-negative number');
+    }
+    batch.quantityAvailable = parsedQty;
+    if (batch.initialQuantity < parsedQty) {
+      batch.initialQuantity = parsedQty;
+    }
+  }
+
   const oldBatchNumber = batch.batchNumber;
   let newBatchNumber = batch.batchNumber;
 
+  // 3. Update Batch Number if provided
   if (batchNumber && typeof batchNumber === 'string') {
     newBatchNumber = batchNumber.trim().toUpperCase();
     if (!newBatchNumber) {
@@ -670,18 +691,21 @@ export async function updateBatchDetails(req, res) {
     }
   }
 
+  // 4. Update Expiry Date if provided
   if (expiryDate && typeof expiryDate === 'string') {
     const trimmedExpiry = expiryDate.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedExpiry)) {
       throw badRequest('Expiry date must be in YYYY-MM-DD format');
     }
     batch.expiryDate = trimmedExpiry;
+  }
 
-    // Recalculate status if available/expired
-    const today = new Date().toISOString().slice(0, 10);
-    if (batch.quantityAvailable > 0) {
-      batch.status = trimmedExpiry < today ? 'EXPIRED' : 'AVAILABLE';
-    }
+  // 5. Recalculate status based on quantity and expiry
+  const today = new Date().toISOString().slice(0, 10);
+  if (batch.quantityAvailable === 0) {
+    batch.status = 'DEPLETED';
+  } else {
+    batch.status = batch.expiryDate < today ? 'EXPIRED' : 'AVAILABLE';
   }
 
   await batch.save();
@@ -715,3 +739,30 @@ export async function updateBatchDetails(req, res) {
   });
 }
 
+/**
+ * Delete Stock Batch (Admin / Developer Only)
+ * Removes the batch from live inventory and cleans up related records.
+ */
+export async function deleteBatch(req, res) {
+  const { id } = req.params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    throw badRequest('Invalid batch ID');
+  }
+
+  const batch = await MedicineBatch.findById(id).populate('medicine', 'name code');
+  if (!batch) {
+    throw notFoundError('Batch not found');
+  }
+
+  await MedicineBatch.findByIdAndDelete(id);
+
+  // Clean up linked records
+  await MedicineReceipt.deleteMany({ batch: batch._id });
+  await MedicineIssue.deleteMany({ batch: batch._id });
+  await MedicineTransaction.deleteMany({ batch: batch._id });
+
+  res.json({
+    success: true,
+    message: `Batch '${batch.batchNumber}' of '${batch.medicine?.name || 'Medicine'}' deleted successfully`,
+  });
+}

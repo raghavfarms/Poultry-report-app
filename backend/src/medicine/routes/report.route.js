@@ -7,6 +7,7 @@ import {
   getStockLedger,
   getFlockCostingReport,
   updateBatchDetails,
+  deleteBatch,
 } from '../controllers/report.controller.js';
 
 const router = express.Router();
@@ -15,6 +16,7 @@ const router = express.Router();
 router.use(protect);
 router.post('/batches/:id/dispose', adminOnly, disposeBatch);
 router.patch('/batches/:id', adminOnly, updateBatchDetails);
+router.delete('/batches/:id', adminOnly, deleteBatch);
 
 // 1. Live KPIs, low-stock warnings, and Expiry Radar
 router.get('/dashboard-stats', getDashboardStats);
