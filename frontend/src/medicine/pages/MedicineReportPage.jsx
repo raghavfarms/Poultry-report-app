@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatStockDisplay } from '../utils/packagingHelper.js';
+import { formatStockDisplay, formatUnit } from '../utils/packagingHelper.js';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
@@ -940,7 +940,7 @@ export default function MedicineReportPage() {
                                           📦 {displayCount} {typeLabel}
                                         </span>
                                         <span className="text-[10px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">
-                                          1 {type} = {size} {m.unit}
+                                          1 {type} = {size} {formatUnit(m.unit)}
                                         </span>
                                       </div>
                                     );
@@ -972,7 +972,7 @@ export default function MedicineReportPage() {
                                   >
                                     {m.totalStock}
                                   </span>{' '}
-                                  <span className="text-[11px] text-slate-500 font-semibold">{m.unit}</span>
+                                  <span className="text-[11px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
                                 </div>
                               </td>
 
@@ -1023,7 +1023,7 @@ export default function MedicineReportPage() {
                                         </span>
                                       </div>
                                       <span className="text-xs text-slate-500 font-semibold">
-                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {m.unit}{Number(m.packSize) > 1 ? ` (${Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} ${m.packagingType || 'Bottle'}${(m.totalStock / m.packSize) !== 1 ? 's' : ''})` : ''} across{' '}
+                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)}{Number(m.packSize) > 1 ? ` (${Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} ${m.packagingType || 'Bottle'}${(m.totalStock / m.packSize) !== 1 ? 's' : ''})` : ''} across{' '}
                                         <strong className="text-blue-700">{m.batches.length}</strong> {m.batches.length === 1 ? 'batch' : 'batches'}
                                       </span>
                                     </div>
@@ -1094,7 +1094,7 @@ export default function MedicineReportPage() {
                                                     {b.quantityAvailable}
                                                   </span>{' '}
                                                   <span className="text-[11px] text-slate-500 font-semibold">
-                                                    {b.unit}
+                                                    {formatUnit(b.unit)}
                                                   </span>
                                                 </div>
                                               </td>
@@ -1256,7 +1256,7 @@ export default function MedicineReportPage() {
                               <span className={`font-black text-xs ${m.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
                                 {m.totalStock}
                               </span>{' '}
-                              <span className="text-[10px] text-slate-500 font-semibold">{m.unit}</span>
+                              <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
                               {Number(m.packSize) > 1 && (
                                 <span className="ml-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
                                   📦 {Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} {m.packagingType || 'Bottle'}{(m.totalStock / m.packSize) !== 1 ? 's' : ''}
@@ -1322,7 +1322,7 @@ export default function MedicineReportPage() {
                                   <div className="text-right shrink-0">
                                     <div className="text-[11px] leading-tight">
                                       <strong className="text-slate-900 font-bold">{b.quantityAvailable}</strong>{' '}
-                                      <span className="text-[10px] text-slate-500">{b.unit}</span>
+                                      <span className="text-[10px] text-slate-500">{formatUnit(b.unit)}</span>
                                     </div>
                                     <div className="text-[9px] font-mono text-slate-400 leading-tight">
                                       {b.expiryDate}

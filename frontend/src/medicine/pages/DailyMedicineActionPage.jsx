@@ -12,7 +12,7 @@ import {
 } from '../api/dailyActionApi.js';
 import { fetchDashboardStats } from '../api/reportApi.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
-import { formatStockDisplay } from '../utils/packagingHelper.js';
+import { formatStockDisplay, formatUnit } from '../utils/packagingHelper.js';
 
 
 export default function DailyMedicineActionPage({
@@ -1280,7 +1280,7 @@ export default function DailyMedicineActionPage({
 
                     <div>
                       <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
-                        Total ({selectedInwardMed.unit || 'Units'}) <span className="text-rose-500">*</span>
+                        Total ({formatUnit(selectedInwardMed.unit) || 'Units'}) <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="number"
@@ -1305,9 +1305,9 @@ export default function DailyMedicineActionPage({
                   </div>
 
                   <div className="text-[10px] text-emerald-900 bg-emerald-50/90 px-2 py-1 rounded border border-emerald-200/70 flex items-center justify-between font-medium">
-                    <span>📦 1 {selectedInwardMed.packagingType || 'Container'} = {selectedInwardMed.packSize} {selectedInwardMed.unit}</span>
+                    <span>📦 1 {selectedInwardMed.packagingType || 'Container'} = {selectedInwardMed.packSize} {formatUnit(selectedInwardMed.unit)}</span>
                     {inwardPacks && inwardQty ? (
-                      <span className="font-bold text-emerald-950">Total: {inwardPacks} {selectedInwardMed.packagingType}s = {inwardQty} {selectedInwardMed.unit}</span>
+                      <span className="font-bold text-emerald-950">Total: {inwardPacks} {selectedInwardMed.packagingType}s = {inwardQty} {formatUnit(selectedInwardMed.unit)}</span>
                     ) : null}
                   </div>
 
@@ -1958,12 +1958,12 @@ export default function DailyMedicineActionPage({
                                           <span>•</span>
                                         </>
                                       )}
-                                      <span>Unit: {m.unit}</span>
+                                      <span>Unit: {formatUnit(m.unit)}</span>
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                      Stock: {stockQty} {m.unit}
+                                      Stock: {formatStockDisplay(stockQty, m.packSize, m.packagingType, m.unit)}
                                     </span>
                                     {isSelected && (
                                       <span className="text-blue-600 font-bold text-xs">✓</span>
@@ -1999,8 +1999,8 @@ export default function DailyMedicineActionPage({
                     {/* Packaging Ratio conversion banner */}
                     {hasPack && (
                       <div className="text-[10px] text-emerald-900 bg-emerald-50/90 px-2 py-0.5 rounded-md border border-emerald-200/80 flex items-center justify-between font-medium mb-1">
-                        <span>📦 1 {packType} = {packSize} {medUnit}</span>
-                        <span className="text-[9px] text-emerald-700 font-semibold">Enter by Packs or {medUnit}</span>
+                        <span>📦 1 {packType} = {packSize} {formatUnit(medUnit)}</span>
+                        <span className="text-[9px] text-emerald-700 font-semibold">Enter by Packs or {formatUnit(medUnit)}</span>
                       </div>
                     )}
 
@@ -2011,14 +2011,14 @@ export default function DailyMedicineActionPage({
                           <div className="col-span-3 text-left">BATCH / EXP</div>
                           <div className="col-span-3 text-center">AVAILABLE</div>
                           <div className="col-span-3 text-center text-emerald-800">PACKS ({packType})</div>
-                          <div className="col-span-3 text-right">TAKE ({medUnit})</div>
+                          <div className="col-span-3 text-right">TAKE ({formatUnit(medUnit)})</div>
                         </div>
                       ) : (
                         <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
                           <div className="col-span-3 text-left">BATCH</div>
                           <div className="col-span-3 text-center">SHELF</div>
                           <div className="col-span-3 text-center">AVAILABLE</div>
-                          <div className="col-span-3 text-right">TAKE ({medUnit})</div>
+                          <div className="col-span-3 text-right">TAKE ({formatUnit(medUnit)})</div>
                         </div>
                       )}
 
@@ -2061,13 +2061,13 @@ export default function DailyMedicineActionPage({
                                   </span>
                                 </div>
 
-                                {/* Col 2: Available (Base unit & Packs) */}
+                                {/* Col 2: Available (Pack count on top, small quantity below) */}
                                 <div className="col-span-3 flex flex-col items-center justify-center px-0.5">
-                                  <span className="font-bold text-slate-800 text-[11px] leading-tight">
-                                    {b.quantityAvailable} {medUnit}
-                                  </span>
-                                  <span className="text-[8.5px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.1 rounded border border-emerald-200 mt-0.5 leading-tight">
+                                  <span className="font-extrabold text-emerald-800 text-xs leading-tight">
                                     {packsAvail} {packType}{packsAvail !== 1 ? 's' : ''}
+                                  </span>
+                                  <span className="text-[9.5px] text-slate-500 font-semibold mt-0.5 leading-tight">
+                                    ({b.quantityAvailable} {formatUnit(medUnit)})
                                   </span>
                                 </div>
 
@@ -2105,7 +2105,7 @@ export default function DailyMedicineActionPage({
                                         ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
                                         : 'border-slate-300'
                                     }`}
-                                    title={`Enter ${medUnit}`}
+                                    title={`Enter ${formatUnit(medUnit)}`}
                                   />
                                 </div>
                               </div>
@@ -2227,12 +2227,18 @@ export default function DailyMedicineActionPage({
               <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
                 <div className="text-xs font-bold text-blue-900 whitespace-nowrap flex items-center gap-1.5 flex-wrap">
                   <span>Total:</span>
-                  <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
-                  <span className="text-[10px] text-slate-500 font-medium">{selectedOutwardMed?.unit || ''}</span>
-                  {selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 && outwardQty && Number(outwardQty) > 0 && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                      📦 {Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2))} {selectedOutwardMed.packagingType || 'Packs'}
-                    </span>
+                  {selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 && outwardQty && Number(outwardQty) > 0 ? (
+                    <>
+                      <strong className="text-sm font-black text-emerald-700">
+                        {Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2))} {selectedOutwardMed.packagingType || 'Pack'}{Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2)) !== 1 ? 's' : ''}
+                      </strong>
+                      <span className="text-xs text-slate-600 font-semibold">({outwardQty} {formatUnit(selectedOutwardMed?.unit)})</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
+                      <span className="text-[10px] text-slate-500 font-medium">{formatUnit(selectedOutwardMed?.unit)}</span>
+                    </>
                   )}
                 </div>
 
