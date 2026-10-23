@@ -109,11 +109,19 @@ export default function MedicineReportPage() {
 
   // Edit Batch Modal State
   const [editingBatch, setEditingBatch] = useState(null);
+  const [editMedicineId, setEditMedicineId] = useState('');
   const [editBatchNumber, setEditBatchNumber] = useState('');
   const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editQuantity, setEditQuantity] = useState('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingBatch, setSavingBatch] = useState(false);
   const [editBatchError, setEditBatchError] = useState('');
+  const [allMedicinesList, setAllMedicinesList] = useState([]);
+
+  // Delete Batch Confirmation State
+  const [deletingBatch, setDeletingBatch] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const handleOpenEditBatchModal = async (batch) => {
     if (!batch) return;
@@ -149,7 +157,7 @@ export default function MedicineReportPage() {
       await deleteBatchApi(deletingBatch._id);
       await loadStats();
       if (activeTab === 'traceability') {
-        setTraceResult(null);
+        setTraceData(null);
       }
       setDeletingBatch(null);
     } catch (err) {
