@@ -1038,29 +1038,23 @@ export default function MedicineReportPage() {
                       const isCaution = m.urgency === 'CAUTION';
                       const isWarning = m.urgency === 'WARNING';
 
+                      const isSoon = isCritical || isCaution || isWarning;
+
                       const rowBgClass = isExpanded
-                        ? 'bg-blue-50/50'
+                        ? 'bg-blue-50 hover:bg-blue-100/70'
                         : isExpired
-                        ? 'bg-rose-50/40'
-                        : isCritical
-                        ? 'bg-rose-50/20'
-                        : isCaution
-                        ? 'bg-orange-50/20'
-                        : isWarning
-                        ? 'bg-amber-50/15'
-                        : 'bg-white';
+                        ? 'bg-rose-50 hover:bg-rose-100/80'
+                        : isSoon
+                        ? 'bg-amber-50 hover:bg-amber-100/80'
+                        : 'bg-white hover:bg-slate-50';
 
                       const stickyCellBgClass = isExpanded
-                        ? 'bg-blue-50'
+                        ? 'bg-blue-50 group-hover:bg-blue-100/70'
                         : isExpired
-                        ? 'bg-rose-50'
-                        : isCritical
-                        ? 'bg-rose-50'
-                        : isCaution
-                        ? 'bg-orange-50'
-                        : isWarning
-                        ? 'bg-amber-50'
-                        : 'bg-white';
+                        ? 'bg-rose-50 group-hover:bg-rose-100/80'
+                        : isSoon
+                        ? 'bg-amber-50 group-hover:bg-amber-100/80'
+                        : 'bg-white group-hover:bg-slate-50';
 
                       return (
                         <React.Fragment key={m.key}>
@@ -1069,9 +1063,9 @@ export default function MedicineReportPage() {
                             onClick={() => {
                               if (isMultiBatch) toggleExpand(m.key);
                             }}
-                            className={`transition-colors select-none ${
+                            className={`group transition-colors select-none ${
                               isMultiBatch ? 'cursor-pointer' : ''
-                            } ${rowBgClass} hover:bg-slate-50/80`}
+                            } ${rowBgClass}`}
                           >
                             {/* Column 1: Medicine Name & Farm Meta (STEADY / FROZEN STICKY LEFT) */}
                             <td
@@ -1273,11 +1267,19 @@ export default function MedicineReportPage() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
-                                      {m.batches.map((b) => (
-                                        <tr
-                                          key={b._id}
-                                          className="hover:bg-blue-50/30 transition-colors"
-                                        >
+                                      {m.batches.map((b) => {
+                                        const bIsSoon = b.urgency === 'CRITICAL' || b.urgency === 'CAUTION' || b.urgency === 'WARNING';
+                                        const bRowBgClass = b.urgency === 'EXPIRED'
+                                          ? 'bg-rose-50/70 hover:bg-rose-100/60'
+                                          : bIsSoon
+                                          ? 'bg-amber-50/70 hover:bg-amber-100/60'
+                                          : 'hover:bg-blue-50/30';
+
+                                        return (
+                                          <tr
+                                            key={b._id}
+                                            className={`${bRowBgClass} transition-colors`}
+                                          >
                                           {/* Batch Number */}
                                           <td className="py-2 px-3 whitespace-nowrap">
                                             <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-block shadow-2xs">
@@ -1364,7 +1366,8 @@ export default function MedicineReportPage() {
                                             </td>
                                           )}
                                         </tr>
-                                      ))}
+                                      );
+                                    })}
                                     </tbody>
                                   </table>
                                 </div>
