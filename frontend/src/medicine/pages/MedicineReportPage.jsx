@@ -614,6 +614,20 @@ export default function MedicineReportPage() {
     }
   };
 
+  const formatExpiryDDMMYYYY = (dateStr) => {
+    if (!dateStr || dateStr === '—') return '—';
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
   const renderShelfBadge = (urgency, daysLeft) => {
     const hasDays = daysLeft !== null && daysLeft !== undefined && !isNaN(daysLeft);
     if (urgency === 'EXPIRED') {
@@ -984,24 +998,31 @@ export default function MedicineReportPage() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-30 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
                     <tr>
-                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-2.5 w-[155px] sm:w-[195px] min-w-[155px] sm:min-w-[195px] max-w-[165px] sm:max-w-[210px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                      {/* 1. Medicine & Farm */}
+                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-2.5 w-[155px] sm:w-[195px] min-w-[155px] sm:min-w-[195px] max-w-[170px] sm:max-w-[210px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
                         Medicine & Farm
                       </th>
-                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[90px]">
-                        Batch No
-                      </th>
+                      {/* 2. Packaging (Packs) */}
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[130px]">
                         Packaging (Packs)
                       </th>
+                      {/* 3. Total In Stock */}
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-right border-b border-slate-200 whitespace-nowrap min-w-[100px]">
                         Total In Stock
                       </th>
-                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[95px]">
+                      {/* 4. Batch No */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[90px]">
+                        Batch No
+                      </th>
+                      {/* 5. Next Expiry */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[105px]">
                         Next Expiry
                       </th>
+                      {/* 6. Shelf Status (FEFO) */}
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[100px]">
                         Shelf Status (FEFO)
                       </th>
+                      {/* 7. Actions */}
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center min-w-[65px] border-b border-slate-200 whitespace-nowrap">
                         Actions
                       </th>
@@ -1054,9 +1075,9 @@ export default function MedicineReportPage() {
                           >
                             {/* Column 1: Medicine Name & Farm Meta (STEADY / FROZEN STICKY LEFT) */}
                             <td
-                              className={`sticky left-0 z-20 py-2 px-2 w-[125px] sm:w-[155px] min-w-[125px] sm:min-w-[155px] max-w-[125px] sm:max-w-[155px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${stickyCellBgClass}`}
+                              className={`sticky left-0 z-20 py-2 px-2.5 w-[155px] sm:w-[195px] min-w-[155px] sm:min-w-[195px] max-w-[170px] sm:max-w-[210px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${stickyCellBgClass}`}
                             >
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1.5">
                                 {isMultiBatch ? (
                                   <span
                                     className={`text-[10px] font-black transition-transform duration-200 shrink-0 ${
@@ -1070,12 +1091,12 @@ export default function MedicineReportPage() {
                                 )}
                                 <div className="min-w-0 flex-1">
                                   <div
-                                    className="font-bold text-slate-900 text-xs hover:text-blue-700 transition truncate max-w-[105px] sm:max-w-[135px]"
+                                    className="font-bold text-slate-900 text-xs hover:text-blue-700 transition leading-snug break-words"
                                     title={m.medicineName + (m.medicineAlias ? ` (${m.medicineAlias})` : '')}
                                   >
                                     {m.medicineName}
                                     {m.medicineAlias && (
-                                      <span className="font-normal text-slate-500 ml-1 text-[11px]">
+                                      <span className="font-normal text-slate-500 ml-1 text-[10.5px]">
                                         ({m.medicineAlias})
                                       </span>
                                     )}
@@ -1083,14 +1104,14 @@ export default function MedicineReportPage() {
                                   <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500 flex-wrap">
                                     {m.farm?.name && (
                                       <span
-                                        className="font-bold text-[8.5px] bg-slate-100 text-slate-700 px-1 py-0.2 rounded border border-slate-200 truncate max-w-[75px]"
+                                        className="font-bold text-[8.5px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 shrink-0"
                                         title={m.farm.name}
                                       >
                                         🏢 {m.farm.name}
                                       </span>
                                     )}
                                     {m.medicineCode && (
-                                      <span className="font-mono text-[8.5px] bg-slate-50 text-slate-500 px-0.5 py-0.2 rounded border border-slate-200">
+                                      <span className="font-mono text-[8.5px] bg-slate-50 text-slate-500 px-1 py-0.2 rounded border border-slate-200 shrink-0">
                                         {m.medicineCode}
                                       </span>
                                     )}
@@ -1099,7 +1120,48 @@ export default function MedicineReportPage() {
                               </div>
                             </td>
 
-                            {/* Column 2: Batch No */}
+                            {/* Column 2: Packaging & Physical Packs (Pack size) */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[130px]">
+                              {(() => {
+                                const size = Number(m.packSize) || 1;
+                                const type = m.packagingType || 'Bottle';
+                                const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+                                const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                const typeLabel = getPackagingPlural(type, displayCount);
+
+                                return (
+                                  <div className="inline-flex flex-col items-center">
+                                    <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                      📦 {displayCount} {typeLabel}
+                                    </span>
+                                    <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                      1 {type} = {size} {formatUnit(m.unit)}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+
+                            {/* Column 3: Total In Stock (Total) */}
+                            <td className="py-2 px-3 text-right whitespace-nowrap min-w-[100px]">
+                              <div className="flex items-center justify-end gap-1">
+                                {m.isLowStock && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                                    ⚠️ Low
+                                  </span>
+                                )}
+                                <span
+                                  className={`font-black text-xs ${
+                                    m.isLowStock ? 'text-rose-700' : 'text-slate-900'
+                                  }`}
+                                >
+                                  {m.totalStock}
+                                </span>{' '}
+                                <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
+                              </div>
+                            </td>
+
+                            {/* Column 4: Batch No (Batch no) */}
                             <td className="py-2 px-3 text-center whitespace-nowrap min-w-[90px]">
                               {isMultiBatch ? (
                                 <button
@@ -1125,50 +1187,9 @@ export default function MedicineReportPage() {
                               )}
                             </td>
 
-                            {/* Column 3: Packaging & Physical Packs */}
-                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[130px]">
-                              {(() => {
-                                const size = Number(m.packSize) || 1;
-                                const type = m.packagingType || 'Bottle';
-                                const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
-                                const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
-                                const typeLabel = getPackagingPlural(type, displayCount);
-
-                                return (
-                                  <div className="inline-flex flex-col items-center">
-                                    <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
-                                      📦 {displayCount} {typeLabel}
-                                    </span>
-                                    <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
-                                      1 {type} = {size} {formatUnit(m.unit)}
-                                    </span>
-                                  </div>
-                                );
-                              })()}
-                            </td>
-
-                            {/* Column 4: Total In Stock */}
-                            <td className="py-2 px-3 text-right whitespace-nowrap min-w-[100px]">
-                              <div className="flex items-center justify-end gap-1">
-                                {m.isLowStock && (
-                                  <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-300">
-                                    ⚠️ Low
-                                  </span>
-                                )}
-                                <span
-                                  className={`font-black text-xs ${
-                                    m.isLowStock ? 'text-rose-700' : 'text-slate-900'
-                                  }`}
-                                >
-                                  {m.totalStock}
-                                </span>{' '}
-                                <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
-                              </div>
-                            </td>
-
-                            {/* Column 5: Earliest Expiry Date */}
-                            <td className="py-2 px-3 text-center font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap min-w-[95px]">
-                              {m.earliestBatch?.expiryDate || '—'}
+                            {/* Column 5: Earliest Expiry Date (DD-MM-YYYY) */}
+                            <td className="py-2 px-3 text-center font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap min-w-[105px]">
+                              {formatExpiryDDMMYYYY(m.earliestBatch?.expiryDate)}
                             </td>
 
                             {/* Column 6: Shelf Status (FEFO) */}
@@ -1317,7 +1338,7 @@ export default function MedicineReportPage() {
 
                                           {/* Expiry Date */}
                                           <td className="py-2 px-3 text-center font-mono text-xs text-slate-700 font-medium whitespace-nowrap">
-                                            {b.expiryDate}
+                                            {formatExpiryDDMMYYYY(b.expiryDate)}
                                           </td>
 
                                           {/* Shelf Status */}
