@@ -8,6 +8,10 @@ import {
   getFlockCostingReport,
   updateBatchDetails,
 } from '../controllers/report.controller.js';
+import {
+  getStockRegister,
+  saveStockAudit,
+} from '../controllers/stockRegister.controller.js';
 
 const router = express.Router();
 
@@ -27,5 +31,9 @@ router.get('/ledger', getStockLedger);
 
 // 4. Lifetime Flock Treatment Costing & Cost Per Bird
 router.get('/flock-costing', getFlockCostingReport);
+
+// 5. Daily Medicine Stock Register (Excel Layout + Physical Count & Variance)
+router.get('/stock-register', getStockRegister);
+router.post('/stock-register/audit', saveStockAudit);
 
 export default router;

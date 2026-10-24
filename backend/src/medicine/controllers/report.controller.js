@@ -4,6 +4,7 @@ import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
 import MedicineIssue from '../models/MedicineIssue.js';
 import MedicineReceipt from '../models/MedicineReceipt.js';
+import MedicineStockAudit from '../models/MedicineStockAudit.js';
 import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 

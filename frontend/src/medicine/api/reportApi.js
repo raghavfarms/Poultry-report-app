@@ -74,3 +74,27 @@ export async function updateBatchApi(batchId, updateData) {
   });
 }
 
+/**
+ * 6. Fetch Daily Medicine Stock Register
+ * Mirrors Excel Stock Register with Opening, Received, Sub Total, Issued, Balance, and Physical Audit
+ * @param {Object} params - { farm, date }
+ */
+export async function fetchStockRegister(params = {}) {
+  const query = new URLSearchParams();
+  if (params.farm) query.append('farm', params.farm);
+  if (params.date) query.append('date', params.date);
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  return await api(`/medicine/reports/stock-register${queryString}`);
+}
+
+/**
+ * 7. Save Daily Physical Stock Audit
+ * @param {Object} payload - { farm, date, items, notes }
+ */
+export async function saveStockAuditApi(payload) {
+  return await api('/medicine/reports/stock-register/audit', {
+    method: 'POST',
+    body: payload,
+  });
+}
