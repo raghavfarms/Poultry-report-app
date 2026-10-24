@@ -335,7 +335,7 @@ export default function DailyMedicineActionPage({
     setBatchAllocations(next);
 
     // Sync pack allocations
-    if (packSize > 1) {
+    if (packSize > 0 && packSize !== 1) {
       const nextPack = { ...batchPackAllocations };
       if (val === '' || isNaN(Number(val))) {
         nextPack[batchId] = '';
@@ -421,7 +421,7 @@ export default function DailyMedicineActionPage({
       const take = Math.min(b.quantityAvailable || 0, remaining);
       const takeStr = take > 0 ? String(Number(take.toFixed(3))) : '';
       next[b._id] = takeStr;
-      nextPack[b._id] = takeStr && size > 1 ? String(Number((take / size).toFixed(3))) : '';
+      nextPack[b._id] = takeStr && size > 0 && size !== 1 ? String(Number((take / size).toFixed(3))) : '';
       remaining -= take;
     }
     setBatchAllocations(next);
@@ -1260,7 +1260,7 @@ export default function DailyMedicineActionPage({
               </div>
 
               {/* Quantity Received with Pack Size Auto-Calculation */}
-              {selectedInwardMed && Number(selectedInwardMed.packSize) > 1 ? (
+              {selectedInwardMed && Number(selectedInwardMed.packSize) > 0 && Number(selectedInwardMed.packSize) !== 1 ? (
                 <div className="space-y-1.5">
                   <div className="grid grid-cols-2 gap-1.5">
                     <div>
@@ -1302,7 +1302,7 @@ export default function DailyMedicineActionPage({
                           const val = e.target.value;
                           setInwardQty(val);
                           const size = Number(selectedInwardMed.packSize) || 1;
-                          if (size > 1 && val !== '' && Number(val) >= 0) {
+                          if (size > 0 && size !== 1 && val !== '' && Number(val) >= 0) {
                             setInwardPacks(Number((Number(val) / size).toFixed(3)));
                           } else if (val === '') {
                             setInwardPacks('');
@@ -1999,7 +1999,7 @@ export default function DailyMedicineActionPage({
 
               {/* Physical Batches Available to Pick (Compact Table Layout) */}
               {outwardMedicineId && activeBatchesForOutward.length > 0 && (() => {
-                const hasPack = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1;
+                const hasPack = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 0 && Number(selectedOutwardMed.packSize) !== 1;
                 const packSize = hasPack ? Number(selectedOutwardMed.packSize) : 1;
                 const packType = selectedOutwardMed?.packagingType || 'Pack';
                 const medUnit = selectedOutwardMed?.unit || 'Unit';
@@ -2047,8 +2047,8 @@ export default function DailyMedicineActionPage({
                           const isCaution = b.daysLeft <= 60;  // 2 months
                           const isWarning = b.daysLeft <= 90;  // 3 months
                           const allocVal = batchAllocations[b._id] ?? '';
-                          const allocPackVal = batchPackAllocations[b._id] ?? (allocVal !== '' && !isNaN(Number(allocVal)) && packSize > 1 ? String(Number((Number(allocVal) / packSize).toFixed(3))) : '');
-                          const packsAvail = packSize > 1 ? Number((b.quantityAvailable / packSize).toFixed(2)) : 0;
+                          const allocPackVal = batchPackAllocations[b._id] ?? (allocVal !== '' && !isNaN(Number(allocVal)) && packSize > 0 && packSize !== 1 ? String(Number((Number(allocVal) / packSize).toFixed(3))) : '');
+                          const packsAvail = packSize > 0 && packSize !== 1 ? Number((b.quantityAvailable / packSize).toFixed(2)) : 0;
 
                           if (hasPack) {
                             return (

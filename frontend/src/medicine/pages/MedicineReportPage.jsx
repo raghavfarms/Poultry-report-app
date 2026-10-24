@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { formatStockDisplay, formatUnit } from '../utils/packagingHelper.js';
+import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
@@ -149,7 +149,7 @@ export default function MedicineReportPage() {
 
     const med = list.find((m) => String(m._id) === String(medId)) || batch.medicine;
     const size = Number(med?.packSize) || 1;
-    if (size > 1 && qty !== '' && !isNaN(qty)) {
+    if (size > 0 && size !== 1 && qty !== '' && !isNaN(qty)) {
       setEditPacks(Number((Number(qty) / size).toFixed(3)));
     } else {
       setEditPacks('');
@@ -944,9 +944,9 @@ export default function MedicineReportPage() {
                                   const type = m.packagingType || 'Bottle';
                                   const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
                                   const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
-                                  const typeLabel = displayCount === 1 ? type : (type.endsWith('s') ? type : `${type}s`);
+                                  const typeLabel = getPackagingPlural(type, displayCount);
 
-                                  if (size > 1) {
+                                  if (size > 0 && size !== 1) {
                                     return (
                                       <div className="inline-flex flex-col items-center">
                                         <span className="font-extrabold text-xs text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap">
@@ -964,7 +964,7 @@ export default function MedicineReportPage() {
                                       <span className="font-semibold text-xs whitespace-nowrap">
                                         {displayCount} {typeLabel}
                                       </span>
-                                      <span className="text-[10px] text-slate-400">1:1 standard</span>
+                                      <span className="text-[10px] text-slate-400">1 {type} = 1 {formatUnit(m.unit)}</span>
                                     </div>
                                   );
                                 })()}
@@ -1036,7 +1036,7 @@ export default function MedicineReportPage() {
                                         </span>
                                       </div>
                                       <span className="text-xs text-slate-500 font-semibold">
-                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)}{Number(m.packSize) > 1 ? ` (${Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} ${m.packagingType || 'Bottle'}${(m.totalStock / m.packSize) !== 1 ? 's' : ''})` : ''} across{' '}
+                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)}{Number(m.packSize) > 0 && Number(m.packSize) !== 1 ? ` (${Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} ${getPackagingPlural(m.packagingType || 'Bottle', m.totalStock / m.packSize)})` : ''} across{' '}
                                         <strong className="text-blue-700">{m.batches.length}</strong> {m.batches.length === 1 ? 'batch' : 'batches'}
                                       </span>
                                     </div>
@@ -1270,9 +1270,9 @@ export default function MedicineReportPage() {
                                 {m.totalStock}
                               </span>{' '}
                               <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
-                              {Number(m.packSize) > 1 && (
+                              {Number(m.packSize) > 0 && Number(m.packSize) !== 1 && (
                                 <span className="ml-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
-                                  📦 {Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} {m.packagingType || 'Bottle'}{(m.totalStock / m.packSize) !== 1 ? 's' : ''}
+                                  📦 {Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} {getPackagingPlural(m.packagingType || 'Bottle', m.totalStock / m.packSize)}
                                 </span>
                               )}
                             </div>
@@ -1847,7 +1847,7 @@ export default function MedicineReportPage() {
                           setEditMedicineId(newMedId);
                           const m = allMedicinesList.find((x) => String(x._id) === String(newMedId));
                           const size = Number(m?.packSize) || 1;
-                          if (size > 1 && editQuantity !== '' && !isNaN(editQuantity)) {
+                          if (size > 0 && size !== 1 && editQuantity !== '' && !isNaN(editQuantity)) {
                             setEditPacks(Number((Number(editQuantity) / size).toFixed(3)));
                           } else {
                             setEditPacks('');
@@ -1882,8 +1882,8 @@ export default function MedicineReportPage() {
                       />
                     </div>
 
-                    {/* Dual Linked Pack / Unit inputs when packSize > 1 */}
-                    {editPackSize > 1 ? (
+                    {/* Dual Linked Pack / Unit inputs when packSize is customized */}
+                    {editPackSize > 0 && editPackSize !== 1 ? (
                       <div className="space-y-2 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
                           <span>📦 1 {editPackaging} = {editPackSize} {editUnit}</span>
@@ -1943,7 +1943,7 @@ export default function MedicineReportPage() {
 
                         {editPacks !== '' && editQuantity !== '' && (
                           <div className="text-[11px] font-bold text-emerald-800 text-center pt-1 border-t border-emerald-200/60">
-                            Total: {editPacks} {editPackaging}{Number(editPacks) === 1 ? '' : 's'} = {editQuantity} {editUnit}
+                            Total: {editPacks} {getPackagingPlural(editPackaging, editPacks)} = {editQuantity} {editUnit}
                           </div>
                         )}
                       </div>

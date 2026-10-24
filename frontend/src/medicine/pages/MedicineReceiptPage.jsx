@@ -9,7 +9,7 @@ import { fetchSuppliers } from '../api/supplierApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
-import { formatStockDisplay, formatUnit } from '../utils/packagingHelper.js';
+import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
 
 const STATUS_BADGES = {
   PENDING_STORE_VERIFICATION: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -662,7 +662,7 @@ export default function MedicineReceiptPage() {
                         setFormMedicine(newMedId);
                         const sel = medicines.find((m) => m._id === newMedId);
                         const size = Number(sel?.packSize) || 1;
-                        if (size > 1 && formQty !== '' && !isNaN(formQty)) {
+                        if (size > 0 && size !== 1 && formQty !== '' && !isNaN(formQty)) {
                           setFormPacks(Number((Number(formQty) / size).toFixed(3)));
                         } else {
                           setFormPacks('');
@@ -791,7 +791,7 @@ export default function MedicineReceiptPage() {
                     const packaging = selMed?.packagingType || 'Packet';
                     const unit = formatUnit(selMed?.unit) || 'Units';
 
-                    if (packSize > 1) {
+                    if (packSize > 0 && packSize !== 1) {
                       return (
                         <div className="space-y-1.5 p-2 bg-emerald-50/70 border border-emerald-200 rounded-lg">
                           <div className="flex items-center justify-between text-[10px] font-bold text-emerald-900">
@@ -852,7 +852,7 @@ export default function MedicineReceiptPage() {
 
                           {formPacks !== '' && formQty !== '' && (
                             <div className="text-[10px] font-bold text-emerald-800 text-center pt-0.5 border-t border-emerald-200/60">
-                              Total: {formPacks} {packaging}{Number(formPacks) === 1 ? '' : 's'} = {formQty} {unit}
+                              Total: {formPacks} {getPackagingPlural(packaging, formPacks)} = {formQty} {unit}
                             </div>
                           )}
                         </div>
