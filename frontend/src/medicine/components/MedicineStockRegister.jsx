@@ -685,39 +685,6 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                 })
               )}
             </tbody>
-
-            {/* Totals Footer Row */}
-            {filteredItems.length > 0 && (
-              <tfoot>
-                <tr className="border-t-2 border-slate-300 bg-slate-100 text-slate-800 font-extrabold text-center text-xs">
-                  <td colSpan="4" className="py-2 px-2 text-left border-r border-slate-200 uppercase tracking-wider text-[11px]">
-                    Total
-                  </td>
-                  <td colSpan="2" className="py-2 px-1.5 border-r border-slate-200 bg-blue-50/50"></td>
-                  <td className="py-2 px-1.5 border-r border-slate-200 font-black text-blue-900 bg-blue-100/60 font-mono">
-                    {summary.totalOpening}
-                  </td>
-                  <td colSpan="2" className="py-2 px-1.5 border-r border-slate-200 bg-emerald-50/50"></td>
-                  <td className="py-2 px-1.5 border-r border-slate-200 font-black text-emerald-900 bg-emerald-100/60 font-mono">
-                    {summary.totalReceived}
-                  </td>
-                  <td className="py-2 px-1.5 border-r border-slate-200 font-black text-indigo-900 bg-indigo-100/60 font-mono">
-                    {summary.totalOpening + summary.totalReceived}
-                  </td>
-                  <td className="py-2 px-1.5 border-r border-slate-200 bg-amber-50/50"></td>
-                  <td className="py-2 px-1.5 border-r border-slate-200 font-black text-amber-900 bg-amber-100/60 font-mono">
-                    {summary.totalIssued}
-                  </td>
-                  <td colSpan="2" className="py-2 px-1.5 border-r border-slate-200 bg-teal-50/50"></td>
-                  <td className="py-2 px-1.5 border-r border-slate-200 font-black text-teal-900 bg-teal-100/60 font-mono">
-                    {summary.totalClosing}
-                  </td>
-                  <td colSpan="2" className="py-2 px-1.5 bg-purple-100/60 text-purple-900 text-[10px] font-bold">
-                    {summary.varianceCount > 0 ? `${summary.varianceCount} items diff` : 'All Exact'}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
       </div>
