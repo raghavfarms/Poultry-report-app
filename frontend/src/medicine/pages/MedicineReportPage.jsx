@@ -9,6 +9,7 @@ import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
 import MedicineConsumptionRegister from '../components/MedicineConsumptionRegister.jsx';
+import MedicineStockRegister from '../components/MedicineStockRegister.jsx';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 import MedicineTransferInboxModal from '../components/MedicineTransferInboxModal.jsx';
@@ -870,7 +871,7 @@ export default function MedicineReportPage() {
         </div>
 
         {/* The Clean Farm Views Tabs */}
-        <div className="grid grid-cols-3 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
+        <div className="grid grid-cols-4 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
           <button
             type="button"
             onClick={() => setActiveTab('daily')}
@@ -913,6 +914,19 @@ export default function MedicineReportPage() {
           >
             <span>📋</span>
             <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('register')}
+            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+              activeTab === 'register'
+                ? 'bg-emerald-600 !text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <span>📑</span>
+            <span className={activeTab === 'register' ? '!text-white' : ''}>Register</span>
           </button>
         </div>
       </div>
@@ -1588,6 +1602,23 @@ export default function MedicineReportPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* VIEW 4: Monthly Medicine Consumption & Shed Issue Register */}
+      {activeTab === 'consumption' && (
+        <MedicineConsumptionRegister
+          selectedFarm={selectedFarm}
+          firms={firms}
+          onBackToDaily={() => setActiveTab('daily')}
+        />
+      )}
+
+      {/* VIEW 5: Daily Stock Register (Excel Format + Physical Audit) */}
+      {activeTab === 'register' && (
+        <MedicineStockRegister
+          selectedFarm={selectedFarm}
+          firms={firms}
+        />
       )}
 
       {/* Edit Batch Modal (Admin & Developer Only) */}
