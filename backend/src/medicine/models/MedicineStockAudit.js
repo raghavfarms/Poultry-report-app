@@ -61,3 +61,4 @@ const medicineStockAuditSchema = new mongoose.Schema(
 medicineStockAuditSchema.index({ farm: 1, date: 1 }, { unique: true });
 
 export default mongoose.model('MedicineStockAudit', medicineStockAuditSchema);
+
