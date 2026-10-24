@@ -1219,7 +1219,13 @@ export default function MedicineReportPage() {
                                       </span>
                                     </div>
                                     <span className="text-[11px] text-slate-500 font-semibold">
-                                      Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)} across{' '}
+                                      Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)}{(() => {
+                                        const size = Number(m.packSize) || 1;
+                                        const type = m.packagingType || 'Bottle';
+                                        const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+                                        const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                        return ` (📦 ${displayCount} ${getPackagingPlural(type, displayCount)})`;
+                                      })()} across{' '}
                                       <strong className="text-blue-700">{m.batches.length}</strong> batches
                                     </span>
                                   </div>
@@ -1230,6 +1236,7 @@ export default function MedicineReportPage() {
                                       <tr>
                                         <th className="py-2 px-3 whitespace-nowrap">Batch Number</th>
                                         <th className="py-2 px-3 whitespace-nowrap">Location / Farm</th>
+                                        <th className="py-2 px-3 text-center whitespace-nowrap">Packaging (Packs)</th>
                                         <th className="py-2 px-3 text-right whitespace-nowrap">In Stock</th>
                                         <th className="py-2 px-3 text-center whitespace-nowrap">Expiry Date</th>
                                         <th className="py-2 px-3 text-center whitespace-nowrap">Shelf Status</th>
@@ -1260,6 +1267,29 @@ export default function MedicineReportPage() {
                                             ) : (
                                               <span className="text-slate-400 italic text-[11px]">All / Main</span>
                                             )}
+                                          </td>
+
+                                          {/* Packaging & Physical Packs */}
+                                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                                            {(() => {
+                                              const size = Number(b.packSize) || Number(m.packSize) || 1;
+                                              const type = b.packagingType || m.packagingType || 'Bottle';
+                                              const qty = Number(b.quantityAvailable) || 0;
+                                              const pCount = size > 0 ? (qty / size) : qty;
+                                              const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                              const typeLabel = getPackagingPlural(type, displayCount);
+
+                                              return (
+                                                <div className="inline-flex flex-col items-center">
+                                                  <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                                    📦 {displayCount} {typeLabel}
+                                                  </span>
+                                                  <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                                    1 {type} = {size} {formatUnit(b.unit || m.unit)}
+                                                  </span>
+                                                </div>
+                                              );
+                                            })()}
                                           </td>
 
                                           {/* Stock */}
