@@ -113,6 +113,7 @@ export default function MedicineReportPage() {
   const [editBatchNumber, setEditBatchNumber] = useState('');
   const [editExpiryDate, setEditExpiryDate] = useState('');
   const [editQuantity, setEditQuantity] = useState('');
+  const [editPacks, setEditPacks] = useState('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingBatch, setSavingBatch] = useState(false);
   const [editBatchError, setEditBatchError] = useState('');
@@ -126,20 +127,32 @@ export default function MedicineReportPage() {
   const handleOpenEditBatchModal = async (batch) => {
     if (!batch) return;
     setEditingBatch(batch);
-    setEditMedicineId(batch.medicineId || batch.medicine?._id || '');
+    const medId = batch.medicineId || batch.medicine?._id || '';
+    setEditMedicineId(medId);
     setEditBatchNumber(batch.batchNumber || '');
     setEditExpiryDate(batch.expiryDate || '');
-    setEditQuantity(batch.quantityAvailable !== undefined ? batch.quantityAvailable : '');
+    const qty = batch.quantityAvailable !== undefined ? batch.quantityAvailable : '';
+    setEditQuantity(qty);
     setEditBatchError('');
     setIsEditModalOpen(true);
 
-    if (allMedicinesList.length === 0) {
+    let list = allMedicinesList;
+    if (list.length === 0) {
       try {
         const data = await fetchMedicines({ includeInactive: false });
-        setAllMedicinesList(data.medicines || []);
+        list = data.medicines || [];
+        setAllMedicinesList(list);
       } catch (err) {
         console.error('Failed to load medicines for edit modal', err);
       }
+    }
+
+    const med = list.find((m) => String(m._id) === String(medId)) || batch.medicine;
+    const size = Number(med?.packSize) || 1;
+    if (size > 1 && qty !== '' && !isNaN(qty)) {
+      setEditPacks(Number((Number(qty) / size).toFixed(3)));
+    } else {
+      setEditPacks('');
     }
   };
 
@@ -1811,60 +1824,149 @@ export default function MedicineReportPage() {
               )}
 
               {/* Medicine Selector (Allows changing medicine item if entered wrongly) */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Medicine Item <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  required
-                  value={editMedicineId}
-                  onChange={(e) => setEditMedicineId(e.target.value)}
-                  className="w-full h-10 px-3 text-xs font-bold text-slate-900 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
-                >
-                  <option value="">-- Select Medicine --</option>
-                  {allMedicinesList.map((m) => (
-                    <option key={m._id} value={m._id}>
-                      {m.name} {m.aliasName ? `(${m.aliasName})` : ''} • {m.unit}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Reassigns this batch to a different medicine catalog item.
-                </p>
-              </div>
+              {(() => {
+                const selectedEditMed =
+                  allMedicinesList.find((m) => String(m._id) === String(editMedicineId)) ||
+                  editingBatch?.medicine ||
+                  null;
+                const editPackSize = Number(selectedEditMed?.packSize) || 1;
+                const editPackaging = selectedEditMed?.packagingType || 'Packet';
+                const editUnit = formatUnit(selectedEditMed?.unit) || 'Units';
 
-              {/* Grid: Batch Number & Stock Quantity */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Batch Number <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editBatchNumber}
-                    onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
-                    placeholder="e.g. BATCH-01"
-                    className="w-full h-10 px-3 font-mono font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
-                  />
-                </div>
+                return (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Medicine Item <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={editMedicineId}
+                        onChange={(e) => {
+                          const newMedId = e.target.value;
+                          setEditMedicineId(newMedId);
+                          const m = allMedicinesList.find((x) => String(x._id) === String(newMedId));
+                          const size = Number(m?.packSize) || 1;
+                          if (size > 1 && editQuantity !== '' && !isNaN(editQuantity)) {
+                            setEditPacks(Number((Number(editQuantity) / size).toFixed(3)));
+                          } else {
+                            setEditPacks('');
+                          }
+                        }}
+                        className="w-full h-10 px-3 text-xs font-bold text-slate-900 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                      >
+                        <option value="">-- Select Medicine --</option>
+                        {allMedicinesList.map((m) => (
+                          <option key={m._id} value={m._id}>
+                            {m.name} {m.aliasName ? `(${m.aliasName})` : ''} • {formatUnit(m.unit)}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Reassigns this batch to a different medicine catalog item.
+                      </p>
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    In Stock Qty <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    required
-                    value={editQuantity}
-                    onChange={(e) => setEditQuantity(e.target.value)}
-                    placeholder="e.g. 50"
-                    className="w-full h-10 px-3 font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
-                  />
-                </div>
-              </div>
+                    {/* Batch Number */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Batch Number <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editBatchNumber}
+                        onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
+                        placeholder="e.g. BATCH-01"
+                        className="w-full h-10 px-3 font-mono font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
+                      />
+                    </div>
+
+                    {/* Dual Linked Pack / Unit inputs when packSize > 1 */}
+                    {editPackSize > 1 ? (
+                      <div className="space-y-2 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                          <span>📦 1 {editPackaging} = {editPackSize} {editUnit}</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-full font-semibold">
+                            Auto-converted
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                              Packs ({editPackaging})
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={editPacks}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditPacks(val);
+                                if (val !== '' && Number(val) >= 0) {
+                                  setEditQuantity(Number((Number(val) * editPackSize).toFixed(3)));
+                                } else if (val === '') {
+                                  setEditQuantity('');
+                                }
+                              }}
+                              placeholder="e.g. 3"
+                              className="w-full h-10 px-3 font-bold text-xs border border-emerald-300 bg-white rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-emerald-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                              Total In Stock ({editUnit}) <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              required
+                              value={editQuantity}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditQuantity(val);
+                                if (val !== '' && Number(val) >= 0) {
+                                  setEditPacks(Number((Number(val) / editPackSize).toFixed(3)));
+                                } else if (val === '') {
+                                  setEditPacks('');
+                                }
+                              }}
+                              placeholder={`e.g. ${3 * editPackSize}`}
+                              className="w-full h-10 px-3 font-bold text-xs border border-slate-300 bg-white rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {editPacks !== '' && editQuantity !== '' && (
+                          <div className="text-[11px] font-bold text-emerald-800 text-center pt-1 border-t border-emerald-200/60">
+                            Total: {editPacks} {editPackaging}{Number(editPacks) === 1 ? '' : 's'} = {editQuantity} {editUnit}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          In Stock Qty ({editUnit}) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          required
+                          value={editQuantity}
+                          onChange={(e) => setEditQuantity(e.target.value)}
+                          placeholder="e.g. 50"
+                          className="w-full h-10 px-3 font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                        />
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">

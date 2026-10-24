@@ -9,7 +9,7 @@ import { fetchSuppliers } from '../api/supplierApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
-import { formatStockDisplay } from '../utils/packagingHelper.js';
+import { formatStockDisplay, formatUnit } from '../utils/packagingHelper.js';
 
 const STATUS_BADGES = {
   PENDING_STORE_VERIFICATION: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -61,6 +61,7 @@ export default function MedicineReceiptPage() {
   const [formMfgDate, setFormMfgDate] = useState('');
   const [formExpiryDate, setFormExpiryDate] = useState('');
   const [formQty, setFormQty] = useState('');
+  const [formPacks, setFormPacks] = useState('');
   const [formChallan, setFormChallan] = useState('');
 
   // Accept Form State
@@ -141,6 +142,7 @@ export default function MedicineReceiptPage() {
     setFormMfgDate('');
     setFormExpiryDate('');
     setFormQty('');
+    setFormPacks('');
     setFormChallan('');
     setError('');
     setIsCreateModalOpen(true);
@@ -655,7 +657,17 @@ export default function MedicineReceiptPage() {
                     </label>
                     <select
                       value={formMedicine}
-                      onChange={(e) => setFormMedicine(e.target.value)}
+                      onChange={(e) => {
+                        const newMedId = e.target.value;
+                        setFormMedicine(newMedId);
+                        const sel = medicines.find((m) => m._id === newMedId);
+                        const size = Number(sel?.packSize) || 1;
+                        if (size > 1 && formQty !== '' && !isNaN(formQty)) {
+                          setFormPacks(Number((Number(formQty) / size).toFixed(3)));
+                        } else {
+                          setFormPacks('');
+                        }
+                      }}
                       required
                       className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                     >
@@ -773,20 +785,98 @@ export default function MedicineReceiptPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">
-                      Received Quantity <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="e.g. 50"
-                      required
-                      value={formQty}
-                      onChange={(e) => setFormQty(e.target.value)}
-                      className="w-full h-7 px-2 border border-slate-300 rounded text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                    />
-                  </div>
+                  {(() => {
+                    const selMed = medicines.find((m) => m._id === formMedicine);
+                    const packSize = Number(selMed?.packSize) || 1;
+                    const packaging = selMed?.packagingType || 'Packet';
+                    const unit = formatUnit(selMed?.unit) || 'Units';
+
+                    if (packSize > 1) {
+                      return (
+                        <div className="space-y-1.5 p-2 bg-emerald-50/70 border border-emerald-200 rounded-lg">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-emerald-900">
+                            <span>📦 1 {packaging} = {packSize} {unit}</span>
+                            <span className="text-[9px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full font-semibold">
+                              Auto-calculated
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                                Packs ({packaging})
+                              </label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                placeholder="e.g. 3"
+                                value={formPacks}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormPacks(val);
+                                  if (val !== '' && Number(val) >= 0) {
+                                    setFormQty(Number((Number(val) * packSize).toFixed(3)));
+                                  } else if (val === '') {
+                                    setFormQty('');
+                                  }
+                                }}
+                                className="w-full h-7 px-2 border border-emerald-300 bg-white rounded text-xs font-bold text-emerald-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                                Total ({unit}) <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0.001"
+                                placeholder={`e.g. ${3 * packSize}`}
+                                required
+                                value={formQty}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setFormQty(val);
+                                  if (val !== '' && Number(val) >= 0) {
+                                    setFormPacks(Number((Number(val) / packSize).toFixed(3)));
+                                  } else if (val === '') {
+                                    setFormPacks('');
+                                  }
+                                }}
+                                className="w-full h-7 px-2 border border-slate-300 bg-white rounded text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          {formPacks !== '' && formQty !== '' && (
+                            <div className="text-[10px] font-bold text-emerald-800 text-center pt-0.5 border-t border-emerald-200/60">
+                              Total: {formPacks} {packaging}{Number(formPacks) === 1 ? '' : 's'} = {formQty} {unit}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div>
+                        <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">
+                          Received Quantity ({unit}) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0.001"
+                          placeholder="e.g. 50"
+                          required
+                          value={formQty}
+                          onChange={(e) => setFormQty(e.target.value)}
+                          className="w-full h-7 px-2 border border-slate-300 rounded text-xs font-bold text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 
