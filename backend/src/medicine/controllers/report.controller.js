@@ -120,15 +120,28 @@ export async function getDashboardStats(req, res) {
   // Medicine-wise aggregated stock map: { medicineId: totalAvailableQuantity }
   const medicineStockMap = {};
 
+  // High-performance single aggregation for all batch issues (replaces serial N+1 loop)
+  const batchIds = batches.map((b) => b._id);
+  const issuesAgg = batchIds.length > 0
+    ? await MedicineIssue.aggregate([
+        { $match: { batch: { $in: batchIds } } },
+        { $group: { _id: '$batch', totalIssued: { $sum: '$issuedQuantity' } } },
+      ])
+    : [];
+  const issuesMap = new Map(issuesAgg.map((i) => [String(i._id), i.totalIssued || 0]));
+
+  const reconciliationUpdates = [];
+
   for (const b of batches) {
-    // Auto-reconcile with actual issued records to prevent any phantom stock drops
-    const batchIssues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
-    const batchIssuedSum = batchIssues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
+    // Ultra-fast in-memory reconciliation
+    const batchIssuedSum = issuesMap.get(String(b._id)) || 0;
     const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum - (b.disposedQuantity || 0) - (b.transferredOutQuantity || 0) - (b.quantityOnHold || 0));
     if (b.quantityAvailable !== correctQty) {
-      await MedicineBatch.updateOne(
-        { _id: b._id },
-        { $set: { quantityAvailable: correctQty, status: correctQty === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+      reconciliationUpdates.push(
+        MedicineBatch.updateOne(
+          { _id: b._id },
+          { $set: { quantityAvailable: correctQty, status: correctQty === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+        )
       );
       b.quantityAvailable = correctQty;
     }
@@ -175,6 +188,11 @@ export async function getDashboardStats(req, res) {
     if (medId) {
       medicineStockMap[medId] = (medicineStockMap[medId] || 0) + b.quantityAvailable;
     }
+  }
+
+  // Execute any batch balance adjustments in parallel
+  if (reconciliationUpdates.length > 0) {
+    Promise.all(reconciliationUpdates).catch((err) => console.error('Batch reconciliation update error:', err));
   }
 
   // Ensure each radar category is sorted strictly by earliest expiry date first (FEFO)

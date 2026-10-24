@@ -4,6 +4,9 @@ import { fetchIssues, deleteIssueApi } from '../api/issueApi.js';
 import { fetchMedicineLocations } from '../api/dailyActionApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 
+// In-memory instant cache for zero-millisecond tab switching
+const consumptionCache = new Map();
+
 export default function MedicineConsumptionRegister({
   selectedFarm = '',
   firms = [],
@@ -104,10 +107,22 @@ export default function MedicineConsumptionRegister({
     }
   };
 
-  // Main Data Loader
-  const loadRegister = async () => {
-    try {
+  // Main Data Loader with Stale-While-Revalidate Instant Loading
+  const loadRegister = async (force = false) => {
+    const cacheKey = `${activeFarm || ''}_${selectedShed}_${startDate}_${endDate}_${page}_${limit}_${search.trim()}`;
+    const cached = consumptionCache.get(cacheKey);
+
+    // If cached in memory, show data immediately (0 milliseconds!)
+    if (cached && !force) {
+      setIssues(cached.issues);
+      setUnitSummary(cached.unitSummary);
+      setTotalRecords(cached.totalRecords);
+      setTotalPages(cached.totalPages);
+    } else {
       setLoading(true);
+    }
+
+    try {
       setError('');
       const params = {
         farm: activeFarm || undefined,
@@ -121,10 +136,17 @@ export default function MedicineConsumptionRegister({
 
       const res = await fetchIssues(params);
       if (res.success) {
-        setIssues(res.issues || []);
-        setUnitSummary(res.unitSummary || []);
-        setTotalRecords(res.pagination?.total || 0);
-        setTotalPages(res.pagination?.totalPages || 1);
+        const payload = {
+          issues: res.issues || [],
+          unitSummary: res.unitSummary || [],
+          totalRecords: res.pagination?.total || 0,
+          totalPages: res.pagination?.totalPages || 1,
+        };
+        consumptionCache.set(cacheKey, payload);
+        setIssues(payload.issues);
+        setUnitSummary(payload.unitSummary);
+        setTotalRecords(payload.totalRecords);
+        setTotalPages(payload.totalPages);
       } else {
         setError(res.message || 'Failed to fetch consumption register');
       }
@@ -274,11 +296,12 @@ export default function MedicineConsumptionRegister({
       setDeleteFeedback({ type: '', message: '' });
       const res = await deleteIssueApi(iss._id);
       if (res.success) {
+        consumptionCache.clear();
         setDeleteFeedback({
           type: 'success',
           message: res.message || `Deleted consumption entry. ${qtyStr} restored to Batch ${batchNo}.`,
         });
-        await loadRegister();
+        await loadRegister(true);
         if (onConsumedDeleted) onConsumedDeleted();
         setTimeout(() => setDeleteFeedback({ type: '', message: '' }), 5000);
       } else {

@@ -220,10 +220,12 @@ export default function MedicineReportPage() {
     }
   };
 
-  // Load Stock & Expiry stats
-  const loadStats = async () => {
+  // Load Stock & Expiry stats with background refresh
+  const loadStats = async (silent = false) => {
     try {
-      setLoadingStats(true);
+      if (!silent && !stats?.expiryRadar) {
+        setLoadingStats(true);
+      }
       const data = await fetchDashboardStats({ farm: selectedFarm });
       setStats(data);
     } catch (err) {
@@ -235,6 +237,8 @@ export default function MedicineReportPage() {
 
   useEffect(() => {
     loadFirms();
+    // Proactively pre-load stock stats so Stock tab is instant
+    loadStats(true);
   }, []);
 
   useEffect(() => {
@@ -246,7 +250,7 @@ export default function MedicineReportPage() {
   useEffect(() => {
     if (activeTab === 'stock') {
       setStockFilter('ALL');
-      loadStats();
+      loadStats(Boolean(stats?.expiryRadar));
     } else if (activeTab === 'traceability' && searchBatch.trim()) {
       handleTraceSearch(null, searchBatch);
     }
@@ -834,7 +838,7 @@ export default function MedicineReportPage() {
 
           {/* Batches Stock List (Grouped by Medicine with Accordion Drawer) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            {loadingStats ? (
+            {loadingStats && !stats?.expiryRadar ? (
               <div className="p-12 text-center text-slate-400 text-xs">Loading current stock...</div>
             ) : filteredMedicines.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs space-y-1">

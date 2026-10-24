@@ -180,6 +180,8 @@ const medicineIssueSchema = new mongoose.Schema(
 
 // Compound indexes for lightning-fast poultry reports
 medicineIssueSchema.index({ farm: 1, shed: 1, issueDate: -1 });
+medicineIssueSchema.index({ farm: 1, issueDate: -1, createdAt: -1 });
+medicineIssueSchema.index({ farm: 1, createdAt: -1 });
 medicineIssueSchema.index({ medicine: 1, issueDate: -1 });
 
 export default mongoose.model('MedicineIssue', medicineIssueSchema);

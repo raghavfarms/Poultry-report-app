@@ -107,5 +107,7 @@ const medicineBatchSchema = new mongoose.Schema(
 // Compound Unique Index: At a given farm, a batch number is strictly unique
 medicineBatchSchema.index({ batchNumber: 1, farm: 1 }, { unique: true });
 medicineBatchSchema.index({ medicine: 1, batchNumber: 1, farm: 1 }, { unique: true });
+// Compound Index for lightning-fast FEFO live stock & dashboard radar
+medicineBatchSchema.index({ farm: 1, status: 1, quantityAvailable: 1, expiryDate: 1 });
 
 export default mongoose.model('MedicineBatch', medicineBatchSchema);
