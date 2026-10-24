@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
@@ -10,6 +10,130 @@ import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerMod
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 import MedicineTransferInboxModal from '../components/MedicineTransferInboxModal.jsx';
 import { fetchPendingTransfers } from '../api/transferApi.js';
+
+function BatchActionMenu({
+  batch,
+  onTrace,
+  onEdit,
+  onDelete,
+  onDispose,
+  canDispose,
+  canEdit = true,
+  canDelete = false,
+  align = 'right',
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const isExpired = batch?.urgency === 'EXPIRED';
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      {/* 3-Dots Button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className={`w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer border ${
+          isOpen ? 'bg-slate-100 border-slate-300 text-slate-900 shadow-2xs' : 'border-slate-200/80 bg-white hover:border-slate-300'
+        }`}
+        title="Batch Actions"
+      >
+        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="12" cy="19" r="2" />
+        </svg>
+      </button>
+
+      {/* Floating Action Menu */}
+      {isOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={`absolute ${
+            align === 'right' ? 'right-0' : 'left-0'
+          } mt-1 w-36 sm:w-40 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-50 text-left animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100`}
+        >
+          <div className="py-1">
+            {onTrace && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onTrace(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-700 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>🔍</span> Trace Batch
+              </button>
+            )}
+
+            {canEdit && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onEdit(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-amber-700 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>✏️</span> Edit Batch
+              </button>
+            )}
+
+            {isExpired && canDispose && onDispose && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onDispose(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>🗑️</span> Dispose Stock
+              </button>
+            )}
+          </div>
+
+          {canDelete && onDelete && (
+            <div className="py-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onDelete(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>🗑️</span> Delete Batch
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 class DailyActionErrorBoundary extends React.Component {
   constructor(props) {
@@ -160,6 +284,13 @@ export default function MedicineReportPage() {
     if (!batch) return;
     setDeletingBatch(batch);
     setDeleteError('');
+  };
+
+  const handleTraceBatch = (batch) => {
+    if (!batch) return;
+    setActiveTab('traceability');
+    setSearchBatch(batch.batchNumber);
+    handleTraceSearch(null, batch.batchNumber, batch._id);
   };
 
   const handleConfirmDeleteBatch = async () => {
@@ -483,38 +614,39 @@ export default function MedicineReportPage() {
     }
   };
 
-  const renderShelfBadge = (urgency, daysLeft, isCompact = false) => {
+  const renderShelfBadge = (urgency, daysLeft) => {
+    const hasDays = daysLeft !== null && daysLeft !== undefined && !isNaN(daysLeft);
     if (urgency === 'EXPIRED') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1 shrink-0">
-          🔴 {isCompact ? 'Expired' : `Expired (${Math.abs(daysLeft)}d ago)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
+          🔴 {hasDays ? `Expired (${Math.abs(daysLeft)}d ago)` : 'Expired'}
         </span>
       );
     }
     if (urgency === 'CRITICAL') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1 shrink-0" title="Expires within 1 month">
-          🔴 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Expires within 1 month">
+          🔴 {hasDays ? `${daysLeft}d left` : 'Use Soon'}
         </span>
       );
     }
     if (urgency === 'CAUTION') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1 shrink-0" title="Expires within 2 months">
-          🟠 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Expires within 2 months">
+          🟠 {hasDays ? `${daysLeft}d left` : 'Use Soon'}
         </span>
       );
     }
     if (urgency === 'WARNING') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 shrink-0" title="Expires within 3 months">
-          🟡 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Expires within 3 months">
+          🟡 {hasDays ? `${daysLeft}d left` : 'Use Soon'}
         </span>
       );
     }
     return (
-      <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1 shrink-0" title="Safe (> 3 months)">
-        🟢 {isCompact ? 'Safe' : `Safe (${daysLeft}d left)`}
+      <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Safe (> 3 months)">
+        🟢 {hasDays ? `Safe (${daysLeft}d left)` : 'Safe'}
       </span>
     );
   };
@@ -849,18 +981,18 @@ export default function MedicineReportPage() {
               </div>
             ) : (
               <>
-                {/* Desktop Table View */}
-                <div className="hidden md:block overflow-x-auto">
+                {/* Desktop Table View (Sticky header on scroll) */}
+                <div className="hidden md:block overflow-x-auto max-h-[calc(100vh-210px)] overflow-y-auto">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                    <thead className="sticky top-0 z-20 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
                       <tr>
-                        <th className="py-2 px-3 min-w-[200px]">Medicine Name & Farm</th>
-                        <th className="py-2 px-3 text-center">Batch No</th>
-                        <th className="py-2 px-3 text-center">Packaging (Packs)</th>
-                        <th className="py-2 px-3 text-right">Total In Stock</th>
-                        <th className="py-2 px-3 text-center">Next Expiry</th>
-                        <th className="py-2 px-3 text-center">Shelf Status (FEFO)</th>
-                        <th className="py-2 px-3 text-center min-w-[130px]">Actions</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 min-w-[200px] border-b border-slate-200">Medicine Name & Farm</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Batch No</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Packaging (Packs)</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-right border-b border-slate-200">Total In Stock</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Next Expiry</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Shelf Status (FEFO)</th>
+                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center min-w-[70px] border-b border-slate-200">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -1031,42 +1163,15 @@ export default function MedicineReportPage() {
                                     <span className="font-mono text-[10px]">({m.batches.length})</span>
                                   </button>
                                 ) : (
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (singleBatch) handleTraceBatch(singleBatch);
-                                      }}
-                                      className="px-1.5 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition cursor-pointer"
-                                      title="Trace Batch"
-                                    >
-                                      🔍 Trace
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (singleBatch) handleOpenEditBatchModal(singleBatch);
-                                      }}
-                                      className="px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition cursor-pointer"
-                                      title="Edit Batch"
-                                    >
-                                      ✏️ Edit
-                                    </button>
-                                    {isAdmin && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (singleBatch) handleOpenDeleteBatch(singleBatch);
-                                        }}
-                                        className="px-1.5 py-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded transition cursor-pointer"
-                                        title="Delete Batch"
-                                      >
-                                        🗑️
-                                      </button>
-                                    )}
+                                  <div className="flex items-center justify-center">
+                                    <BatchActionMenu
+                                      batch={singleBatch}
+                                      onTrace={handleTraceBatch}
+                                      onEdit={handleOpenEditBatchModal}
+                                      onDelete={handleOpenDeleteBatch}
+                                      canEdit={canEditBatch}
+                                      canDelete={isAdmin}
+                                    />
                                   </div>
                                 )}
                               </td>
@@ -1178,50 +1283,17 @@ export default function MedicineReportPage() {
                                               {/* Actions */}
                                               {canAccessTraceAndAction && (
                                                 <td className="py-2.5 px-3 text-center">
-                                                  <div className="flex items-center justify-center gap-1.5">
-                                                    {bExpired && canDispose ? (
-                                                      <button
-                                                        type="button"
-                                                        disabled={Boolean(disposing)}
-                                                        onClick={() => disposeStock(b)}
-                                                        className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
-                                                      >
-                                                        {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                                      </button>
-                                                    ) : (
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                          setActiveTab('traceability');
-                                                          setSearchBatch(b.batchNumber);
-                                                          handleTraceSearch(null, b.batchNumber, b._id);
-                                                        }}
-                                                        className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
-                                                        title="Trace full batch journey"
-                                                      >
-                                                        <span>🔍</span> Trace
-                                                      </button>
-                                                    )}
-                                                    {canEditBatch && (
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => handleOpenEditBatchModal(b)}
-                                                        className="text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                                        title="Edit Medicine, Batch, Expiry, Stock Qty"
-                                                      >
-                                                        <span>✏️</span> Edit
-                                                      </button>
-                                                    )}
-                                                    {canEditBatch && (
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => handleOpenDeleteBatch(b)}
-                                                        className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                                                        title="Delete Stock Batch"
-                                                      >
-                                                        <span>🗑️</span> Delete
-                                                      </button>
-                                                    )}
+                                                  <div className="flex items-center justify-center">
+                                                    <BatchActionMenu
+                                                      batch={b}
+                                                      onTrace={handleTraceBatch}
+                                                      onEdit={handleOpenEditBatchModal}
+                                                      onDelete={handleOpenDeleteBatch}
+                                                      onDispose={disposeStock}
+                                                      canDispose={canDispose}
+                                                      canEdit={canEditBatch}
+                                                      canDelete={isAdmin}
+                                                    />
                                                   </div>
                                                 </td>
                                               )}
@@ -1368,43 +1440,14 @@ export default function MedicineReportPage() {
                                 <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
                               </button>
                             ) : (
-                              <div className="flex items-center gap-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (singleBatch) handleTraceBatch(singleBatch);
-                                  }}
-                                  className="px-1.5 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition cursor-pointer"
-                                  title="Trace Batch"
-                                >
-                                  🔍
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (singleBatch) handleOpenEditBatchModal(singleBatch);
-                                  }}
-                                  className="px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition cursor-pointer"
-                                  title="Edit Batch"
-                                >
-                                  ✏️
-                                </button>
-                                {isAdmin && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (singleBatch) handleOpenDeleteBatch(singleBatch);
-                                    }}
-                                    className="px-1.5 py-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded transition cursor-pointer"
-                                    title="Delete Batch"
-                                  >
-                                    🗑️
-                                  </button>
-                                )}
-                              </div>
+                              <BatchActionMenu
+                                batch={singleBatch}
+                                onTrace={handleTraceBatch}
+                                onEdit={handleOpenEditBatchModal}
+                                onDelete={handleOpenDeleteBatch}
+                                canEdit={canEditBatch}
+                                canDelete={isAdmin}
+                              />
                             )}
                           </div>
                         </div>
@@ -1453,61 +1496,16 @@ export default function MedicineReportPage() {
                                     {renderShelfBadge(b.urgency, b.daysLeft, true)}
 
                                     {canAccessTraceAndAction && (
-                                      <div className="flex items-center gap-0.5 ml-0.5">
-                                        {b.urgency === 'EXPIRED' && canDispose ? (
-                                          <button
-                                            type="button"
-                                            disabled={Boolean(disposing)}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              disposeStock(b);
-                                            }}
-                                            className="text-[9px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 cursor-pointer"
-                                          >
-                                            {disposing === b._id ? '...' : 'Dispose'}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveTab('traceability');
-                                              setSearchBatch(b.batchNumber);
-                                              handleTraceSearch(null, b.batchNumber, b._id);
-                                            }}
-                                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-1.5 py-0.5 cursor-pointer inline-flex items-center gap-0.5"
-                                            title="Trace batch"
-                                          >
-                                            <span>🔍</span> Trace
-                                          </button>
-                                        )}
-                                        {canEditBatch && (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleOpenEditBatchModal(b);
-                                            }}
-                                            className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5 cursor-pointer"
-                                            title="Edit Batch"
-                                          >
-                                            ✏️
-                                          </button>
-                                        )}
-                                        {canEditBatch && (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleOpenDeleteBatch(b);
-                                            }}
-                                            className="text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 cursor-pointer"
-                                            title="Delete Batch"
-                                          >
-                                            🗑️
-                                          </button>
-                                        )}
-                                      </div>
+                                      <BatchActionMenu
+                                        batch={b}
+                                        onTrace={handleTraceBatch}
+                                        onEdit={handleOpenEditBatchModal}
+                                        onDelete={handleOpenDeleteBatch}
+                                        onDispose={disposeStock}
+                                        canDispose={canDispose}
+                                        canEdit={canEditBatch}
+                                        canDelete={isAdmin}
+                                      />
                                     )}
                                   </div>
                                 </div>
