@@ -178,6 +178,7 @@ export default function MedicineMasterPage() {
   // Tab State: 'medicines' | 'suppliers'
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'medicines';
+  const batchParam = searchParams.get('batch') || '';
   const setActiveTab = (tab) => {
     setSearchParams(tab === 'medicines' ? {} : { tab });
   };
@@ -1353,6 +1354,7 @@ export default function MedicineMasterPage() {
         <MedicineBatchTrace
           firms={firms}
           canManage={canManage}
+          initialQuery={batchParam}
         />
       ) : (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-center text-xs font-semibold">

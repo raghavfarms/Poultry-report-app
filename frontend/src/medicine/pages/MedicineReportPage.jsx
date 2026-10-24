@@ -167,6 +167,7 @@ class DailyActionErrorBoundary extends React.Component {
 }
 
 export default function MedicineReportPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   // Active Tab: 1. Daily In/Out (Default) | 2. Current Stock | 3. Consumption Register | 4. Traceability
@@ -288,9 +289,7 @@ export default function MedicineReportPage() {
 
   const handleTraceBatch = (batch) => {
     if (!batch) return;
-    setActiveTab('traceability');
-    setSearchBatch(batch.batchNumber);
-    handleTraceSearch(null, batch.batchNumber, batch._id);
+    navigate(`/admin/medicine/master?tab=trace&batch=${encodeURIComponent(batch.batchNumber)}`);
   };
 
   const handleConfirmDeleteBatch = async () => {
@@ -680,7 +679,7 @@ export default function MedicineReportPage() {
               </h1>
             </div>
             <p className="hidden sm:block text-[10px] sm:text-[11px] text-slate-500">
-              Daily fast In/Out, live stock & batch trace
+              Daily fast In/Out & live stock
             </p>
           </div>
 
@@ -761,7 +760,7 @@ export default function MedicineReportPage() {
         </div>
 
         {/* The Clean Farm Views Tabs */}
-        <div className={`grid ${canAccessTraceAndAction ? 'grid-cols-4' : 'grid-cols-3'} gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center`}>
+        <div className="grid grid-cols-3 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
           <button
             type="button"
             onClick={() => setActiveTab('daily')}
@@ -805,21 +804,6 @@ export default function MedicineReportPage() {
             <span>📋</span>
             <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
           </button>
-
-          {canAccessTraceAndAction && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('traceability')}
-              className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-                activeTab === 'traceability'
-                  ? 'bg-emerald-600 !text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <span>🔍</span>
-              <span className={activeTab === 'traceability' ? '!text-white' : ''}>Trace</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -1385,291 +1369,7 @@ export default function MedicineReportPage() {
         </div>
       )}
 
-      {/* VIEW 3: Traceability History (The Audit & Doctor View) */}
-      {canAccessTraceAndAction && activeTab === 'traceability' && (
-        <div className="space-y-4">
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <span>🔍</span> Reverse Batch Investigation
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Search by <strong className="text-slate-700">Medicine Name</strong> or <strong className="text-slate-700">Batch Number</strong> to trace arrival, supplier, and shed consumption.
-            </p>
-
-            <form onSubmit={handleTraceSearch} className="flex gap-1.5 pt-0.5">
-              <div className="relative flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={searchBatch}
-                  onChange={(e) => setSearchBatch(e.target.value)}
-                  placeholder="Medicine name (e.g. Paracetamol) or batch #..."
-                  className="w-full h-8 pl-2.5 pr-8 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsScannerOpen(true)}
-                  className="absolute right-1 top-0.5 h-7 px-1.5 text-slate-500 hover:text-slate-800 text-xs rounded transition flex items-center justify-center cursor-pointer"
-                  title="Scan Barcode / Label"
-                >
-                  📷
-                </button>
-              </div>
-              <button
-                type="submit"
-                disabled={loadingTrace || !searchBatch.trim()}
-                className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 shrink-0 cursor-pointer"
-              >
-                {loadingTrace ? 'Searching...' : 'Trace'}
-              </button>
-            </form>
-          </div>
-
-          {traceError && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
-              ⚠ {traceError}
-            </div>
-          )}
-
-          {traceData && (() => {
-            const batch = traceData.batch || {};
-            const availableQty = batch.quantityAvailable ?? 0;
-            const issuedQty = batch.totalIssued ?? 0;
-            const initialQty = batch.initialQuantity || (availableQty + issuedQty) || 0;
-            const unit = batch.medicine?.unit || 'Units';
-
-            const expiryDate = batch.expiryDate;
-            let daysLeft = null;
-            if (expiryDate) {
-              const diffTime = new Date(expiryDate) - new Date();
-              daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-
-            const sheds = Object.entries(batch.shedBreakdown || {});
-
-            return (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100 text-xs">
-                {/* Related Batches Strip (Smart: Active pills + Clean Past Archive dropdown) */}
-                {traceData.relatedBatches && traceData.relatedBatches.length > 1 && (() => {
-                  const related = traceData.relatedBatches;
-                  const activeBatches = related.filter((rb) => (rb.quantityAvailable ?? 0) > 0 && rb.status !== 'DEPLETED');
-                  const depletedBatches = related.filter((rb) => (rb.quantityAvailable ?? 0) <= 0 || rb.status === 'DEPLETED');
-                  const isCurrentDepleted = depletedBatches.some((rb) => rb.batchNumber === batch.batchNumber);
-
-                  return (
-                    <div className="px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
-                        <span>🏷️</span>
-                        <span>Batches of {batch.medicine?.name}:</span>
-                        <span className="text-[10px] font-normal text-slate-500">
-                          ({activeBatches.length} active{depletedBatches.length > 0 ? `, ${depletedBatches.length} past` : ''})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
-                        {/* 1. Active batches shown as clear pills */}
-                        {activeBatches.map((rb) => {
-                          const isCurrent = rb.batchNumber === batch.batchNumber;
-                          return (
-                            <button
-                              key={rb._id || rb.batchNumber}
-                              type="button"
-                              onClick={() => handleSelectRelatedBatch(rb)}
-                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer border ${
-                                isCurrent
-                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-extrabold'
-                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              <span className="font-mono">{rb.batchNumber}</span>
-                              {rb.farm?.name && !selectedFarm && (
-                                <span className={`text-[8px] font-bold opacity-80 ${isCurrent ? 'text-emerald-100' : 'text-slate-500'}`}>
-                                  ({rb.farm.name})
-                                </span>
-                              )}
-                              <span
-                                className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${
-                                  isCurrent
-                                    ? 'bg-emerald-700 text-emerald-100'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                }`}
-                              >
-                                {rb.quantityAvailable} left
-                              </span>
-                            </button>
-                          );
-                        })}
-
-                        {/* 2. If user is currently inspecting a depleted batch, show it as an active pill */}
-                        {isCurrentDepleted && (
-                          <div className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-700 text-white border border-slate-800 shadow-2xs flex items-center gap-1 shrink-0">
-                            <span className="font-mono">{batch.batchNumber}</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-300">
-                              Depleted
-                            </span>
-                          </div>
-                        )}
-
-                        {/* 3. Dropdown for Depleted / Past batches to keep UI 100% clean even with 50+ batches */}
-                        {depletedBatches.length > 0 && (
-                          <select
-                            value={isCurrentDepleted ? batch.batchNumber : ''}
-                            onChange={(e) => {
-                              const found = depletedBatches.find((b) => b.batchNumber === e.target.value);
-                              if (found) handleSelectRelatedBatch(found);
-                            }}
-                            className="h-6 pl-2 pr-6 py-0 text-[11px] font-bold bg-white text-slate-700 border border-slate-300 hover:border-slate-400 rounded-md focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer shrink-0 shadow-2xs"
-                            title="Select past depleted batch to inspect"
-                          >
-                            <option value="" disabled>
-                              🗄️ Past Batches ({depletedBatches.length})...
-                            </option>
-                            {depletedBatches.map((db) => (
-                              <option key={db._id || db.batchNumber} value={db.batchNumber}>
-                                {db.batchNumber} {db.farm?.name && !selectedFarm ? `(${db.farm.name})` : ''} (0 left — {db.expiryDate || 'Depleted'})
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* 1. Ultra-Compact Header */}
-                <div className="px-3 py-1.5 bg-slate-50/80 flex items-center justify-between gap-1.5 flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs">💊</span>
-                    <span className="font-mono text-xs font-black text-slate-900 tracking-tight">
-                      {batch.batchNumber}
-                    </span>
-                    <span className="px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 text-[9px] font-bold">
-                      {batch.medicine?.category || 'General'}
-                    </span>
-                    <span className="font-bold text-xs text-slate-800">
-                      {batch.medicine?.name}
-                    </span>
-                    {batch.medicine?.aliasName && (
-                      <span className="text-[10px] text-slate-400 font-normal italic">
-                        ({batch.medicine.aliasName})
-                      </span>
-                    )}
-                    {batch.farm?.name && (
-                      <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
-                        🏢 {batch.farm.name}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Expiry Badge & Edit Button */}
-                  <div className="flex items-center gap-2">
-                    {daysLeft !== null ? (
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-black ${
-                        daysLeft <= 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : daysLeft <= 30
-                          ? 'bg-red-100 text-red-800 border border-red-200'
-                          : daysLeft <= 60
-                          ? 'bg-orange-100 text-orange-800 border border-orange-200'
-                          : daysLeft <= 90
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      }`}>
-                        <span>{daysLeft <= 0 ? '🔴' : daysLeft <= 30 ? '🔴' : daysLeft <= 60 ? '🟠' : daysLeft <= 90 ? '🟡' : '🟢'}</span>
-                        <span>{daysLeft <= 0 ? `Expired (${Math.abs(daysLeft)}d ago)` : daysLeft <= 90 ? `Use Soon (${daysLeft}d left)` : `${daysLeft}d Safe`}</span>
-                        <span className="opacity-70 font-normal text-[9px]">({batch.expiryDate})</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-500 font-semibold">{batch.expiryDate}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. Compact 4-Column Stats with Integrated Shed Details (No dead space) */}
-                <div className="px-3 py-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Supplier</span>
-                    <strong className="text-slate-900 text-xs block truncate leading-tight mt-0.5">{batch.supplier?.name || 'Direct Delivery'}</strong>
-                    <span className="text-[10px] text-slate-400 block truncate">{batch.supplier?.mobile || 'Farm Store'}</span>
-                  </div>
-
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Received</span>
-                    <strong className="text-slate-900 text-xs sm:text-sm block leading-tight mt-0.5">{initialQty} {unit}</strong>
-                    <span className="text-[10px] text-slate-400 block">
-                      {batch.createdAt ? new Date(batch.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : 'Arrived'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Given to Birds</span>
-                    <strong className="text-blue-700 text-xs sm:text-sm block leading-tight mt-0.5">{issuedQty} {unit}</strong>
-                    <span className="text-[10px] text-blue-600 font-semibold block truncate">
-                      {sheds.length > 0 ? sheds.map(([s, q]) => `${s}: ${q}`).join(', ') : 'Issued Out'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Available Stock</span>
-                    <strong className="text-emerald-700 text-xs sm:text-sm block leading-tight mt-0.5">{availableQty} {unit}</strong>
-                    <span className="text-[10px] text-emerald-600 font-semibold block">
-                      {batch.farm?.name ? `In ${batch.farm.name} Store` : 'In Store'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3. Ultra-Slim Movement History */}
-                <div className="px-3 py-1.5 space-y-1">
-                  <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                    <span>Movement History</span>
-                    <span>{(traceData.timeline?.receipts?.length || 1) + (traceData.timeline?.issues?.length || 0) + (batch.disposals?.length || 0)} entries</span>
-                  </div>
-                  <div className="space-y-0.5 text-xs">
-                    {(traceData.timeline?.receipts?.length ? traceData.timeline.receipts : [{ _id: 'legacy', receivedQuantity: initialQty, createdAt: batch.createdAt }]).map((receipt) => (
-                      <div key={receipt._id} className="flex justify-between gap-2 py-1 text-[11px]">
-                        <div className="min-w-0">
-                          <span className="font-bold text-emerald-700">IN</span> +{receipt.storeAcceptedQuantity || receipt.receivedQuantity} {unit} Received from {receipt.supplier?.name || batch.supplier?.name || 'Direct Farm Purchase'}
-                          <div className="text-slate-700">Received by: <strong>{receipt.receiverName || receipt.receivedBy?.name || receipt.receivedBy?.username || 'Not recorded'}</strong></div>
-                        </div>
-                        <span className="shrink-0 text-slate-400">{receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : ''}</span>
-                      </div>
-                    ))}
-
-                    {(batch.disposals || []).map((entry, index) => (
-                      <div key={entry._id || index} className="py-1 text-xs text-rose-700">
-                        <strong>DISPOSED</strong> -{entry.quantity} {unit} ? By {entry.performedByName || 'Admin'} ? {new Date(entry.createdAt).toLocaleDateString()}
-                      </div>
-                    ))}
-
-                    {/* OUT events */}
-                    {(traceData.timeline?.issues || []).map((iss) => (
-                      <div key={iss._id} className="flex items-center justify-between py-0.5 text-[11px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="px-1 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-800 shrink-0">
-                            OUT
-                          </span>
-                          <div className="min-w-0 break-words">
-                            <div className="font-semibold text-slate-800">-{iss.issuedQuantity} {unit} to {iss.shed || 'Shed'}</div>
-                            <div className="text-[11px] text-slate-600">
-                              Received by: <strong>{iss.issuedTo || 'Not recorded'}</strong>
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              Issued by: {iss.issuedByName || iss.issuedBy?.name || 'Not recorded'}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
-                          {iss.issueDate ? new Date(iss.issueDate).toLocaleDateString([], { day: '2-digit', month: 'short' }) : (iss.createdAt ? new Date(iss.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : '')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* VIEW 4: Monthly Medicine Consumption & Shed Issue Register */}
+      {/* VIEW 3: Monthly Medicine Consumption & Shed Issue Register */}
       {activeTab === 'consumption' && (
         <MedicineConsumptionRegister
           selectedFarm={selectedFarm}

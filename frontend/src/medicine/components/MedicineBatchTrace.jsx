@@ -82,6 +82,7 @@ export default function MedicineBatchTrace({
   // Initial query execution if provided
   useEffect(() => {
     if (initialQuery || initialBatchId) {
+      if (initialQuery) setSearchBatch(initialQuery);
       handleTraceSearch(null, initialQuery, initialBatchId);
     }
   }, [initialQuery, initialBatchId]);
