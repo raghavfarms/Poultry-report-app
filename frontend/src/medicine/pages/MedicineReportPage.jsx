@@ -646,7 +646,7 @@ export default function MedicineReportPage() {
     }
     return (
       <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Safe (> 3 months)">
-        🟢 {hasDays ? `Safe (${daysLeft}d left)` : 'Safe'}
+        🟢 {hasDays ? `${daysLeft}d left` : 'Safe'}
       </span>
     );
   };
@@ -654,7 +654,7 @@ export default function MedicineReportPage() {
   const isAdmin = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user?.role);
 
   return (
-    <div className="space-y-1.5 sm:space-y-3 w-full max-w-5xl mx-auto px-0 sm:px-2 pb-8">
+    <div className="space-y-1.5 sm:space-y-2.5 w-full max-w-7xl mx-auto px-1 sm:px-2 pb-2">
       {/* 1. Header & Navigation Tabs */}
       <div className="bg-white p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs space-y-1.5 sm:space-y-2">
         <div className="flex flex-row items-center justify-between gap-1.5">
@@ -970,7 +970,7 @@ export default function MedicineReportPage() {
             </div>
           )}
 
-          {/* Batches Stock List (Grouped by Medicine with Accordion Drawer) */}
+          {/* Batches Stock List (Unified Desktop & Mobile with Steady Medicine Name & Sticky Header) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
             {loadingStats && !stats?.expiryRadar ? (
               <div className="p-12 text-center text-slate-400 text-xs">Loading current stock...</div>
@@ -980,544 +980,346 @@ export default function MedicineReportPage() {
                 <p className="text-[11px] text-slate-400">Try changing your search query or click "All" above.</p>
               </div>
             ) : (
-              <>
-                {/* Desktop Table View (Sticky header on scroll) */}
-                <div className="hidden md:block overflow-x-auto max-h-[calc(100vh-210px)] overflow-y-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="sticky top-0 z-20 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
-                      <tr>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 min-w-[200px] border-b border-slate-200">Medicine Name & Farm</th>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Batch No</th>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Packaging (Packs)</th>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-right border-b border-slate-200">Total In Stock</th>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Next Expiry</th>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center border-b border-slate-200">Shelf Status (FEFO)</th>
-                        <th className="sticky top-0 bg-slate-100 z-20 py-2.5 px-3 text-center min-w-[70px] border-b border-slate-200">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {filteredMedicines.map((m) => {
-                        const isMultiBatch = m.batches.length > 1;
-                        const isExpanded = isMultiBatch && Boolean(expandedMeds[m.key]);
-                        const singleBatch = !isMultiBatch ? m.batches[0] : null;
-                        const isExpired = m.urgency === 'EXPIRED';
-                        const isCritical = m.urgency === 'CRITICAL';
-                        const isCaution = m.urgency === 'CAUTION';
-                        const isWarning = m.urgency === 'WARNING';
+              <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-135px)] min-h-[460px] relative">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-30 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
+                    <tr>
+                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-3 min-w-[170px] sm:min-w-[210px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        Medicine Name & Farm
+                      </th>
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[90px]">
+                        Batch No
+                      </th>
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[130px]">
+                        Packaging (Packs)
+                      </th>
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-right border-b border-slate-200 whitespace-nowrap min-w-[100px]">
+                        Total In Stock
+                      </th>
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[95px]">
+                        Next Expiry
+                      </th>
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[100px]">
+                        Shelf Status (FEFO)
+                      </th>
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center min-w-[65px] border-b border-slate-200 whitespace-nowrap">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {filteredMedicines.map((m) => {
+                      const isMultiBatch = m.batches.length > 1;
+                      const isExpanded = isMultiBatch && Boolean(expandedMeds[m.key]);
+                      const singleBatch = !isMultiBatch ? m.batches[0] : null;
+                      const isExpired = m.urgency === 'EXPIRED';
+                      const isCritical = m.urgency === 'CRITICAL';
+                      const isCaution = m.urgency === 'CAUTION';
+                      const isWarning = m.urgency === 'WARNING';
 
-                        return (
-                          <React.Fragment key={m.key}>
-                            {/* Parent Medicine Row */}
-                            <tr
-                              onClick={() => {
-                                if (isMultiBatch) toggleExpand(m.key);
-                              }}
-                              className={`transition-colors select-none ${
-                                isMultiBatch ? 'cursor-pointer' : ''
-                              } ${
-                                isExpanded
-                                  ? 'bg-blue-50/40 hover:bg-blue-50/60 font-medium'
-                                  : isExpired
-                                  ? 'bg-rose-50/30 hover:bg-rose-50/50'
-                                  : isCritical
-                                  ? 'bg-rose-50/15 hover:bg-rose-50/30'
-                                  : isCaution
-                                  ? 'bg-orange-50/15 hover:bg-orange-50/30'
-                                  : isWarning
-                                  ? 'bg-amber-50/10 hover:bg-amber-50/25'
-                                  : 'hover:bg-slate-50/80'
-                              }`}
+                      const rowBgClass = isExpanded
+                        ? 'bg-blue-50/50'
+                        : isExpired
+                        ? 'bg-rose-50/40'
+                        : isCritical
+                        ? 'bg-rose-50/20'
+                        : isCaution
+                        ? 'bg-orange-50/20'
+                        : isWarning
+                        ? 'bg-amber-50/15'
+                        : 'bg-white';
+
+                      const stickyCellBgClass = isExpanded
+                        ? 'bg-blue-50'
+                        : isExpired
+                        ? 'bg-rose-50'
+                        : isCritical
+                        ? 'bg-rose-50'
+                        : isCaution
+                        ? 'bg-orange-50'
+                        : isWarning
+                        ? 'bg-amber-50'
+                        : 'bg-white';
+
+                      return (
+                        <React.Fragment key={m.key}>
+                          {/* Parent Medicine Row */}
+                          <tr
+                            onClick={() => {
+                              if (isMultiBatch) toggleExpand(m.key);
+                            }}
+                            className={`transition-colors select-none ${
+                              isMultiBatch ? 'cursor-pointer' : ''
+                            } ${rowBgClass} hover:bg-slate-50/80`}
+                          >
+                            {/* Column 1: Medicine Name & Farm Meta (STEADY / FROZEN STICKY LEFT) */}
+                            <td
+                              className={`sticky left-0 z-20 py-2 px-3 min-w-[170px] sm:min-w-[210px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${stickyCellBgClass}`}
                             >
-                              {/* Column 1: Medicine Name & Farm Meta */}
-                              <td className="py-2 px-3">
-                                <div className="flex items-center gap-1.5">
-                                  {isMultiBatch ? (
-                                    <span
-                                      className={`text-[10px] font-black transition-transform duration-200 shrink-0 ${
-                                        isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
-                                      }`}
-                                    >
-                                      ▶
-                                    </span>
-                                  ) : (
-                                    <span className="w-2.5 shrink-0 text-slate-300 text-center text-[10px]">•</span>
-                                  )}
-                                  <div className="min-w-0">
-                                    <div className="font-bold text-slate-900 text-xs hover:text-blue-700 transition truncate">
-                                      {m.medicineName}
-                                      {m.medicineAlias && (
-                                        <span className="font-normal text-slate-500 ml-1 text-[11px]">
-                                          ({m.medicineAlias})
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500">
-                                      {m.farm?.name && (
-                                        <span className="font-bold text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
-                                          🏢 {m.farm.name}
-                                        </span>
-                                      )}
-                                      {m.medicineCode && (
-                                        <span className="font-mono text-[9px] bg-slate-50 text-slate-500 px-1 py-0.2 rounded border border-slate-200">
-                                          {m.medicineCode}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* Column 2: Batch No (Single Batch directly shows number; Multi shows batch count button) */}
-                              <td className="py-2 px-3 text-center">
+                              <div className="flex items-center gap-1.5">
                                 {isMultiBatch ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleExpand(m.key);
-                                    }}
-                                    className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 transition cursor-pointer ${
-                                      isExpanded
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                    }`}
-                                    title="Click to view all batches"
-                                  >
-                                    <span>📦 {m.batches.length} Batches</span>
-                                    <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
-                                  </button>
-                                ) : (
-                                  <span className="font-mono font-bold text-[11px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                                    #{singleBatch?.batchNumber || '—'}
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* Column 3: Packaging & Physical Packs (With 1 Pack = X formula) */}
-                              <td className="py-2 px-3 text-center">
-                                {(() => {
-                                  const size = Number(m.packSize) || 1;
-                                  const type = m.packagingType || 'Bottle';
-                                  const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
-                                  const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
-                                  const typeLabel = getPackagingPlural(type, displayCount);
-
-                                  return (
-                                    <div className="inline-flex flex-col items-center">
-                                      <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
-                                        📦 {displayCount} {typeLabel}
-                                      </span>
-                                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
-                                        1 {type} = {size} {formatUnit(m.unit)}
-                                      </span>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-
-                              {/* Column 4: Total In Stock */}
-                              <td className="py-2 px-3 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  {m.isLowStock && (
-                                    <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-300">
-                                      ⚠️ Low
-                                    </span>
-                                  )}
                                   <span
-                                    className={`font-black text-xs ${
-                                      m.isLowStock ? 'text-rose-700' : 'text-slate-900'
+                                    className={`text-[10px] font-black transition-transform duration-200 shrink-0 ${
+                                      isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
                                     }`}
                                   >
-                                    {m.totalStock}
-                                  </span>{' '}
-                                  <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
-                                </div>
-                              </td>
-
-                              {/* Column 5: Earliest Expiry Date */}
-                              <td className="py-2 px-3 text-center font-mono text-[11px] font-semibold text-slate-700">
-                                {m.earliestBatch?.expiryDate || '—'}
-                              </td>
-
-                              {/* Column 6: Shelf Status (Earliest FEFO Batch) */}
-                              <td className="py-2 px-3 text-center">
-                                {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft, true)}
-                              </td>
-
-                              {/* Column 7: Actions (Single Batch has direct Trace/Edit/Delete; Multi Batch has View button) */}
-                              <td className="py-2 px-3 text-center">
-                                {isMultiBatch ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleExpand(m.key);
-                                    }}
-                                    className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1 ${
-                                      isExpanded
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                        : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                                    }`}
-                                  >
-                                    <span>{isExpanded ? '▲ Hide' : '▼ View'}</span>
-                                    <span className="font-mono text-[10px]">({m.batches.length})</span>
-                                  </button>
+                                    ▶
+                                  </span>
                                 ) : (
-                                  <div className="flex items-center justify-center">
-                                    <BatchActionMenu
-                                      batch={singleBatch}
-                                      onTrace={handleTraceBatch}
-                                      onEdit={handleOpenEditBatchModal}
-                                      onDelete={handleOpenDeleteBatch}
-                                      canEdit={canEditBatch}
-                                      canDelete={isAdmin}
-                                    />
-                                  </div>
+                                  <span className="w-2.5 shrink-0 text-slate-300 text-center text-[10px]">•</span>
                                 )}
-                              </td>
-                            </tr>
-
-                            {/* Nested Accordion Drawer for Batches */}
-                            {isExpanded && (
-                              <tr className="bg-slate-50/70 border-y border-blue-200/60">
-                                <td colSpan={7} className="p-3.5 sm:p-4">
-                                  <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-hidden">
-                                    <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-4 py-2.5 border-b border-blue-100 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-base">📦</span>
-                                        <span className="font-bold text-xs text-slate-800">
-                                          Batches Breakdown for{' '}
-                                          <strong className="text-blue-900">{m.medicineName}</strong>
-                                        </span>
-                                        <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
-                                          Sorted by FEFO (Earliest Expiring First)
-                                        </span>
-                                      </div>
-                                      <span className="text-xs text-slate-500 font-semibold">
-                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)}{Number(m.packSize) > 0 && Number(m.packSize) !== 1 ? ` (${Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} ${getPackagingPlural(m.packagingType || 'Bottle', m.totalStock / m.packSize)})` : ''} across{' '}
-                                        <strong className="text-blue-700">{m.batches.length}</strong> {m.batches.length === 1 ? 'batch' : 'batches'}
+                                <div className="min-w-0">
+                                  <div className="font-bold text-slate-900 text-xs hover:text-blue-700 transition truncate max-w-[140px] sm:max-w-[180px]">
+                                    {m.medicineName}
+                                    {m.medicineAlias && (
+                                      <span className="font-normal text-slate-500 ml-1 text-[11px]">
+                                        ({m.medicineAlias})
                                       </span>
-                                    </div>
-
-                                    {/* Child Batches Table */}
-                                    <table className="w-full text-left text-xs">
-                                      <thead className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                                        <tr>
-                                          <th className="py-2.5 px-3">Batch Number</th>
-                                          <th className="py-2.5 px-3">Location / Farm</th>
-                                          <th className="py-2.5 px-3 text-right">In Stock</th>
-                                          <th className="py-2.5 px-3 text-center">Expiry Date</th>
-                                          <th className="py-2.5 px-3 text-center">Shelf Status</th>
-                                          {canAccessTraceAndAction && (
-                                            <th className="py-2.5 px-3 text-center">Actions</th>
-                                          )}
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100 bg-white">
-                                        {m.batches.map((b) => {
-                                          const bExpired = b.urgency === 'EXPIRED';
-                                          const bCritical = b.urgency === 'CRITICAL';
-                                          const bCaution = b.urgency === 'CAUTION';
-                                          const bWarning = b.urgency === 'WARNING';
-
-                                          return (
-                                            <tr
-                                              key={b._id}
-                                              className={`hover:bg-blue-50/30 transition-colors ${
-                                                bExpired
-                                                  ? 'bg-rose-50/40'
-                                                  : bCritical
-                                                  ? 'bg-rose-50/20'
-                                                  : bCaution
-                                                  ? 'bg-orange-50/20'
-                                                  : bWarning
-                                                  ? 'bg-amber-50/15'
-                                                  : ''
-                                              }`}
-                                            >
-                                              {/* Batch Number */}
-                                              <td className="py-2.5 px-3">
-                                                <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
-                                                  {b.batchNumber}
-                                                </span>
-                                              </td>
-
-                                              {/* Farm */}
-                                              <td className="py-2.5 px-3">
-                                                {b.farm?.name ? (
-                                                  <span className="font-semibold text-xs text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 inline-block">
-                                                    🏢 {b.farm.name}
-                                                  </span>
-                                                ) : (
-                                                  <span className="text-slate-400 italic text-[11px]">All / Main</span>
-                                                )}
-                                              </td>
-
-                                              {/* Stock */}
-                                              <td className="py-2.5 px-3 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                  {b.isLowStock && (
-                                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-200">
-                                                      ⚠️ Low
-                                                    </span>
-                                                  )}
-                                                  <span className="font-black text-xs text-slate-900">
-                                                    {b.quantityAvailable}
-                                                  </span>{' '}
-                                                  <span className="text-[11px] text-slate-500 font-semibold">
-                                                    {formatUnit(b.unit)}
-                                                  </span>
-                                                </div>
-                                              </td>
-
-                                              {/* Expiry Date */}
-                                              <td className="py-2.5 px-3 text-center font-mono text-xs text-slate-700 font-medium">
-                                                {b.expiryDate}
-                                              </td>
-
-                                              {/* Shelf Status */}
-                                              <td className="py-2.5 px-3 text-center">
-                                                {renderShelfBadge(b.urgency, b.daysLeft)}
-                                              </td>
-
-                                              {/* Actions */}
-                                              {canAccessTraceAndAction && (
-                                                <td className="py-2.5 px-3 text-center">
-                                                  <div className="flex items-center justify-center">
-                                                    <BatchActionMenu
-                                                      batch={b}
-                                                      onTrace={handleTraceBatch}
-                                                      onEdit={handleOpenEditBatchModal}
-                                                      onDelete={handleOpenDeleteBatch}
-                                                      onDispose={disposeStock}
-                                                      canDispose={canDispose}
-                                                      canEdit={canEditBatch}
-                                                      canDelete={isAdmin}
-                                                    />
-                                                  </div>
-                                                </td>
-                                              )}
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
+                                    )}
                                   </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                                  <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500 flex-wrap">
+                                    {m.farm?.name && (
+                                      <span className="font-bold text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
+                                        🏢 {m.farm.name}
+                                      </span>
+                                    )}
+                                    {m.medicineCode && (
+                                      <span className="font-mono text-[9px] bg-slate-50 text-slate-500 px-1 py-0.2 rounded border border-slate-200">
+                                        {m.medicineCode}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
 
-                {/* Mobile Responsive Cards View (Compact, High Density & Clean) */}
-                <div className="md:hidden divide-y divide-slate-100 bg-white">
-                  {filteredMedicines.map((m) => {
-                    const isMultiBatch = m.batches.length > 1;
-                    const isExpanded = isMultiBatch && Boolean(expandedMeds[m.key]);
-                    const singleBatch = !isMultiBatch ? m.batches[0] : null;
-                    const isExpired = m.urgency === 'EXPIRED';
-                    const isCritical = m.urgency === 'CRITICAL';
-                    const isCaution = m.urgency === 'CAUTION';
-                    const isWarning = m.urgency === 'WARNING';
-
-                    return (
-                      <div
-                        key={m.key}
-                        className={`p-2 transition-colors ${
-                          isExpanded
-                            ? 'bg-blue-50/20'
-                            : isExpired
-                            ? 'bg-rose-50/25'
-                            : isCritical
-                            ? 'bg-rose-50/15'
-                            : isCaution
-                            ? 'bg-orange-50/15'
-                            : isWarning
-                            ? 'bg-amber-50/10'
-                            : 'hover:bg-slate-50/60'
-                        }`}
-                      >
-                        {/* Row 1: Header (Name, Farm Meta & Shelf Status) */}
-                        <div
-                          onClick={() => {
-                            if (isMultiBatch) toggleExpand(m.key);
-                          }}
-                          className={`flex justify-between items-start gap-1.5 select-none ${
-                            isMultiBatch ? 'cursor-pointer' : ''
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1">
-                              {isMultiBatch && (
-                                <span
-                                  className={`text-[9px] font-black transition-transform duration-200 shrink-0 ${
-                                    isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
+                            {/* Column 2: Batch No */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[90px]">
+                              {isMultiBatch ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpand(m.key);
+                                  }}
+                                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 transition cursor-pointer ${
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                                   }`}
+                                  title="Click to view all batches"
                                 >
-                                  ▶
+                                  <span>📦 {m.batches.length} Batches</span>
+                                  <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                                </button>
+                              ) : (
+                                <span className="font-mono font-bold text-[11px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                  #{singleBatch?.batchNumber || '—'}
                                 </span>
                               )}
-                              <h3 className="font-bold text-xs text-slate-900 truncate">
-                                {m.medicineName}
-                              </h3>
-                              {m.medicineAlias && (
-                                <span className="text-[10px] text-slate-400 truncate">({m.medicineAlias})</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5 flex-wrap">
-                              {m.farm?.name && (
-                                <span className="font-bold bg-slate-100 text-slate-700 px-1 py-0.2 rounded border border-slate-200 text-[9px]">
-                                  🏢 {m.farm.name}
-                                </span>
-                              )}
-                              {singleBatch && (
-                                <span className="font-mono font-bold text-[9px] bg-slate-100 text-slate-800 px-1 py-0.2 rounded border border-slate-200">
-                                  #{singleBatch.batchNumber}
-                                </span>
-                              )}
-                              {m.medicineCode && (
-                                <span className="font-mono bg-slate-50 px-1 py-0.2 rounded border border-slate-200/70 text-[9px] text-slate-400">
-                                  {m.medicineCode}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                            </td>
 
-                          <div className="shrink-0 pt-0.5">
-                            {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft, true)}
-                          </div>
-                        </div>
-
-                        {/* Row 2: Stock Bar, Packaging Formula & Direct Actions */}
-                        <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-100 text-xs">
-                          {/* Stock & Pack Info */}
-                          <div className="flex flex-col">
-                            <div className="flex items-center gap-1">
-                              {m.isLowStock && (
-                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 shrink-0">
-                                  ⚠️ Low
-                                </span>
-                              )}
-                              <span className={`font-black text-xs ${m.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
-                                {m.totalStock}
-                              </span>{' '}
-                              <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
+                            {/* Column 3: Packaging & Physical Packs */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[130px]">
                               {(() => {
                                 const size = Number(m.packSize) || 1;
                                 const type = m.packagingType || 'Bottle';
                                 const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
                                 const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
                                 const typeLabel = getPackagingPlural(type, displayCount);
+
                                 return (
-                                  <span className="ml-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 inline-block">
-                                    📦 {displayCount} {typeLabel}
-                                  </span>
+                                  <div className="inline-flex flex-col items-center">
+                                    <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                      📦 {displayCount} {typeLabel}
+                                    </span>
+                                    <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                      1 {type} = {size} {formatUnit(m.unit)}
+                                    </span>
+                                  </div>
                                 );
                               })()}
-                            </div>
-                            <span className="text-[9px] text-slate-400 font-medium">
-                              1 {m.packagingType || 'Bottle'} = {m.packSize || 1} {formatUnit(m.unit)}
-                            </span>
-                          </div>
+                            </td>
 
-                          {/* Actions: Direct buttons for Single Batch; View button for Multi Batch */}
-                          <div>
-                            {isMultiBatch ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleExpand(m.key)}
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shrink-0 ${
-                                  isExpanded
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                    : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                }`}
-                              >
-                                <span>📦 {m.batches.length} Batches</span>
-                                <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
-                              </button>
-                            ) : (
-                              <BatchActionMenu
-                                batch={singleBatch}
-                                onTrace={handleTraceBatch}
-                                onEdit={handleOpenEditBatchModal}
-                                onDelete={handleOpenDeleteBatch}
-                                canEdit={canEditBatch}
-                                canDelete={isAdmin}
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Mobile Expanded Drawer: Clean High-Density Batch List (Only for Multi-Batch) */}
-                        {isExpanded && (
-                          <div className="mt-2 pt-2 border-t border-blue-200/50 space-y-1.5">
-                            <div className="text-[10px] font-bold text-blue-900 flex items-center justify-between px-0.5">
-                              <span>Active Batches (FEFO):</span>
-                              <span className="text-[9px] text-slate-400 font-normal">
-                                Total: {m.batches.length}
-                              </span>
-                            </div>
-
-                            <div className="space-y-1">
-                              {m.batches.map((b) => (
-                                <div
-                                  key={b._id}
-                                  className="bg-white p-1.5 sm:p-2 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between gap-1.5 text-xs"
+                            {/* Column 4: Total In Stock */}
+                            <td className="py-2 px-3 text-right whitespace-nowrap min-w-[100px]">
+                              <div className="flex items-center justify-end gap-1">
+                                {m.isLowStock && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                                    ⚠️ Low
+                                  </span>
+                                )}
+                                <span
+                                  className={`font-black text-xs ${
+                                    m.isLowStock ? 'text-rose-700' : 'text-slate-900'
+                                  }`}
                                 >
-                                  {/* Left: Batch # & Location */}
-                                  <div className="min-w-0 flex items-center gap-1.5">
-                                    <span className="font-mono font-bold text-[10px] text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
-                                      {b.batchNumber}
-                                    </span>
-                                    {b.farm?.name && (
-                                      <span className="text-[9px] text-slate-500 font-medium truncate max-w-[65px] hidden xs:inline">
-                                        {b.farm.name}
-                                      </span>
-                                    )}
-                                  </div>
+                                  {m.totalStock}
+                                </span>{' '}
+                                <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
+                              </div>
+                            </td>
 
-                                  {/* Center: Stock & Expiry */}
-                                  <div className="text-right shrink-0">
-                                    <div className="text-[11px] leading-tight">
-                                      <strong className="text-slate-900 font-bold">{b.quantityAvailable}</strong>{' '}
-                                      <span className="text-[10px] text-slate-500">{formatUnit(b.unit)}</span>
-                                    </div>
-                                    <div className="text-[9px] font-mono text-slate-400 leading-tight">
-                                      {b.expiryDate}
-                                    </div>
-                                  </div>
+                            {/* Column 5: Earliest Expiry Date */}
+                            <td className="py-2 px-3 text-center font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap min-w-[95px]">
+                              {m.earliestBatch?.expiryDate || '—'}
+                            </td>
 
-                                  {/* Right: Shelf Status & Actions */}
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {renderShelfBadge(b.urgency, b.daysLeft, true)}
+                            {/* Column 6: Shelf Status (FEFO) */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[100px]">
+                              {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}
+                            </td>
 
-                                    {canAccessTraceAndAction && (
-                                      <BatchActionMenu
-                                        batch={b}
-                                        onTrace={handleTraceBatch}
-                                        onEdit={handleOpenEditBatchModal}
-                                        onDelete={handleOpenDeleteBatch}
-                                        onDispose={disposeStock}
-                                        canDispose={canDispose}
-                                        canEdit={canEditBatch}
-                                        canDelete={isAdmin}
-                                      />
-                                    )}
-                                  </div>
+                            {/* Column 7: Actions */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[65px]">
+                              {isMultiBatch ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpand(m.key);
+                                  }}
+                                  className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1 ${
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  <span>{isExpanded ? '▲' : '▼'}</span>
+                                  <span className="font-mono text-[10px]">({m.batches.length})</span>
+                                </button>
+                              ) : (
+                                <div className="flex items-center justify-center">
+                                  <BatchActionMenu
+                                    batch={singleBatch}
+                                    onTrace={handleTraceBatch}
+                                    onEdit={handleOpenEditBatchModal}
+                                    onDelete={handleOpenDeleteBatch}
+                                    canEdit={canEditBatch}
+                                    canDelete={isAdmin}
+                                  />
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Nested Accordion Drawer for Batches */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/70 border-y border-blue-200/60">
+                              <td colSpan={7} className="p-2 sm:p-3">
+                                <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-x-auto">
+                                  <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 py-2 border-b border-blue-100 flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-sm">📦</span>
+                                      <span className="font-bold text-xs text-slate-800">
+                                        Batches for <strong className="text-blue-900">{m.medicineName}</strong>
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                                        FEFO
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] text-slate-500 font-semibold">
+                                      Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)} across{' '}
+                                      <strong className="text-blue-700">{m.batches.length}</strong> batches
+                                    </span>
+                                  </div>
+
+                                  {/* Child Batches Table */}
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                                      <tr>
+                                        <th className="py-2 px-3 whitespace-nowrap">Batch Number</th>
+                                        <th className="py-2 px-3 whitespace-nowrap">Location / Farm</th>
+                                        <th className="py-2 px-3 text-right whitespace-nowrap">In Stock</th>
+                                        <th className="py-2 px-3 text-center whitespace-nowrap">Expiry Date</th>
+                                        <th className="py-2 px-3 text-center whitespace-nowrap">Shelf Status</th>
+                                        {canAccessTraceAndAction && (
+                                          <th className="py-2 px-3 text-center whitespace-nowrap min-w-[65px]">Actions</th>
+                                        )}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                      {m.batches.map((b) => (
+                                        <tr
+                                          key={b._id}
+                                          className="hover:bg-blue-50/30 transition-colors"
+                                        >
+                                          {/* Batch Number */}
+                                          <td className="py-2 px-3 whitespace-nowrap">
+                                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-block shadow-2xs">
+                                              {b.batchNumber}
+                                            </span>
+                                          </td>
+
+                                          {/* Farm */}
+                                          <td className="py-2 px-3 whitespace-nowrap">
+                                            {b.farm?.name ? (
+                                              <span className="font-semibold text-xs text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 inline-block">
+                                                🏢 {b.farm.name}
+                                              </span>
+                                            ) : (
+                                              <span className="text-slate-400 italic text-[11px]">All / Main</span>
+                                            )}
+                                          </td>
+
+                                          {/* Stock */}
+                                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                                            <div className="flex items-center justify-end gap-1">
+                                              {b.isLowStock && (
+                                                <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                                  ⚠️ Low
+                                                </span>
+                                              )}
+                                              <span className="font-black text-xs text-slate-900">
+                                                {b.quantityAvailable}
+                                              </span>{' '}
+                                              <span className="text-[10px] text-slate-500 font-semibold">
+                                                {formatUnit(b.unit)}
+                                              </span>
+                                            </div>
+                                          </td>
+
+                                          {/* Expiry Date */}
+                                          <td className="py-2 px-3 text-center font-mono text-xs text-slate-700 font-medium whitespace-nowrap">
+                                            {b.expiryDate}
+                                          </td>
+
+                                          {/* Shelf Status */}
+                                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                                            {renderShelfBadge(b.urgency, b.daysLeft)}
+                                          </td>
+
+                                          {/* Actions */}
+                                          {canAccessTraceAndAction && (
+                                            <td className="py-2 px-3 text-center whitespace-nowrap">
+                                              <div className="flex items-center justify-center">
+                                                <BatchActionMenu
+                                                  batch={b}
+                                                  onTrace={handleTraceBatch}
+                                                  onEdit={handleOpenEditBatchModal}
+                                                  onDelete={handleOpenDeleteBatch}
+                                                  onDispose={disposeStock}
+                                                  canDispose={canDispose}
+                                                  canEdit={canEditBatch}
+                                                  canDelete={isAdmin}
+                                                />
+                                              </div>
+                                            </td>
+                                          )}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
