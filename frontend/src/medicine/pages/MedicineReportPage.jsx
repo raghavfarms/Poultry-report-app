@@ -202,7 +202,7 @@ export default function MedicineReportPage() {
     } catch (err) {
       console.error('Failed to load pending transfers:', err);
     }
-  };
+  };    
 
   const incomingTransferCount = React.useMemo(() => {
     if (!selectedFarm) return pendingTransfers.length;
@@ -260,7 +260,7 @@ export default function MedicineReportPage() {
     setEditBatchError('');
     setIsEditModalOpen(true);
 
-    let list = allMedicinesList;
+    let list = allMedicinesList;  
     if (list.length === 0) {
       try {
         const data = await fetchMedicines({ includeInactive: false });
@@ -365,7 +365,7 @@ export default function MedicineReportPage() {
       setLoadingStats(false);
     }
   };
-
+   
   useEffect(() => {
     loadFirms();
     // Proactively pre-load stock stats so Stock tab is instant

@@ -19,6 +19,7 @@ import {
 import { api } from '../../api/client.js';
 import MedicineTransferAuditReport from '../components/MedicineTransferAuditReport.jsx';
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
+import MedicineBatchTrace from '../components/MedicineBatchTrace.jsx';
 import { DEFAULT_PACKAGING_TYPES, DEFAULT_MEASUREMENT_UNITS, formatStockDisplay } from '../utils/packagingHelper.js';
 
 const DEFAULT_CATEGORIES = [
@@ -135,6 +136,7 @@ function ScrollDropdown({
 export default function MedicineMasterPage() {
   const { user } = useAuth();
   const canManage = ['admin', 'developer'].includes(user?.role);
+  const canAccessTrace = canManage || user?.permissions?.medicine_master === true;
 
   // Data states
   const [medicines, setMedicines] = useState([]);
@@ -608,6 +610,22 @@ export default function MedicineMasterPage() {
           <span>Transfers</span>
           <span className="hidden sm:inline">Audit</span>
         </button>
+
+        {canAccessTrace && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('trace')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === 'trace'
+                ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <span>🔍</span>
+            <span>Trace</span>
+            <span className="hidden sm:inline">Batch</span>
+          </button>
+        )}
       </div>
 
       {activeTab === 'medicines' && (
@@ -1323,6 +1341,24 @@ export default function MedicineMasterPage() {
         firms={firms}
         onOpenTransferModal={() => setIsTransferModalOpen(true)}
       />
+    </div>
+  )}
+
+  {/* ======================================================== */}
+  {/* 4. BATCH TRACEABILITY TAB                                */}
+  {/* ======================================================== */}
+  {activeTab === 'trace' && (
+    <div className="space-y-3 sm:space-y-4">
+      {canAccessTrace ? (
+        <MedicineBatchTrace
+          firms={firms}
+          canManage={canManage}
+        />
+      ) : (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-center text-xs font-semibold">
+          ⛔ Access Restricted: You do not have permission to view Batch Traceability.
+        </div>
+      )}
     </div>
   )}
 
