@@ -133,6 +133,7 @@ export default function DailyMedicineActionPage({
   const [outwardMedicineName, setOutwardMedicineName] = useState('');
   const [isOutwardMedDropdownOpen, setIsOutwardMedDropdownOpen] = useState(false);
   const [outwardShed, setOutwardShed] = useState('');
+  const [isOtherLocation, setIsOtherLocation] = useState(false);
   const [customShed, setCustomShed] = useState('');
   const [outwardQty, setOutwardQty] = useState('');
   const [batchAllocations, setBatchAllocations] = useState({});
@@ -175,10 +176,8 @@ export default function DailyMedicineActionPage({
       const result = await fetchMedicineLocations(farmToFetch);
       const locList = result.locations || [];
       setLocations(locList);
-      setOutwardShed((curr) => {
-        if (curr && (locList.includes(curr) || curr === 'Other...')) return curr;
-        return locList[0] || '';
-      });
+      // Do NOT auto-select! User must explicitly select their desired location/shed
+      setOutwardShed((curr) => (locList.includes(curr) ? curr : ''));
       setLocationError('');
     } catch (error) {
       setLocationError('Could not load locations. Use Other to enter a location.');
@@ -198,7 +197,10 @@ export default function DailyMedicineActionPage({
       const result = await createMedicineLocation(newLocation, farmToUse);
       setLocations((current) => [...new Set([...current, result.location])]);
       setOutwardShed(result.location);
+      setIsOtherLocation(false);
+      setCustomShed('');
       setNewLocation('');
+      setShowAddLocationInput(false);
       setLocationError('');
     } catch (error) {
       setLocationError(error.message || 'Failed to add location.');
@@ -486,6 +488,10 @@ export default function DailyMedicineActionPage({
     setOutwardMedicineName('');
     setIsOutwardMedDropdownOpen(false);
     setIsOutwardFarmDropdownOpen(false);
+    setOutwardShed('');
+    setIsOtherLocation(false);
+    setCustomShed('');
+    setShowAddLocationInput(false);
     setOutwardQty('');
     setBatchAllocations({});
     setBatchPackAllocations({});
@@ -586,13 +592,13 @@ export default function DailyMedicineActionPage({
       alert('Please select a farm store');
       return;
     }
-    const finalShed = outwardShed === '' ? customShed.trim() : outwardShed;
+    const finalShed = isOtherLocation ? customShed.trim() : outwardShed.trim();
     if (!outwardMedicineId) {
       alert('Please select a medicine');
       return;
     }
     if (!finalShed) {
-      alert('Please select or specify a location');
+      alert('Please select a location or shed');
       return;
     }
     if (!outwardQty || Number(outwardQty) <= 0) {
@@ -644,6 +650,9 @@ export default function DailyMedicineActionPage({
       setOutwardQty('');
       setBatchAllocations({});
       setBatchPackAllocations({});
+      setOutwardShed('');
+      setIsOtherLocation(false);
+      setCustomShed('');
       setOutwardReceiver('');
       setOutwardIssuer(user?.name || user?.username || '');
       // Reload feed
@@ -1723,7 +1732,7 @@ export default function DailyMedicineActionPage({
                 </label>
                 <div className="flex flex-wrap items-center gap-1">
                   {locations.map((shed) => {
-                    const isSelected = outwardShed === shed;
+                    const isSelected = outwardShed === shed && !isOtherLocation;
                     return (
                       <div
                         key={shed}
@@ -1735,7 +1744,11 @@ export default function DailyMedicineActionPage({
                       >
                         <button
                           type="button"
-                          onClick={() => setOutwardShed(shed)}
+                          onClick={() => {
+                            setOutwardShed(shed);
+                            setIsOtherLocation(false);
+                            setCustomShed('');
+                          }}
                           className="px-2.5 py-1 cursor-pointer text-[11px]"
                         >
                           {shed}
@@ -1761,9 +1774,12 @@ export default function DailyMedicineActionPage({
                   })}
                   <button
                     type="button"
-                    onClick={() => setOutwardShed('')}
+                    onClick={() => {
+                      setIsOtherLocation(true);
+                      setOutwardShed('');
+                    }}
                     className={`px-2.5 py-1 rounded-md border text-[11px] font-bold transition cursor-pointer ${
-                      outwardShed === ''
+                      isOtherLocation
                         ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
                     }`}
@@ -1781,7 +1797,7 @@ export default function DailyMedicineActionPage({
                   )}
                 </div>
 
-                {outwardShed === '' && (
+                {isOtherLocation && (
                   <input
                     type="text"
                     required
@@ -1790,7 +1806,8 @@ export default function DailyMedicineActionPage({
                     maxLength={120}
                     value={customShed}
                     onChange={(e) => setCustomShed(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs mt-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-blue-400 rounded-md text-xs mt-1 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    autoFocus
                   />
                 )}
                 {locationError && <p role="alert" className="text-xs text-rose-600 mt-0.5">{locationError}</p>}
@@ -2255,7 +2272,7 @@ export default function DailyMedicineActionPage({
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting || !outwardQty || Number(outwardQty) <= 0}
+                    disabled={submitting || !outwardQty || Number(outwardQty) <= 0 || (!outwardShed && (!isOtherLocation || !customShed.trim()))}
                     className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
                   >
                     <span>💾</span> {submitting ? 'Saving...' : 'Issue'}
