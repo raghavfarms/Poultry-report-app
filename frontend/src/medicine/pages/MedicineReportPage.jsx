@@ -984,7 +984,7 @@ export default function MedicineReportPage() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-30 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
                     <tr>
-                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-2 w-[125px] sm:w-[155px] min-w-[125px] sm:min-w-[155px] max-w-[125px] sm:max-w-[155px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-2.5 w-[155px] sm:w-[195px] min-w-[155px] sm:min-w-[195px] max-w-[165px] sm:max-w-[210px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
                         Medicine & Farm
                       </th>
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[90px]">
