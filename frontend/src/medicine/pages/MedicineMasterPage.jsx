@@ -21,6 +21,7 @@ import MedicineTransferAuditReport from '../components/MedicineTransferAuditRepo
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 import MedicineBatchTrace from '../components/MedicineBatchTrace.jsx';
 import { DEFAULT_PACKAGING_TYPES, DEFAULT_MEASUREMENT_UNITS, formatStockDisplay } from '../utils/packagingHelper.js';
+import { exportReportToPdf } from '../../utils/exportPdf.js';
 
 const DEFAULT_CATEGORIES = [
   'General',
@@ -147,6 +148,8 @@ export default function MedicineMasterPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [auditRefreshKey, setAuditRefreshKey] = useState(0);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const pdfPrintRef = useRef(null);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -217,6 +220,29 @@ export default function MedicineMasterPage() {
     .map((m) => m?.unit)
     .filter((u) => u && !['Bottle', 'Vial', 'Can', 'Packet', 'Box', 'Bag', 'Sachet / Packet', 'Tablet / Strip', 'Sachet', 'Strip'].includes(u));
   const availableUnits = Array.from(new Set([...DEFAULT_UNITS, ...dbUnits]));
+
+  // Export All Master Medicines to PDF (.pdf)
+  const handleExportAllMedicinesPdf = async () => {
+    if (exportingPdf || !pdfPrintRef.current || medicines.length === 0) return;
+    try {
+      setExportingPdf(true);
+      const today = new Date();
+      const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+      const filename = `Medicine_Master_Catalog_${dateStr}.pdf`;
+
+      await exportReportToPdf(pdfPrintRef.current, {
+        filename,
+        orientation: 'landscape',
+        format: 'a4',
+        margin: 6,
+      });
+    } catch (err) {
+      console.error('Master catalog PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   // Calculate 20 medicines per page
   const totalPages = Math.ceil(medicines.length / PAGE_SIZE) || 1;
@@ -637,14 +663,27 @@ export default function MedicineMasterPage() {
           <h1 className="text-base sm:text-2xl font-bold text-slate-800">General Medicine</h1>
           <p className="text-xs text-slate-500 hidden sm:block">Manage general medicine catalog, specifications, and stock alert levels</p>
         </div>
-        {canManage && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleOpenAddModal}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+            type="button"
+            disabled={exportingPdf || medicines.length === 0}
+            onClick={handleExportAllMedicinesPdf}
+            className="bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 font-bold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-2xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0 disabled:opacity-50"
+            title="Download all master medicines as PDF"
           >
-            <span className="text-base leading-none font-bold">+</span> Add Medicine
+            <span>📄</span>
+            <span>{exportingPdf ? 'Exporting...' : 'PDF'}</span>
           </button>
-        )}
+
+          {canManage && (
+            <button
+              onClick={handleOpenAddModal}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+            >
+              <span className="text-base leading-none font-bold">+</span> Add Medicine
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Notifications */}
@@ -1043,6 +1082,88 @@ export default function MedicineMasterPage() {
             )}
           </>
         )}
+      </div>
+
+      {/* Off-screen Full Master Catalog for PDF Export (captures ALL master medicines) */}
+      <div
+        ref={pdfPrintRef}
+        className="report-export-content pdf-print-container bg-white p-6"
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: '0',
+          width: '1120px',
+          zIndex: -1000,
+          backgroundColor: '#ffffff'
+        }}
+      >
+        {/* PDF Header */}
+        <div className="border-b-2 border-emerald-600 pb-3 mb-4 flex justify-between items-end">
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>💊</span> RAGHAV FARMS — MEDICINE MASTER CATALOG
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Complete official specifications, packaging ratios, shelf life, and alert thresholds
+            </p>
+          </div>
+          <div className="text-right text-xs">
+            <div className="font-bold text-slate-800">
+              Total Master Medicines: <span className="text-emerald-700 font-extrabold">{medicines.length}</span>
+            </div>
+            <div className="text-slate-400 text-[10px] mt-0.5">
+              Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </div>
+          </div>
+        </div>
+
+        {/* Full Table of ALL Master Medicines */}
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-100 border-y border-slate-300 text-[10px] uppercase font-bold text-slate-700">
+              <th className="py-2.5 px-2 text-center w-12 border-b border-slate-300">#</th>
+              <th className="py-2.5 px-3 w-24 border-b border-slate-300">Code</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Medicine Name</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Alias</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Category</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Packaging Specification</th>
+              <th className="py-2.5 px-2 text-center border-b border-slate-300">Shelf Life</th>
+              <th className="py-2.5 px-2 text-center border-b border-slate-300">Reorder Level</th>
+              <th className="py-2.5 px-2 text-center border-b border-slate-300">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {medicines.map((med, idx) => (
+              <tr key={med._id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                <td className="py-2 px-2 text-center font-bold text-slate-500 border-b border-slate-100">{idx + 1}</td>
+                <td className="py-2 px-3 font-mono font-bold text-slate-800 border-b border-slate-100">{med.code}</td>
+                <td className="py-2 px-3 font-bold text-slate-900 border-b border-slate-100">{med.name}</td>
+                <td className="py-2 px-3 font-semibold text-slate-700 border-b border-slate-100">{med.aliasName || '—'}</td>
+                <td className="py-2 px-3 border-b border-slate-100">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                    {med.category}
+                  </span>
+                </td>
+                <td className="py-2 px-3 font-semibold text-slate-800 border-b border-slate-100">
+                  1 {med.packagingType || 'Bottle'} = {med.packSize || 1} {med.unit}
+                </td>
+                <td className="py-2 px-2 text-center text-slate-700 border-b border-slate-100">
+                  {med.shelfLifeMonths ? `${med.shelfLifeMonths} mo` : '—'}
+                </td>
+                <td className="py-2 px-2 text-center font-bold text-amber-800 border-b border-slate-100">
+                  {med.reorderLevel ? `${med.reorderLevel} ${med.unit}` : '—'}
+                </td>
+                <td className="py-2 px-2 text-center border-b border-slate-100">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    med.active !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {med.active !== false ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )}
