@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
