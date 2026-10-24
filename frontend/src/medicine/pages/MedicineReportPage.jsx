@@ -343,13 +343,15 @@ export default function MedicineReportPage() {
     ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   }, [stats]);
 
-  // Group batches by unique Medicine
+  // Group batches by unique Medicine + Farm (Strictly unmerged across farms)
   const groupedMedicines = React.useMemo(() => {
     const map = new Map();
 
     for (const b of allBatches) {
-      const key = (b.medicineId || b.medicineName || '').toString();
-      if (!key) continue;
+      const medId = (b.medicineId || b.medicineName || '').toString();
+      if (!medId) continue;
+      const farmId = b.farm?._id ? String(b.farm._id) : (b.farm?.name || 'farm');
+      const key = `${medId}_${farmId}`;
 
       if (!map.has(key)) {
         map.set(key, {
@@ -364,7 +366,7 @@ export default function MedicineReportPage() {
           reorderLevel: b.reorderLevel,
           totalStock: 0,
           batches: [],
-          farmsMap: new Map(),
+          farm: b.farm,
           urgency: 'SAFE',
           isLowStock: false,
         });
@@ -379,8 +381,8 @@ export default function MedicineReportPage() {
       }
       entry.totalStock += Number(b.quantityAvailable || 0);
       entry.batches.push(b);
-      if (b.farm?.name) {
-        entry.farmsMap.set(b.farm._id || b.farm.name, b.farm);
+      if (!entry.farm && b.farm) {
+        entry.farm = b.farm;
       }
       if (b.isLowStock) entry.isLowStock = true;
     }
@@ -405,7 +407,6 @@ export default function MedicineReportPage() {
         }
       }
       entry.urgency = highestUrgency;
-      entry.farmList = Array.from(entry.farmsMap.values());
       return entry;
     });
 
@@ -433,6 +434,7 @@ export default function MedicineReportPage() {
         m.medicineName?.toLowerCase().includes(q) ||
         (!isStockSearchPureNumber && m.medicineCode?.toLowerCase().includes(q)) ||
         m.medicineAlias?.toLowerCase().includes(q) ||
+        m.farm?.name?.toLowerCase().includes(q) ||
         m.batches.some((b) => b.batchNumber?.toLowerCase().includes(q));
 
       if (!matchesSearch) return false;
@@ -852,18 +854,20 @@ export default function MedicineReportPage() {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
                       <tr>
-                        <th className="py-3 px-4 min-w-[240px]">Medicine Name</th>
-                        <th className="py-3 px-4 text-center">Batches</th>
-                        <th className="py-3 px-4 text-center">Packaging (Packs)</th>
-                        <th className="py-3 px-4 text-right">Total In Stock</th>
-                        <th className="py-3 px-4 text-center">Next Expiry</th>
-                        <th className="py-3 px-4 text-center">Shelf Status (FEFO)</th>
-                        <th className="py-3 px-4 text-center min-w-[140px]">Actions</th>
+                        <th className="py-2 px-3 min-w-[200px]">Medicine Name & Farm</th>
+                        <th className="py-2 px-3 text-center">Batch No</th>
+                        <th className="py-2 px-3 text-center">Packaging (Packs)</th>
+                        <th className="py-2 px-3 text-right">Total In Stock</th>
+                        <th className="py-2 px-3 text-center">Next Expiry</th>
+                        <th className="py-2 px-3 text-center">Shelf Status (FEFO)</th>
+                        <th className="py-2 px-3 text-center min-w-[130px]">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                       {filteredMedicines.map((m) => {
-                        const isExpanded = Boolean(expandedMeds[m.key]);
+                        const isMultiBatch = m.batches.length > 1;
+                        const isExpanded = isMultiBatch && Boolean(expandedMeds[m.key]);
+                        const singleBatch = !isMultiBatch ? m.batches[0] : null;
                         const isExpired = m.urgency === 'EXPIRED';
                         const isCritical = m.urgency === 'CRITICAL';
                         const isCaution = m.urgency === 'CAUTION';
@@ -873,49 +877,56 @@ export default function MedicineReportPage() {
                           <React.Fragment key={m.key}>
                             {/* Parent Medicine Row */}
                             <tr
-                              onClick={() => toggleExpand(m.key)}
-                              className={`cursor-pointer transition-colors select-none ${
+                              onClick={() => {
+                                if (isMultiBatch) toggleExpand(m.key);
+                              }}
+                              className={`transition-colors select-none ${
+                                isMultiBatch ? 'cursor-pointer' : ''
+                              } ${
                                 isExpanded
                                   ? 'bg-blue-50/40 hover:bg-blue-50/60 font-medium'
                                   : isExpired
-                                  ? 'bg-rose-50/40 hover:bg-rose-50/60'
+                                  ? 'bg-rose-50/30 hover:bg-rose-50/50'
                                   : isCritical
-                                  ? 'bg-rose-50/20 hover:bg-rose-50/40'
+                                  ? 'bg-rose-50/15 hover:bg-rose-50/30'
                                   : isCaution
-                                  ? 'bg-orange-50/20 hover:bg-orange-50/40'
+                                  ? 'bg-orange-50/15 hover:bg-orange-50/30'
                                   : isWarning
-                                  ? 'bg-amber-50/15 hover:bg-amber-50/35'
+                                  ? 'bg-amber-50/10 hover:bg-amber-50/25'
                                   : 'hover:bg-slate-50/80'
                               }`}
                             >
-                              {/* Column 1: Medicine Name & Meta */}
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center gap-2">
-                                  <span
-                                    className={`text-xs font-black transition-transform duration-200 ${
-                                      isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
-                                    }`}
-                                  >
-                                    ▶
-                                  </span>
-                                  <div>
-                                    <div className="font-bold text-slate-900 text-sm hover:text-blue-700 transition">
+                              {/* Column 1: Medicine Name & Farm Meta */}
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-1.5">
+                                  {isMultiBatch ? (
+                                    <span
+                                      className={`text-[10px] font-black transition-transform duration-200 shrink-0 ${
+                                        isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
+                                      }`}
+                                    >
+                                      ▶
+                                    </span>
+                                  ) : (
+                                    <span className="w-2.5 shrink-0 text-slate-300 text-center text-[10px]">•</span>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-slate-900 text-xs hover:text-blue-700 transition truncate">
                                       {m.medicineName}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
-                                      {m.farmList?.map((farm) => (
-                                        <span
-                                          key={farm._id || farm.name}
-                                          className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200"
-                                        >
-                                          🏢 {farm.name}
-                                        </span>
-                                      ))}
                                       {m.medicineAlias && (
-                                        <span className="font-medium text-slate-600">({m.medicineAlias})</span>
+                                        <span className="font-normal text-slate-500 ml-1 text-[11px]">
+                                          ({m.medicineAlias})
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500">
+                                      {m.farm?.name && (
+                                        <span className="font-bold text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
+                                          🏢 {m.farm.name}
+                                        </span>
                                       )}
                                       {m.medicineCode && (
-                                        <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
+                                        <span className="font-mono text-[9px] bg-slate-50 text-slate-500 px-1 py-0.2 rounded border border-slate-200">
                                           {m.medicineCode}
                                         </span>
                                       )}
@@ -924,25 +935,34 @@ export default function MedicineReportPage() {
                                 </div>
                               </td>
 
-                              {/* Column 2: Batches Count Badge */}
-                              <td className="py-3.5 px-4 text-center">
-                                <span
-                                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border inline-flex items-center gap-1.5 transition ${
-                                    isExpanded
-                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                  }`}
-                                >
-                                  <span>📦</span>
-                                  <span>
-                                    {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
+                              {/* Column 2: Batch No (Single Batch directly shows number; Multi shows batch count button) */}
+                              <td className="py-2 px-3 text-center">
+                                {isMultiBatch ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpand(m.key);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 transition cursor-pointer ${
+                                      isExpanded
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                    }`}
+                                    title="Click to view all batches"
+                                  >
+                                    <span>📦 {m.batches.length} Batches</span>
+                                    <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                                  </button>
+                                ) : (
+                                  <span className="font-mono font-bold text-[11px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                    #{singleBatch?.batchNumber || '—'}
                                   </span>
-                                  <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
-                                </span>
+                                )}
                               </td>
 
-                              {/* Column 3: Packaging & Physical Packs (Option 1) */}
-                              <td className="py-3.5 px-4 text-center">
+                              {/* Column 3: Packaging & Physical Packs (With 1 Pack = X formula) */}
+                              <td className="py-2 px-3 text-center">
                                 {(() => {
                                   const size = Number(m.packSize) || 1;
                                   const type = m.packagingType || 'Bottle';
@@ -950,76 +970,105 @@ export default function MedicineReportPage() {
                                   const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
                                   const typeLabel = getPackagingPlural(type, displayCount);
 
-                                  if (size > 0 && size !== 1) {
-                                    return (
-                                      <div className="inline-flex flex-col items-center">
-                                        <span className="font-extrabold text-xs text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap">
-                                          📦 {displayCount} {typeLabel}
-                                        </span>
-                                        <span className="text-[10px] text-slate-500 font-medium mt-0.5 whitespace-nowrap">
-                                          1 {type} = {size} {formatUnit(m.unit)}
-                                        </span>
-                                      </div>
-                                    );
-                                  }
-
                                   return (
-                                    <div className="inline-flex flex-col items-center text-slate-600">
-                                      <span className="font-semibold text-xs whitespace-nowrap">
-                                        {displayCount} {typeLabel}
+                                    <div className="inline-flex flex-col items-center">
+                                      <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                        📦 {displayCount} {typeLabel}
                                       </span>
-                                      <span className="text-[10px] text-slate-400">1 {type} = 1 {formatUnit(m.unit)}</span>
+                                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                        1 {type} = {size} {formatUnit(m.unit)}
+                                      </span>
                                     </div>
                                   );
                                 })()}
                               </td>
 
-                              {/* Column 4: Total Stock */}
-                              <td className="py-3.5 px-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
+                              {/* Column 4: Total In Stock */}
+                              <td className="py-2 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
                                   {m.isLowStock && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
-                                      ⚠️ Low {m.reorderLevel ? `(< ${m.reorderLevel})` : ''}
+                                    <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                                      ⚠️ Low
                                     </span>
                                   )}
                                   <span
-                                    className={`font-black text-sm ${
+                                    className={`font-black text-xs ${
                                       m.isLowStock ? 'text-rose-700' : 'text-slate-900'
                                     }`}
                                   >
                                     {m.totalStock}
                                   </span>{' '}
-                                  <span className="text-[11px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
+                                  <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
                                 </div>
                               </td>
 
-                              {/* Column 4: Earliest Expiry Date */}
-                              <td className="py-3.5 px-4 text-center font-mono text-xs font-semibold text-slate-700">
+                              {/* Column 5: Earliest Expiry Date */}
+                              <td className="py-2 px-3 text-center font-mono text-[11px] font-semibold text-slate-700">
                                 {m.earliestBatch?.expiryDate || '—'}
                               </td>
 
-                              {/* Column 5: Shelf Status (Earliest FEFO Batch) */}
-                              <td className="py-3.5 px-4 text-center">
-                                {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}
+                              {/* Column 6: Shelf Status (Earliest FEFO Batch) */}
+                              <td className="py-2 px-3 text-center">
+                                {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft, true)}
                               </td>
 
-                              {/* Column 6: Expand Action Button */}
-                              <td className="py-3.5 px-4 text-center">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleExpand(m.key);
-                                  }}
-                                  className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1.5 ${
-                                    isExpanded
-                                      ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
-                                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                                  }`}
-                                >
-                                  <span>{isExpanded ? '▲ Hide' : '▼ View'}</span>
-                                  <span className="font-mono text-[11px]">({m.batches.length})</span>
-                                </button>
+                              {/* Column 7: Actions (Single Batch has direct Trace/Edit/Delete; Multi Batch has View button) */}
+                              <td className="py-2 px-3 text-center">
+                                {isMultiBatch ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpand(m.key);
+                                    }}
+                                    className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1 ${
+                                      isExpanded
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                        : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    <span>{isExpanded ? '▲ Hide' : '▼ View'}</span>
+                                    <span className="font-mono text-[10px]">({m.batches.length})</span>
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (singleBatch) handleTraceBatch(singleBatch);
+                                      }}
+                                      className="px-1.5 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition cursor-pointer"
+                                      title="Trace Batch"
+                                    >
+                                      🔍 Trace
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (singleBatch) handleOpenEditBatchModal(singleBatch);
+                                      }}
+                                      className="px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition cursor-pointer"
+                                      title="Edit Batch"
+                                    >
+                                      ✏️ Edit
+                                    </button>
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (singleBatch) handleOpenDeleteBatch(singleBatch);
+                                        }}
+                                        className="px-1.5 py-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded transition cursor-pointer"
+                                        title="Delete Batch"
+                                      >
+                                        🗑️
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                             </tr>
 
@@ -1195,7 +1244,9 @@ export default function MedicineReportPage() {
                 {/* Mobile Responsive Cards View (Compact, High Density & Clean) */}
                 <div className="md:hidden divide-y divide-slate-100 bg-white">
                   {filteredMedicines.map((m) => {
-                    const isExpanded = Boolean(expandedMeds[m.key]);
+                    const isMultiBatch = m.batches.length > 1;
+                    const isExpanded = isMultiBatch && Boolean(expandedMeds[m.key]);
+                    const singleBatch = !isMultiBatch ? m.batches[0] : null;
                     const isExpired = m.urgency === 'EXPIRED';
                     const isCritical = m.urgency === 'CRITICAL';
                     const isCaution = m.urgency === 'CAUTION';
@@ -1204,11 +1255,11 @@ export default function MedicineReportPage() {
                     return (
                       <div
                         key={m.key}
-                        className={`p-2.5 transition-colors ${
+                        className={`p-2 transition-colors ${
                           isExpanded
                             ? 'bg-blue-50/20'
                             : isExpired
-                            ? 'bg-rose-50/30'
+                            ? 'bg-rose-50/25'
                             : isCritical
                             ? 'bg-rose-50/15'
                             : isCaution
@@ -1218,36 +1269,46 @@ export default function MedicineReportPage() {
                             : 'hover:bg-slate-50/60'
                         }`}
                       >
-                        {/* Row 1: Header (Name, Meta & Earliest Shelf Status) */}
+                        {/* Row 1: Header (Name, Farm Meta & Shelf Status) */}
                         <div
-                          onClick={() => toggleExpand(m.key)}
-                          className="flex justify-between items-start gap-1.5 cursor-pointer select-none"
+                          onClick={() => {
+                            if (isMultiBatch) toggleExpand(m.key);
+                          }}
+                          className={`flex justify-between items-start gap-1.5 select-none ${
+                            isMultiBatch ? 'cursor-pointer' : ''
+                          }`}
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`text-[9px] font-black transition-transform duration-200 shrink-0 ${
-                                  isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
-                                }`}
-                              >
-                                ▶
-                              </span>
-                              <h3 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                            <div className="flex items-center gap-1">
+                              {isMultiBatch && (
+                                <span
+                                  className={`text-[9px] font-black transition-transform duration-200 shrink-0 ${
+                                    isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
+                                  }`}
+                                >
+                                  ▶
+                                </span>
+                              )}
+                              <h3 className="font-bold text-xs text-slate-900 truncate">
                                 {m.medicineName}
                               </h3>
+                              {m.medicineAlias && (
+                                <span className="text-[10px] text-slate-400 truncate">({m.medicineAlias})</span>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5 ml-3 flex-wrap">
-                              {m.farmList?.map((farm) => (
-                                <span
-                                  key={farm._id || farm.name}
-                                  className="font-medium bg-slate-100 text-slate-600 px-1 py-0.2 rounded border border-slate-200/70"
-                                >
-                                  🏢 {farm.name}
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5 flex-wrap">
+                              {m.farm?.name && (
+                                <span className="font-bold bg-slate-100 text-slate-700 px-1 py-0.2 rounded border border-slate-200 text-[9px]">
+                                  🏢 {m.farm.name}
                                 </span>
-                              ))}
-                              {m.medicineAlias && <span className="text-slate-400">({m.medicineAlias})</span>}
+                              )}
+                              {singleBatch && (
+                                <span className="font-mono font-bold text-[9px] bg-slate-100 text-slate-800 px-1 py-0.2 rounded border border-slate-200">
+                                  #{singleBatch.batchNumber}
+                                </span>
+                              )}
                               {m.medicineCode && (
-                                <span className="font-mono bg-slate-100 px-1 py-0.2 rounded border border-slate-200/70 text-[9px] text-slate-500">
+                                <span className="font-mono bg-slate-50 px-1 py-0.2 rounded border border-slate-200/70 text-[9px] text-slate-400">
                                   {m.medicineCode}
                                 </span>
                               )}
@@ -1259,55 +1320,96 @@ export default function MedicineReportPage() {
                           </div>
                         </div>
 
-                        {/* Row 2: Stock Bar & Compact Batch Pill Button */}
-                        <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-slate-100/90 text-xs">
-                          {/* Stock Info */}
-                          <div className="flex items-center gap-1.5">
-                            {m.isLowStock && (
-                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 shrink-0">
-                                ⚠️ Low
-                              </span>
-                            )}
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-medium mr-1">Stock:</span>
+                        {/* Row 2: Stock Bar, Packaging Formula & Direct Actions */}
+                        <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-slate-100 text-xs">
+                          {/* Stock & Pack Info */}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1">
+                              {m.isLowStock && (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 shrink-0">
+                                  ⚠️ Low
+                                </span>
+                              )}
                               <span className={`font-black text-xs ${m.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
                                 {m.totalStock}
                               </span>{' '}
                               <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
-                              {Number(m.packSize) > 0 && Number(m.packSize) !== 1 && (
-                                <span className="ml-1.5 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 inline-block">
-                                  📦 {Number.isInteger(m.totalStock / m.packSize) ? (m.totalStock / m.packSize) : (m.totalStock / m.packSize).toFixed(2)} {getPackagingPlural(m.packagingType || 'Bottle', m.totalStock / m.packSize)}
-                                </span>
-                              )}
+                              {(() => {
+                                const size = Number(m.packSize) || 1;
+                                const type = m.packagingType || 'Bottle';
+                                const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+                                const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                const typeLabel = getPackagingPlural(type, displayCount);
+                                return (
+                                  <span className="ml-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200 inline-block">
+                                    📦 {displayCount} {typeLabel}
+                                  </span>
+                                );
+                              })()}
                             </div>
+                            <span className="text-[9px] text-slate-400 font-medium">
+                              1 {m.packagingType || 'Bottle'} = {m.packSize || 1} {formatUnit(m.unit)}
+                            </span>
                           </div>
 
-                          {/* Next Expiry (Compact) */}
-                          {m.earliestBatch?.expiryDate && (
-                            <span className="text-[10px] font-mono text-slate-400 hidden xs:inline">
-                              Exp: <strong className="text-slate-600 font-normal">{m.earliestBatch.expiryDate}</strong>
-                            </span>
-                          )}
-
-                          {/* Batch Toggle Button */}
-                          <button
-                            type="button"
-                            onClick={() => toggleExpand(m.key)}
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shrink-0 ${
-                              isExpanded
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                            }`}
-                          >
-                            <span>📦</span>
-                            <span>
-                              {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
-                            </span>
-                            <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
-                          </button>
+                          {/* Actions: Direct buttons for Single Batch; View button for Multi Batch */}
+                          <div>
+                            {isMultiBatch ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpand(m.key)}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shrink-0 ${
+                                  isExpanded
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                    : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                }`}
+                              >
+                                <span>📦 {m.batches.length} Batches</span>
+                                <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (singleBatch) handleTraceBatch(singleBatch);
+                                  }}
+                                  className="px-1.5 py-0.5 text-[10px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded transition cursor-pointer"
+                                  title="Trace Batch"
+                                >
+                                  🔍
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (singleBatch) handleOpenEditBatchModal(singleBatch);
+                                  }}
+                                  className="px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded transition cursor-pointer"
+                                  title="Edit Batch"
+                                >
+                                  ✏️
+                                </button>
+                                {isAdmin && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (singleBatch) handleOpenDeleteBatch(singleBatch);
+                                    }}
+                                    className="px-1.5 py-0.5 text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded transition cursor-pointer"
+                                    title="Delete Batch"
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Mobile Expanded Drawer: Clean High-Density Batch List */}
+                        {/* Mobile Expanded Drawer: Clean High-Density Batch List (Only for Multi-Batch) */}
                         {isExpanded && (
                           <div className="mt-2 pt-2 border-t border-blue-200/50 space-y-1.5">
                             <div className="text-[10px] font-bold text-blue-900 flex items-center justify-between px-0.5">
