@@ -541,11 +541,11 @@ export default function MedicineReportPage() {
       return entry;
     });
 
-    // Sort medicines: earliest expiring first (FEFO)
+    // Sort medicines alphabetically (A to Z), then by farm
     list.sort((a, b) => {
-      const dateA = a.earliestBatch ? new Date(a.earliestBatch.expiryDate) : new Date(9999, 0, 1);
-      const dateB = b.earliestBatch ? new Date(b.earliestBatch.expiryDate) : new Date(9999, 0, 1);
-      return dateA - dateB;
+      const nameCompare = (a.medicineName || '').localeCompare(b.medicineName || '', undefined, { sensitivity: 'base' });
+      if (nameCompare !== 0) return nameCompare;
+      return (a.farm?.name || '').localeCompare(b.farm?.name || '', undefined, { sensitivity: 'base' });
     });
 
     return list;
