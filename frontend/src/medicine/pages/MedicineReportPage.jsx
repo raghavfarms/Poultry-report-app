@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
+import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
@@ -185,6 +187,9 @@ export default function MedicineReportPage() {
   const [disposing, setDisposing] = useState('');
   const [disposeError, setDisposeError] = useState('');
   const [expandedMeds, setExpandedMeds] = useState({});
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const stockTableRef = useRef(null);
   const canDispose = ['admin', 'developer'].includes(user?.role);
   const canEditBatch = ['admin', 'developer'].includes(user?.role);
   const canAccessTraceAndAction = ['admin', 'developer'].includes(user?.role);
@@ -285,6 +290,110 @@ export default function MedicineReportPage() {
     if (!batch) return;
     setDeletingBatch(batch);
     setDeleteError('');
+  };
+
+  // Export Current Live Stock to Excel (.xlsx)
+  const handleExportExcel = async () => {
+    if (exportingExcel || filteredMedicines.length === 0) return;
+    try {
+      setExportingExcel(true);
+
+      const excelRows = [];
+      let sNo = 1;
+
+      filteredMedicines.forEach((m) => {
+        const size = Number(m.packSize) || 1;
+        const type = m.packagingType || 'Bottle';
+        const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+        const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+        const typeLabel = getPackagingPlural(type, displayCount);
+        const packagingStr = `${displayCount} ${typeLabel} (1 ${type} = ${size} ${formatUnit(m.unit)})`;
+
+        const batchNumbers = m.batches.map((b) => b.batchNumber).join(', ');
+        const earliestExpiry = formatExpiryDDMMYYYY(m.earliestBatch?.expiryDate);
+        const daysLeft = m.earliestBatch?.daysLeft;
+        let shelfStatusText = 'Safe';
+        if (m.urgency === 'EXPIRED') shelfStatusText = `Expired (${Math.abs(daysLeft ?? 0)}d ago)`;
+        else if (['CRITICAL', 'CAUTION', 'WARNING'].includes(m.urgency)) shelfStatusText = `Soon (${daysLeft ?? 0}d left)`;
+        else if (daysLeft !== null && daysLeft !== undefined) shelfStatusText = `Safe (${daysLeft}d left)`;
+
+        excelRows.push({
+          'S.No': sNo++,
+          'Medicine Name': m.medicineName || 'Medicine',
+          'Alias': m.medicineAlias || '—',
+          'Code': m.medicineCode || '—',
+          'Farm': m.farm?.name || 'All Farms',
+          'Packaging': packagingStr,
+          'Total In Stock': m.totalStock,
+          'Unit': formatUnit(m.unit),
+          'Batch Count': m.batches.length,
+          'Batch No(s)': batchNumbers || '—',
+          'Next Expiry': earliestExpiry,
+          'Days Left': daysLeft ?? '—',
+          'Shelf Status': shelfStatusText,
+          'Stock Status': m.isLowStock ? 'Low Stock' : 'Normal',
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(excelRows);
+      worksheet['!cols'] = [
+        { wch: 6 },   // S.No
+        { wch: 24 },  // Medicine Name
+        { wch: 14 },  // Alias
+        { wch: 12 },  // Code
+        { wch: 14 },  // Farm
+        { wch: 26 },  // Packaging
+        { wch: 14 },  // Total Stock
+        { wch: 10 },  // Unit
+        { wch: 12 },  // Batch Count
+        { wch: 22 },  // Batch No(s)
+        { wch: 14 },  // Next Expiry
+        { wch: 12 },  // Days Left
+        { wch: 20 },  // Shelf Status
+        { wch: 14 },  // Stock Status
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Live Stock');
+
+      const farmObj = firms.find((f) => f._id === selectedFarm);
+      const farmName = (farmObj?.name || 'All_Farms').replace(/\s+/g, '_');
+      const today = new Date();
+      const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+      const filename = `Medicine_Stock_Report_${farmName}_${dateStr}.xlsx`;
+
+      XLSX.writeFile(workbook, filename);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      alert('Failed to generate Excel file. Please try again.');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // Export Current Live Stock to PDF (.pdf)
+  const handleExportPdf = async () => {
+    if (exportingPdf || !stockTableRef.current || filteredMedicines.length === 0) return;
+    try {
+      setExportingPdf(true);
+      const farmObj = firms.find((f) => f._id === selectedFarm);
+      const farmName = (farmObj?.name || 'All_Farms').replace(/\s+/g, '_');
+      const today = new Date();
+      const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+      const filename = `Medicine_Stock_Report_${farmName}_${dateStr}.pdf`;
+
+      await exportReportToPdf(stockTableRef.current, {
+        filename,
+        orientation: 'landscape',
+        format: 'a4',
+        margin: 6,
+      });
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   const handleTraceBatch = (batch) => {
@@ -921,18 +1030,29 @@ export default function MedicineReportPage() {
                 )}
               </div>
 
-              {filteredMedicines.length > 0 && (
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={toggleAllExpand}
-                  className="text-[10px] sm:text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer shrink-0 inline-flex items-center gap-1 whitespace-nowrap"
-                  title={isAllExpanded ? 'Collapse all medicine batches' : 'Expand all medicine batches'}
+                  disabled={exportingExcel || filteredMedicines.length === 0}
+                  onClick={handleExportExcel}
+                  className="text-[10px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                  title="Download Excel Sheet (.xlsx)"
                 >
-                  <span className="text-[9px]">{isAllExpanded ? '▲' : '▼'}</span>
-                  <span className="hidden sm:inline">{isAllExpanded ? 'Collapse All' : 'Expand All'}</span>
-                  <span className="sm:hidden">{isAllExpanded ? 'Collapse' : 'Expand'}</span>
+                  <span>📊</span>
+                  <span>{exportingExcel ? 'Exporting...' : 'Excel'}</span>
                 </button>
-              )}
+
+                <button
+                  type="button"
+                  disabled={exportingPdf || filteredMedicines.length === 0}
+                  onClick={handleExportPdf}
+                  className="text-[10px] sm:text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-300 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                  title="Download PDF Document (.pdf)"
+                >
+                  <span>📄</span>
+                  <span>{exportingPdf ? 'Exporting...' : 'PDF'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -969,7 +1089,20 @@ export default function MedicineReportPage() {
           )}
 
           {/* Batches Stock List (Unified Desktop & Mobile with Steady Medicine Name & Sticky Header) */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+          <div ref={stockTableRef} className="report-export-content bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+            {/* Header visible in PDF export */}
+            <div className="hidden pdf-print-header p-3 bg-slate-50 border-b border-slate-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">
+                    Medicine Live Stock Report — {firms.find((f) => f._id === selectedFarm)?.name || 'All Farms'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Total: {filteredMedicines.length} medicines | Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+            </div>
             {loadingStats && !stats?.expiryRadar ? (
               <div className="p-12 text-center text-slate-400 text-xs">Loading current stock...</div>
             ) : filteredMedicines.length === 0 ? (
@@ -1176,7 +1309,7 @@ export default function MedicineReportPage() {
                             </td>
 
                             {/* Column 7: Actions */}
-                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[65px]">
+                            <td className="no-print py-2 px-3 text-center whitespace-nowrap min-w-[65px]">
                               {isMultiBatch ? (
                                 <button
                                   type="button"
