@@ -1107,7 +1107,9 @@ function WorkerActionDropdown({
 
 export default function WorkersPanel({ firmId, firms = [], revision, onChanged }) {
   const { user } = useAuth();
-  const canTransfer = ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
+  const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
+  const canTransfer = hasAttendanceMaster && ['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(user?.role);
   const currentFirm = firms.find((f) => String(f._id) === String(firmId));
   const isOffice = currentFirm?.code === 'OFFICE' || /office/i.test(currentFirm?.name || '');
 

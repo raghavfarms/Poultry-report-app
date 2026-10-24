@@ -1,6 +1,7 @@
 import { requireRegisteredWorker } from '../attendance/services/registeredUser.service.js';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { getPermittedFirmsForModule } from '../utils/userFirms.js';
 
 export async function protect(req, res, next) {
   try {
@@ -38,6 +39,90 @@ export async function protect(req, res, next) {
   }
 }
 
+export function attendanceEditOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    req.user?.permissions?.attendance_edit === true
+  )) return next();
+  return res.status(403).json({ message: 'Edit Attendance permission is required.' });
+}
+
+export function attendanceAutoCutOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    (req.user?.permissions?.attendance_autocut === true || req.user?.permissions?.attendance_edit === true)
+  )) return next();
+  return res.status(403).json({ message: 'Auto Cut permission is required.' });
+}
+
+export function attendanceReportsOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    req.user?.permissions?.attendance_report === true
+  )) return next();
+  return res.status(403).json({ message: 'Monthly Attendance Report permission is required.' });
+}
+
+export function requireModuleAccess(module) {
+  return (req, res, next) => {
+    // If allowedModules is configured on the user, strictly enforce it for ALL roles including admin/developer
+    if (Array.isArray(req.user?.allowedModules)) {
+      if (req.user.allowedModules.includes(module)) return next();
+      return res.status(403).json({ message: 'You do not have access to this report module.' });
+    }
+
+    // For temperature module, strict opt-in is required: no user gets access unless explicitly configured
+    if (module === 'temperature') {
+      return res.status(403).json({ message: 'You do not have access to the temperature monitoring module.' });
+    }
+
+    if (['admin', 'developer'].includes(req.user?.role)) return next();
+
+    return res.status(403).json({ message: 'You do not have access to this report module.' });
+  };
+}
+
+export function masterOnly(permission) {
+  return (req, res, next) => {
+    if (permission === 'temperature_master') {
+      const hasModule = Array.isArray(req.user?.allowedModules) && req.user.allowedModules.includes('temperature');
+      if (!hasModule) {
+        return res.status(403).json({ message: 'Temperature module access is required.' });
+      }
+      if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.temperature_master === true) {
+        return next();
+      }
+      return res.status(403).json({ message: 'Temperature master access is required.' });
+    }
+    if (req.user?.permissions?.[permission] === true) return next();
+    if (['admin', 'developer'].includes(req.user?.role) && req.user?.permissions?.[permission] !== false) return next();
+    return res.status(403).json({ message: 'Master access is required.' });
+  };
+}
+
+export function temperaturePermission(perm) {
+  return (req, res, next) => {
+    const hasModule = Array.isArray(req.user?.allowedModules) && req.user.allowedModules.includes('temperature');
+    if (!hasModule) {
+      return res.status(403).json({ message: 'Temperature module access is required.' });
+    }
+    if (['admin', 'developer'].includes(req.user?.role)) return next();
+    if (perm === 'temperature_entry') {
+      if (req.user?.permissions?.temperature_entry === false) {
+        return res.status(403).json({ message: 'Temperature entry access is required.' });
+      }
+      return next();
+    }
+    if (perm === 'temperature_report') {
+      if (req.user?.permissions?.temperature_report === true) {
+        return next();
+      }
+      return res.status(403).json({ message: 'Temperature report access is required.' });
+    }
+    next();
+  };
+}
+
 export function adminOnly(req, res, next) {
   if (!['admin', 'developer'].includes(req.user?.role)) {
     return res.status(403).json({ message: 'Admin access is required.' });
@@ -46,24 +131,48 @@ export function adminOnly(req, res, next) {
 }
 
 export function attendanceStaffOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor', 'security', 'farm_incharge'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Attendance staff access is required.' });
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.allowedModules?.includes('attendance') ||
+    req.user?.permissions?.attendance_scan ||
+    req.user?.permissions?.worker_master ||
+    ['office', 'supervisor', 'security', 'farm_incharge'].includes(req.user?.role)
+  ) {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Attendance staff access is required.' });
 }
 
 export function supervisorOrAdminOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Supervisor or admin access is required.' });
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.attendance_report ||
+    ['office', 'supervisor'].includes(req.user?.role)
+  ) {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Supervisor or admin access is required.' });
 }
 
 export function attendanceAdminOnly(req, res, next) {
-  if (!['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(req.user?.role)) {
-    return res.status(403).json({ message: 'Attendance administrator access is required.' });
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.worker_master === true ||
+    req.user?.permissions?.attendance_admin_master === true
+  ) {
+    return next();
   }
-  next();
+  return res.status(403).json({ message: 'Worker Master access is required.' });
+}
+
+export function attendanceFullMasterOnly(req, res, next) {
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.attendance_admin_master === true
+  ) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Attendance Master access is required (Geofence, Sheds, Designations).' });
 }
 
 export function developerOnly(req, res, next) {
@@ -73,14 +182,25 @@ export function developerOnly(req, res, next) {
   next();
 }
 
-export function canAccessFirm(user, firmId) {
-  return ['admin', 'developer'].includes(user.role) || user.firms.some((id) => String(id) === String(firmId));
+export function canAccessFirm(user, firmId, moduleName) {
+  if (['admin', 'developer'].includes(user?.role)) return true;
+  if (moduleName) {
+    const permitted = getPermittedFirmsForModule(user, moduleName);
+    if (permitted !== null) return permitted.some((id) => String(id) === String(firmId));
+  }
+  return (user?.firms || []).some((id) => String(id?._id || id) === String(firmId));
 }
 
 export function requireFirmAccess(req, res, next) {
   const firmId = req.params.firmId || req.query.firmId || req.body.firmId;
-  if (!firmId || !canAccessFirm(req.user, firmId)) {
+  const moduleName = req.baseUrl?.includes('entries') ? 'diesel' : undefined;
+  if (!firmId || !canAccessFirm(req.user, firmId, moduleName)) {
     return res.status(403).json({ message: 'You do not have access to this firm.' });
   }
   next();
 }
+
+
+
+//  useState()
+

@@ -182,7 +182,7 @@ export async function deleteMaster(kind, user, id) {
       throw badRequest(`Cannot delete designation "${item.name}" because ${assignedWorkers} worker(s) are assigned to it. Deactivate it instead.`);
     }
   } else if (kind === 'work-locations') {
-    const assignedDeployments = await WorkerDeployment.countDocuments({ location: item._id, active: true });
+    const assignedDeployments = await WorkerDeployment.countDocuments({ workLocation: item._id, effectiveTo: null });
     if (assignedDeployments > 0) {
       throw badRequest(`Cannot delete location "${item.name}" because active worker deployments exist here. Deactivate it instead.`);
     }
@@ -392,6 +392,14 @@ export async function updateWorker(user, id, body) {
       newValues.workLocationId = locDoc._id;
       newValues.workLocationName = locDoc.name;
       depChanged = true;
+    } else if ((data.workLocation === null || data.workLocation === '') && currentDep.workLocation !== null) {
+      oldValues.workLocationId = currentDep.workLocation;
+      oldValues.workLocationName = currentDep.workLocationNameSnapshot;
+      currentDep.workLocation = null;
+      currentDep.workLocationNameSnapshot = 'None';
+      newValues.workLocationId = null;
+      newValues.workLocationName = 'None';
+      depChanged = true;
     }
 
     if (data.fullName && data.fullName !== currentDep.workerNameSnapshot) {
@@ -491,3 +499,4 @@ export async function deleteWorker(user, id) {
   return { message: `Worker ${worker.fullName} (${worker.workerCode}) deleted successfully.` };
 }
 
+  

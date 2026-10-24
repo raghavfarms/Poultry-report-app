@@ -15,6 +15,8 @@ export async function createMedicine(req, res) {
       aliasName,
       category,
       unit,
+      packagingType,
+      packSize,
       manufacturer,
       shelfLifeMonths,
       minimumStock,
@@ -55,6 +57,8 @@ export async function createMedicine(req, res) {
       aliasName: aliasName ? aliasName.trim() : '',
       category: category.trim(),
       unit: unit.trim(),
+      packagingType: packagingType ? packagingType.trim() : 'Bottle',
+      packSize: (packSize !== undefined && packSize !== '' && Number(packSize) > 0) ? Number(packSize) : 1,
       manufacturer: manufacturer ? manufacturer.trim() : '',
       shelfLifeMonths: (shelfLifeMonths !== undefined && shelfLifeMonths !== '' && shelfLifeMonths !== null)
         ? Number(shelfLifeMonths)
@@ -219,6 +223,8 @@ export async function updateMedicine(req, res) {
       aliasName,
       category,
       unit,
+      packagingType,
+      packSize,
       manufacturer,
       shelfLifeMonths,
       minimumStock,
@@ -243,6 +249,11 @@ export async function updateMedicine(req, res) {
     if (aliasName !== undefined) medicine.aliasName = aliasName ? aliasName.trim() : '';
     if (category) medicine.category = category.trim();
     if (unit) medicine.unit = unit.trim();
+    if (packagingType !== undefined) medicine.packagingType = packagingType ? packagingType.trim() : 'Bottle';
+    if (packSize !== undefined) {
+      const parsedPackSize = Number(packSize);
+      medicine.packSize = Number.isFinite(parsedPackSize) && parsedPackSize > 0 ? parsedPackSize : 1;
+    }
     if (manufacturer !== undefined) medicine.manufacturer = manufacturer ? manufacturer.trim() : '';
 
     if (shelfLifeMonths !== undefined) {

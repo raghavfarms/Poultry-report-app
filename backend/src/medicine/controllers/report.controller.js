@@ -100,7 +100,7 @@ export async function getDashboardStats(req, res) {
     quantityAvailable: { $gt: 0 },
     status: { $in: ['AVAILABLE', 'EXPIRED'] }
   })
-    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName')
+    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName packagingType packSize')
     .populate('supplier', 'name code')
     .populate('farm', 'name code')
     .sort({ expiryDate: 1 })
@@ -121,15 +121,28 @@ export async function getDashboardStats(req, res) {
   // Medicine-wise aggregated stock map: { medicineId: totalAvailableQuantity }
   const medicineStockMap = {};
 
+  // High-performance single aggregation for all batch issues (replaces serial N+1 loop)
+  const batchIds = batches.map((b) => b._id);
+  const issuesAgg = batchIds.length > 0
+    ? await MedicineIssue.aggregate([
+        { $match: { batch: { $in: batchIds } } },
+        { $group: { _id: '$batch', totalIssued: { $sum: '$issuedQuantity' } } },
+      ])
+    : [];
+  const issuesMap = new Map(issuesAgg.map((i) => [String(i._id), i.totalIssued || 0]));
+
+  const reconciliationUpdates = [];
+
   for (const b of batches) {
-    // Auto-reconcile with actual issued records to prevent any phantom stock drops
-    const batchIssues = await MedicineIssue.find({ batch: b._id }).select('issuedQuantity').lean();
-    const batchIssuedSum = batchIssues.reduce((sum, i) => sum + (i.issuedQuantity || 0), 0);
+    // Ultra-fast in-memory reconciliation
+    const batchIssuedSum = issuesMap.get(String(b._id)) || 0;
     const correctQty = Math.max(0, (b.initialQuantity || 0) - batchIssuedSum - (b.disposedQuantity || 0) - (b.transferredOutQuantity || 0) - (b.quantityOnHold || 0));
     if (b.quantityAvailable !== correctQty) {
-      await MedicineBatch.updateOne(
-        { _id: b._id },
-        { $set: { quantityAvailable: correctQty, status: correctQty === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+      reconciliationUpdates.push(
+        MedicineBatch.updateOne(
+          { _id: b._id },
+          { $set: { quantityAvailable: correctQty, status: correctQty === 0 && (b.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+        )
       );
       b.quantityAvailable = correctQty;
     }
@@ -151,6 +164,8 @@ export async function getDashboardStats(req, res) {
       quantityAvailable: b.quantityAvailable,
       reorderLevel: b.medicine?.reorderLevel || 0,
       minimumStock: b.medicine?.minimumStock || 0,
+      packagingType: b.medicine?.packagingType || 'Bottle',
+      packSize: b.medicine?.packSize || 1,
       expiryDate: b.expiryDate,
       daysLeft,
       canIssue: b.status === 'AVAILABLE' && daysLeft >= 0,
@@ -174,6 +189,11 @@ export async function getDashboardStats(req, res) {
     if (medId) {
       medicineStockMap[medId] = (medicineStockMap[medId] || 0) + b.quantityAvailable;
     }
+  }
+
+  // Execute any batch balance adjustments in parallel
+  if (reconciliationUpdates.length > 0) {
+    Promise.all(reconciliationUpdates).catch((err) => console.error('Batch reconciliation update error:', err));
   }
 
   // Ensure each radar category is sorted strictly by earliest expiry date first (FEFO)
@@ -214,6 +234,8 @@ export async function getDashboardStats(req, res) {
         currentStock,
         reorderLevel: med.reorderLevel,
         minimumStock: med.minimumStock,
+        packagingType: med.packagingType || 'Bottle',
+        packSize: med.packSize || 1,
         status: currentStock === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK'
       });
     }
@@ -618,7 +640,7 @@ export async function getFlockCostingReport(req, res) {
  */
 export async function updateBatchDetails(req, res) {
   const { id } = req.params;
-  const { batchNumber, expiryDate } = req.body;
+  const { batchNumber, expiryDate, quantityAvailable, medicineId } = req.body;
 
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     throw badRequest('Invalid batch ID');
@@ -629,9 +651,30 @@ export async function updateBatchDetails(req, res) {
     throw notFoundError('Batch not found');
   }
 
+  // 1. Reassign Medicine if requested
+  if (medicineId && mongoose.Types.ObjectId.isValid(medicineId) && medicineId.toString() !== batch.medicine.toString()) {
+    const newMed = await MedicineMaster.findById(medicineId);
+    if (!newMed) throw notFoundError('Selected medicine not found');
+    batch.medicine = newMed._id;
+    batch.unit = newMed.unit;
+  }
+
+  // 2. Update Quantity Available if provided
+  if (quantityAvailable !== undefined && quantityAvailable !== null && quantityAvailable !== '') {
+    const parsedQty = Number(quantityAvailable);
+    if (isNaN(parsedQty) || parsedQty < 0) {
+      throw badRequest('Quantity available must be a valid non-negative number');
+    }
+    batch.quantityAvailable = parsedQty;
+    if (batch.initialQuantity < parsedQty) {
+      batch.initialQuantity = parsedQty;
+    }
+  }
+
   const oldBatchNumber = batch.batchNumber;
   let newBatchNumber = batch.batchNumber;
 
+  // 3. Update Batch Number if provided
   if (batchNumber && typeof batchNumber === 'string') {
     newBatchNumber = batchNumber.trim().toUpperCase();
     if (!newBatchNumber) {
@@ -667,18 +710,21 @@ export async function updateBatchDetails(req, res) {
     }
   }
 
+  // 4. Update Expiry Date if provided
   if (expiryDate && typeof expiryDate === 'string') {
     const trimmedExpiry = expiryDate.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmedExpiry)) {
       throw badRequest('Expiry date must be in YYYY-MM-DD format');
     }
     batch.expiryDate = trimmedExpiry;
+  }
 
-    // Recalculate status if available/expired
-    const today = new Date().toISOString().slice(0, 10);
-    if (batch.quantityAvailable > 0) {
-      batch.status = trimmedExpiry < today ? 'EXPIRED' : 'AVAILABLE';
-    }
+  // 5. Recalculate status based on quantity and expiry
+  const today = new Date().toISOString().slice(0, 10);
+  if (batch.quantityAvailable === 0) {
+    batch.status = 'DEPLETED';
+  } else {
+    batch.status = batch.expiryDate < today ? 'EXPIRED' : 'AVAILABLE';
   }
 
   await batch.save();
@@ -712,3 +758,30 @@ export async function updateBatchDetails(req, res) {
   });
 }
 
+/**
+ * Delete Stock Batch (Admin / Developer Only)
+ * Removes the batch from live inventory and cleans up related records.
+ */
+export async function deleteBatch(req, res) {
+  const { id } = req.params;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    throw badRequest('Invalid batch ID');
+  }
+
+  const batch = await MedicineBatch.findById(id).populate('medicine', 'name code');
+  if (!batch) {
+    throw notFoundError('Batch not found');
+  }
+
+  await MedicineBatch.findByIdAndDelete(id);
+
+  // Clean up linked records
+  await MedicineReceipt.deleteMany({ batch: batch._id });
+  await MedicineIssue.deleteMany({ batch: batch._id });
+  await MedicineTransaction.deleteMany({ batch: batch._id });
+
+  res.json({
+    success: true,
+    message: `Batch '${batch.batchNumber}' of '${batch.medicine?.name || 'Medicine'}' deleted successfully`,
+  });
+}

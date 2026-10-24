@@ -45,3 +45,12 @@ export async function fetchIssueById(id) {
   return await api(`/medicine/issues/${id}`);
 }
 
+/**
+ * 5. Delete an Issue / Consumption record and restore stock to batch
+ */
+export async function deleteIssueApi(id) {
+  return await api(`/medicine/issues/${id}`, {
+    method: 'DELETE',
+  });
+}
+

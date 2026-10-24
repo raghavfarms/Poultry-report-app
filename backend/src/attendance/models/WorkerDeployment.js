@@ -4,13 +4,13 @@ const reference = (ref, required = true) => ({ type: mongoose.Schema.Types.Objec
 const schema = new mongoose.Schema({
   worker: reference('AttendanceWorker'),
   firm: reference('Firm'),
-  workLocation: reference('AttendanceWorkLocation'),
+  workLocation: { ...reference('AttendanceWorkLocation', false), default: null },
   designation: reference('AttendanceDesignation'),
   supervisor: { ...reference('AttendanceWorker', false), default: null },
   workerCodeSnapshot: { type: String, required: true, immutable: true },
   workerNameSnapshot: { type: String, required: true, immutable: true },
   firmNameSnapshot: { type: String, required: true, immutable: true },
-  workLocationNameSnapshot: { type: String, required: true, immutable: true },
+  workLocationNameSnapshot: { type: String, default: 'None', immutable: true },
   designationNameSnapshot: { type: String, required: true, immutable: true },
   supervisorNameSnapshot: { type: String, default: '', immutable: true },
   allocationType: {

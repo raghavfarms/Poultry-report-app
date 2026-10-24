@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { fetchIssues } from '../api/issueApi.js';
+import { fetchIssues, deleteIssueApi } from '../api/issueApi.js';
 import { fetchMedicineLocations } from '../api/dailyActionApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
+
+// In-memory instant cache for zero-millisecond tab switching
+const consumptionCache = new Map();
 
 export default function MedicineConsumptionRegister({
   selectedFarm = '',
   firms = [],
   onBackToDaily,
+  onConsumedDeleted,
 }) {
   const registerRef = useRef(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
+  const [deleteFeedback, setDeleteFeedback] = useState({ type: '', message: '' });
 
   // Helper to format ISO date to YYYY-MM-DD in local time
   const formatYMD = (d) => {
@@ -101,10 +107,22 @@ export default function MedicineConsumptionRegister({
     }
   };
 
-  // Main Data Loader
-  const loadRegister = async () => {
-    try {
+  // Main Data Loader with Stale-While-Revalidate Instant Loading
+  const loadRegister = async (force = false) => {
+    const cacheKey = `${activeFarm || ''}_${selectedShed}_${startDate}_${endDate}_${page}_${limit}_${search.trim()}`;
+    const cached = consumptionCache.get(cacheKey);
+
+    // If cached in memory, show data immediately (0 milliseconds!)
+    if (cached && !force) {
+      setIssues(cached.issues);
+      setUnitSummary(cached.unitSummary);
+      setTotalRecords(cached.totalRecords);
+      setTotalPages(cached.totalPages);
+    } else {
       setLoading(true);
+    }
+
+    try {
       setError('');
       const params = {
         farm: activeFarm || undefined,
@@ -118,10 +136,17 @@ export default function MedicineConsumptionRegister({
 
       const res = await fetchIssues(params);
       if (res.success) {
-        setIssues(res.issues || []);
-        setUnitSummary(res.unitSummary || []);
-        setTotalRecords(res.pagination?.total || 0);
-        setTotalPages(res.pagination?.totalPages || 1);
+        const payload = {
+          issues: res.issues || [],
+          unitSummary: res.unitSummary || [],
+          totalRecords: res.pagination?.total || 0,
+          totalPages: res.pagination?.totalPages || 1,
+        };
+        consumptionCache.set(cacheKey, payload);
+        setIssues(payload.issues);
+        setUnitSummary(payload.unitSummary);
+        setTotalRecords(payload.totalRecords);
+        setTotalPages(payload.totalPages);
       } else {
         setError(res.message || 'Failed to fetch consumption register');
       }
@@ -257,11 +282,62 @@ export default function MedicineConsumptionRegister({
     }
   };
 
+  // Delete Consumption Entry & Restore Stock Handler
+  const handleDeleteIssue = async (iss) => {
+    const medName = iss.medicine?.name || 'Medicine';
+    const batchNo = iss.batchNumber ? `#${iss.batchNumber}` : '';
+    const qtyStr = `${iss.issuedQuantity} ${iss.unit || ''}`;
+
+    const confirmMsg = `Are you sure you want to delete this consumption record?\n\n• Medicine: ${medName}\n• Batch: ${batchNo}\n• Quantity: ${qtyStr}\n\nDeleting will RESTORE ${qtyStr} back to Batch ${batchNo} live stock.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setDeletingId(iss._id);
+      setDeleteFeedback({ type: '', message: '' });
+      const res = await deleteIssueApi(iss._id);
+      if (res.success) {
+        consumptionCache.clear();
+        setDeleteFeedback({
+          type: 'success',
+          message: res.message || `Deleted consumption entry. ${qtyStr} restored to Batch ${batchNo}.`,
+        });
+        await loadRegister(true);
+        if (onConsumedDeleted) onConsumedDeleted();
+        setTimeout(() => setDeleteFeedback({ type: '', message: '' }), 5000);
+      } else {
+        alert(res.message || 'Failed to delete consumption record.');
+      }
+    } catch (err) {
+      console.error('Delete consumption failed:', err);
+      alert(err.message || 'Failed to delete consumption record.');
+    } finally {
+      setDeletingId('');
+    }
+  };
+
   return (
     <div
       ref={registerRef}
       className="report-export-content space-y-2.5 sm:space-y-3.5 w-full max-w-6xl mx-auto pb-12 px-1 sm:px-0 print:p-0 print:m-0 print:max-w-none"
     >
+      {/* Delete Feedback Alert */}
+      {deleteFeedback.message && (
+        <div data-html2canvas-ignore="true" className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between animate-in fade-in print:hidden ${
+          deleteFeedback.type === 'success'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            : 'bg-rose-50 text-rose-800 border-rose-200'
+        }`}>
+          <span>{deleteFeedback.type === 'success' ? '✅' : '⚠️'} {deleteFeedback.message}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteFeedback({ type: '', message: '' })}
+            className="text-slate-400 hover:text-slate-700 font-bold ml-2 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ======================================================== */}
       {/* 1. TOP HEADER & AUDIT SUMMARY BAR (Screen & Print)      */}
       {/* ======================================================== */}
@@ -556,7 +632,8 @@ export default function MedicineConsumptionRegister({
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-right whitespace-nowrap border-r border-slate-200">Qty Consumed</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Batch No</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Issued By</th>
-                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap">Received By</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Received By</th>
+                  <th data-html2canvas-ignore="true" className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap print:hidden">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -640,8 +717,31 @@ export default function MedicineConsumptionRegister({
                       </td>
 
                       {/* Scrolling Column: Received By */}
-                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-bold text-slate-900 whitespace-nowrap text-[10px] sm:text-xs">
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-bold text-slate-900 whitespace-nowrap border-r border-slate-200 text-[10px] sm:text-xs">
                         {iss.issuedTo || 'Worker'}
+                      </td>
+
+                      {/* Action Column: Delete */}
+                      <td data-html2canvas-ignore="true" className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap print:hidden">
+                        <button
+                          type="button"
+                          disabled={deletingId === iss._id}
+                          onClick={() => handleDeleteIssue(iss)}
+                          className="px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition shadow-2xs cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                          title={`Delete entry & restore ${iss.issuedQuantity} ${iss.unit} to batch #${iss.batchNumber}`}
+                        >
+                          {deletingId === iss._id ? (
+                            <>
+                              <span className="animate-spin text-[10px]">↻</span>
+                              <span>Restoring...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>🗑️</span>
+                              <span>Delete</span>
+                            </>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   );  

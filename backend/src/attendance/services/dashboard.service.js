@@ -158,7 +158,7 @@ export async function getLiveDashboardData(user, query = {}) {
     } else if (dayWorkedMinutes >= 475) {
       weight = 1.0;
       status = 'COMPLETED';
-    } else if (dayWorkedMinutes >= 240) {
+    } else if (dayWorkedMinutes >= 235) {
       weight = 0.5;
       status = 'HALF_DAY';
     } else {

@@ -19,6 +19,9 @@ import {
 import { api } from '../../api/client.js';
 import MedicineTransferAuditReport from '../components/MedicineTransferAuditReport.jsx';
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
+import MedicineBatchTrace from '../components/MedicineBatchTrace.jsx';
+import { DEFAULT_PACKAGING_TYPES, DEFAULT_MEASUREMENT_UNITS, formatStockDisplay } from '../utils/packagingHelper.js';
+import { exportReportToPdf } from '../../utils/exportPdf.js';
 
 const DEFAULT_CATEGORIES = [
   'General',
@@ -26,23 +29,17 @@ const DEFAULT_CATEGORIES = [
   'Spray',
 ];
 
-const DEFAULT_UNITS = [
-  'Bottle',
-  'Litre (L)',
-  'Millilitre (ml)',
-  'Kilogram (Kg)',
-  'Gram (g)',
-  'Vial',
-  'Packet',
-  'Tablet',
-];
+const DEFAULT_PACKAGINGS = DEFAULT_PACKAGING_TYPES;
+const DEFAULT_UNITS = DEFAULT_MEASUREMENT_UNITS;
 
 const INITIAL_FORM = {
   code: '',
   name: '',
   aliasName: '',
   category: 'General',
-  unit: 'Bottle',
+  packagingType: 'Bottle',
+  packSize: 1,
+  unit: 'Litre (L)',
   shelfLifeMonths: '',
   minimumStock: '',
   reorderLevel: '',
@@ -140,6 +137,7 @@ function ScrollDropdown({
 export default function MedicineMasterPage() {
   const { user } = useAuth();
   const canManage = ['admin', 'developer'].includes(user?.role);
+  const canAccessTrace = canManage || user?.permissions?.medicine_master === true;
 
   // Data states
   const [medicines, setMedicines] = useState([]);
@@ -150,6 +148,8 @@ export default function MedicineMasterPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [auditRefreshKey, setAuditRefreshKey] = useState(0);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const pdfPrintRef = useRef(null);
 
   // Filter states
   const [search, setSearch] = useState('');
@@ -173,6 +173,7 @@ export default function MedicineMasterPage() {
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isCustomPackaging, setIsCustomPackaging] = useState(false);
   const [isCustomUnit, setIsCustomUnit] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [openActionId, setOpenActionId] = useState(null);
@@ -180,6 +181,7 @@ export default function MedicineMasterPage() {
   // Tab State: 'medicines' | 'suppliers'
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'medicines';
+  const batchParam = searchParams.get('batch') || '';
   const setActiveTab = (tab) => {
     setSearchParams(tab === 'medicines' ? {} : { tab });
   };
@@ -209,10 +211,38 @@ export default function MedicineMasterPage() {
     .filter((cat) => cat && !['Feed Medicine', 'Sanitizers & Disinfectants', 'Dewormers', 'Supplements & Feed Additives', 'Vaccines'].includes(cat));
   const availableCategories = Array.from(new Set([...DEFAULT_CATEGORIES, ...dbCategories]));
 
+  const dbPackagings = safeMedicines
+    .map((m) => m?.packagingType)
+    .filter(Boolean);
+  const availablePackagings = Array.from(new Set([...DEFAULT_PACKAGINGS, ...dbPackagings]));
+
   const dbUnits = safeMedicines
     .map((m) => m?.unit)
-    .filter((u) => u && !['Sachet / Packet', 'Tablet / Strip', 'Sachet', 'Strip'].includes(u));
+    .filter((u) => u && !['Bottle', 'Vial', 'Can', 'Packet', 'Box', 'Bag', 'Sachet / Packet', 'Tablet / Strip', 'Sachet', 'Strip'].includes(u));
   const availableUnits = Array.from(new Set([...DEFAULT_UNITS, ...dbUnits]));
+
+  // Export All Master Medicines to PDF (.pdf)
+  const handleExportAllMedicinesPdf = async () => {
+    if (exportingPdf || !pdfPrintRef.current || medicines.length === 0) return;
+    try {
+      setExportingPdf(true);
+      const today = new Date();
+      const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+      const filename = `Medicine_Master_Catalog_${dateStr}.pdf`;
+
+      await exportReportToPdf(pdfPrintRef.current, {
+        filename,
+        orientation: 'landscape',
+        format: 'a4',
+        margin: 6,
+      });
+    } catch (err) {
+      console.error('Master catalog PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   // Calculate 20 medicines per page
   const totalPages = Math.ceil(medicines.length / PAGE_SIZE) || 1;
@@ -280,12 +310,15 @@ export default function MedicineMasterPage() {
       name: '',
       aliasName: '',
       category: availableCategories[0] || 'General',
-      unit: availableUnits[0] || 'Bottle',
+      packagingType: availablePackagings[0] || 'Bottle',
+      packSize: 1,
+      unit: availableUnits[0] || 'Litre (L)',
       shelfLifeMonths: '',
       minimumStock: '',
       reorderLevel: '',
     });
     setIsCustomCategory(false);
+    setIsCustomPackaging(false);
     setIsCustomUnit(false);
     setShowAdvanced(false);
     setError('');
@@ -299,12 +332,15 @@ export default function MedicineMasterPage() {
       name: med.name || '',
       aliasName: med.aliasName || '',
       category: med.category || '',
+      packagingType: med.packagingType || 'Bottle',
+      packSize: med.packSize || 1,
       unit: med.unit || '',
       shelfLifeMonths: med.shelfLifeMonths ?? '',
       minimumStock: med.minimumStock ?? '',
       reorderLevel: med.reorderLevel ?? '',
     });
     setIsCustomCategory(!availableCategories.includes(med.category));
+    setIsCustomPackaging(!availablePackagings.includes(med.packagingType));
     setIsCustomUnit(!availableUnits.includes(med.unit));
     setShowAdvanced(Boolean(med.aliasName || med.reorderLevel || med.code));
     setError('');
@@ -316,6 +352,7 @@ export default function MedicineMasterPage() {
     setEditingId(null);
     setFormData(INITIAL_FORM);
     setIsCustomCategory(false);
+    setIsCustomPackaging(false);
     setIsCustomUnit(false);
   };
 
@@ -433,11 +470,17 @@ export default function MedicineMasterPage() {
         throw new Error('Please select or enter a Unit of measurement');
       }
 
+      const trimmedPackaging = (formData.packagingType || 'Bottle').trim();
+      const parsedPackSize = Number(formData.packSize);
+      const finalPackSize = Number.isFinite(parsedPackSize) && parsedPackSize > 0 ? parsedPackSize : 1;
+
       const payload = {
         code: formData.code ? formData.code.trim().toUpperCase() : '',
         name: formData.name.trim(),
         aliasName: formData.aliasName ? formData.aliasName.trim() : '',
         category: trimmedCategory,
+        packagingType: trimmedPackaging,
+        packSize: finalPackSize,
         unit: trimmedUnit,
         shelfLifeMonths: formData.shelfLifeMonths ? Number(formData.shelfLifeMonths) : null,
         minimumStock: formData.minimumStock !== '' ? Number(formData.minimumStock) : 0,
@@ -594,6 +637,22 @@ export default function MedicineMasterPage() {
           <span>Transfers</span>
           <span className="hidden sm:inline">Audit</span>
         </button>
+
+        {canAccessTrace && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('trace')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === 'trace'
+                ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <span>🔍</span>
+            <span>Trace</span>
+            <span className="hidden sm:inline">Batch</span>
+          </button>
+        )}
       </div>
 
       {activeTab === 'medicines' && (
@@ -604,14 +663,27 @@ export default function MedicineMasterPage() {
           <h1 className="text-base sm:text-2xl font-bold text-slate-800">General Medicine</h1>
           <p className="text-xs text-slate-500 hidden sm:block">Manage general medicine catalog, specifications, and stock alert levels</p>
         </div>
-        {canManage && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleOpenAddModal}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+            type="button"
+            disabled={exportingPdf || medicines.length === 0}
+            onClick={handleExportAllMedicinesPdf}
+            className="bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-800 font-bold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-2xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0 disabled:opacity-50"
+            title="Download all master medicines as PDF"
           >
-            <span className="text-base leading-none font-bold">+</span> Add Medicine
+            <span>📄</span>
+            <span>{exportingPdf ? 'Exporting...' : 'PDF'}</span>
           </button>
-        )}
+
+          {canManage && (
+            <button
+              onClick={handleOpenAddModal}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+            >
+              <span className="text-base leading-none font-bold">+</span> Add Medicine
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Notifications */}
@@ -689,6 +761,7 @@ export default function MedicineMasterPage() {
                   <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                     <th className="py-3 px-4">Code</th>
                     <th className="py-3 px-4">Medicine Name</th>
+                    <th className="py-3 px-4">Alias Name</th>
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Unit</th>
                     <th className="py-3 px-4 text-center">Stock & Alert</th>
@@ -702,12 +775,16 @@ export default function MedicineMasterPage() {
                     return (
                       <tr key={med._id} className="hover:bg-slate-50 transition">
                         <td className="py-3 px-4 font-mono font-bold text-slate-800">{med.code}</td>
-                        <td className="py-3 px-4 font-medium text-slate-900">
-                          <div className="font-semibold text-slate-900">{med.name}</div>
-                          {med.aliasName && (
-                            <div className="text-[11px] text-emerald-700 font-medium italic mt-0.5">
-                              Alias: {med.aliasName}
-                            </div>
+                        <td className="py-3 px-4 font-semibold text-slate-900">
+                          {med.name}
+                        </td>
+                        <td className="py-3 px-4 font-medium">
+                          {med.aliasName ? (
+                            <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                              {med.aliasName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 italic text-xs">—</span>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -715,13 +792,13 @@ export default function MedicineMasterPage() {
                             {med.category}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-600 font-medium">{med.unit}</td>
+                        <td className="py-3 px-4"><div className="font-semibold text-slate-800">{med.unit}</div><div className="text-[11px] text-emerald-700 font-medium">1 {med.packagingType || 'Bottle'} = {med.packSize || 1} {med.unit}</div></td>
                         <td className="py-3 px-4 text-center">
                           <div className="flex flex-col items-center gap-0.5">
                             {med.currentStock !== undefined && (
                               med.isLowStock ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                                  <span>⚠️</span> {med.currentStock} {med.unit} (Low)
+                                  <span>⚠️</span> {formatStockDisplay(med.currentStock, med.packSize, med.packagingType, med.unit)} (Low)
                                 </span>
                               ) : med.currentStock === 0 ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
@@ -729,7 +806,7 @@ export default function MedicineMasterPage() {
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <span>🟢</span> {med.currentStock} {med.unit}
+                                  <span>🟢</span> {formatStockDisplay(med.currentStock, med.packSize, med.packagingType, med.unit)}
                                 </span>
                               )
                             )}
@@ -1005,6 +1082,88 @@ export default function MedicineMasterPage() {
             )}
           </>
         )}
+      </div>
+
+      {/* Off-screen Full Master Catalog for PDF Export (captures ALL master medicines) */}
+      <div
+        ref={pdfPrintRef}
+        className="report-export-content pdf-print-container bg-white p-6"
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: '0',
+          width: '1120px',
+          zIndex: -1000,
+          backgroundColor: '#ffffff'
+        }}
+      >
+        {/* PDF Header */}
+        <div className="border-b-2 border-emerald-600 pb-3 mb-4 flex justify-between items-end">
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>💊</span> RAGHAV FARMS — MEDICINE MASTER CATALOG
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Complete official specifications, packaging ratios, shelf life, and alert thresholds
+            </p>
+          </div>
+          <div className="text-right text-xs">
+            <div className="font-bold text-slate-800">
+              Total Master Medicines: <span className="text-emerald-700 font-extrabold">{medicines.length}</span>
+            </div>
+            <div className="text-slate-400 text-[10px] mt-0.5">
+              Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </div>
+          </div>
+        </div>
+
+        {/* Full Table of ALL Master Medicines */}
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-100 border-y border-slate-300 text-[10px] uppercase font-bold text-slate-700">
+              <th className="py-2.5 px-2 text-center w-12 border-b border-slate-300">#</th>
+              <th className="py-2.5 px-3 w-24 border-b border-slate-300">Code</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Medicine Name</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Alias</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Category</th>
+              <th className="py-2.5 px-3 border-b border-slate-300">Packaging Specification</th>
+              <th className="py-2.5 px-2 text-center border-b border-slate-300">Shelf Life</th>
+              <th className="py-2.5 px-2 text-center border-b border-slate-300">Reorder Level</th>
+              <th className="py-2.5 px-2 text-center border-b border-slate-300">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {medicines.map((med, idx) => (
+              <tr key={med._id || idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
+                <td className="py-2 px-2 text-center font-bold text-slate-500 border-b border-slate-100">{idx + 1}</td>
+                <td className="py-2 px-3 font-mono font-bold text-slate-800 border-b border-slate-100">{med.code}</td>
+                <td className="py-2 px-3 font-bold text-slate-900 border-b border-slate-100">{med.name}</td>
+                <td className="py-2 px-3 font-semibold text-slate-700 border-b border-slate-100">{med.aliasName || '—'}</td>
+                <td className="py-2 px-3 border-b border-slate-100">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                    {med.category}
+                  </span>
+                </td>
+                <td className="py-2 px-3 font-semibold text-slate-800 border-b border-slate-100">
+                  1 {med.packagingType || 'Bottle'} = {med.packSize || 1} {med.unit}
+                </td>
+                <td className="py-2 px-2 text-center text-slate-700 border-b border-slate-100">
+                  {med.shelfLifeMonths ? `${med.shelfLifeMonths} mo` : '—'}
+                </td>
+                <td className="py-2 px-2 text-center font-bold text-amber-800 border-b border-slate-100">
+                  {med.reorderLevel ? `${med.reorderLevel} ${med.unit}` : '—'}
+                </td>
+                <td className="py-2 px-2 text-center border-b border-slate-100">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    med.active !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {med.active !== false ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )}
@@ -1307,6 +1466,25 @@ export default function MedicineMasterPage() {
     </div>
   )}
 
+  {/* ======================================================== */}
+  {/* 4. BATCH TRACEABILITY TAB                                */}
+  {/* ======================================================== */}
+  {activeTab === 'trace' && (
+    <div className="space-y-3 sm:space-y-4">
+      {canAccessTrace ? (
+        <MedicineBatchTrace
+          firms={firms}
+          canManage={canManage}
+          initialQuery={batchParam}
+        />
+      ) : (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-center text-xs font-semibold">
+          ⛔ Access Restricted: You do not have permission to view Batch Traceability.
+        </div>
+      )}
+    </div>
+  )}
+
   {/* 4. Add / Edit Modal (Compact & Mobile-Optimized) */}
       {isModalOpen && (
         <div
@@ -1340,22 +1518,38 @@ export default function MedicineMasterPage() {
                 </div>
               )}
 
-              {/* 1. Essential Field: Medicine Name */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wide mb-1">
-                  Medicine Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+              {/* 1. Essential Fields: Medicine Name & Alias Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                    Medicine Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="e.g. Paracetamol"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                    Alias Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Calpol / Dolo (optional)"
+                    value={formData.aliasName}
+                    onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
+                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  />
+                </div>
               </div>
 
-              {/* 2. Essential Fields Grid: Category & Unit */}
+              {/* 2. Category & Packaging Container */}
               <div className="grid grid-cols-2 gap-2">
                 {/* Category */}
                 <div>
@@ -1383,9 +1577,10 @@ export default function MedicineMasterPage() {
                       type="text"
                       required
                       autoFocus
+                      placeholder="e.g. Antibiotic"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                     />
                   ) : (
                     <ScrollDropdown
@@ -1401,11 +1596,76 @@ export default function MedicineMasterPage() {
                   )}
                 </div>
 
-                {/* Unit */}
+                {/* Packaging Type (Container) */}
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide">
-                      Unit <span className="text-rose-500">*</span>
+                      Packaging <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomPackaging(!isCustomPackaging);
+                        if (!isCustomPackaging) {
+                          setFormData({ ...formData, packagingType: '' });
+                        }
+                      }}
+                      className="text-emerald-600 hover:text-emerald-700 font-medium transition cursor-pointer inline-block"
+                      style={{ fontSize: '13px', transform: 'scale(0.85)', transformOrigin: 'right center' }}
+                    >
+                      {isCustomPackaging ? '← List' : '+ Custom'}
+                    </button>
+                  </div>
+
+                  {isCustomPackaging ? (
+                    <input
+                      type="text"
+                      required
+                      autoFocus
+                      placeholder="e.g. Drum / Jar"
+                      value={formData.packagingType}
+                      onChange={(e) => setFormData({ ...formData, packagingType: e.target.value })}
+                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                    />
+                  ) : (
+                    <ScrollDropdown
+                      value={formData.packagingType}
+                      onChange={(val) => setFormData({ ...formData, packagingType: val })}
+                      options={availablePackagings}
+                      placeholder="-- Select Container --"
+                      onAddCustom={() => {
+                        setIsCustomPackaging(true);
+                        setFormData({ ...formData, packagingType: '' });
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Pack Size & Base Measurement Unit */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Pack Size */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-1">
+                    Pack Size <span className="text-slate-400 font-normal">(Qty / Pack)</span> <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="any"
+                    required
+                    placeholder="e.g. 5"
+                    value={formData.packSize}
+                    onChange={(e) => setFormData({ ...formData, packSize: e.target.value })}
+                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                  />
+                </div>
+
+                {/* Base Measurement Unit */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide">
+                      Unit (Measure) <span className="text-rose-500">*</span>
                     </label>
                     <button
                       type="button"
@@ -1427,16 +1687,17 @@ export default function MedicineMasterPage() {
                       type="text"
                       required
                       autoFocus
+                      placeholder="e.g. Litre (L)"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                     />
                   ) : (
                     <ScrollDropdown
                       value={formData.unit}
                       onChange={(val) => setFormData({ ...formData, unit: val })}
                       options={availableUnits}
-                      placeholder="-- Select --"
+                      placeholder="-- Select Unit --"
                       onAddCustom={() => {
                         setIsCustomUnit(true);
                         setFormData({ ...formData, unit: '' });
@@ -1444,6 +1705,18 @@ export default function MedicineMasterPage() {
                     />
                   )}
                 </div>
+              </div>
+
+              {/* Packaging Rule Formula Banner */}
+              <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-xs text-emerald-950 font-medium shadow-2xs">
+                <span className="flex items-center gap-1.5 truncate">
+                  <span>📦</span>
+                  <span className="text-emerald-800 font-semibold">Rule:</span>
+                  <strong className="text-emerald-950 font-bold">
+                    1 {formData.packagingType || 'Container'} = {formData.packSize || 1} {formData.unit || 'Unit'}
+                  </strong>
+                </span>
+                <span className="text-[10px] text-emerald-700 font-medium italic shrink-0">Auto-totals everywhere</span>
               </div>
 
               {/* 3. Optional Advanced Settings Toggle */}
@@ -1474,37 +1747,25 @@ export default function MedicineMasterPage() {
                           type="text"
                           disabled={Boolean(editingId)}
                           value={formData.code}
+                          placeholder="Auto-generated"
                           onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                           className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs uppercase focus:ring-1 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400 focus:outline-none bg-white font-mono"
                         />
                       </div>
 
-                      {/* Alias / Brand Name */}
+                      {/* Low Stock Alert Level */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-0.5">
-                          Brand <span className="text-slate-400 font-normal">(opt)</span>
+                          Low Stock Alert <span className="text-slate-400 font-normal">(opt)</span>
                         </label>
                         <input
-                          type="text"
-                          value={formData.aliasName}
-                          onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
+                          type="number"
+                          min="0"
+                          value={formData.reorderLevel}
+                          onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
                           className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
                         />
                       </div>
-                    </div>
-
-                    {/* Low Stock Alert Level */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-0.5">
-                        Low Stock Alert <span className="text-slate-400 font-normal">(opt)</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={formData.reorderLevel}
-                        onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })}
-                        className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
-                      />
                     </div>
                   </div>
                 )}

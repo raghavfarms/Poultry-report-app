@@ -30,11 +30,12 @@ export function normalizeAttendanceLocation(input, now = new Date()) {
 
   const validTime = Number.isFinite(timestamp.getTime());
   const ageMs = Math.abs(now.getTime() - timestamp.getTime());
-  const isFresh = ageMs <= 24 * 60 * 60 * 1000;
+  // Location freshness window: coordinates cached up to 10 minutes (600,000 ms) are accepted for smooth high-speed scanning
+  const isFresh = ageMs <= 10 * 60 * 1000;
   if (!finite(latitude) || latitude < -90 || latitude > 90 ||
       !finite(longitude) || longitude < -180 || longitude > 180 ||
       !finite(accuracyMetres) || accuracyMetres < 0 || !validTime || !isFresh) {
-    return unavailable('INVALID');
+    return unavailable(isFresh ? 'INVALID' : 'STALE');
   }
   return { status: 'CAPTURED', latitude, longitude, accuracyMetres, capturedAt: timestamp };
 }
@@ -76,7 +77,9 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   if (!location || location.status !== 'CAPTURED') {
     let reason = 'LOCATION_REQUIRED';
     let message = 'Location access is required: Please turn on GPS and allow location permission to mark attendance.';
-    if (location?.status === 'PERMISSION_DENIED') {
+    if (location?.status === 'STALE') {
+      message = 'Location expired: Please ensure live GPS is active on your device to verify farm boundary.';
+    } else if (location?.status === 'PERMISSION_DENIED') {
       message = 'Location permission denied: Please allow browser location access in settings to mark attendance within the boundary.';
     } else if (location?.status === 'TIMEOUT') {
       message = 'GPS location timed out: Please ensure location services are enabled on your device and retry.';
@@ -91,21 +94,26 @@ export function verifyAttendanceGeofence({ location, geofences = [], firmName = 
   const { latitude, longitude } = location;
   let minDistance = Infinity;
   let closestGeofence = null;
-  let closestBoundary = 500;
+  let closestBoundary = 200;
 
   for (const geo of activeGeofences) {
-    const isOffice =
-      Boolean(geo.isOfficeTesting) ||
-      (typeof geo.name === 'string' && /office|hq|admin|head|testing/i.test(geo.name)) ||
-      (typeof firmName === 'string' && /office|hq|admin|head/i.test(firmName));
+    // Only Head Office / corporate offices allow office desktop broadband tolerance.
+    // Poultry farm sheds (Raghav & Sanjana) strictly enforce exact farm boundary.
+    const cleanFirmName = String(firmName || '').toUpperCase().trim();
+    const geoName = String(geo.name || '').toUpperCase().trim();
+    const isDedicatedOffice =
+      cleanFirmName === 'HEAD OFFICE' ||
+      cleanFirmName === 'OFFICE' ||
+      cleanFirmName === 'OFC' ||
+      geoName.includes('HEAD OFFICE') ||
+      geoName.includes('CORPORATE');
 
-    const configuredRadius = Number(geo.radiusMetres) || 500;
-    const accuracyBuffer = Math.min(Math.round(location.accuracyMetres || 0), 500);
-    // For Head Office / Office testing, apply 5km tolerance to accommodate broadband ISP drift.
-    // For poultry farm sheds, strictly enforce configured farm boundary (e.g. 200m - 500m).
-    const effectiveRadius = isOffice
-      ? Math.max(configuredRadius, 5000) + accuracyBuffer
-      : configuredRadius + accuracyBuffer;
+    const isOffice = isDedicatedOffice || (Boolean(geo.isOfficeTesting) && !geoName.includes('FARM') && !cleanFirmName.includes('FARM'));
+
+    const configuredRadius = Number(geo.radiusMetres) || (isOffice ? 500 : 500);
+    // Farm GPS buffer capped to max 150m to prevent room/remote bypass while tolerating slight outdoor device jitter
+    const accuracyBuffer = Math.min(Math.round(location.accuracyMetres || 0), isOffice ? 500 : 150);
+    const effectiveRadius = configuredRadius + accuracyBuffer;
 
     const dist = calculateDistanceMetres(latitude, longitude, geo.latitude, geo.longitude);
     if (dist <= effectiveRadius) {

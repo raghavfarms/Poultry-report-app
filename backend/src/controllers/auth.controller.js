@@ -4,17 +4,38 @@ import User from '../models/User.js';
 import Firm from '../models/Firm.js';
 import { badRequest } from '../utils/http.js';
 
-const publicUser = (user) => ({
-  id: String(user._id),
-  name: user.name,   // name of user
-  email: user.email, // name of user email 
-  role: user.role,      // role of user (admin or labour )
-  firms: user.firms.map((firm) => String(firm._id || firm)),
-});
+const publicUser = (user) => {
+  const isAdminOrDev = ['admin', 'developer'].includes(user.role);
+  const allLiveModules = ['diesel', 'transport', 'attendance', 'medicine'];
+  const userModules = Array.isArray(user.allowedModules) && user.allowedModules.length
+    ? user.allowedModules
+    : (isAdminOrDev ? allLiveModules : ['attendance']);
+
+  return {
+    id: String(user._id),
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    firms: (user.firms || []).map((firm) => String(firm._id || firm)),
+    moduleFirms: user.moduleFirms || {},
+    allowedModules: userModules,
+    permissions: {
+      attendance_scan: user.permissions?.attendance_scan ?? true,
+      attendance_report: user.permissions?.attendance_report ?? (isAdminOrDev ? true : false),
+      worker_master: user.permissions?.worker_master ?? true,
+      attendance_edit: user.permissions?.attendance_edit ?? (isAdminOrDev ? true : false),
+      attendance_autocut: user.permissions?.attendance_autocut ?? (isAdminOrDev ? true : false),
+      asset_master: user.permissions?.asset_master ?? (isAdminOrDev ? true : false),
+      transport_master: user.permissions?.transport_master ?? (isAdminOrDev ? true : false),
+      medicine_master: user.permissions?.medicine_master ?? (isAdminOrDev ? true : false),
+      attendance_admin_master: user.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
+    },
+  };
+};
 
 const signToken = (user) =>
   jwt.sign({ sub: String(user._id), role: user.role }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    expiresIn: process.env.JWT_EXPIRES_IN || '3650d',
   });
 
 function validateAccount(body) {
@@ -99,8 +120,8 @@ export async function register(req, res) {
   if (!firmIds.length) throw badRequest('Select at least one firm.');
   const firms = await Firm.find({ _id: { $in: firmIds }, active: true });
   if (firms.length !== firmIds.length) throw badRequest('One or more selected firms are invalid.');
-  const allowedRoles = ['user', 'office', 'supervisor', 'security', 'farm_incharge'];
-  const role = allowedRoles.includes(req.body.role) ? req.body.role : 'user';
+  const allowedRoles = ['office', 'supervisor', 'security', 'farm_incharge'];
+  const role = allowedRoles.includes(req.body.role) ? req.body.role : 'office';
   const user = await User.create({
     name: account.name,
     email: account.email,

@@ -300,8 +300,8 @@ export default function DailyRegisterView({
               <option value="ALL">All Staff</option>
               <option value="ON_DUTY">On Duty Now</option>
               <option value="COMPLETED">{"Full Day (>= 7h 55m)"}</option>
-              <option value="HALF_DAY">{"Half Day (4h–7h 55m)"}</option>
-              <option value="ABSENT">{"Absent (< 4h)"}</option>
+              <option value="HALF_DAY">{"Half Day (3h 55m–7h 55m)"}</option>
+              <option value="ABSENT">{"Absent (< 3h 55m)"}</option>
             </select>
           </div>
 
@@ -405,7 +405,7 @@ export default function DailyRegisterView({
             <p className="text-sm font-semibold">No attendance records found matching filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll">
+          <div className="overflow-x-auto overflow-y-auto max-h-[420px] sm:max-h-[520px] print:max-h-none print:overflow-visible report-scroll">
             <table className="attendance-table w-full text-left text-xs border-collapse">
               <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                 <tr>
@@ -526,6 +526,13 @@ export default function DailyRegisterView({
                             title={r.lunchOut && r.lunchIn ? `${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} – ${new Date(r.lunchIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}` : undefined}
                           >
                             🍱 {formatLunchBreak(r.lunchMinutes)}
+                          </span>
+                        ) : r.lunchOut && !r.lunchIn ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 border border-rose-200 whitespace-nowrap"
+                            title={`Left for lunch at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} and did not return`}
+                          >
+                            Left at {new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}
                           </span>
                         ) : (
                           <span className="text-slate-400">—</span>

@@ -5,6 +5,7 @@ import {
   createIssue,
   getIssues,
   getIssueById,
+  deleteIssue,
 } from '../controllers/issue.controller.js';
 
 const router = express.Router();
@@ -19,6 +20,7 @@ router.get('/fefo-recommendations', getFefoRecommendations);
 router.get('/', getIssues);
 router.post('/', createIssue);
 router.get('/:id', getIssueById);
+router.delete('/:id', deleteIssue);
 
 export default router;
 

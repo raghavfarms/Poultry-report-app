@@ -57,7 +57,7 @@ export default function FaceAttendancePage() {
   const [loadingWorkers, setLoadingWorkers] = useState(false);
 
   const [mode, setMode] = useState('DUTY_IN'); // 'DUTY_IN' | 'LUNCH_OUT' | 'LUNCH_IN' | 'DUTY_OUT'
-  const [facingMode, setFacingMode] = useState('user');
+  const [facingMode, setFacingMode] = useState('environment');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
@@ -147,6 +147,9 @@ export default function FaceAttendancePage() {
                 capturedAt: timestamp.toISOString(),
               };
               latestLocationRef.current = freshLoc;
+              try {
+                sessionStorage.setItem('last_known_attendance_loc', JSON.stringify(freshLoc));
+              } catch {}
               setLocationStatus('CAPTURED');
               setLocationDetails({ accuracy: Math.round(accuracy), lat: latitude, lon: longitude });
             }
@@ -157,7 +160,7 @@ export default function FaceAttendancePage() {
               setLocationStatus(mapped);
             }
           },
-          { enableHighAccuracy: false, maximumAge: 60000, timeout: 8000 }
+          { enableHighAccuracy: true, maximumAge: 30000, timeout: 8000 }
         );
       } catch {}
     }
@@ -298,7 +301,12 @@ export default function FaceAttendancePage() {
             const now = Date.now();
             const candidateWorkerId = String(bestMatch.worker.workerId);
 
-            // Multi-frame consensus: require 2 consecutive frames of the same worker within 1200ms
+            // High-confidence shortcut: if distance is ultra clear (<= 0.33) and safely separated from any other worker (margin >= 0.08),
+            // trigger instant single-frame recognition. Otherwise (borderline / close matches like Gyanu vs Sumit), require 2 consecutive frames!
+            const isHighConfidenceSingleFrame =
+              bestMatch.distance <= 0.33 &&
+              (typeof bestMatch.margin !== 'number' || bestMatch.margin >= 0.08);
+
             if (
               matchConsensusRef.current.workerId === candidateWorkerId &&
               now - matchConsensusRef.current.lastSeen < 1200
@@ -308,13 +316,13 @@ export default function FaceAttendancePage() {
             } else {
               matchConsensusRef.current = {
                 workerId: candidateWorkerId,
-                count: 1,
+                count: isHighConfidenceSingleFrame ? 2 : 1,
                 lastSeen: now,
               };
             }
 
             if (matchConsensusRef.current.count >= 2) {
-              // Confirmed genuine match across multiple frames!
+              // Confirmed genuine match!
               matchConsensusRef.current = { workerId: null, count: 0, lastSeen: 0 };
               await handleRecognizedWorker(bestMatch.worker);
             } else {
@@ -351,24 +359,20 @@ export default function FaceAttendancePage() {
     if (processingRef.current) return;
     processingRef.current = true;
 
-    setStatusPill(`Recognized: ${worker.fullName} (${worker.workerCode})`);
+    setStatusPill(`⚡ Marking Attendance: ${worker.fullName}...`);
 
     try {
-      // 1. Resolve Location: prefer pre-warmed / watched fresh location (up to 5 mins fresh)
+      // 1. Resolve Location: must be live fresh location (< 10 min) for fast punch; re-queries satellite if cache expired
       let loc = latestLocationRef.current;
-      const isFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
-        (Date.now() - new Date(loc.capturedAt).getTime() < 300000);
+      const isLiveFresh = loc && loc.status === 'CAPTURED' && loc.capturedAt &&
+        (Date.now() - new Date(loc.capturedAt).getTime() < 10 * 60 * 1000);
 
-      if (!isFresh) {
+      if (!isLiveFresh) {
         try {
-          // Fast sub-second location check with instant cache fallback so face scans mark in 0ms - 200ms
-          loc = await captureLocation({ timeoutMs: 1200, maximumAge: 300000, preferCache: true });
+          // Acquire fresh device GPS from satellite when 10 min cache window expires
+          loc = await captureLocation({ timeoutMs: 3000, preferCache: false });
           if (loc?.status === 'CAPTURED') {
             latestLocationRef.current = loc;
-            setLocationStatus('CAPTURED');
-            setLocationDetails({ accuracy: Math.round(loc.accuracyMetres || 0), lat: loc.latitude, lon: loc.longitude });
-          } else if (latestLocationRef.current?.status === 'CAPTURED') {
-            loc = latestLocationRef.current;
           }
         } catch {
           loc = latestLocationRef.current || { status: 'UNAVAILABLE' };

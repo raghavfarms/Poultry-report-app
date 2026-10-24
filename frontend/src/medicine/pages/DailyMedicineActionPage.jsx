@@ -12,6 +12,7 @@ import {
 } from '../api/dailyActionApi.js';
 import { fetchDashboardStats } from '../api/reportApi.js';
 import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerModal.jsx';
+import { formatStockDisplay, formatUnit } from '../utils/packagingHelper.js';
 
 
 export default function DailyMedicineActionPage({
@@ -57,6 +58,7 @@ export default function DailyMedicineActionPage({
   const [inwardExpiry, setInwardExpiry] = useState('');
   const inwardExpiryRef = useRef(null);
   const [inwardQty, setInwardQty] = useState('');
+  const [inwardPacks, setInwardPacks] = useState('');
   const [inwardSupplierId, setInwardSupplierId] = useState('');
   const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
   const [isInwardFarmDropdownOpen, setIsInwardFarmDropdownOpen] = useState(false);
@@ -131,9 +133,11 @@ export default function DailyMedicineActionPage({
   const [outwardMedicineName, setOutwardMedicineName] = useState('');
   const [isOutwardMedDropdownOpen, setIsOutwardMedDropdownOpen] = useState(false);
   const [outwardShed, setOutwardShed] = useState('');
+  const [isOtherLocation, setIsOtherLocation] = useState(false);
   const [customShed, setCustomShed] = useState('');
   const [outwardQty, setOutwardQty] = useState('');
   const [batchAllocations, setBatchAllocations] = useState({});
+  const [batchPackAllocations, setBatchPackAllocations] = useState({});
   const [outwardIssuer, setOutwardIssuer] = useState(user?.name || user?.username || '');
   const [outwardReceiver, setOutwardReceiver] = useState('');
   const [outwardFarmId, setOutwardFarmId] = useState(selectedFarm || (safeFirms[0]?._id || ''));
@@ -172,10 +176,8 @@ export default function DailyMedicineActionPage({
       const result = await fetchMedicineLocations(farmToFetch);
       const locList = result.locations || [];
       setLocations(locList);
-      setOutwardShed((curr) => {
-        if (curr && (locList.includes(curr) || curr === 'Other...')) return curr;
-        return locList[0] || '';
-      });
+      // Do NOT auto-select! User must explicitly select their desired location/shed
+      setOutwardShed((curr) => (locList.includes(curr) ? curr : ''));
       setLocationError('');
     } catch (error) {
       setLocationError('Could not load locations. Use Other to enter a location.');
@@ -195,7 +197,10 @@ export default function DailyMedicineActionPage({
       const result = await createMedicineLocation(newLocation, farmToUse);
       setLocations((current) => [...new Set([...current, result.location])]);
       setOutwardShed(result.location);
+      setIsOtherLocation(false);
+      setCustomShed('');
       setNewLocation('');
+      setShowAddLocationInput(false);
       setLocationError('');
     } catch (error) {
       setLocationError(error.message || 'Failed to add location.');
@@ -311,8 +316,15 @@ export default function DailyMedicineActionPage({
 
   const oldestBatchForOutward = activeBatchesForOutward[0] || null;
 
+  // Reset allocations whenever selected outward medicine changes
+  useEffect(() => {
+    setBatchAllocations({});
+    setBatchPackAllocations({});
+    setOutwardQty('');
+  }, [outwardMedicineId]);
+
   // Batch-wise allocation and automatic total calculation
-  const handleBatchQtyChange = (batchId, rawVal, maxAvailable) => {
+  const handleBatchQtyChange = (batchId, rawVal, maxAvailable, packSize = 1) => {
     let val = rawVal;
     if (val !== '') {
       const num = Number(val);
@@ -320,6 +332,52 @@ export default function DailyMedicineActionPage({
       else if (num < 0) val = '0';
     }
     const next = { ...batchAllocations, [batchId]: val };
+    setBatchAllocations(next);
+
+    // Sync pack allocations
+    if (packSize > 0 && packSize !== 1) {
+      const nextPack = { ...batchPackAllocations };
+      if (val === '' || isNaN(Number(val))) {
+        nextPack[batchId] = '';
+      } else {
+        nextPack[batchId] = String(Number((Number(val) / packSize).toFixed(3)));
+      }
+      setBatchPackAllocations(nextPack);
+    }
+
+    // Sum all non-empty batch quantities to automatically compute total!
+    let sum = 0;
+    let hasAny = false;
+    for (const b of activeBatchesForOutward) {
+      const q = Number(next[b._id]);
+      if (next[b._id] !== '' && !isNaN(q) && q > 0) {
+        sum += q;
+        hasAny = true;
+      }
+    }
+    setOutwardQty(hasAny ? String(Number(sum.toFixed(3))) : '');
+  };
+
+  const handleBatchPackChange = (batchId, rawPackVal, maxAvailable, packSize = 1) => {
+    let pVal = rawPackVal;
+    const maxPacks = packSize > 0 ? maxAvailable / packSize : maxAvailable;
+
+    if (pVal !== '') {
+      const numPacks = Number(pVal);
+      if (numPacks > maxPacks) pVal = String(Number(maxPacks.toFixed(2)));
+      else if (numPacks < 0) pVal = '0';
+    }
+
+    const nextPack = { ...batchPackAllocations, [batchId]: pVal };
+    setBatchPackAllocations(nextPack);
+
+    // Calculate base units
+    let calculatedBase = '';
+    if (pVal !== '' && !isNaN(Number(pVal))) {
+      calculatedBase = String(Number((Number(pVal) * packSize).toFixed(3)));
+    }
+
+    const next = { ...batchAllocations, [batchId]: calculatedBase };
     setBatchAllocations(next);
 
     // Sum all non-empty batch quantities to automatically compute total!
@@ -336,7 +394,8 @@ export default function DailyMedicineActionPage({
   };
 
   const handleSetBatchMax = (batchId, maxAvailable) => {
-    handleBatchQtyChange(batchId, String(maxAvailable), maxAvailable);
+    const pSize = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 ? Number(selectedOutwardMed.packSize) : 1;
+    handleBatchQtyChange(batchId, String(maxAvailable), maxAvailable, pSize);
   };
 
   const handleTotalQtyChange = (rawTotal) => {
@@ -344,22 +403,29 @@ export default function DailyMedicineActionPage({
     const totalNum = Number(rawTotal);
     if (!rawTotal || isNaN(totalNum) || totalNum <= 0) {
       setBatchAllocations({});
+      setBatchPackAllocations({});
       return;
     }
 
+    const size = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 ? Number(selectedOutwardMed.packSize) : 1;
     // Auto-distribute across batches in FEFO order
     let remaining = totalNum;
     const next = {};
+    const nextPack = {};
     for (const b of activeBatchesForOutward) {
       if (remaining <= 0) {
         next[b._id] = '';
+        nextPack[b._id] = '';
         continue;
       }
       const take = Math.min(b.quantityAvailable || 0, remaining);
-      next[b._id] = take > 0 ? String(Number(take.toFixed(3))) : '';
+      const takeStr = take > 0 ? String(Number(take.toFixed(3))) : '';
+      next[b._id] = takeStr;
+      nextPack[b._id] = takeStr && size > 0 && size !== 1 ? String(Number((take / size).toFixed(3))) : '';
       remaining -= take;
     }
     setBatchAllocations(next);
+    setBatchPackAllocations(nextPack);
   };
 
   // Show all registered suppliers in system for stock-in (not restricted to a specific medicine)
@@ -422,8 +488,13 @@ export default function DailyMedicineActionPage({
     setOutwardMedicineName('');
     setIsOutwardMedDropdownOpen(false);
     setIsOutwardFarmDropdownOpen(false);
+    setOutwardShed('');
+    setIsOtherLocation(false);
+    setCustomShed('');
+    setShowAddLocationInput(false);
     setOutwardQty('');
     setBatchAllocations({});
+    setBatchPackAllocations({});
     setOutwardIssuer(user?.name || user?.username || '');
     setOutwardReceiver('');
     const farmToUse = selectedFarm || (firms[0]?._id || '');
@@ -497,6 +568,7 @@ export default function DailyMedicineActionPage({
       setInwardBatchNo('');
       setInwardExpiry('');
       setInwardQty('');
+      setInwardPacks('');
       setInwardNotes('');
       setInwardCategory('');
       setInwardUnit('');
@@ -520,13 +592,13 @@ export default function DailyMedicineActionPage({
       alert('Please select a farm store');
       return;
     }
-    const finalShed = outwardShed === '' ? customShed.trim() : outwardShed;
+    const finalShed = isOtherLocation ? customShed.trim() : outwardShed.trim();
     if (!outwardMedicineId) {
       alert('Please select a medicine');
       return;
     }
     if (!finalShed) {
-      alert('Please select or specify a location');
+      alert('Please select a location or shed');
       return;
     }
     if (!outwardQty || Number(outwardQty) <= 0) {
@@ -577,6 +649,10 @@ export default function DailyMedicineActionPage({
       setOutwardMedicineName('');
       setOutwardQty('');
       setBatchAllocations({});
+      setBatchPackAllocations({});
+      setOutwardShed('');
+      setIsOtherLocation(false);
+      setCustomShed('');
       setOutwardReceiver('');
       setOutwardIssuer(user?.name || user?.username || '');
       // Reload feed
@@ -817,7 +893,7 @@ export default function DailyMedicineActionPage({
                       }`}
                     >
                       {ev.type === 'IN' ? '+' : '-'}
-                      {ev.quantity} {ev.unit}
+                      {formatStockDisplay(ev.quantity, ev.packSize, ev.packagingType, ev.unit)}
                     </span>
                   </div>
                 </div>
@@ -1081,6 +1157,8 @@ export default function DailyMedicineActionPage({
                                   onClick={() => {
                                     setInwardMedicineId(m._id);
                                     setInwardMedicineName(m.name);
+                                    setInwardPacks('');
+                                    setInwardQty('');
                                     setIsMedDropdownOpen(false);
                                   }}
                                   className={`px-3 py-1 min-h-[40px] max-h-[40px] flex items-center justify-between cursor-pointer transition text-xs ${
@@ -1181,40 +1259,117 @@ export default function DailyMedicineActionPage({
                 </div>
               </div>
 
-              {/* Quantity Received & Receiver Name Grid */}
-              <div className="grid grid-cols-2 gap-1.5">
-                <div>
-                  <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
-                    Qty Received ({selectedInwardMed?.unit || inwardUnit || 'Units'}){' '}
-                    <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    step="any"
-                    required
-                    placeholder="e.g. 50"
-                    value={inwardQty}
-                    onChange={(e) => setInwardQty(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
+              {/* Quantity Received with Pack Size Auto-Calculation */}
+              {selectedInwardMed && Number(selectedInwardMed.packSize) > 0 && Number(selectedInwardMed.packSize) !== 1 ? (
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                        Packs ({selectedInwardMed.packagingType || 'Packs'})
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="e.g. 4"
+                        value={inwardPacks}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInwardPacks(val);
+                          const size = Number(selectedInwardMed.packSize) || 1;
+                          if (val !== '' && Number(val) >= 0) {
+                            setInwardQty(Number((Number(val) * size).toFixed(3)));
+                          } else if (val === '') {
+                            setInwardQty('');
+                          }
+                        }}
+                        className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-emerald-50/40"
+                      />
+                    </div>
 
-                <div>
-                  <label htmlFor="inward-receiver" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
-                    Receiver <span className="text-slate-400 font-normal lowercase">(opt)</span>
-                  </label>
-                  <input
-                    id="inward-receiver"
-                    type="text"
-                    maxLength={120}
-                    value={inwardReceiver}
-                    onChange={(e) => setInwardReceiver(e.target.value)}
-                    placeholder="Received by"
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                  />
+                    <div>
+                      <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                        Total ({formatUnit(selectedInwardMed.unit) || 'Units'}) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0.001"
+                        required
+                        placeholder="e.g. 20"
+                        value={inwardQty}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setInwardQty(val);
+                          const size = Number(selectedInwardMed.packSize) || 1;
+                          if (size > 0 && size !== 1 && val !== '' && Number(val) >= 0) {
+                            setInwardPacks(Number((Number(val) / size).toFixed(3)));
+                          } else if (val === '') {
+                            setInwardPacks('');
+                          }
+                        }}
+                        className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-emerald-900 bg-emerald-50/90 px-2 py-1 rounded border border-emerald-200/70 flex items-center justify-between font-medium">
+                    <span>📦 1 {selectedInwardMed.packagingType || 'Container'} = {selectedInwardMed.packSize} {formatUnit(selectedInwardMed.unit)}</span>
+                    {inwardPacks && inwardQty ? (
+                      <span className="font-bold text-emerald-950">Total: {inwardPacks} {selectedInwardMed.packagingType}s = {inwardQty} {formatUnit(selectedInwardMed.unit)}</span>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label htmlFor="inward-receiver" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                      Receiver <span className="text-slate-400 font-normal lowercase">(opt)</span>
+                    </label>
+                    <input
+                      id="inward-receiver"
+                      type="text"
+                      maxLength={120}
+                      value={inwardReceiver}
+                      onChange={(e) => setInwardReceiver(e.target.value)}
+                      placeholder="Received by"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                      Qty Received ({selectedInwardMed?.unit || inwardUnit || 'Units'}{' '}
+                      <span className="text-rose-500">*</span>)
+                    </label>
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="any"
+                      required
+                      placeholder="e.g. 50"
+                      value={inwardQty}
+                      onChange={(e) => setInwardQty(e.target.value)}
+                      className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="inward-receiver" className="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">
+                      Receiver <span className="text-slate-400 font-normal lowercase">(opt)</span>
+                    </label>
+                    <input
+                      id="inward-receiver"
+                      type="text"
+                      maxLength={120}
+                      value={inwardReceiver}
+                      onChange={(e) => setInwardReceiver(e.target.value)}
+                      placeholder="Received by"
+                      className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-900 bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Supplier Selector */}
               {/* Supplier Selector (Custom Dynamic Shift Dropdown) */}
@@ -1577,7 +1732,7 @@ export default function DailyMedicineActionPage({
                 </label>
                 <div className="flex flex-wrap items-center gap-1">
                   {locations.map((shed) => {
-                    const isSelected = outwardShed === shed;
+                    const isSelected = outwardShed === shed && !isOtherLocation;
                     return (
                       <div
                         key={shed}
@@ -1589,7 +1744,11 @@ export default function DailyMedicineActionPage({
                       >
                         <button
                           type="button"
-                          onClick={() => setOutwardShed(shed)}
+                          onClick={() => {
+                            setOutwardShed(shed);
+                            setIsOtherLocation(false);
+                            setCustomShed('');
+                          }}
                           className="px-2.5 py-1 cursor-pointer text-[11px]"
                         >
                           {shed}
@@ -1615,9 +1774,12 @@ export default function DailyMedicineActionPage({
                   })}
                   <button
                     type="button"
-                    onClick={() => setOutwardShed('')}
+                    onClick={() => {
+                      setIsOtherLocation(true);
+                      setOutwardShed('');
+                    }}
                     className={`px-2.5 py-1 rounded-md border text-[11px] font-bold transition cursor-pointer ${
-                      outwardShed === ''
+                      isOtherLocation
                         ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
                     }`}
@@ -1635,7 +1797,7 @@ export default function DailyMedicineActionPage({
                   )}
                 </div>
 
-                {outwardShed === '' && (
+                {isOtherLocation && (
                   <input
                     type="text"
                     required
@@ -1644,7 +1806,8 @@ export default function DailyMedicineActionPage({
                     maxLength={120}
                     value={customShed}
                     onChange={(e) => setCustomShed(e.target.value)}
-                    className="w-full h-8 px-2 border border-slate-300 rounded-md text-xs mt-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    className="w-full h-8 px-2 border border-blue-400 rounded-md text-xs mt-1 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    autoFocus
                   />
                 )}
                 {locationError && <p role="alert" className="text-xs text-rose-600 mt-0.5">{locationError}</p>}
@@ -1691,7 +1854,7 @@ export default function DailyMedicineActionPage({
                     return (
                       <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
                         <span>📦 Stock:</span>
-                        <span>{availableStock} {selectedOutwardMed?.unit || 'Units'}</span>
+                        <span>{formatStockDisplay(availableStock, selectedOutwardMed?.packSize, selectedOutwardMed?.packagingType, selectedOutwardMed?.unit)}</span>
                       </span>
                     );
                   })()}
@@ -1812,12 +1975,12 @@ export default function DailyMedicineActionPage({
                                           <span>•</span>
                                         </>
                                       )}
-                                      <span>Unit: {m.unit}</span>
+                                      <span>Unit: {formatUnit(m.unit)}</span>
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                      Stock: {stockQty} {m.unit}
+                                      Stock: {formatStockDisplay(stockQty, m.packSize, m.packagingType, m.unit)}
                                     </span>
                                     {isSelected && (
                                       <span className="text-blue-600 font-bold text-xs">✓</span>
@@ -1835,93 +1998,198 @@ export default function DailyMedicineActionPage({
               </div>
 
               {/* Physical Batches Available to Pick (Compact Table Layout) */}
-              {outwardMedicineId && activeBatchesForOutward.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between text-[9px] font-bold text-slate-700 px-0.5 mb-0.5">
-                    <span>🏷️ Batches ({activeBatchesForOutward.length}):</span>
-                    <span className="text-[9px] text-slate-400 font-normal">
-                      FEFO Auto-ordered
-                    </span>
-                  </div>
+              {outwardMedicineId && activeBatchesForOutward.length > 0 && (() => {
+                const hasPack = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 0 && Number(selectedOutwardMed.packSize) !== 1;
+                const packSize = hasPack ? Number(selectedOutwardMed.packSize) : 1;
+                const packType = selectedOutwardMed?.packagingType || 'Pack';
+                const medUnit = selectedOutwardMed?.unit || 'Unit';
 
-                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
-                    {/* Compact Table Header */}
-                    <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
-                      <div className="col-span-3 text-left">BATCH</div>
-                      <div className="col-span-3 text-center">SHELF</div>
-                      <div className="col-span-3 text-center">AVAILABLE</div>
-                      <div className="col-span-3 text-right">TAKE ({selectedOutwardMed?.unit})</div>
+                return (
+                  <div>
+                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-700 px-0.5 mb-0.5">
+                      <span>🏷️ Batches ({activeBatchesForOutward.length}):</span>
+                      <span className="text-[9px] text-slate-400 font-normal">
+                        FEFO Auto-ordered
+                      </span>
                     </div>
 
-                    {/* Compact Rows */}
-                    <div className="max-h-32 overflow-y-auto divide-y divide-slate-100">
-                      {activeBatchesForOutward.map((b) => {
-                        const isExpired = b.daysLeft < 0;
-                        const isCritical = b.daysLeft <= 30; // 1 month
-                        const isCaution = b.daysLeft <= 60;  // 2 months
-                        const isWarning = b.daysLeft <= 90;  // 3 months
-                        const allocVal = batchAllocations[b._id] ?? '';
+                    {/* Packaging Ratio conversion banner */}
+                    {hasPack && (
+                      <div className="text-[10px] text-emerald-900 bg-emerald-50/90 px-2 py-0.5 rounded-md border border-emerald-200/80 flex items-center justify-between font-medium mb-1">
+                        <span>📦 1 {packType} = {packSize} {formatUnit(medUnit)}</span>
+                        <span className="text-[9px] text-emerald-700 font-semibold">Enter by Packs or {formatUnit(medUnit)}</span>
+                      </div>
+                    )}
 
-                        return (
-                          <div
-                            key={b._id}
-                            className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
-                              isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
-                            }`}
-                          >
-                            {/* Col 1: Batch */}
-                            <div className="col-span-3 flex items-center">
-                              <span className="font-mono font-bold text-slate-900 text-[11px]">
-                                #{b.batchNumber}
-                              </span>
-                            </div>
+                    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+                      {/* Compact Table Header */}
+                      {hasPack ? (
+                        <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
+                          <div className="col-span-3 text-left">BATCH / EXP</div>
+                          <div className="col-span-3 text-center">AVAILABLE</div>
+                          <div className="col-span-3 text-center text-emerald-800">PACKS ({packType})</div>
+                          <div className="col-span-3 text-right">TAKE ({formatUnit(medUnit)})</div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-12 text-[9px] font-black uppercase text-slate-500 bg-slate-100/90 px-2 py-0.5 border-b border-slate-200">
+                          <div className="col-span-3 text-left">BATCH</div>
+                          <div className="col-span-3 text-center">SHELF</div>
+                          <div className="col-span-3 text-center">AVAILABLE</div>
+                          <div className="col-span-3 text-right">TAKE ({formatUnit(medUnit)})</div>
+                        </div>
+                      )}
 
-                            {/* Col 2: Shelf (Middle between Batch and Available) */}
-                            <div className="col-span-3 flex justify-center">
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                  isExpired || isCritical
-                                    ? 'bg-rose-100 text-rose-700'
-                                    : isCaution
-                                    ? 'bg-orange-100 text-orange-800'
-                                    : isWarning
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-emerald-100 text-emerald-700'
+                      {/* Compact Rows */}
+                      <div className="max-h-36 overflow-y-auto divide-y divide-slate-100">
+                        {activeBatchesForOutward.map((b) => {
+                          const isExpired = b.daysLeft < 0;
+                          const isCritical = b.daysLeft <= 30; // 1 month
+                          const isCaution = b.daysLeft <= 60;  // 2 months
+                          const isWarning = b.daysLeft <= 90;  // 3 months
+                          const allocVal = batchAllocations[b._id] ?? '';
+                          const allocPackVal = batchPackAllocations[b._id] ?? (allocVal !== '' && !isNaN(Number(allocVal)) && packSize > 0 && packSize !== 1 ? String(Number((Number(allocVal) / packSize).toFixed(3))) : '');
+                          const packsAvail = packSize > 0 && packSize !== 1 ? Number((b.quantityAvailable / packSize).toFixed(2)) : 0;
+
+                          if (hasPack) {
+                            return (
+                              <div
+                                key={b._id}
+                                className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
+                                  isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
                                 }`}
                               >
-                                {isExpired ? 'Exp' : `${b.daysLeft}d`}
-                              </span>
-                            </div>
+                                {/* Col 1: Batch & Exp Stacked */}
+                                <div className="col-span-3 flex flex-col items-start justify-center pr-1 truncate">
+                                  <span className="font-mono font-bold text-slate-900 text-[11px] truncate leading-tight">
+                                    #{b.batchNumber}
+                                  </span>
+                                  <span
+                                    className={`text-[8.5px] font-bold px-1 py-0.1 rounded mt-0.5 leading-tight ${
+                                      isExpired || isCritical
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : isCaution
+                                        ? 'bg-orange-100 text-orange-800'
+                                        : isWarning
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-emerald-100 text-emerald-700'
+                                    }`}
+                                  >
+                                    {isExpired ? 'Exp' : `${b.daysLeft}d`}
+                                  </span>
+                                </div>
 
-                            {/* Col 3: Available */}
-                            <div className="col-span-3 text-center font-bold text-slate-800 text-xs">
-                              {b.quantityAvailable}
-                            </div>
+                                {/* Col 2: Available (Pack count on top, small quantity below) */}
+                                <div className="col-span-3 flex flex-col items-center justify-center px-0.5">
+                                  <span className="font-extrabold text-emerald-800 text-xs leading-tight">
+                                    {packsAvail} {packType}{packsAvail !== 1 ? 's' : ''}
+                                  </span>
+                                  <span className="text-[9.5px] text-slate-500 font-semibold mt-0.5 leading-tight">
+                                    ({b.quantityAvailable} {formatUnit(medUnit)})
+                                  </span>
+                                </div>
 
-                            {/* Col 4: Take input */}
-                            <div className="col-span-3 flex justify-end">
-                              <input
-                                type="number"
-                                min="0"
-                                max={b.quantityAvailable}
-                                step="any"
-                                placeholder="0"
-                                value={allocVal}
-                                onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable)}
-                                className={`w-14 sm:w-16 h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                  Number(allocVal) > 0
-                                    ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
-                                    : 'border-slate-300'
-                                }`}
-                              />
+                                {/* Col 3: Packs Input */}
+                                <div className="col-span-3 flex justify-center px-0.5">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={packsAvail}
+                                    step="any"
+                                    placeholder="0"
+                                    value={allocPackVal}
+                                    onChange={(e) => handleBatchPackChange(b._id, e.target.value, b.quantityAvailable, packSize)}
+                                    className={`w-full max-w-[62px] h-7 px-1 text-center font-bold text-xs border rounded bg-emerald-50/40 focus:ring-1 focus:ring-emerald-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                      Number(allocPackVal) > 0
+                                        ? 'border-emerald-500 bg-emerald-100/70 text-emerald-950 ring-1 ring-emerald-300'
+                                        : 'border-slate-300'
+                                    }`}
+                                    title={`Enter ${packType} count`}
+                                  />
+                                </div>
+
+                                {/* Col 4: Take base units Input */}
+                                <div className="col-span-3 flex justify-end">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={b.quantityAvailable}
+                                    step="any"
+                                    placeholder="0"
+                                    value={allocVal}
+                                    onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable, packSize)}
+                                    className={`w-full max-w-[62px] h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                      Number(allocVal) > 0
+                                        ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
+                                        : 'border-slate-300'
+                                    }`}
+                                    title={`Enter ${formatUnit(medUnit)}`}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div
+                              key={b._id}
+                              className={`grid grid-cols-12 items-center px-2 py-1 text-xs hover:bg-blue-50/40 ${
+                                isExpired || isCritical ? 'bg-rose-50/30' : isCaution ? 'bg-orange-50/20' : ''
+                              }`}
+                            >
+                              {/* Col 1: Batch */}
+                              <div className="col-span-3 flex items-center">
+                                <span className="font-mono font-bold text-slate-900 text-[11px]">
+                                  #{b.batchNumber}
+                                </span>
+                              </div>
+
+                              {/* Col 2: Shelf (Middle between Batch and Available) */}
+                              <div className="col-span-3 flex justify-center">
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                                    isExpired || isCritical
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : isCaution
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : isWarning
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-700'
+                                  }`}
+                                >
+                                  {isExpired ? 'Exp' : `${b.daysLeft}d`}
+                                </span>
+                              </div>
+
+                              {/* Col 3: Available */}
+                              <div className="col-span-3 text-center font-bold text-slate-800 text-xs">
+                                {b.quantityAvailable}
+                              </div>
+
+                              {/* Col 4: Take input */}
+                              <div className="col-span-3 flex justify-end">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={b.quantityAvailable}
+                                  step="any"
+                                  placeholder="0"
+                                  value={allocVal}
+                                  onChange={(e) => handleBatchQtyChange(b._id, e.target.value, b.quantityAvailable, 1)}
+                                  className={`w-14 sm:w-16 h-7 px-1 text-center font-bold text-xs border rounded bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none no-spinner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                                    Number(allocVal) > 0
+                                      ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-300'
+                                      : 'border-slate-300'
+                                  }`}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Issuer (Issued By) & Receiver (Received By) - Side-by-Side */}
               <div className="grid grid-cols-2 gap-1.5">
@@ -1974,9 +2242,21 @@ export default function DailyMedicineActionPage({
 
               {/* Submit / Cancel Buttons with Total Quantity Integrated (Pinned Sticky Footer) */}
               <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
-                <div className="text-xs font-bold text-blue-900 whitespace-nowrap">
-                  Total: <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
-                  <span className="text-[10px] text-slate-500 font-medium">{selectedOutwardMed?.unit || ''}</span>
+                <div className="text-xs font-bold text-blue-900 whitespace-nowrap flex items-center gap-1.5 flex-wrap">
+                  <span>Total:</span>
+                  {selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 && outwardQty && Number(outwardQty) > 0 ? (
+                    <>
+                      <strong className="text-sm font-black text-emerald-700">
+                        {Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2))} {selectedOutwardMed.packagingType || 'Pack'}{Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2)) !== 1 ? 's' : ''}
+                      </strong>
+                      <span className="text-xs text-slate-600 font-semibold">({outwardQty} {formatUnit(selectedOutwardMed?.unit)})</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-sm font-black text-blue-700">{outwardQty && Number(outwardQty) > 0 ? outwardQty : 0}</strong>{' '}
+                      <span className="text-[10px] text-slate-500 font-medium">{formatUnit(selectedOutwardMed?.unit)}</span>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -1992,7 +2272,7 @@ export default function DailyMedicineActionPage({
                   </button>
                   <button
                     type="submit"
-                    disabled={submitting || !outwardQty || Number(outwardQty) <= 0}
+                    disabled={submitting || !outwardQty || Number(outwardQty) <= 0 || (!outwardShed && (!isOtherLocation || !customShed.trim()))}
                     className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-sm transition cursor-pointer flex items-center gap-1.5"
                   >
                     <span>💾</span> {submitting ? 'Saving...' : 'Issue'}

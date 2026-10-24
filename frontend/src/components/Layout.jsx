@@ -1,19 +1,14 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { canAccessModule, canAccessTemperatureMaster } from "../utils/moduleAccess.js";
 
 export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
   ["medicine", "General Medicine", "💊"],
-  ["egg-stock", "Egg Stock", "🥚"],
-  ["hatching-egg", "Hatching Egg Summary", "◉"],
-  ["packing", "Packing Material", "□"],
-  ["vermicompost", "Vermicompost", "♻"],
-  ["feed-production", "Feed Production", "◫"],
-  ["solar", "Solar Status", "☀"],
-  ["vaccination", "Vaccination Status", "✓"],
+  ["temperature", "Temperature Monitoring", "🌡️"],
 ];
 
 export const moduleIconStyles = {
@@ -24,6 +19,7 @@ export const moduleIconStyles = {
   "egg-stock": "bg-yellow-100 text-yellow-700",
   "hatching-egg": "bg-indigo-100 text-indigo-700",
   medicine: "bg-rose-100 text-rose-700",
+  temperature: "bg-emerald-100 text-emerald-700",
   packing: "bg-violet-100 text-violet-700",
   vermicompost: "bg-lime-100 text-lime-700",
   attendance: "bg-cyan-100 text-cyan-700",
@@ -33,17 +29,17 @@ export const moduleIconStyles = {
 
 function Sidebar({ open, close }) {
   const { user, logout } = useAuth();
-  const hasAttendanceAccess = ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role);
-  const visibleModules =
-    user?.role === "developer"
-      ? modules
-      : modules.filter(([slug]) => {
-          if (user?.role === "security") {
-            return slug === "attendance";
-          }
-          if (slug === "attendance") return hasAttendanceAccess;
-          return ["diesel", "transport", "medicine"].includes(slug);
-        });
+  const isAdminOrDev = ["admin", "developer"].includes(user?.role);
+  const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
+  const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
+  const canManageMedicine =
+    (user?.permissions?.medicine_master === true || (isAdminOrDev && user?.permissions?.medicine_master !== false)) &&
+    (Array.isArray(user?.allowedModules) ? user.allowedModules.includes("medicine") : true);
+  const canManageTemperature = canAccessTemperatureMaster(user);
+  const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
+  const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
+
+  const visibleModules = modules.filter(([slug]) => canAccessModule(user, slug));
     
 
 
@@ -97,27 +93,44 @@ function Sidebar({ open, close }) {
               {label}
             </NavLink>
           ))}
-          {["admin", "developer","office","supervisor","farm_incharge"].includes(user?.role) && (
+
+          {(canManageAssets || canManageTransport || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster || canManageTemperature) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
               </p>
-              {["admin", "developer"].includes(user?.role) && (
-                <>
-                  <NavLink to="/admin/assets" className={linkClass}>
-                    <span>⚙</span>Firms & Assets
-                  </NavLink>
-                  <NavLink to="/admin/transport" className={linkClass}>
-                    <span>🚚</span>Transport Vehicles
-                  </NavLink>
-                </>
+              {isAdminOrDev && (
+                <NavLink to="/admin/users" className={linkClass}>
+                  <span>👥</span>Users & Roles
+                </NavLink>
               )}
-              <NavLink to="/admin/attendance" className={linkClass}>
-                <span>👤</span>Attendance Admin
-              </NavLink>
-              {["admin", "developer", "office", "supervisor", "farm_incharge"].includes(user?.role) && (
+              {canManageAssets && (
+                <NavLink to="/admin/assets" className={linkClass}>
+                  <span>⚙</span>Firms & Assets
+                </NavLink>
+              )}
+              {canManageTransport && (
+                <NavLink to="/admin/transport" className={linkClass}>
+                  <span>🚚</span>Transport Vehicles
+                </NavLink>
+              )}
+              {hasAttendanceMaster ? (
+                <NavLink to="/admin/attendance" className={linkClass}>
+                  <span>👤</span>Attendance Admin
+                </NavLink>
+              ) : hasWorkerMaster ? (
+                <NavLink to="/admin/attendance" className={linkClass}>
+                  <span>👤</span>Worker Master
+                </NavLink>
+              ) : null}
+              {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
                   <span>💊</span>General Medicine
+                </NavLink>
+              )}
+              {canManageTemperature && (
+                <NavLink to="/admin/temperature/master" className={linkClass}>
+                  <span>🌡️</span>Temperature Master
                 </NavLink>
               )}
             </>

@@ -18,7 +18,7 @@ export function captureLocation({
   const getFallbackLocation = () => {
     if (sessionCachedLocation && sessionCachedLocation.status === 'CAPTURED') {
       const age = Date.now() - new Date(sessionCachedLocation.capturedAt || 0).getTime();
-      if (age < 30 * 60 * 1000) return sessionCachedLocation;
+      if (age < 10 * 60 * 1000) return sessionCachedLocation; // 10 minutes cache window
     }
     try {
       if (typeof sessionStorage !== 'undefined') {
@@ -27,7 +27,7 @@ export function captureLocation({
           const parsed = JSON.parse(stored);
           if (parsed && parsed.status === 'CAPTURED' && Number.isFinite(parsed.latitude) && Number.isFinite(parsed.longitude)) {
             const age = Date.now() - new Date(parsed.capturedAt || 0).getTime();
-            if (age < 30 * 60 * 1000) {
+            if (age < 10 * 60 * 1000) { // 10 minutes cache window
               sessionCachedLocation = parsed;
               return parsed;
             }

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { displayDate, formatMinutes, today } from "../utils/date.js";
+import { addDays, displayDate, formatMinutes, today } from "../utils/date.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const value = (number, suffix = "") =>
@@ -128,6 +128,13 @@ function reportTotals(report, assets) {
       }),
     ),
   };
+}
+
+function canEditDieselRow(row, isAdmin) {
+  if (row.missing) return false;
+  if (isAdmin) return true;
+  const minDate = addDays(today(), -1);
+  return row.date >= minDate && row.date <= today();
 }
 
 export default function ReportView({
@@ -267,13 +274,19 @@ export default function ReportView({
                   </b>
                 </td>
                 <td className="sticky-action">
-                  {(row.missing && row.date === nextDate) ||
-                  (!row.missing && (isAdmin || row.date === today())) ? (
+                  {row.missing && row.date === nextDate ? (
                     <button
                       onClick={() => onEdit(row)}
                       className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-emerald-800"
                     >
-                      {row.missing ? "Add" : "Edit"}
+                      Add
+                    </button>
+                  ) : canEditDieselRow(row, isAdmin) ? (
+                    <button
+                      onClick={() => onEdit(row)}
+                      className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-emerald-800"
+                    >
+                      Edit
                     </button>
                   ) : (
                     "—"

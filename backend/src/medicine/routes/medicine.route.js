@@ -9,7 +9,7 @@ import {
   deleteUnit,
   deleteMedicine,
 } from '../controllers/medicine.controller.js';
-import { protect } from '../../middleware/auth.js';
+import { protect } from '../../middleware/auth.js';  
 
 const router = express.Router();
 
@@ -25,7 +25,7 @@ router.route('/')
   .post(createMedicine);
 
 // 2. GET single medicine, PUT update medicine, DELETE delete medicine
-router.route('/:id')
+router.route('/:id')   
   .get(getMedicineById)
   .put(updateMedicine)
   .delete(deleteMedicine);
@@ -34,3 +34,5 @@ router.route('/:id')
 router.patch('/:id/status', toggleMedicineStatus);
 
 export default router;
+
+  

@@ -46,11 +46,16 @@ export async function enrolWorkerFace(user, workerId, payload = {}) {
   const { descriptor, descriptorVersion = 'v1', quality = {} } = payload;
   validateDescriptor(descriptor);
 
-  // Verify face duplicacy: Ensure this face descriptor does not match any other enrolled worker
+  // Verify face duplicacy: Ensure this face descriptor does not match any other enrolled worker in the SAME firm
   let existingProfiles = [];
   if (mongoose.connection.readyState === 1) {
     existingProfiles = await WorkerFaceProfile.find({
       worker: { $ne: worker._id },
+      $or: [
+        { firm: worker.firm },
+        { firm: { $exists: false } },
+        { firm: null },
+      ],
       active: true,
     })
       .populate({
@@ -62,9 +67,16 @@ export async function enrolWorkerFace(user, workerId, payload = {}) {
   }
 
   if (Array.isArray(existingProfiles)) {
+    const currentWorkerFirmId = String(worker.firm?._id || worker.firm || '');
     for (const profile of existingProfiles) {
       if (!profile.descriptor || profile.descriptor.length !== 128) continue;
       if (!profile.worker || !profile.worker.active) continue;
+
+      // Only reject if duplicate is within the SAME firm (multi-firm workers can be enrolled in different firms)
+      const otherFirmId = String(profile.firm || profile.worker.firm?._id || profile.worker.firm || '');
+      if (currentWorkerFirmId && otherFirmId && currentWorkerFirmId !== otherFirmId) {
+        continue;
+      }
 
       const dist = euclideanDistance(descriptor, profile.descriptor);
       // Distance <= 0.42 strictly matches the same person
@@ -72,7 +84,7 @@ export async function enrolWorkerFace(user, workerId, payload = {}) {
         const otherWorker = profile.worker;
         const firmLabel = otherWorker.firm?.name ? ` in ${otherWorker.firm.name}` : '';
         throw badRequest(
-          `Duplicate face detected! This face is already enrolled for worker "${otherWorker.fullName}" (${otherWorker.workerCode})${firmLabel}. Multiple workers cannot share the same face.`
+          `Duplicate face detected! This face is already enrolled for worker "${otherWorker.fullName}" (${otherWorker.workerCode})${firmLabel}. Multiple workers in the same firm cannot share the same face.`
         );
       }
     }

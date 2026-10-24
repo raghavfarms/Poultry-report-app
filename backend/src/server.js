@@ -14,33 +14,14 @@ async function start() {
   // 1. Convert all old labour accounts to 'user'
   await User.updateMany({ role: 'labour' }, { $set: { role: 'user' } }).catch(() => {});
 
-  // 2. Ensure Sudheer account is active and converted to 'user' with correct password
+  // 2. Permanently remove legacy / test 'Sudheer' user account
   try {
-    const firms = await Firm.find({ active: true }).select('_id').lean();
-    const firmIds = firms.map((f) => f._id);
-    const existingSudheer = await User.findOne({ email: 'sudheer@gmail.com' });
-    const passwordHash = await bcrypt.hash('Sudheer@1234', 12);
-
-    if (existingSudheer) {
-      existingSudheer.role = 'user';
-      existingSudheer.active = true;
-      existingSudheer.passwordHash = passwordHash;
-      if (!existingSudheer.firms || existingSudheer.firms.length === 0) {
-        existingSudheer.firms = firmIds;
-      }
-      await existingSudheer.save();
-    } else if (firmIds.length > 0) {
-      await User.create({
-        name: 'Sudheer',
-        email: 'sudheer@gmail.com',
-        passwordHash,
-        role: 'user',
-        firms: firmIds,
-        active: true,
-      });
+    const deletedSudheer = await User.deleteMany({ email: 'sudheer@gmail.com' });
+    if (deletedSudheer.deletedCount > 0) {
+      console.log(`✅ Permanently removed ${deletedSudheer.deletedCount} legacy Sudheer account(s).`);
     }
   } catch (err) {
-    console.error('Sudheer account sync note:', err.message);
+    console.error('Sudheer cleanup note:', err.message);
   }
 
   // 3. Ensure Head Office firm, default designations, and office location exist
@@ -57,10 +38,79 @@ async function start() {
       { upsert: true, new: true, runValidators: true }
     );
 
+    // 3a. Ensure Head Office firm is linked to admin/dev, and default allowedModules/permissions initialized if missing
     await User.updateMany(
       { role: { $in: ['admin', 'developer'] } },
       { $addToSet: { firms: officeFirm._id } }
     );
+
+    // 3b. Sync missing permissions and allowedModules for all existing registered users
+    const allExistingUsers = await User.find({}).lean();
+    for (const u of allExistingUsers) {
+      const needsModules = !u.allowedModules || u.allowedModules.length === 0;
+      const needsPermissions = !u.permissions || u.permissions.attendance_scan === undefined;
+      if (needsModules || needsPermissions) {
+        let defaultModules = ['diesel', 'transport', 'attendance', 'medicine'];
+        let defaultPerms = {
+          attendance_scan: true,
+          attendance_report: false,
+          worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
+          attendance_admin_master: false,
+        };
+
+        if (['admin', 'developer'].includes(u.role)) {
+          defaultModules = ['diesel', 'transport', 'attendance', 'medicine'];
+          defaultPerms = {
+            attendance_scan: true,
+            attendance_report: true,
+            worker_master: true,
+            attendance_edit: true,
+            asset_master: true,
+            transport_master: true,
+            medicine_master: true,
+            attendance_admin_master: true,
+          };
+        } else if (u.role === 'security') {
+          defaultModules = ['attendance'];
+          defaultPerms = {
+            attendance_scan: true,
+            attendance_report: false,
+            worker_master: false,
+            attendance_edit: false,
+            asset_master: false,
+            transport_master: false,
+            medicine_master: false,
+            attendance_admin_master: false,
+          };
+        } else if (['office', 'farm_incharge', 'supervisor'].includes(u.role)) {
+          defaultModules = ['diesel', 'transport', 'attendance', 'medicine'];
+          defaultPerms = {
+            attendance_scan: true,
+            attendance_report: true,
+            worker_master: true,
+            attendance_edit: false,
+            asset_master: false,
+            transport_master: false,
+            medicine_master: false,
+            attendance_admin_master: false,
+          };
+        }
+
+        await User.updateOne(
+          { _id: u._id },
+          {
+            $set: {
+              ...(needsModules ? { allowedModules: defaultModules } : {}),
+              ...(needsPermissions ? { permissions: defaultPerms } : {}),
+            },
+          }
+        );
+      }
+    }
 
     const adminUser = await User.findOne({ role: { $in: ['developer', 'admin'] } }).lean();
     const Designation = (await import('./attendance/models/Designation.js')).default;
@@ -126,7 +176,135 @@ async function start() {
     console.error('Supervisor sync note:', err.message);
   }
 
-  // 5. Remove test / legacy 'Apex Vet Pharma' supplier
+  // 5. Ensure Default Roles exist
+  try {
+    const Role = (await import('./models/Role.js')).default;
+    const defaultRoles = [
+      {
+        name: 'Administrator',
+        code: 'admin',
+        description: 'Full system administration, user management, and firm configuration',
+        allowedModules: ['diesel', 'transport', 'attendance', 'medicine'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_edit: true,
+          asset_master: true,
+          transport_master: true,
+          medicine_master: true,
+          attendance_admin_master: true,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Developer',
+        code: 'developer',
+        description: 'System developer with unrestricted access and debugging tools',
+        allowedModules: ['diesel', 'transport', 'attendance', 'medicine'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_edit: true,
+          asset_master: true,
+          transport_master: true,
+          medicine_master: true,
+          attendance_admin_master: true,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Head Office',
+        code: 'office',
+        description: 'Office staff with full report & operational visibility',
+        allowedModules: ['diesel', 'transport', 'attendance', 'medicine'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Farm Incharge',
+        code: 'farm_incharge',
+        description: 'Farm Incharge with attendance registers and worker master',
+        allowedModules: ['attendance', 'medicine'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Supervisor',
+        code: 'supervisor',
+        description: 'Farm supervisor for attendance and worker enrolment',
+        allowedModules: ['attendance', 'medicine'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: true,
+          worker_master: true,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+      {
+        name: 'Security',
+        code: 'security',
+        description: 'Gate security personnel for face attendance scanning only',
+        allowedModules: ['attendance'],
+        permissions: {
+          attendance_scan: true,
+          attendance_report: false,
+          worker_master: false,
+          attendance_edit: false,
+          asset_master: false,
+          transport_master: false,
+          medicine_master: false,
+          attendance_admin_master: false,
+        },
+        isSystem: true,
+      },
+    ];
+
+    for (const r of defaultRoles) {
+      await Role.findOneAndUpdate(
+        { code: r.code },
+        {
+          $setOnInsert: r,
+          ...(['admin', 'developer'].includes(r.code)
+            ? {
+                $addToSet: { allowedModules: 'medicine' },
+                $set: { 'permissions.medicine_master': true },
+              }
+            : {}),
+        },
+        { upsert: true, new: true }
+      );
+    }
+    console.log('✅ Default roles verified (Head Office, Farm Incharge, Supervisor, Security).');
+  } catch (err) {
+    console.error('Role auto-seed note:', err.message);
+  }
+
+  // 6. Remove test / legacy 'Apex Vet Pharma' supplier
   try {
     const Supplier = (await import('./medicine/models/Supplier.js')).default;
     const deleted = await Supplier.deleteMany({ name: /apex/i });

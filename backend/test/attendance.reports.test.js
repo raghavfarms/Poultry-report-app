@@ -192,7 +192,7 @@ test('monthly attendance displays dash before joining date and A/P/HD/OD after j
       } else if (isOpen || dayMinutes >= 475) {
         days[dayStr] = 'P';
         presentDays += 1;
-      } else if (dayMinutes >= 240) {
+      } else if (dayMinutes >= 235) {
         days[dayStr] = 'HD';
         presentDays += 0.5;
         absentDays += 0.5;

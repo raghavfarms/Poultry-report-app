@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi } from '../api/reportApi.js';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import { exportReportToPdf } from '../../utils/exportPdf.js';
+import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
+import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
+import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import DailyMedicineActionPage from './DailyMedicineActionPage.jsx';
@@ -9,6 +14,130 @@ import MedicineBarcodeScannerModal from '../components/MedicineBarcodeScannerMod
 import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 import MedicineTransferInboxModal from '../components/MedicineTransferInboxModal.jsx';
 import { fetchPendingTransfers } from '../api/transferApi.js';
+
+function BatchActionMenu({
+  batch,
+  onTrace,
+  onEdit,
+  onDelete,
+  onDispose,
+  canDispose,
+  canEdit = true,
+  canDelete = false,
+  align = 'right',
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutsideClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const isExpired = batch?.urgency === 'EXPIRED';
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      {/* 3-Dots Button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        className={`w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer border ${
+          isOpen ? 'bg-slate-100 border-slate-300 text-slate-900 shadow-2xs' : 'border-slate-200/80 bg-white hover:border-slate-300'
+        }`}
+        title="Batch Actions"
+      >
+        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="12" cy="19" r="2" />
+        </svg>
+      </button>
+
+      {/* Floating Action Menu */}
+      {isOpen && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={`absolute ${
+            align === 'right' ? 'right-0' : 'left-0'
+          } mt-1 w-36 sm:w-40 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-50 text-left animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100`}
+        >
+          <div className="py-1">
+            {onTrace && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onTrace(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-700 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>🔍</span> Trace Batch
+              </button>
+            )}
+
+            {canEdit && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onEdit(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-amber-700 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>✏️</span> Edit Batch
+              </button>
+            )}
+
+            {isExpired && canDispose && onDispose && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onDispose(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>🗑️</span> Dispose Stock
+              </button>
+            )}
+          </div>
+
+          {canDelete && onDelete && (
+            <div className="py-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onDelete(batch);
+                }}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer transition"
+              >
+                <span>🗑️</span> Delete Batch
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 class DailyActionErrorBoundary extends React.Component {
   constructor(props) {
@@ -42,6 +171,7 @@ class DailyActionErrorBoundary extends React.Component {
 }
 
 export default function MedicineReportPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   // Active Tab: 1. Daily In/Out (Default) | 2. Current Stock | 3. Consumption Register | 4. Traceability
@@ -59,6 +189,9 @@ export default function MedicineReportPage() {
   const [disposing, setDisposing] = useState('');
   const [disposeError, setDisposeError] = useState('');
   const [expandedMeds, setExpandedMeds] = useState({});
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const stockTableRef = useRef(null);
   const canDispose = ['admin', 'developer'].includes(user?.role);
   const canEditBatch = ['admin', 'developer'].includes(user?.role);
   const canAccessTraceAndAction = ['admin', 'developer'].includes(user?.role);
@@ -77,7 +210,7 @@ export default function MedicineReportPage() {
     } catch (err) {
       console.error('Failed to load pending transfers:', err);
     }
-  };
+  };    
 
   const incomingTransferCount = React.useMemo(() => {
     if (!selectedFarm) return pendingTransfers.length;
@@ -108,19 +241,184 @@ export default function MedicineReportPage() {
 
   // Edit Batch Modal State
   const [editingBatch, setEditingBatch] = useState(null);
+  const [editMedicineId, setEditMedicineId] = useState('');
   const [editBatchNumber, setEditBatchNumber] = useState('');
   const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editQuantity, setEditQuantity] = useState('');
+  const [editPacks, setEditPacks] = useState('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingBatch, setSavingBatch] = useState(false);
   const [editBatchError, setEditBatchError] = useState('');
+  const [allMedicinesList, setAllMedicinesList] = useState([]);
 
-  const handleOpenEditBatchModal = (batch) => {
+  // Delete Batch Confirmation State
+  const [deletingBatch, setDeletingBatch] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleOpenEditBatchModal = async (batch) => {
     if (!batch) return;
     setEditingBatch(batch);
+    const medId = batch.medicineId || batch.medicine?._id || '';
+    setEditMedicineId(medId);
     setEditBatchNumber(batch.batchNumber || '');
     setEditExpiryDate(batch.expiryDate || '');
+    const qty = batch.quantityAvailable !== undefined ? batch.quantityAvailable : '';
+    setEditQuantity(qty);
     setEditBatchError('');
     setIsEditModalOpen(true);
+
+    let list = allMedicinesList;  
+    if (list.length === 0) {
+      try {
+        const data = await fetchMedicines({ includeInactive: false });
+        list = data.medicines || [];
+        setAllMedicinesList(list);
+      } catch (err) {
+        console.error('Failed to load medicines for edit modal', err);
+      }
+    }
+
+    const med = list.find((m) => String(m._id) === String(medId)) || batch.medicine;
+    const size = Number(med?.packSize) || 1;
+    if (size > 0 && size !== 1 && qty !== '' && !isNaN(qty)) {
+      setEditPacks(Number((Number(qty) / size).toFixed(3)));
+    } else {
+      setEditPacks('');
+    }
+  };
+
+  const handleOpenDeleteBatch = (batch) => {
+    if (!batch) return;
+    setDeletingBatch(batch);
+    setDeleteError('');
+  };
+
+  // Export Current Live Stock to Excel (.xlsx)
+  const handleExportExcel = async () => {
+    if (exportingExcel || filteredMedicines.length === 0) return;
+    try {
+      setExportingExcel(true);
+
+      const excelRows = [];
+      let sNo = 1;
+
+      filteredMedicines.forEach((m) => {
+        const size = Number(m.packSize) || 1;
+        const type = m.packagingType || 'Bottle';
+        const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+        const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+        const typeLabel = getPackagingPlural(type, displayCount);
+        const packagingStr = `${displayCount} ${typeLabel} (1 ${type} = ${size} ${formatUnit(m.unit)})`;
+
+        const batchNumbers = m.batches.map((b) => b.batchNumber).join(', ');
+        const earliestExpiry = formatExpiryDDMMYYYY(m.earliestBatch?.expiryDate);
+        const daysLeft = m.earliestBatch?.daysLeft;
+        let shelfStatusText = 'Safe';
+        if (m.urgency === 'EXPIRED') shelfStatusText = `Expired (${Math.abs(daysLeft ?? 0)}d ago)`;
+        else if (['CRITICAL', 'CAUTION', 'WARNING'].includes(m.urgency)) shelfStatusText = `Soon (${daysLeft ?? 0}d left)`;
+        else if (daysLeft !== null && daysLeft !== undefined) shelfStatusText = `Safe (${daysLeft}d left)`;
+
+        excelRows.push({
+          'S.No': sNo++,
+          'Medicine Name': m.medicineName || 'Medicine',
+          'Alias': m.medicineAlias || '—',
+          'Code': m.medicineCode || '—',
+          'Farm': m.farm?.name || 'All Farms',
+          'Packaging': packagingStr,
+          'Total In Stock': m.totalStock,
+          'Unit': formatUnit(m.unit),
+          'Batch Count': m.batches.length,
+          'Batch No(s)': batchNumbers || '—',
+          'Next Expiry': earliestExpiry,
+          'Days Left': daysLeft ?? '—',
+          'Shelf Status': shelfStatusText,
+          'Stock Status': m.isLowStock ? 'Low Stock' : 'Normal',
+        });
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(excelRows);
+      worksheet['!cols'] = [
+        { wch: 6 },   // S.No
+        { wch: 24 },  // Medicine Name
+        { wch: 14 },  // Alias
+        { wch: 12 },  // Code
+        { wch: 14 },  // Farm
+        { wch: 26 },  // Packaging
+        { wch: 14 },  // Total Stock
+        { wch: 10 },  // Unit
+        { wch: 12 },  // Batch Count
+        { wch: 22 },  // Batch No(s)
+        { wch: 14 },  // Next Expiry
+        { wch: 12 },  // Days Left
+        { wch: 20 },  // Shelf Status
+        { wch: 14 },  // Stock Status
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Live Stock');
+
+      const farmObj = firms.find((f) => f._id === selectedFarm);
+      const farmName = (farmObj?.name || 'All_Farms').replace(/\s+/g, '_');
+      const today = new Date();
+      const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+      const filename = `Medicine_Stock_Report_${farmName}_${dateStr}.xlsx`;
+
+      XLSX.writeFile(workbook, filename);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      alert('Failed to generate Excel file. Please try again.');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // Export Current Live Stock to PDF (.pdf)
+  const handleExportPdf = async () => {
+    if (exportingPdf || !stockTableRef.current || filteredMedicines.length === 0) return;
+    try {
+      setExportingPdf(true);
+      const farmObj = firms.find((f) => f._id === selectedFarm);
+      const farmName = (farmObj?.name || 'All_Farms').replace(/\s+/g, '_');
+      const today = new Date();
+      const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+      const filename = `Medicine_Stock_Report_${farmName}_${dateStr}.pdf`;
+
+      await exportReportToPdf(stockTableRef.current, {
+        filename,
+        orientation: 'landscape',
+        format: 'a4',
+        margin: 6,
+      });
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleTraceBatch = (batch) => {
+    if (!batch) return;
+    navigate(`/admin/medicine/master?tab=trace&batch=${encodeURIComponent(batch.batchNumber)}`);
+  };
+
+  const handleConfirmDeleteBatch = async () => {
+    if (!deletingBatch?._id) return;
+    try {
+      setDeleting(true);
+      setDeleteError('');
+      await deleteBatchApi(deletingBatch._id);
+      await loadStats();
+      if (activeTab === 'traceability') {
+        setTraceData(null);
+      }
+      setDeletingBatch(null);
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete batch.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const disposeStock = async (batch) => {
@@ -163,10 +461,12 @@ export default function MedicineReportPage() {
     }
   };
 
-  // Load Stock & Expiry stats
-  const loadStats = async () => {
+  // Load Stock & Expiry stats with background refresh
+  const loadStats = async (silent = false) => {
     try {
-      setLoadingStats(true);
+      if (!silent && !stats?.expiryRadar) {
+        setLoadingStats(true);
+      }
       const data = await fetchDashboardStats({ farm: selectedFarm });
       setStats(data);
     } catch (err) {
@@ -175,9 +475,11 @@ export default function MedicineReportPage() {
       setLoadingStats(false);
     }
   };
-
+   
   useEffect(() => {
     loadFirms();
+    // Proactively pre-load stock stats so Stock tab is instant
+    loadStats(true);
   }, []);
 
   useEffect(() => {
@@ -189,7 +491,7 @@ export default function MedicineReportPage() {
   useEffect(() => {
     if (activeTab === 'stock') {
       setStockFilter('ALL');
-      loadStats();
+      loadStats(Boolean(stats?.expiryRadar));
     } else if (activeTab === 'traceability' && searchBatch.trim()) {
       handleTraceSearch(null, searchBatch);
     }
@@ -244,8 +546,10 @@ export default function MedicineReportPage() {
       setSavingBatch(true);
       setEditBatchError('');
       await updateBatchApi(editingBatch._id, {
+        medicineId: editMedicineId || undefined,
         batchNumber: trimmedBatch,
         expiryDate: editExpiryDate,
+        quantityAvailable: editQuantity !== '' ? Number(editQuantity) : undefined,
       });
 
       // Refresh traceability if open
@@ -269,21 +573,26 @@ export default function MedicineReportPage() {
   const lowStock = stats?.lowStockAlerts || [];
 
   // Flatten all available batches for live stock view, strictly sorted by earliest expiry date first (FEFO)
-  const allBatches = [
-    ...(radar.expired || []).map((b) => ({ ...b, urgency: 'EXPIRED' })),
-    ...(radar.critical30 || []).map((b) => ({ ...b, urgency: 'CRITICAL' })),
-    ...(radar.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
-    ...(radar.warning90 || []).map((b) => ({ ...b, urgency: 'WARNING' })),
-    ...(radar.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
-  ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  const allBatches = React.useMemo(() => {
+    const radarObj = stats?.expiryRadar || {};
+    return [
+      ...(radarObj.expired || []).map((b) => ({ ...b, urgency: 'EXPIRED' })),
+      ...(radarObj.critical30 || []).map((b) => ({ ...b, urgency: 'CRITICAL' })),
+      ...(radarObj.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
+      ...(radarObj.warning90 || []).map((b) => ({ ...b, urgency: 'WARNING' })),
+      ...(radarObj.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
+    ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
+  }, [stats]);
 
-  // Group batches by unique Medicine
+  // Group batches by unique Medicine + Farm (Strictly unmerged across farms)
   const groupedMedicines = React.useMemo(() => {
     const map = new Map();
 
     for (const b of allBatches) {
-      const key = (b.medicineId || b.medicineName || '').toString();
-      if (!key) continue;
+      const medId = (b.medicineId || b.medicineName || '').toString();
+      if (!medId) continue;
+      const farmId = b.farm?._id ? String(b.farm._id) : (b.farm?.name || 'farm');
+      const key = `${medId}_${farmId}`;
 
       if (!map.has(key)) {
         map.set(key, {
@@ -293,20 +602,28 @@ export default function MedicineReportPage() {
           medicineCode: b.medicineCode,
           medicineAlias: b.medicineAlias,
           unit: b.unit,
+          packSize: b.packSize || 1,
+          packagingType: b.packagingType || 'Bottle',
           reorderLevel: b.reorderLevel,
           totalStock: 0,
           batches: [],
-          farmsMap: new Map(),
+          farm: b.farm,
           urgency: 'SAFE',
           isLowStock: false,
         });
       }
 
       const entry = map.get(key);
+      if (b.packSize && Number(b.packSize) > 0) {
+        entry.packSize = Number(b.packSize);
+      }
+      if (b.packagingType) {
+        entry.packagingType = b.packagingType;
+      }
       entry.totalStock += Number(b.quantityAvailable || 0);
       entry.batches.push(b);
-      if (b.farm?.name) {
-        entry.farmsMap.set(b.farm._id || b.farm.name, b.farm);
+      if (!entry.farm && b.farm) {
+        entry.farm = b.farm;
       }
       if (b.isLowStock) entry.isLowStock = true;
     }
@@ -331,24 +648,25 @@ export default function MedicineReportPage() {
         }
       }
       entry.urgency = highestUrgency;
-      entry.farmList = Array.from(entry.farmsMap.values());
       return entry;
     });
 
-    // Sort medicines: earliest expiring first (FEFO)
+    // Sort medicines alphabetically (A to Z), then by farm
     list.sort((a, b) => {
-      const dateA = a.earliestBatch ? new Date(a.earliestBatch.expiryDate) : new Date(9999, 0, 1);
-      const dateB = b.earliestBatch ? new Date(b.earliestBatch.expiryDate) : new Date(9999, 0, 1);
-      return dateA - dateB;
+      const nameCompare = (a.medicineName || '').localeCompare(b.medicineName || '', undefined, { sensitivity: 'base' });
+      if (nameCompare !== 0) return nameCompare;
+      return (a.farm?.name || '').localeCompare(b.farm?.name || '', undefined, { sensitivity: 'base' });
     });
 
     return list;
   }, [allBatches]);
 
-  // Filtered grouped medicines
-  const isStockSearchPureNumber = /^\d+$/.test(stockSearch.trim());
+  // Use deferred value for search to guarantee smooth 60fps typing on mobile keyboards
+  const deferredStockSearch = React.useDeferredValue(stockSearch);
+  const isStockSearchPureNumber = /^\d+$/.test(deferredStockSearch.trim());
+
   const filteredMedicines = React.useMemo(() => {
-    const q = stockSearch.trim().toLowerCase();
+    const q = deferredStockSearch.trim().toLowerCase();
 
     return groupedMedicines.filter((m) => {
       // 1. Search match on Medicine Name, Code, Alias, or ANY child batch number
@@ -357,6 +675,7 @@ export default function MedicineReportPage() {
         m.medicineName?.toLowerCase().includes(q) ||
         (!isStockSearchPureNumber && m.medicineCode?.toLowerCase().includes(q)) ||
         m.medicineAlias?.toLowerCase().includes(q) ||
+        m.farm?.name?.toLowerCase().includes(q) ||
         m.batches.some((b) => b.batchNumber?.toLowerCase().includes(q));
 
       if (!matchesSearch) return false;
@@ -368,19 +687,19 @@ export default function MedicineReportPage() {
       if (stockFilter === 'LOW') return Boolean(m.isLowStock);
       return true;
     });
-  }, [groupedMedicines, stockSearch, isStockSearchPureNumber, stockFilter]);
+  }, [groupedMedicines, deferredStockSearch, isStockSearchPureNumber, stockFilter]);
 
-  // Auto-expand medicines matching search
+  // Only auto-expand when search query is typed (does NOT wipe expandedMeds on manual click)
   useEffect(() => {
-    const q = stockSearch.trim();
-    if (q) {
+    const q = deferredStockSearch.trim();
+    if (q.length >= 2) {
       const autoExpand = {};
       filteredMedicines.forEach((m) => {
         autoExpand[m.key] = true;
       });
       setExpandedMeds(autoExpand);
     }
-  }, [stockSearch, filteredMedicines]);
+  }, [deferredStockSearch]);
 
   const toggleExpand = (key) => {
     setExpandedMeds((prev) => ({
@@ -405,38 +724,53 @@ export default function MedicineReportPage() {
     }
   };
 
-  const renderShelfBadge = (urgency, daysLeft, isCompact = false) => {
+  const formatExpiryDDMMYYYY = (dateStr) => {
+    if (!dateStr || dateStr === '—') return '—';
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      return `${match[3]}-${match[2]}-${match[1]}`;
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const renderShelfBadge = (urgency, daysLeft) => {
+    const hasDays = daysLeft !== null && daysLeft !== undefined && !isNaN(daysLeft);
     if (urgency === 'EXPIRED') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1 shrink-0">
-          🔴 {isCompact ? 'Expired' : `Expired (${Math.abs(daysLeft)}d ago)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
+          🔴 {hasDays ? `Expired (${Math.abs(daysLeft)}d ago)` : 'Expired'}
         </span>
       );
     }
     if (urgency === 'CRITICAL') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1 shrink-0" title="Expires within 1 month">
-          🔴 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-red-100 text-red-900 border border-red-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Expires within 1 month">
+          🔴 {hasDays ? `${daysLeft}d left` : 'Use Soon'}
         </span>
       );
     }
     if (urgency === 'CAUTION') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1 shrink-0" title="Expires within 2 months">
-          🟠 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-orange-100 text-orange-900 border border-orange-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Expires within 2 months">
+          🟠 {hasDays ? `${daysLeft}d left` : 'Use Soon'}
         </span>
       );
     }
     if (urgency === 'WARNING') {
       return (
-        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 shrink-0" title="Expires within 3 months">
-          🟡 {isCompact ? `${daysLeft}d left` : `Use Soon (${daysLeft}d left)`}
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Expires within 3 months">
+          🟡 {hasDays ? `${daysLeft}d left` : 'Use Soon'}
         </span>
       );
     }
     return (
-      <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1 shrink-0" title="Safe (> 3 months)">
-        🟢 {isCompact ? 'Safe' : `Safe (${daysLeft}d left)`}
+      <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="Safe (> 3 months)">
+        🟢 {hasDays ? `${daysLeft}d left` : 'Safe'}
       </span>
     );
   };
@@ -444,7 +778,7 @@ export default function MedicineReportPage() {
   const isAdmin = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user?.role);
 
   return (
-    <div className="space-y-1.5 sm:space-y-3 w-full max-w-5xl mx-auto px-0 sm:px-2 pb-8">
+    <div className="space-y-1.5 sm:space-y-2.5 w-full max-w-7xl mx-auto px-1 sm:px-2 pb-2">
       {/* 1. Header & Navigation Tabs */}
       <div className="bg-white p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs space-y-1.5 sm:space-y-2">
         <div className="flex flex-row items-center justify-between gap-1.5">
@@ -456,7 +790,7 @@ export default function MedicineReportPage() {
               </h1>
             </div>
             <p className="hidden sm:block text-[10px] sm:text-[11px] text-slate-500">
-              Daily fast In/Out, live stock & batch trace
+              Daily fast In/Out & live stock
             </p>
           </div>
 
@@ -628,6 +962,10 @@ export default function MedicineReportPage() {
             <div className="relative flex-1">
               <input
                 type="text"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
                 value={stockSearch}
                 onChange={(e) => setStockSearch(e.target.value)}
                 placeholder="Search medicine name, code, or batch..."
@@ -707,18 +1045,29 @@ export default function MedicineReportPage() {
                 )}
               </div>
 
-              {filteredMedicines.length > 0 && (
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  onClick={toggleAllExpand}
-                  className="text-[10px] sm:text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer shrink-0 inline-flex items-center gap-1 whitespace-nowrap"
-                  title={isAllExpanded ? 'Collapse all medicine batches' : 'Expand all medicine batches'}
+                  disabled={exportingExcel || filteredMedicines.length === 0}
+                  onClick={handleExportExcel}
+                  className="text-[10px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                  title="Download Excel Sheet (.xlsx)"
                 >
-                  <span className="text-[9px]">{isAllExpanded ? '▲' : '▼'}</span>
-                  <span className="hidden sm:inline">{isAllExpanded ? 'Collapse All' : 'Expand All'}</span>
-                  <span className="sm:hidden">{isAllExpanded ? 'Collapse' : 'Expand'}</span>
+                  <span>📊</span>
+                  <span>{exportingExcel ? 'Exporting...' : 'Excel'}</span>
                 </button>
-              )}
+
+                <button
+                  type="button"
+                  disabled={exportingPdf || filteredMedicines.length === 0}
+                  onClick={handleExportPdf}
+                  className="text-[10px] sm:text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-300 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-2xs disabled:opacity-50 whitespace-nowrap"
+                  title="Download PDF Document (.pdf)"
+                >
+                  <span>📄</span>
+                  <span>{exportingPdf ? 'Exporting...' : 'PDF'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -754,9 +1103,22 @@ export default function MedicineReportPage() {
             </div>
           )}
 
-          {/* Batches Stock List (Grouped by Medicine with Accordion Drawer) */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            {loadingStats ? (
+          {/* Batches Stock List (Unified Desktop & Mobile with Steady Medicine Name & Sticky Header) */}
+          <div ref={stockTableRef} className="report-export-content bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+            {/* Header visible in PDF export */}
+            <div className="hidden pdf-print-header p-3 bg-slate-50 border-b border-slate-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-bold text-slate-800">
+                    Medicine Live Stock Report — {firms.find((f) => f._id === selectedFarm)?.name || 'All Farms'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Total: {filteredMedicines.length} medicines | Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+            </div>
+            {loadingStats && !stats?.expiryRadar ? (
               <div className="p-12 text-center text-slate-400 text-xs">Loading current stock...</div>
             ) : filteredMedicines.length === 0 ? (
               <div className="p-12 text-center text-slate-400 text-xs space-y-1">
@@ -764,802 +1126,481 @@ export default function MedicineReportPage() {
                 <p className="text-[11px] text-slate-400">Try changing your search query or click "All" above.</p>
               </div>
             ) : (
-              <>
-                {/* Desktop Table View */}
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 px-4 min-w-[240px]">Medicine Name</th>
-                        <th className="py-3 px-4 text-center">Batches</th>
-                        <th className="py-3 px-4 text-right">Total In Stock</th>
-                        <th className="py-3 px-4 text-center">Next Expiry</th>
-                        <th className="py-3 px-4 text-center">Shelf Status (FEFO)</th>
-                        <th className="py-3 px-4 text-center min-w-[130px]">Batches Breakdown</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 bg-white">
-                      {filteredMedicines.map((m) => {
-                        const isExpanded = Boolean(expandedMeds[m.key]);
-                        const isExpired = m.urgency === 'EXPIRED';
-                        const isCritical = m.urgency === 'CRITICAL';
-                        const isCaution = m.urgency === 'CAUTION';
-                        const isWarning = m.urgency === 'WARNING';
+              <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-135px)] min-h-[460px] relative">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-30 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
+                    <tr>
+                      {/* 1. Medicine & Farm */}
+                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-2.5 w-[155px] sm:w-[195px] min-w-[155px] sm:min-w-[195px] max-w-[170px] sm:max-w-[210px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        Medicine & Farm
+                      </th>
+                      {/* 2. Packaging (Packs) */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[130px]">
+                        Packaging (Packs)
+                      </th>
+                      {/* 3. Total In Stock */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-right border-b border-slate-200 whitespace-nowrap min-w-[100px]">
+                        Total In Stock
+                      </th>
+                      {/* 4. Batch No */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[90px]">
+                        Batch No
+                      </th>
+                      {/* 5. Next Expiry */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[105px]">
+                        Next Expiry
+                      </th>
+                      {/* 6. Shelf Status (FEFO) */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[100px]">
+                        Shelf Status (FEFO)
+                      </th>
+                      {/* 7. Actions */}
+                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center min-w-[65px] border-b border-slate-200 whitespace-nowrap">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {filteredMedicines.map((m) => {
+                      const isMultiBatch = m.batches.length > 1;
+                      const isExpanded = isMultiBatch && Boolean(expandedMeds[m.key]);
+                      const singleBatch = !isMultiBatch ? m.batches[0] : null;
+                      const isExpired = m.urgency === 'EXPIRED';
+                      const isCritical = m.urgency === 'CRITICAL';
+                      const isCaution = m.urgency === 'CAUTION';
+                      const isWarning = m.urgency === 'WARNING';
 
-                        return (
-                          <React.Fragment key={m.key}>
-                            {/* Parent Medicine Row */}
-                            <tr
-                              onClick={() => toggleExpand(m.key)}
-                              className={`cursor-pointer transition-colors select-none ${
-                                isExpanded
-                                  ? 'bg-blue-50/40 hover:bg-blue-50/60 font-medium'
-                                  : isExpired
-                                  ? 'bg-rose-50/40 hover:bg-rose-50/60'
-                                  : isCritical
-                                  ? 'bg-rose-50/20 hover:bg-rose-50/40'
-                                  : isCaution
-                                  ? 'bg-orange-50/20 hover:bg-orange-50/40'
-                                  : isWarning
-                                  ? 'bg-amber-50/15 hover:bg-amber-50/35'
-                                  : 'hover:bg-slate-50/80'
-                              }`}
+                      const isSoon = isCritical || isCaution || isWarning;
+
+                      const rowBgClass = isExpanded
+                        ? 'bg-blue-50 hover:bg-blue-100/70'
+                        : isExpired
+                        ? 'bg-rose-50 hover:bg-rose-100/80'
+                        : isSoon
+                        ? 'bg-amber-50 hover:bg-amber-100/80'
+                        : 'bg-white hover:bg-slate-50';
+
+                      const stickyCellBgClass = isExpanded
+                        ? 'bg-blue-50 group-hover:bg-blue-100/70'
+                        : isExpired
+                        ? 'bg-rose-50 group-hover:bg-rose-100/80'
+                        : isSoon
+                        ? 'bg-amber-50 group-hover:bg-amber-100/80'
+                        : 'bg-white group-hover:bg-slate-50';
+
+                      return (
+                        <React.Fragment key={m.key}>
+                          {/* Parent Medicine Row */}
+                          <tr
+                            onClick={() => {
+                              if (isMultiBatch) toggleExpand(m.key);
+                            }}
+                            className={`group transition-colors select-none ${
+                              isMultiBatch ? 'cursor-pointer' : ''
+                            } ${rowBgClass}`}
+                          >
+                            {/* Column 1: Medicine Name & Farm Meta (STEADY / FROZEN STICKY LEFT) */}
+                            <td
+                              className={`sticky left-0 z-20 py-2 px-2.5 w-[155px] sm:w-[195px] min-w-[155px] sm:min-w-[195px] max-w-[170px] sm:max-w-[210px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${stickyCellBgClass}`}
                             >
-                              {/* Column 1: Medicine Name & Meta */}
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1.5">
+                                {isMultiBatch ? (
                                   <span
-                                    className={`text-xs font-black transition-transform duration-200 ${
+                                    className={`text-[10px] font-black transition-transform duration-200 shrink-0 ${
                                       isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
                                     }`}
                                   >
                                     ▶
                                   </span>
-                                  <div>
-                                    <div className="font-bold text-slate-900 text-sm hover:text-blue-700 transition">
-                                      {m.medicineName}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
-                                      {m.farmList?.map((farm) => (
-                                        <span
-                                          key={farm._id || farm.name}
-                                          className="font-bold text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200"
-                                        >
-                                          🏢 {farm.name}
-                                        </span>
-                                      ))}
-                                      {m.medicineAlias && (
-                                        <span className="font-medium text-slate-600">({m.medicineAlias})</span>
-                                      )}
-                                      {m.medicineCode && (
-                                        <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
-                                          {m.medicineCode}
-                                        </span>
-                                      )}
-                                    </div>
+                                ) : (
+                                  <span className="w-2 shrink-0 text-slate-300 text-center text-[10px]">•</span>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div
+                                    className="font-bold text-slate-900 text-xs hover:text-blue-700 transition leading-snug break-words"
+                                    title={m.medicineName + (m.medicineAlias ? ` (${m.medicineAlias})` : '')}
+                                  >
+                                    {m.medicineName}
+                                    {m.medicineAlias && (
+                                      <span className="font-normal text-slate-500 ml-1 text-[10.5px]">
+                                        ({m.medicineAlias})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500 flex-wrap">
+                                    {m.farm?.name && (
+                                      <span
+                                        className="font-bold text-[8.5px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200 shrink-0"
+                                        title={m.farm.name}
+                                      >
+                                        🏢 {m.farm.name}
+                                      </span>
+                                    )}
+                                    {m.medicineCode && (
+                                      <span className="font-mono text-[8.5px] bg-slate-50 text-slate-500 px-1 py-0.2 rounded border border-slate-200 shrink-0">
+                                        {m.medicineCode}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
-                              </td>
+                              </div>
+                            </td>
 
-                              {/* Column 2: Batches Count Badge */}
-                              <td className="py-3.5 px-4 text-center">
+                            {/* Column 2: Packaging & Physical Packs (Pack size) */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[130px]">
+                              {(() => {
+                                const size = Number(m.packSize) || 1;
+                                const type = m.packagingType || 'Bottle';
+                                const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+                                const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                const typeLabel = getPackagingPlural(type, displayCount);
+
+                                return (
+                                  <div className="inline-flex flex-col items-center">
+                                    <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                      📦 {displayCount} {typeLabel}
+                                    </span>
+                                    <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                      1 {type} = {size} {formatUnit(m.unit)}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+
+                            {/* Column 3: Total In Stock (Total) */}
+                            <td className="py-2 px-3 text-right whitespace-nowrap min-w-[100px]">
+                              <div className="flex items-center justify-end gap-1">
+                                {m.isLowStock && (
+                                  <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-300">
+                                    ⚠️ Low
+                                  </span>
+                                )}
                                 <span
-                                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border inline-flex items-center gap-1.5 transition ${
-                                    isExpanded
-                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                  className={`font-black text-xs ${
+                                    m.isLowStock ? 'text-rose-700' : 'text-slate-900'
                                   }`}
                                 >
-                                  <span>📦</span>
-                                  <span>
-                                    {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
-                                  </span>
-                                  <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
-                                </span>
-                              </td>
+                                  {m.totalStock}
+                                </span>{' '}
+                                <span className="text-[10px] text-slate-500 font-semibold">{formatUnit(m.unit)}</span>
+                              </div>
+                            </td>
 
-                              {/* Column 3: Total Stock */}
-                              <td className="py-3.5 px-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  {m.isLowStock && (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-300">
-                                      ⚠️ Low {m.reorderLevel ? `(< ${m.reorderLevel})` : ''}
-                                    </span>
-                                  )}
-                                  <span
-                                    className={`font-black text-sm ${
-                                      m.isLowStock ? 'text-rose-700' : 'text-slate-900'
-                                    }`}
-                                  >
-                                    {m.totalStock}
-                                  </span>{' '}
-                                  <span className="text-[11px] text-slate-500 font-semibold">{m.unit}</span>
-                                </div>
-                              </td>
-
-                              {/* Column 4: Earliest Expiry Date */}
-                              <td className="py-3.5 px-4 text-center font-mono text-xs font-semibold text-slate-700">
-                                {m.earliestBatch?.expiryDate || '—'}
-                              </td>
-
-                              {/* Column 5: Shelf Status (Earliest FEFO Batch) */}
-                              <td className="py-3.5 px-4 text-center">
-                                {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}
-                              </td>
-
-                              {/* Column 6: Expand Action Button */}
-                              <td className="py-3.5 px-4 text-center">
+                            {/* Column 4: Batch No (Batch no) */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[90px]">
+                              {isMultiBatch ? (
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     toggleExpand(m.key);
                                   }}
-                                  className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1.5 ${
+                                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border inline-flex items-center gap-1 transition cursor-pointer ${
                                     isExpanded
-                                      ? 'bg-blue-50 text-blue-700 border-blue-300 hover:bg-blue-100'
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                  }`}
+                                  title="Click to view all batches"
+                                >
+                                  <span>📦 {m.batches.length} Batches</span>
+                                  <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
+                                </button>
+                              ) : (
+                                <span className="font-mono font-bold text-[11px] text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                  #{singleBatch?.batchNumber || '—'}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Column 5: Earliest Expiry Date (DD-MM-YYYY) */}
+                            <td className="py-2 px-3 text-center font-mono text-[11px] font-semibold text-slate-700 whitespace-nowrap min-w-[105px]">
+                              {formatExpiryDDMMYYYY(m.earliestBatch?.expiryDate)}
+                            </td>
+
+                            {/* Column 6: Shelf Status (FEFO) */}
+                            <td className="py-2 px-3 text-center whitespace-nowrap min-w-[100px]">
+                              {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}
+                            </td>
+
+                            {/* Column 7: Actions */}
+                            <td className="no-print py-2 px-3 text-center whitespace-nowrap min-w-[65px]">
+                              {isMultiBatch ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleExpand(m.key);
+                                  }}
+                                  className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1 ${
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                                       : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
                                   }`}
                                 >
-                                  <span>{isExpanded ? '▲ Hide' : '▼ View'}</span>
-                                  <span className="font-mono text-[11px]">({m.batches.length})</span>
+                                  <span>{isExpanded ? '▲' : '▼'}</span>
+                                  <span className="font-mono text-[10px]">({m.batches.length})</span>
                                 </button>
-                              </td>
-                            </tr>
+                              ) : (
+                                <div className="flex items-center justify-center">
+                                  <BatchActionMenu
+                                    batch={singleBatch}
+                                    onTrace={handleTraceBatch}
+                                    onEdit={handleOpenEditBatchModal}
+                                    onDelete={handleOpenDeleteBatch}
+                                    canEdit={canEditBatch}
+                                    canDelete={isAdmin}
+                                  />
+                                </div>
+                              )}
+                            </td>
+                          </tr>
 
-                            {/* Nested Accordion Drawer for Batches */}
-                            {isExpanded && (
-                              <tr className="bg-slate-50/70 border-y border-blue-200/60">
-                                <td colSpan={6} className="p-3.5 sm:p-4">
-                                  <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-hidden">
-                                    <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-4 py-2.5 border-b border-blue-100 flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-base">📦</span>
-                                        <span className="font-bold text-xs text-slate-800">
-                                          Batches Breakdown for{' '}
-                                          <strong className="text-blue-900">{m.medicineName}</strong>
-                                        </span>
-                                        <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
-                                          Sorted by FEFO (Earliest Expiring First)
-                                        </span>
-                                      </div>
-                                      <span className="text-xs text-slate-500 font-semibold">
-                                        Total: <strong className="text-slate-800">{m.totalStock}</strong> {m.unit} across{' '}
-                                        <strong className="text-blue-700">{m.batches.length}</strong> {m.batches.length === 1 ? 'batch' : 'batches'}
+                          {/* Nested Accordion Drawer for Batches */}
+                          {isExpanded && (
+                            <tr className="bg-slate-50/70 border-y border-blue-200/60">
+                              <td colSpan={7} className="p-2 sm:p-3">
+                                <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-x-auto">
+                                  <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 py-2 border-b border-blue-100 flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-sm">📦</span>
+                                      <span className="font-bold text-xs text-slate-800">
+                                        Batches for <strong className="text-blue-900">{m.medicineName}</strong>
+                                      </span>
+                                      <span className="text-[9px] text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                                        FEFO
                                       </span>
                                     </div>
+                                    <span className="text-[11px] text-slate-500 font-semibold">
+                                      Total: <strong className="text-slate-800">{m.totalStock}</strong> {formatUnit(m.unit)}{(() => {
+                                        const size = Number(m.packSize) || 1;
+                                        const type = m.packagingType || 'Bottle';
+                                        const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
+                                        const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                        return ` (📦 ${displayCount} ${getPackagingPlural(type, displayCount)})`;
+                                      })()} across{' '}
+                                      <strong className="text-blue-700">{m.batches.length}</strong> batches
+                                    </span>
+                                  </div>
 
-                                    {/* Child Batches Table */}
-                                    <table className="w-full text-left text-xs">
-                                      <thead className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
-                                        <tr>
-                                          <th className="py-2.5 px-3">Batch Number</th>
-                                          <th className="py-2.5 px-3">Location / Farm</th>
-                                          <th className="py-2.5 px-3 text-right">In Stock</th>
-                                          <th className="py-2.5 px-3 text-center">Expiry Date</th>
-                                          <th className="py-2.5 px-3 text-center">Shelf Status</th>
-                                          {canAccessTraceAndAction && (
-                                            <th className="py-2.5 px-3 text-center">Actions</th>
-                                          )}
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-slate-100 bg-white">
-                                        {m.batches.map((b) => {
-                                          const bExpired = b.urgency === 'EXPIRED';
-                                          const bCritical = b.urgency === 'CRITICAL';
-                                          const bCaution = b.urgency === 'CAUTION';
-                                          const bWarning = b.urgency === 'WARNING';
+                                  {/* Child Batches Table */}
+                                  <table className="w-full text-left text-xs">
+                                    <thead className="bg-slate-50/80 text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200">
+                                      <tr>
+                                        <th className="py-2 px-3 whitespace-nowrap">Batch Number</th>
+                                        <th className="py-2 px-3 whitespace-nowrap">Location / Farm</th>
+                                        <th className="py-2 px-3 text-center whitespace-nowrap">Packaging (Packs)</th>
+                                        <th className="py-2 px-3 text-right whitespace-nowrap">In Stock</th>
+                                        <th className="py-2 px-3 text-center whitespace-nowrap">Expiry Date</th>
+                                        <th className="py-2 px-3 text-center whitespace-nowrap">Shelf Status</th>
+                                        {canAccessTraceAndAction && (
+                                          <th className="py-2 px-3 text-center whitespace-nowrap min-w-[65px]">Actions</th>
+                                        )}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                      {m.batches.map((b) => {
+                                        const bIsSoon = b.urgency === 'CRITICAL' || b.urgency === 'CAUTION' || b.urgency === 'WARNING';
+                                        const bRowBgClass = b.urgency === 'EXPIRED'
+                                          ? 'bg-rose-50/70 hover:bg-rose-100/60'
+                                          : bIsSoon
+                                          ? 'bg-amber-50/70 hover:bg-amber-100/60'
+                                          : 'hover:bg-blue-50/30';
 
-                                          return (
-                                            <tr
-                                              key={b._id}
-                                              className={`hover:bg-blue-50/30 transition-colors ${
-                                                bExpired
-                                                  ? 'bg-rose-50/40'
-                                                  : bCritical
-                                                  ? 'bg-rose-50/20'
-                                                  : bCaution
-                                                  ? 'bg-orange-50/20'
-                                                  : bWarning
-                                                  ? 'bg-amber-50/15'
-                                                  : ''
-                                              }`}
-                                            >
-                                              {/* Batch Number */}
-                                              <td className="py-2.5 px-3">
-                                                <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 inline-block shadow-2xs">
-                                                  {b.batchNumber}
-                                                </span>
-                                              </td>
+                                        return (
+                                          <tr
+                                            key={b._id}
+                                            className={`${bRowBgClass} transition-colors`}
+                                          >
+                                          {/* Batch Number */}
+                                          <td className="py-2 px-3 whitespace-nowrap">
+                                            <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 inline-block shadow-2xs">
+                                              {b.batchNumber}
+                                            </span>
+                                          </td>
 
-                                              {/* Farm */}
-                                              <td className="py-2.5 px-3">
-                                                {b.farm?.name ? (
-                                                  <span className="font-semibold text-xs text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 inline-block">
-                                                    🏢 {b.farm.name}
+                                          {/* Farm */}
+                                          <td className="py-2 px-3 whitespace-nowrap">
+                                            {b.farm?.name ? (
+                                              <span className="font-semibold text-xs text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 inline-block">
+                                                🏢 {b.farm.name}
+                                              </span>
+                                            ) : (
+                                              <span className="text-slate-400 italic text-[11px]">All / Main</span>
+                                            )}
+                                          </td>
+
+                                          {/* Packaging & Physical Packs */}
+                                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                                            {(() => {
+                                              const size = Number(b.packSize) || Number(m.packSize) || 1;
+                                              const type = b.packagingType || m.packagingType || 'Bottle';
+                                              const qty = Number(b.quantityAvailable) || 0;
+                                              const pCount = size > 0 ? (qty / size) : qty;
+                                              const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
+                                              const typeLabel = getPackagingPlural(type, displayCount);
+
+                                              return (
+                                                <div className="inline-flex flex-col items-center">
+                                                  <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                                    📦 {displayCount} {typeLabel}
                                                   </span>
-                                                ) : (
-                                                  <span className="text-slate-400 italic text-[11px]">All / Main</span>
-                                                )}
-                                              </td>
-
-                                              {/* Stock */}
-                                              <td className="py-2.5 px-3 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                  {b.isLowStock && (
-                                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-200">
-                                                      ⚠️ Low
-                                                    </span>
-                                                  )}
-                                                  <span className="font-black text-xs text-slate-900">
-                                                    {b.quantityAvailable}
-                                                  </span>{' '}
-                                                  <span className="text-[11px] text-slate-500 font-semibold">
-                                                    {b.unit}
+                                                  <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                                    1 {type} = {size} {formatUnit(b.unit || m.unit)}
                                                   </span>
                                                 </div>
-                                              </td>
+                                              );
+                                            })()}
+                                          </td>
 
-                                              {/* Expiry Date */}
-                                              <td className="py-2.5 px-3 text-center font-mono text-xs text-slate-700 font-medium">
-                                                {b.expiryDate}
-                                              </td>
-
-                                              {/* Shelf Status */}
-                                              <td className="py-2.5 px-3 text-center">
-                                                {renderShelfBadge(b.urgency, b.daysLeft)}
-                                              </td>
-
-                                              {/* Actions */}
-                                              {canAccessTraceAndAction && (
-                                                <td className="py-2.5 px-3 text-center">
-                                                  <div className="flex items-center justify-center gap-1.5">
-                                                    {bExpired && canDispose ? (
-                                                      <button
-                                                        type="button"
-                                                        disabled={Boolean(disposing)}
-                                                        onClick={() => disposeStock(b)}
-                                                        className="text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg px-2.5 py-1 transition cursor-pointer"
-                                                      >
-                                                        {disposing === b._id ? 'Disposing...' : 'Dispose'}
-                                                      </button>
-                                                    ) : (
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                          setActiveTab('traceability');
-                                                          setSearchBatch(b.batchNumber);
-                                                          handleTraceSearch(null, b.batchNumber, b._id);
-                                                        }}
-                                                        className="text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1 transition cursor-pointer inline-flex items-center gap-1"
-                                                        title="Trace full batch journey"
-                                                      >
-                                                        <span>🔍</span> Trace
-                                                      </button>
-                                                    )}
-                                                    {canEditBatch && (
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => handleOpenEditBatchModal(b)}
-                                                        className="text-xs font-bold text-slate-700 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg px-2 py-1 transition cursor-pointer inline-flex items-center"
-                                                        title="Edit Batch Number or Expiry Date (Admin/Developer)"
-                                                      >
-                                                        ✏️
-                                                      </button>
-                                                    )}
-                                                  </div>
-                                                </td>
+                                          {/* Stock */}
+                                          <td className="py-2 px-3 text-right whitespace-nowrap">
+                                            <div className="flex items-center justify-end gap-1">
+                                              {b.isLowStock && (
+                                                <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                                                  ⚠️ Low
+                                                </span>
                                               )}
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                                              <span className="font-black text-xs text-slate-900">
+                                                {b.quantityAvailable}
+                                              </span>{' '}
+                                              <span className="text-[10px] text-slate-500 font-semibold">
+                                                {formatUnit(b.unit)}
+                                              </span>
+                                            </div>
+                                          </td>
 
-                {/* Mobile Responsive Cards View (Compact, High Density & Clean) */}
-                <div className="md:hidden divide-y divide-slate-100 bg-white">
-                  {filteredMedicines.map((m) => {
-                    const isExpanded = Boolean(expandedMeds[m.key]);
-                    const isExpired = m.urgency === 'EXPIRED';
-                    const isCritical = m.urgency === 'CRITICAL';
-                    const isCaution = m.urgency === 'CAUTION';
-                    const isWarning = m.urgency === 'WARNING';
+                                          {/* Expiry Date */}
+                                          <td className="py-2 px-3 text-center font-mono text-xs text-slate-700 font-medium whitespace-nowrap">
+                                            {formatExpiryDDMMYYYY(b.expiryDate)}
+                                          </td>
 
-                    return (
-                      <div
-                        key={m.key}
-                        className={`p-2.5 transition-colors ${
-                          isExpanded
-                            ? 'bg-blue-50/20'
-                            : isExpired
-                            ? 'bg-rose-50/30'
-                            : isCritical
-                            ? 'bg-rose-50/15'
-                            : isCaution
-                            ? 'bg-orange-50/15'
-                            : isWarning
-                            ? 'bg-amber-50/10'
-                            : 'hover:bg-slate-50/60'
-                        }`}
-                      >
-                        {/* Row 1: Header (Name, Meta & Earliest Shelf Status) */}
-                        <div
-                          onClick={() => toggleExpand(m.key)}
-                          className="flex justify-between items-start gap-1.5 cursor-pointer select-none"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`text-[9px] font-black transition-transform duration-200 shrink-0 ${
-                                  isExpanded ? 'text-blue-600 rotate-90' : 'text-slate-400'
-                                }`}
-                              >
-                                ▶
-                              </span>
-                              <h3 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
-                                {m.medicineName}
-                              </h3>
-                            </div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-0.5 ml-3 flex-wrap">
-                              {m.farmList?.map((farm) => (
-                                <span
-                                  key={farm._id || farm.name}
-                                  className="font-medium bg-slate-100 text-slate-600 px-1 py-0.2 rounded border border-slate-200/70"
-                                >
-                                  🏢 {farm.name}
-                                </span>
-                              ))}
-                              {m.medicineAlias && <span className="text-slate-400">({m.medicineAlias})</span>}
-                              {m.medicineCode && (
-                                <span className="font-mono bg-slate-100 px-1 py-0.2 rounded border border-slate-200/70 text-[9px] text-slate-500">
-                                  {m.medicineCode}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                                          {/* Shelf Status */}
+                                          <td className="py-2 px-3 text-center whitespace-nowrap">
+                                            {renderShelfBadge(b.urgency, b.daysLeft)}
+                                          </td>
 
-                          <div className="shrink-0 pt-0.5">
-                            {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft, true)}
-                          </div>
-                        </div>
-
-                        {/* Row 2: Stock Bar & Compact Batch Pill Button */}
-                        <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-slate-100/90 text-xs">
-                          {/* Stock Info */}
-                          <div className="flex items-center gap-1.5">
-                            {m.isLowStock && (
-                              <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 shrink-0">
-                                ⚠️ Low
-                              </span>
-                            )}
-                            <div>
-                              <span className="text-[10px] text-slate-400 font-medium mr-1">Stock:</span>
-                              <span className={`font-black text-xs ${m.isLowStock ? 'text-rose-700' : 'text-slate-900'}`}>
-                                {m.totalStock}
-                              </span>{' '}
-                              <span className="text-[10px] text-slate-500 font-semibold">{m.unit}</span>
-                            </div>
-                          </div>
-
-                          {/* Next Expiry (Compact) */}
-                          {m.earliestBatch?.expiryDate && (
-                            <span className="text-[10px] font-mono text-slate-400 hidden xs:inline">
-                              Exp: <strong className="text-slate-600 font-normal">{m.earliestBatch.expiryDate}</strong>
-                            </span>
-                          )}
-
-                          {/* Batch Toggle Button */}
-                          <button
-                            type="button"
-                            onClick={() => toggleExpand(m.key)}
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer flex items-center gap-1 shrink-0 ${
-                              isExpanded
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                            }`}
-                          >
-                            <span>📦</span>
-                            <span>
-                              {m.batches.length} {m.batches.length === 1 ? 'Batch' : 'Batches'}
-                            </span>
-                            <span className="text-[9px]">{isExpanded ? '▲' : '▼'}</span>
-                          </button>
-                        </div>
-
-                        {/* Mobile Expanded Drawer: Clean High-Density Batch List */}
-                        {isExpanded && (
-                          <div className="mt-2 pt-2 border-t border-blue-200/50 space-y-1.5">
-                            <div className="text-[10px] font-bold text-blue-900 flex items-center justify-between px-0.5">
-                              <span>Active Batches (FEFO):</span>
-                              <span className="text-[9px] text-slate-400 font-normal">
-                                Total: {m.batches.length}
-                              </span>
-                            </div>
-
-                            <div className="space-y-1">
-                              {m.batches.map((b) => (
-                                <div
-                                  key={b._id}
-                                  className="bg-white p-1.5 sm:p-2 rounded-lg border border-slate-200 shadow-2xs flex items-center justify-between gap-1.5 text-xs"
-                                >
-                                  {/* Left: Batch # & Location */}
-                                  <div className="min-w-0 flex items-center gap-1.5">
-                                    <span className="font-mono font-bold text-[10px] text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
-                                      {b.batchNumber}
-                                    </span>
-                                    {b.farm?.name && (
-                                      <span className="text-[9px] text-slate-500 font-medium truncate max-w-[65px] hidden xs:inline">
-                                        {b.farm.name}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  {/* Center: Stock & Expiry */}
-                                  <div className="text-right shrink-0">
-                                    <div className="text-[11px] leading-tight">
-                                      <strong className="text-slate-900 font-bold">{b.quantityAvailable}</strong>{' '}
-                                      <span className="text-[10px] text-slate-500">{b.unit}</span>
-                                    </div>
-                                    <div className="text-[9px] font-mono text-slate-400 leading-tight">
-                                      {b.expiryDate}
-                                    </div>
-                                  </div>
-
-                                  {/* Right: Shelf Status & Actions */}
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {renderShelfBadge(b.urgency, b.daysLeft, true)}
-
-                                    {canAccessTraceAndAction && (
-                                      <div className="flex items-center gap-0.5 ml-0.5">
-                                        {b.urgency === 'EXPIRED' && canDispose ? (
-                                          <button
-                                            type="button"
-                                            disabled={Boolean(disposing)}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              disposeStock(b);
-                                            }}
-                                            className="text-[9px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 cursor-pointer"
-                                          >
-                                            {disposing === b._id ? '...' : 'Dispose'}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveTab('traceability');
-                                              setSearchBatch(b.batchNumber);
-                                              handleTraceSearch(null, b.batchNumber, b._id);
-                                            }}
-                                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded px-1.5 py-0.5 cursor-pointer inline-flex items-center gap-0.5"
-                                            title="Trace batch"
-                                          >
-                                            <span>🔍</span> Trace
-                                          </button>
-                                        )}
-                                        {canEditBatch && (
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleOpenEditBatchModal(b);
-                                            }}
-                                            className="text-[10px] font-bold text-slate-600 hover:text-amber-800 bg-slate-50 hover:bg-amber-50 border border-slate-200 rounded px-1 py-0.5 cursor-pointer"
-                                            title="Edit Batch"
-                                          >
-                                            ✏️
-                                          </button>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
+                                          {/* Actions */}
+                                          {canAccessTraceAndAction && (
+                                            <td className="py-2 px-3 text-center whitespace-nowrap">
+                                              <div className="flex items-center justify-center">
+                                                <BatchActionMenu
+                                                  batch={b}
+                                                  onTrace={handleTraceBatch}
+                                                  onEdit={handleOpenEditBatchModal}
+                                                  onDelete={handleOpenDeleteBatch}
+                                                  onDispose={disposeStock}
+                                                  canDispose={canDispose}
+                                                  canEdit={canEditBatch}
+                                                  canDelete={isAdmin}
+                                                />
+                                              </div>
+                                            </td>
+                                          )}
+                                        </tr>
+                                      );
+                                    })}
+                                    </tbody>
+                                  </table>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* VIEW 3: Traceability History (The Audit & Doctor View) */}
-      {canAccessTraceAndAction && activeTab === 'traceability' && (
-        <div className="space-y-4">
-          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <span>🔍</span> Reverse Batch Investigation
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Search by <strong className="text-slate-700">Medicine Name</strong> or <strong className="text-slate-700">Batch Number</strong> to trace arrival, supplier, and shed consumption.
-            </p>
+      {/* VIEW 3: Monthly Medicine Consumption & Shed Issue Register */}
+      {activeTab === 'consumption' && (
+        <MedicineConsumptionRegister
+          selectedFarm={selectedFarm}
+          firms={firms}
+          onBackToDaily={() => setActiveTab('daily')}
+          onConsumedDeleted={loadStats}
+        />
+      )}
 
-            <form onSubmit={handleTraceSearch} className="flex gap-1.5 pt-0.5">
-              <div className="relative flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={searchBatch}
-                  onChange={(e) => setSearchBatch(e.target.value)}
-                  placeholder="Medicine name (e.g. Paracetamol) or batch #..."
-                  className="w-full h-8 pl-2.5 pr-8 border border-slate-300 rounded-lg text-xs font-semibold focus:ring-1 focus:ring-emerald-500 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsScannerOpen(true)}
-                  className="absolute right-1 top-0.5 h-7 px-1.5 text-slate-500 hover:text-slate-800 text-xs rounded transition flex items-center justify-center cursor-pointer"
-                  title="Scan Barcode / Label"
-                >
-                  📷
-                </button>
+      {/* Delete Batch Confirmation Modal (Admin & Developer Only) */}
+      {deletingBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-rose-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-5 py-3.5 bg-rose-600 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🗑️</span>
+                <h3 className="font-bold text-sm">Delete Stock Batch</h3>
               </div>
               <button
-                type="submit"
-                disabled={loadingTrace || !searchBatch.trim()}
-                className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1 shrink-0 cursor-pointer"
+                type="button"
+                onClick={() => setDeletingBatch(null)}
+                className="text-white/80 hover:text-white text-lg p-0.5 cursor-pointer"
               >
-                {loadingTrace ? 'Searching...' : 'Trace'}
+                ✕
               </button>
-            </form>
-          </div>
-
-          {traceError && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
-              ⚠ {traceError}
             </div>
-          )}
 
-          {traceData && (() => {
-            const batch = traceData.batch || {};
-            const availableQty = batch.quantityAvailable ?? 0;
-            const issuedQty = batch.totalIssued ?? 0;
-            const initialQty = batch.initialQuantity || (availableQty + issuedQty) || 0;
-            const unit = batch.medicine?.unit || 'Units';
-
-            const expiryDate = batch.expiryDate;
-            let daysLeft = null;
-            if (expiryDate) {
-              const diffTime = new Date(expiryDate) - new Date();
-              daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-
-            const sheds = Object.entries(batch.shedBreakdown || {});
-
-            return (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100 text-xs">
-                {/* Related Batches Strip (Smart: Active pills + Clean Past Archive dropdown) */}
-                {traceData.relatedBatches && traceData.relatedBatches.length > 1 && (() => {
-                  const related = traceData.relatedBatches;
-                  const activeBatches = related.filter((rb) => (rb.quantityAvailable ?? 0) > 0 && rb.status !== 'DEPLETED');
-                  const depletedBatches = related.filter((rb) => (rb.quantityAvailable ?? 0) <= 0 || rb.status === 'DEPLETED');
-                  const isCurrentDepleted = depletedBatches.some((rb) => rb.batchNumber === batch.batchNumber);
-
-                  return (
-                    <div className="px-3 py-1.5 bg-slate-100/90 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
-                        <span>🏷️</span>
-                        <span>Batches of {batch.medicine?.name}:</span>
-                        <span className="text-[10px] font-normal text-slate-500">
-                          ({activeBatches.length} active{depletedBatches.length > 0 ? `, ${depletedBatches.length} past` : ''})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-w-full">
-                        {/* 1. Active batches shown as clear pills */}
-                        {activeBatches.map((rb) => {
-                          const isCurrent = rb.batchNumber === batch.batchNumber;
-                          return (
-                            <button
-                              key={rb._id || rb.batchNumber}
-                              type="button"
-                              onClick={() => handleSelectRelatedBatch(rb)}
-                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer border ${
-                                isCurrent
-                                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs font-extrabold'
-                                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              <span className="font-mono">{rb.batchNumber}</span>
-                              {rb.farm?.name && !selectedFarm && (
-                                <span className={`text-[8px] font-bold opacity-80 ${isCurrent ? 'text-emerald-100' : 'text-slate-500'}`}>
-                                  ({rb.farm.name})
-                                </span>
-                              )}
-                              <span
-                                className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${
-                                  isCurrent
-                                    ? 'bg-emerald-700 text-emerald-100'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                }`}
-                              >
-                                {rb.quantityAvailable} left
-                              </span>
-                            </button>
-                          );
-                        })}
-
-                        {/* 2. If user is currently inspecting a depleted batch, show it as an active pill */}
-                        {isCurrentDepleted && (
-                          <div className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-700 text-white border border-slate-800 shadow-2xs flex items-center gap-1 shrink-0">
-                            <span className="font-mono">{batch.batchNumber}</span>
-                            <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-300">
-                              Depleted
-                            </span>
-                          </div>
-                        )}
-
-                        {/* 3. Dropdown for Depleted / Past batches to keep UI 100% clean even with 50+ batches */}
-                        {depletedBatches.length > 0 && (
-                          <select
-                            value={isCurrentDepleted ? batch.batchNumber : ''}
-                            onChange={(e) => {
-                              const found = depletedBatches.find((b) => b.batchNumber === e.target.value);
-                              if (found) handleSelectRelatedBatch(found);
-                            }}
-                            className="h-6 pl-2 pr-6 py-0 text-[11px] font-bold bg-white text-slate-700 border border-slate-300 hover:border-slate-400 rounded-md focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer shrink-0 shadow-2xs"
-                            title="Select past depleted batch to inspect"
-                          >
-                            <option value="" disabled>
-                              🗄️ Past Batches ({depletedBatches.length})...
-                            </option>
-                            {depletedBatches.map((db) => (
-                              <option key={db._id || db.batchNumber} value={db.batchNumber}>
-                                {db.batchNumber} {db.farm?.name && !selectedFarm ? `(${db.farm.name})` : ''} (0 left — {db.expiryDate || 'Depleted'})
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* 1. Ultra-Compact Header */}
-                <div className="px-3 py-1.5 bg-slate-50/80 flex items-center justify-between gap-1.5 flex-wrap">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs">💊</span>
-                    <span className="font-mono text-xs font-black text-slate-900 tracking-tight">
-                      {batch.batchNumber}
-                    </span>
-                    <span className="px-1.5 py-0.2 rounded bg-slate-200/80 text-slate-700 text-[9px] font-bold">
-                      {batch.medicine?.category || 'General'}
-                    </span>
-                    <span className="font-bold text-xs text-slate-800">
-                      {batch.medicine?.name}
-                    </span>
-                    {batch.medicine?.aliasName && (
-                      <span className="text-[10px] text-slate-400 font-normal italic">
-                        ({batch.medicine.aliasName})
-                      </span>
-                    )}
-                    {batch.farm?.name && (
-                      <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold flex items-center gap-1">
-                        🏢 {batch.farm.name}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Expiry Badge & Edit Button */}
-                  <div className="flex items-center gap-2">
-                    {daysLeft !== null ? (
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-black ${
-                        daysLeft <= 0
-                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                          : daysLeft <= 30
-                          ? 'bg-red-100 text-red-800 border border-red-200'
-                          : daysLeft <= 60
-                          ? 'bg-orange-100 text-orange-800 border border-orange-200'
-                          : daysLeft <= 90
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      }`}>
-                        <span>{daysLeft <= 0 ? '🔴' : daysLeft <= 30 ? '🔴' : daysLeft <= 60 ? '🟠' : daysLeft <= 90 ? '🟡' : '🟢'}</span>
-                        <span>{daysLeft <= 0 ? `Expired (${Math.abs(daysLeft)}d ago)` : daysLeft <= 90 ? `Use Soon (${daysLeft}d left)` : `${daysLeft}d Safe`}</span>
-                        <span className="opacity-70 font-normal text-[9px]">({batch.expiryDate})</span>
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-500 font-semibold">{batch.expiryDate}</span>
-                    )}
-                  </div>
+            <div className="p-5 space-y-3.5">
+              {deleteError && (
+                <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+                  ⚠️ {deleteError}
                 </div>
+              )}
 
-                {/* 2. Compact 4-Column Stats with Integrated Shed Details (No dead space) */}
-                <div className="px-3 py-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Supplier</span>
-                    <strong className="text-slate-900 text-xs block truncate leading-tight mt-0.5">{batch.supplier?.name || 'Direct Delivery'}</strong>
-                    <span className="text-[10px] text-slate-400 block truncate">{batch.supplier?.mobile || 'Farm Store'}</span>
-                  </div>
+              <p className="text-xs text-slate-700">
+                Are you sure you want to permanently delete this batch from live inventory?
+              </p>
 
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Total Received</span>
-                    <strong className="text-slate-900 text-xs sm:text-sm block leading-tight mt-0.5">{initialQty} {unit}</strong>
-                    <span className="text-[10px] text-slate-400 block">
-                      {batch.createdAt ? new Date(batch.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : 'Arrived'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Given to Birds</span>
-                    <strong className="text-blue-700 text-xs sm:text-sm block leading-tight mt-0.5">{issuedQty} {unit}</strong>
-                    <span className="text-[10px] text-blue-600 font-semibold block truncate">
-                      {sheds.length > 0 ? sheds.map(([s, q]) => `${s}: ${q}`).join(', ') : 'Issued Out'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Available Stock</span>
-                    <strong className="text-emerald-700 text-xs sm:text-sm block leading-tight mt-0.5">{availableQty} {unit}</strong>
-                    <span className="text-[10px] text-emerald-600 font-semibold block">
-                      {batch.farm?.name ? `In ${batch.farm.name} Store` : 'In Store'}
-                    </span>
-                  </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Medicine:</span>
+                  <strong className="text-slate-900">{deletingBatch.medicineName || deletingBatch.medicine?.name || 'Medicine'}</strong>
                 </div>
-
-                {/* 3. Ultra-Slim Movement History */}
-                <div className="px-3 py-1.5 space-y-1">
-                  <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                    <span>Movement History</span>
-                    <span>{(traceData.timeline?.receipts?.length || 1) + (traceData.timeline?.issues?.length || 0) + (batch.disposals?.length || 0)} entries</span>
-                  </div>
-                  <div className="space-y-0.5 text-xs">
-                    {(traceData.timeline?.receipts?.length ? traceData.timeline.receipts : [{ _id: 'legacy', receivedQuantity: initialQty, createdAt: batch.createdAt }]).map((receipt) => (
-                      <div key={receipt._id} className="flex justify-between gap-2 py-1 text-[11px]">
-                        <div className="min-w-0">
-                          <span className="font-bold text-emerald-700">IN</span> +{receipt.storeAcceptedQuantity || receipt.receivedQuantity} {unit} Received from {receipt.supplier?.name || batch.supplier?.name || 'Direct Farm Purchase'}
-                          <div className="text-slate-700">Received by: <strong>{receipt.receiverName || receipt.receivedBy?.name || receipt.receivedBy?.username || 'Not recorded'}</strong></div>
-                        </div>
-                        <span className="shrink-0 text-slate-400">{receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString() : ''}</span>
-                      </div>
-                    ))}
-
-                    {(batch.disposals || []).map((entry, index) => (
-                      <div key={entry._id || index} className="py-1 text-xs text-rose-700">
-                        <strong>DISPOSED</strong> -{entry.quantity} {unit} ? By {entry.performedByName || 'Admin'} ? {new Date(entry.createdAt).toLocaleDateString()}
-                      </div>
-                    ))}
-
-                    {/* OUT events */}
-                    {(traceData.timeline?.issues || []).map((iss) => (
-                      <div key={iss._id} className="flex items-center justify-between py-0.5 text-[11px]">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="px-1 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-800 shrink-0">
-                            OUT
-                          </span>
-                          <div className="min-w-0 break-words">
-                            <div className="font-semibold text-slate-800">-{iss.issuedQuantity} {unit} to {iss.shed || 'Shed'}</div>
-                            <div className="text-[11px] text-slate-600">
-                              Received by: <strong>{iss.issuedTo || 'Not recorded'}</strong>
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              Issued by: {iss.issuedByName || iss.issuedBy?.name || 'Not recorded'}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">
-                          {iss.issueDate ? new Date(iss.issueDate).toLocaleDateString([], { day: '2-digit', month: 'short' }) : (iss.createdAt ? new Date(iss.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' }) : '')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Batch Number:</span>
+                  <span className="font-mono font-bold text-slate-800 bg-white px-1.5 py-0.2 rounded border border-slate-200">{deletingBatch.batchNumber}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Stock Balance:</span>
+                  <strong className="text-emerald-700">{deletingBatch.quantityAvailable} {deletingBatch.unit}</strong>
+                </div>
+                {deletingBatch.expiryDate && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Expiry Date:</span>
+                    <span className="font-mono text-slate-700">{deletingBatch.expiryDate}</span>
+                  </div>
+                )}
               </div>
-            );
-          })()}
+
+              <p className="text-[11px] text-rose-600 font-medium">
+                ⚠️ Warning: This will remove this batch from stock and clean up linked ledger records.
+              </p>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setDeletingBatch(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={handleConfirmDeleteBatch}
+                  className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : '🗑️ Delete Permanently'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1606,29 +1647,157 @@ export default function MedicineReportPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveBatchEdit} className="p-5 space-y-4">
+            <form onSubmit={handleSaveBatchEdit} className="p-5 space-y-3.5">
               {editBatchError && (
                 <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
                   ⚠️ {editBatchError}
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Batch Number <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editBatchNumber}
-                  onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g. ENR-01, LAS-02"
-                  className="w-full h-10 px-3 font-mono font-bold text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Renaming updates all linked purchase receipts, shed issues, and ledger transactions.
-                </p>
-              </div>
+              {/* Medicine Selector (Allows changing medicine item if entered wrongly) */}
+              {(() => {
+                const selectedEditMed =
+                  allMedicinesList.find((m) => String(m._id) === String(editMedicineId)) ||
+                  editingBatch?.medicine ||
+                  null;
+                const editPackSize = Number(selectedEditMed?.packSize) || 1;
+                const editPackaging = selectedEditMed?.packagingType || 'Packet';
+                const editUnit = formatUnit(selectedEditMed?.unit) || 'Units';
+
+                return (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Medicine Item <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        required
+                        value={editMedicineId}
+                        onChange={(e) => {
+                          const newMedId = e.target.value;
+                          setEditMedicineId(newMedId);
+                          const m = allMedicinesList.find((x) => String(x._id) === String(newMedId));
+                          const size = Number(m?.packSize) || 1;
+                          if (size > 0 && size !== 1 && editQuantity !== '' && !isNaN(editQuantity)) {
+                            setEditPacks(Number((Number(editQuantity) / size).toFixed(3)));
+                          } else {
+                            setEditPacks('');
+                          }
+                        }}
+                        className="w-full h-10 px-3 text-xs font-bold text-slate-900 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                      >
+                        <option value="">-- Select Medicine --</option>
+                        {allMedicinesList.map((m) => (
+                          <option key={m._id} value={m._id}>
+                            {m.name} {m.aliasName ? `(${m.aliasName})` : ''} • {formatUnit(m.unit)}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Reassigns this batch to a different medicine catalog item.
+                      </p>
+                    </div>
+
+                    {/* Batch Number */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Batch Number <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editBatchNumber}
+                        onChange={(e) => setEditBatchNumber(e.target.value.toUpperCase())}
+                        placeholder="e.g. BATCH-01"
+                        className="w-full h-10 px-3 font-mono font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50 uppercase"
+                      />
+                    </div>
+
+                    {/* Dual Linked Pack / Unit inputs when packSize is customized */}
+                    {editPackSize > 0 && editPackSize !== 1 ? (
+                      <div className="space-y-2 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
+                          <span>📦 1 {editPackaging} = {editPackSize} {editUnit}</span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-full font-semibold">
+                            Auto-converted
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                              Packs ({editPackaging})
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={editPacks}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditPacks(val);
+                                if (val !== '' && Number(val) >= 0) {
+                                  setEditQuantity(Number((Number(val) * editPackSize).toFixed(3)));
+                                } else if (val === '') {
+                                  setEditQuantity('');
+                                }
+                              }}
+                              placeholder="e.g. 3"
+                              className="w-full h-10 px-3 font-bold text-xs border border-emerald-300 bg-white rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-emerald-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">
+                              Total In Stock ({editUnit}) <span className="text-rose-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              min="0"
+                              required
+                              value={editQuantity}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setEditQuantity(val);
+                                if (val !== '' && Number(val) >= 0) {
+                                  setEditPacks(Number((Number(val) / editPackSize).toFixed(3)));
+                                } else if (val === '') {
+                                  setEditPacks('');
+                                }
+                              }}
+                              placeholder={`e.g. ${3 * editPackSize}`}
+                              className="w-full h-10 px-3 font-bold text-xs border border-slate-300 bg-white rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {editPacks !== '' && editQuantity !== '' && (
+                          <div className="text-[11px] font-bold text-emerald-800 text-center pt-1 border-t border-emerald-200/60">
+                            Total: {editPacks} {getPackagingPlural(editPackaging, editPacks)} = {editQuantity} {editUnit}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                          In Stock Qty ({editUnit}) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          required
+                          value={editQuantity}
+                          onChange={(e) => setEditQuantity(e.target.value)}
+                          placeholder="e.g. 50"
+                          className="w-full h-10 px-3 font-bold text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50"
+                        />
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
