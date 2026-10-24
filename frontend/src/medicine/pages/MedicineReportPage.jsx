@@ -984,8 +984,8 @@ export default function MedicineReportPage() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="sticky top-0 z-30 bg-slate-100 text-[10px] uppercase font-bold text-slate-600 border-b border-slate-200 shadow-xs">
                     <tr>
-                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-3 min-w-[170px] sm:min-w-[210px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
-                        Medicine Name & Farm
+                      <th className="sticky top-0 left-0 z-40 bg-slate-100 py-2.5 px-2 w-[125px] sm:w-[155px] min-w-[125px] sm:min-w-[155px] max-w-[125px] sm:max-w-[155px] border-b border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] whitespace-nowrap">
+                        Medicine & Farm
                       </th>
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[90px]">
                         Batch No
@@ -1054,9 +1054,9 @@ export default function MedicineReportPage() {
                           >
                             {/* Column 1: Medicine Name & Farm Meta (STEADY / FROZEN STICKY LEFT) */}
                             <td
-                              className={`sticky left-0 z-20 py-2 px-3 min-w-[170px] sm:min-w-[210px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${stickyCellBgClass}`}
+                              className={`sticky left-0 z-20 py-2 px-2 w-[125px] sm:w-[155px] min-w-[125px] sm:min-w-[155px] max-w-[125px] sm:max-w-[155px] border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${stickyCellBgClass}`}
                             >
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1">
                                 {isMultiBatch ? (
                                   <span
                                     className={`text-[10px] font-black transition-transform duration-200 shrink-0 ${
@@ -1066,10 +1066,13 @@ export default function MedicineReportPage() {
                                     ▶
                                   </span>
                                 ) : (
-                                  <span className="w-2.5 shrink-0 text-slate-300 text-center text-[10px]">•</span>
+                                  <span className="w-2 shrink-0 text-slate-300 text-center text-[10px]">•</span>
                                 )}
-                                <div className="min-w-0">
-                                  <div className="font-bold text-slate-900 text-xs hover:text-blue-700 transition truncate max-w-[140px] sm:max-w-[180px]">
+                                <div className="min-w-0 flex-1">
+                                  <div
+                                    className="font-bold text-slate-900 text-xs hover:text-blue-700 transition truncate max-w-[105px] sm:max-w-[135px]"
+                                    title={m.medicineName + (m.medicineAlias ? ` (${m.medicineAlias})` : '')}
+                                  >
                                     {m.medicineName}
                                     {m.medicineAlias && (
                                       <span className="font-normal text-slate-500 ml-1 text-[11px]">
@@ -1079,12 +1082,15 @@ export default function MedicineReportPage() {
                                   </div>
                                   <div className="flex items-center gap-1 mt-0.5 text-[10px] text-slate-500 flex-wrap">
                                     {m.farm?.name && (
-                                      <span className="font-bold text-[9px] bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded border border-slate-200">
+                                      <span
+                                        className="font-bold text-[8.5px] bg-slate-100 text-slate-700 px-1 py-0.2 rounded border border-slate-200 truncate max-w-[75px]"
+                                        title={m.farm.name}
+                                      >
                                         🏢 {m.farm.name}
                                       </span>
                                     )}
                                     {m.medicineCode && (
-                                      <span className="font-mono text-[9px] bg-slate-50 text-slate-500 px-1 py-0.2 rounded border border-slate-200">
+                                      <span className="font-mono text-[8.5px] bg-slate-50 text-slate-500 px-0.5 py-0.2 rounded border border-slate-200">
                                         {m.medicineCode}
                                       </span>
                                     )}
