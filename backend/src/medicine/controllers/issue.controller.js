@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import MedicineIssue from '../models/MedicineIssue.js';
 import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
@@ -417,6 +418,84 @@ export async function getIssueById(req, res) {
     return res.json({ success: true, issue });
   } catch (error) {
     console.error('getIssueById error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+}
+
+/**
+ * DELETE /api/medicine/issues/:id
+ * Delete a consumption / issue entry and restore the consumed quantity back to the batch and live stock.
+ */
+export async function deleteIssue(req, res) {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      throw badRequest('Invalid consumption issue ID');
+    }
+
+    const issue = await MedicineIssue.findById(id).populate('medicine', 'name code unit');
+    if (!issue) {
+      throw notFoundError('Consumption record not found');
+    }
+
+    // 1. Find the physical batch that was deducted
+    let batch = await MedicineBatch.findById(issue.batch);
+    if (!batch) {
+      // Fallback: search by batchNumber, medicine, and farm if batch ID reference was detached
+      batch = await MedicineBatch.findOne({
+        batchNumber: issue.batchNumber,
+        medicine: issue.medicine?._id || issue.medicine,
+        farm: issue.farm,
+      });
+    }
+
+    // 2. Restore quantity back to batch
+    const restoredQty = Number(issue.issuedQuantity || 0);
+    if (batch && restoredQty > 0) {
+      batch.quantityAvailable = Number(((batch.quantityAvailable || 0) + restoredQty).toFixed(3));
+      if (batch.quantityAvailable > 0 && batch.status === 'DEPLETED') {
+        batch.status = 'AVAILABLE';
+      }
+      await batch.save();
+    }
+
+    // 3. Remove linked Transaction or add a reversal ledger entry
+    await MedicineTransaction.deleteMany({
+      referenceModel: 'MedicineIssue',
+      referenceId: issue._id,
+    });
+
+    // Also add an audit return/adjustment transaction for traceability
+    await MedicineTransaction.create({
+      transactionType: 'RETURN_INWARD',
+      medicine: issue.medicine?._id || issue.medicine,
+      batch: batch ? batch._id : issue.batch,
+      batchNumber: issue.batchNumber,
+      farm: issue.farm,
+      quantity: restoredQty,
+      balanceAfter: batch ? batch.quantityAvailable : 0,
+      unit: issue.unit || issue.medicine?.unit || 'Unit',
+      referenceModel: 'MedicineIssue',
+      referenceId: issue._id,
+      performedBy: req.user?._id,
+      remarks: `Deleted consumption #${issue.issueNumber}. Restored ${restoredQty} ${issue.unit} to batch #${issue.batchNumber}`,
+    });
+
+    // 4. Delete the issue record
+    await MedicineIssue.findByIdAndDelete(id);
+
+    return res.json({
+      success: true,
+      message: `Deleted consumption entry #${issue.issueNumber}. Restored ${restoredQty} ${issue.unit} to batch #${issue.batchNumber}.`,
+      data: {
+        issueId: id,
+        restoredQuantity: restoredQty,
+        batchNumber: issue.batchNumber,
+        newBatchStock: batch ? batch.quantityAvailable : null,
+      },
+    });
+  } catch (error) {
+    console.error('deleteIssue error:', error);
     return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 }

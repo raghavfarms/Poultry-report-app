@@ -1696,6 +1696,7 @@ export default function MedicineReportPage() {
           selectedFarm={selectedFarm}
           firms={firms}
           onBackToDaily={() => setActiveTab('daily')}
+          onConsumedDeleted={loadData}
         />
       )}
 
