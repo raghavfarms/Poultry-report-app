@@ -75,7 +75,17 @@ export async function updateBatchApi(batchId, updateData) {
 }
 
 /**
- * 6. Fetch Daily Medicine Stock Register
+ * 6. Delete Batch (Admin / Developer Only)
+ * @param {string} batchId
+ */
+export async function deleteBatchApi(batchId) {
+  return await api(`/medicine/reports/batches/${batchId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * 7. Fetch Daily Medicine Stock Register
  * Mirrors Excel Stock Register with Opening, Received, Sub Total, Issued, Balance, and Physical Audit
  * @param {Object} params - { farm, date }
  */
@@ -89,7 +99,7 @@ export async function fetchStockRegister(params = {}) {
 }
 
 /**
- * 7. Save Daily Physical Stock Audit
+ * 8. Save Daily Physical Stock Audit
  * @param {Object} payload - { farm, date, items, notes }
  */
 export async function saveStockAuditApi(payload) {
