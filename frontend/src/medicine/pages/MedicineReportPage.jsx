@@ -1195,10 +1195,12 @@ export default function MedicineReportPage() {
                       <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 whitespace-nowrap min-w-[100px]">
                         Shelf Status (FEFO)
                       </th>
-                      {/* 7. Actions */}
-                      <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center min-w-[65px] border-b border-slate-200 whitespace-nowrap">
-                        Actions
-                      </th>
+                      {/* 7. Actions (Admin & Developer Only) */}
+                      {canAccessTraceAndAction && (
+                        <th className="sticky top-0 z-30 bg-slate-100 py-2.5 px-3 text-center min-w-[65px] border-b border-slate-200 whitespace-nowrap">
+                          Actions
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
@@ -1361,43 +1363,45 @@ export default function MedicineReportPage() {
                               {renderShelfBadge(m.urgency, m.earliestBatch?.daysLeft)}
                             </td>
 
-                            {/* Column 7: Actions */}
-                            <td className="no-print py-2 px-3 text-center whitespace-nowrap min-w-[65px]">
-                              {isMultiBatch ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleExpand(m.key);
-                                  }}
-                                  className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1 ${
-                                    isExpanded
-                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                      : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                                  }`}
-                                >
-                                  <span>{isExpanded ? '▲' : '▼'}</span>
-                                  <span className="font-mono text-[10px]">({m.batches.length})</span>
-                                </button>
-                              ) : (
-                                <div className="flex items-center justify-center">
-                                  <BatchActionMenu
-                                    batch={singleBatch}
-                                    onTrace={handleTraceBatch}
-                                    onEdit={handleOpenEditBatchModal}
-                                    onDelete={handleOpenDeleteBatch}
-                                    canEdit={canEditBatch}
-                                    canDelete={isAdmin}
-                                  />
-                                </div>
-                              )}
-                            </td>
+                            {/* Column 7: Actions (Admin & Developer Only) */}
+                            {canAccessTraceAndAction && (
+                              <td className="no-print py-2 px-3 text-center whitespace-nowrap min-w-[65px]">
+                                {isMultiBatch ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleExpand(m.key);
+                                    }}
+                                    className={`text-[11px] font-bold px-2 py-0.5 rounded-lg border transition cursor-pointer inline-flex items-center gap-1 ${
+                                      isExpanded
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                        : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    <span>{isExpanded ? '▲' : '▼'}</span>
+                                    <span className="font-mono text-[10px]">({m.batches.length})</span>
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center justify-center">
+                                    <BatchActionMenu
+                                      batch={singleBatch}
+                                      onTrace={handleTraceBatch}
+                                      onEdit={handleOpenEditBatchModal}
+                                      onDelete={handleOpenDeleteBatch}
+                                      canEdit={canEditBatch}
+                                      canDelete={isAdmin}
+                                    />
+                                  </div>
+                                )}
+                              </td>
+                            )}
                           </tr>
 
                           {/* Nested Accordion Drawer for Batches */}
                           {isExpanded && (
                             <tr className="bg-slate-50/70 border-y border-blue-200/60">
-                              <td colSpan={7} className="p-2 sm:p-3">
+                              <td colSpan={canAccessTraceAndAction ? 7 : 6} className="p-2 sm:p-3">
                                 <div className="bg-white rounded-xl border border-blue-200 shadow-xs overflow-x-auto">
                                   <div className="bg-gradient-to-r from-blue-50 to-slate-50 px-3 py-2 border-b border-blue-100 flex items-center justify-between gap-2 flex-wrap">
                                     <div className="flex items-center gap-1.5">
