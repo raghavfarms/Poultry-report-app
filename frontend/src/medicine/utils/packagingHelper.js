@@ -89,7 +89,7 @@ export function formatStockDisplay(quantity, packSize = 1, packagingType = 'Bott
     return `${fullPacks} ${pLabel(fullPacks)} + ${remainder} ${u} (${qty} ${u})`;
   }
 
-  return `${qty} ${u} (in ${packName})`;
+  return `0 ${pLabel(0)} + ${remainder} ${u} (${qty} ${u})`;
 }
 
 /**
@@ -110,4 +110,63 @@ export function calculatePacksFromTotal(total, packSize = 1) {
   const s = Number(packSize) || 1;
   if (!Number.isFinite(t) || t <= 0) return 0;
   return Number((t / s).toFixed(3));
+}
+
+/**
+ * Universal packaging breakdown for table displays and exports.
+ * Returns { main, sub, excelStr, fullPacks, loose }
+ */
+export function formatPackAndLoose(totalStock, packSize, packagingType, unit) {
+  const qty = Number(totalStock) || 0;
+  const size = Number(packSize) > 0 ? Number(packSize) : 1;
+  const type = packagingType || 'Bottle';
+  const u = formatUnit(unit) || 'Units';
+
+  if (size <= 0 || size === 1) {
+    return {
+      main: `${qty} ${u}`,
+      sub: '',
+      excelStr: `${qty} ${u}`,
+      fullPacks: qty,
+      loose: 0,
+    };
+  }
+
+  const exactPacks = qty / size;
+  const rounded = Math.round(exactPacks);
+  const isExact = Math.abs(exactPacks - rounded) < 0.0001;
+
+  if (isExact) {
+    const packs = rounded;
+    const label = getPackagingPlural(type, packs);
+    return {
+      main: `📦 ${packs} ${label}`,
+      sub: `1 ${type} = ${size} ${u}`,
+      excelStr: `${packs} ${label} (${qty} ${u})`,
+      fullPacks: packs,
+      loose: 0,
+    };
+  }
+
+  const fullPacks = Math.floor(exactPacks + 0.00001);
+  const loose = Number(Math.max(0, qty - fullPacks * size).toFixed(3));
+  const label = getPackagingPlural(type, fullPacks);
+
+  if (fullPacks > 0) {
+    return {
+      main: `📦 ${fullPacks} ${label} + ${loose} ${u}`,
+      sub: `1 ${type} = ${size} ${u}`,
+      excelStr: `${fullPacks} ${label} + ${loose} ${u} (${qty} ${u})`,
+      fullPacks,
+      loose,
+    };
+  }
+
+  return {
+    main: `📦 0 ${getPackagingPlural(type, 0)} + ${loose} ${u}`,
+    sub: `1 ${type} = ${size} ${u}`,
+    excelStr: `0 ${getPackagingPlural(type, 0)} + ${loose} ${u} (${qty} ${u})`,
+    fullPacks: 0,
+    loose,
+  };
 }

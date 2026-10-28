@@ -208,6 +208,25 @@ export async function getMedicineById(req, res) {
   }
 }
 
+function getUnitConversionFactor(oldUnit, newUnit) {
+  if (!oldUnit || !newUnit) return 1;
+  const normalize = (u) => {
+    const s = String(u).toLowerCase();
+    if (s.includes('kilo') || s.includes('kg')) return 'kg';
+    if (s.includes('gram') || s === 'g' || s === 'gm') return 'g';
+    if (s.includes('litre') || s.includes('liter') || s === 'l') return 'l';
+    if (s.includes('milli') || s === 'ml') return 'ml';
+    return s;
+  };
+  const from = normalize(oldUnit);
+  const to = normalize(newUnit);
+  if (from === to) return 1;
+  if (from === 'kg' && to === 'g') return 1000;
+  if (from === 'g' && to === 'kg') return 0.001;
+  if (from === 'l' && to === 'ml') return 1000;
+  if (from === 'ml' && to === 'l') return 0.001;
+  return 1;
+}
 // 4. Update an existing Medicine
 export async function updateMedicine(req, res) {
   try {
@@ -239,6 +258,7 @@ export async function updateMedicine(req, res) {
         message: 'Medicine not found',
       });
     }
+    medicine._originalUnit = medicine.unit;
 
     if (suppliers !== undefined) {
       medicine.suppliers = Array.isArray(suppliers) ? suppliers : [];
@@ -274,7 +294,34 @@ export async function updateMedicine(req, res) {
         : 0;
     }
 
+    const oldUnit = medicine.isModified('unit') ? medicine._originalUnit || medicine.unit : null;
+    const newUnit = medicine.unit;
     await medicine.save();
+
+    // Sync batches and scale quantities if unit changed (e.g. Kg <-> g)
+    try {
+      const conversionFactor = oldUnit ? getUnitConversionFactor(oldUnit, newUnit) : 1;
+      if (conversionFactor !== 1) {
+        const batches = await MedicineBatch.find({ medicine: medicine._id });
+        for (const b of batches) {
+          b.quantityAvailable = Number((b.quantityAvailable * conversionFactor).toFixed(3));
+          if (b.initialQuantity) {
+            b.initialQuantity = Number((b.initialQuantity * conversionFactor).toFixed(3));
+          }
+          b.unit = newUnit;
+          b.packSize = medicine.packSize;
+          b.packagingType = medicine.packagingType;
+          await b.save();
+        }
+      } else {
+        await MedicineBatch.updateMany(
+          { medicine: medicine._id },
+          { $set: { unit: medicine.unit, packSize: medicine.packSize, packagingType: medicine.packagingType } }
+        );
+      }
+    } catch (batchSyncErr) {
+      console.error('Error syncing batches on medicine update:', batchSyncErr);
+    }
 
     return res.json({
       success: true,

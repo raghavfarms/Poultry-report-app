@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
-import { formatStockDisplay, formatUnit, getPackagingPlural } from '../utils/packagingHelper.js';
+import { formatStockDisplay, formatUnit, getPackagingPlural, formatPackAndLoose } from '../utils/packagingHelper.js';
 import { fetchDashboardStats, fetchBatchTraceability, updateBatchApi, deleteBatchApi } from '../api/reportApi.js';
 import { fetchMedicines } from '../api/medicineApi.js';
 import { api } from '../../api/client.js';
@@ -315,12 +315,8 @@ export default function MedicineReportPage() {
       let sNo = 1;
 
       filteredMedicines.forEach((m) => {
-        const size = Number(m.packSize) || 1;
-        const type = m.packagingType || 'Bottle';
-        const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
-        const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
-        const typeLabel = getPackagingPlural(type, displayCount);
-        const packagingStr = `${displayCount} ${typeLabel} (1 ${type} = ${size} ${formatUnit(m.unit)})`;
+        const packaging = formatPackAndLoose(m.totalStock, m.packSize, m.packagingType, m.unit);
+        const packagingStr = packaging.excelStr;
 
         const batchNumbers = m.batches.map((b) => b.batchNumber).join(', ');
         const earliestExpiry = formatExpiryDDMMYYYY(m.earliestBatch?.expiryDate);
@@ -1294,20 +1290,17 @@ export default function MedicineReportPage() {
                             {/* Column 2: Packaging & Physical Packs (Pack size) */}
                             <td className="py-2 px-3 text-center whitespace-nowrap min-w-[130px]">
                               {(() => {
-                                const size = Number(m.packSize) || 1;
-                                const type = m.packagingType || 'Bottle';
-                                const pCount = size > 0 ? (m.totalStock / size) : m.totalStock;
-                                const displayCount = Number.isInteger(pCount) ? pCount : Number(pCount.toFixed(2));
-                                const typeLabel = getPackagingPlural(type, displayCount);
-
+                                const packaging = formatPackAndLoose(m.totalStock, m.packSize, m.packagingType, m.unit);
                                 return (
                                   <div className="inline-flex flex-col items-center">
                                     <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
-                                      📦 {displayCount} {typeLabel}
+                                      {packaging.main}
                                     </span>
-                                    <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
-                                      1 {type} = {size} {formatUnit(m.unit)}
-                                    </span>
+                                    {packaging.sub && (
+                                      <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">
+                                        {packaging.sub}
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               })()}

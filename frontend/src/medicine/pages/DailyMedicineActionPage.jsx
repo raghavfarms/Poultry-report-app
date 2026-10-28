@@ -394,7 +394,7 @@ export default function DailyMedicineActionPage({
   };
 
   const handleSetBatchMax = (batchId, maxAvailable) => {
-    const pSize = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 ? Number(selectedOutwardMed.packSize) : 1;
+    const pSize = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 0 && Number(selectedOutwardMed.packSize) !== 1 ? Number(selectedOutwardMed.packSize) : 1;
     handleBatchQtyChange(batchId, String(maxAvailable), maxAvailable, pSize);
   };
 
@@ -407,7 +407,7 @@ export default function DailyMedicineActionPage({
       return;
     }
 
-    const size = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 ? Number(selectedOutwardMed.packSize) : 1;
+    const size = selectedOutwardMed && Number(selectedOutwardMed.packSize) > 0 && Number(selectedOutwardMed.packSize) !== 1 ? Number(selectedOutwardMed.packSize) : 1;
     // Auto-distribute across batches in FEFO order
     let remaining = totalNum;
     const next = {};
@@ -2244,7 +2244,7 @@ export default function DailyMedicineActionPage({
               <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
                 <div className="text-xs font-bold text-blue-900 whitespace-nowrap flex items-center gap-1.5 flex-wrap">
                   <span>Total:</span>
-                  {selectedOutwardMed && Number(selectedOutwardMed.packSize) > 1 && outwardQty && Number(outwardQty) > 0 ? (
+                  {selectedOutwardMed && Number(selectedOutwardMed.packSize) > 0 && Number(selectedOutwardMed.packSize) !== 1 && outwardQty && Number(outwardQty) > 0 ? (
                     <>
                       <strong className="text-sm font-black text-emerald-700">
                         {Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2))} {selectedOutwardMed.packagingType || 'Pack'}{Number((Number(outwardQty) / Number(selectedOutwardMed.packSize)).toFixed(2)) !== 1 ? 's' : ''}
