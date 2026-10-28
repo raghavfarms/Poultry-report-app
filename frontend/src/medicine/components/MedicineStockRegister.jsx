@@ -335,44 +335,80 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
   return (
     <div className="space-y-2.5">
       {/* Clean Compact Top Filter & Toolbar (Mobile Optimized Layout) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-2.5 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-2.5 text-xs">
-        {/* Date and Search Controls */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-2.5 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-2 text-xs">
+        {/* Left Section (On Desktop: Date + Search | On Mobile: Row 1 = Date & Save Audit, Row 3 = Search) */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-          {/* Date Picker with Quick Nav (Today removed on mobile) */}
-          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200 rounded-lg p-1 w-full sm:w-auto">
+          {/* Row 1 on Mobile: Date (50%) + Save Audit (50%) */}
+          <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto sm:flex sm:items-center">
+            {/* Date Picker with Quick Nav */}
+            <div className="flex items-center justify-between gap-0.5 bg-slate-50 border border-slate-200 rounded-lg p-1 h-9 sm:h-auto sm:py-0.5">
+              <button
+                type="button"
+                onClick={() => shiftDate(-1)}
+                className="px-1.5 py-1 sm:py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition cursor-pointer"
+                title="Previous Day"
+              >
+                ◀
+              </button>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full sm:w-auto text-[11px] sm:text-xs font-semibold px-0.5 bg-transparent text-slate-700 focus:outline-none cursor-pointer text-center"
+              />
+              <button
+                type="button"
+                onClick={() => shiftDate(1)}
+                className="px-1.5 py-1 sm:py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition cursor-pointer"
+                title="Next Day"
+              >
+                ▶
+              </button>
+              {/* Today Button: Desktop only */}
+              <button
+                type="button"
+                onClick={() => setDate(new Date().toISOString().slice(0, 10))}
+                className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200/80 text-emerald-700 hover:bg-emerald-50 rounded shadow-2xs transition cursor-pointer ml-1"
+              >
+                Today
+              </button>
+            </div>
+
+            {/* Save Audit on Mobile: Half-width directly after Date */}
             <button
               type="button"
-              onClick={() => shiftDate(-1)}
-              className="px-2.5 sm:px-1.5 py-1 sm:py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition cursor-pointer"
-              title="Previous Day"
+              onClick={handleSaveAudit}
+              disabled={savingAudit}
+              className="sm:hidden w-full h-9 inline-flex items-center justify-center gap-1 px-2.5 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer disabled:opacity-50"
+              title="Save physical stock counts to database"
             >
-              ◀
-            </button>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="flex-1 sm:flex-initial text-xs font-semibold px-2 py-0.5 bg-transparent text-slate-700 focus:outline-none cursor-pointer text-center"
-            />
-            <button
-              type="button"
-              onClick={() => shiftDate(1)}
-              className="px-2.5 sm:px-1.5 py-1 sm:py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition cursor-pointer"
-              title="Next Day"
-            >
-              ▶
-            </button>
-            {/* Today Button: Removed on mobile screen as requested */}
-            <button
-              type="button"
-              onClick={() => setDate(new Date().toISOString().slice(0, 10))}
-              className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200/80 text-emerald-700 hover:bg-emerald-50 rounded shadow-2xs transition cursor-pointer"
-            >
-              Today
+              <span>💾</span> {savingAudit ? 'Saving...' : 'Save Audit'}
             </button>
           </div>
 
-          {/* Search Box (Full width on mobile below date) */}
+          {/* Row 2 on Mobile: CSV (50%) + PDF (50%) */}
+          <div className="grid grid-cols-2 gap-1.5 w-full sm:hidden">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="w-full h-9 inline-flex items-center justify-center gap-1.5 px-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
+              title="Download CSV / Excel Register"
+            >
+              <span>📊</span>
+              <span>CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="w-full h-9 inline-flex items-center justify-center gap-1.5 px-2.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
+              title="Download PDF"
+            >
+              <span>📄</span>
+              <span>PDF</span>
+            </button>
+          </div>
+
+          {/* Row 3 on Mobile (In place of Save Audit): Full-Width Search Bar */}
           <div className="relative w-full sm:w-auto sm:min-w-[190px]">
             <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 text-xs">
               🔍
@@ -382,40 +418,36 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search medicine..."
-              className="w-full text-xs pl-7 pr-2.5 py-2 sm:py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none"
+              className="w-full h-9 sm:h-auto text-xs pl-7 pr-2.5 py-1.5 sm:py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none"
             />
           </div>
         </div>
 
-        {/* Action Buttons (On mobile: CSV & PDF half/half, Save Audit full width below) */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto">
-          <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto sm:flex sm:items-center">
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
-              title="Download CSV / Excel Register"
-            >
-              <span>📊</span>
-              <span className="sm:hidden">CSV</span>
-              <span className="hidden sm:inline">Export Excel</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleExportPdf}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
-              title="Download PDF"
-            >
-              <span>📄</span>
-              <span className="sm:hidden">PDF</span>
-              <span className="hidden sm:inline">Export PDF</span>
-            </button>
-          </div>
+        {/* Right Action Buttons (Desktop only: Export Excel, Export PDF, Save Audit) */}
+        <div className="hidden sm:flex sm:items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
+            title="Download Excel Register"
+          >
+            <span>📊</span>
+            <span>Export Excel</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="inline-flex items-center justify-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
+            title="Download PDF"
+          >
+            <span>📄</span>
+            <span>Export PDF</span>
+          </button>
           <button
             type="button"
             onClick={handleSaveAudit}
             disabled={savingAudit}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1 px-3 py-1 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer disabled:opacity-50"
             title="Save physical stock counts to database"
           >
             <span>💾</span> {savingAudit ? 'Saving...' : 'Save Audit'}
