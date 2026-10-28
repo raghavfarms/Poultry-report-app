@@ -27,7 +27,14 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
   const [physicalCounts, setPhysicalCounts] = useState({});
   const [savingAudit, setSavingAudit] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(15); // 15 medicines show in one view
   const printRef = useRef(null);
+
+  // Reset page when search, date, or farm changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, date, farm]);
 
   // Sync selectedFarm prop if changed from parent
   useEffect(() => {
@@ -97,6 +104,18 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
         (it.packagingType && it.packagingType.toLowerCase().includes(q))
     );
   }, [data.items, search, physicalCounts]);
+
+  const totalPages = useMemo(() => {
+    if (limit === 'all') return 1;
+    return Math.max(1, Math.ceil(filteredItems.length / (Number(limit) || 15)));
+  }, [filteredItems.length, limit]);
+
+  const paginatedItems = useMemo(() => {
+    if (limit === 'all') return filteredItems;
+    const l = Number(limit) || 15;
+    const startIndex = (page - 1) * l;
+    return filteredItems.slice(startIndex, startIndex + l);
+  }, [filteredItems, page, limit]);
 
   // Calculate summary metrics
   const summary = useMemo(() => {
@@ -454,13 +473,39 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
           </div>
         </div>
 
-        {/* Dense Table Layout */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
+        {/* Table Rows & View Controls Bar */}
+        <div data-html2canvas-ignore="true" className="px-3 py-1.5 sm:py-2 bg-slate-50/90 border-b border-slate-200 flex justify-between items-center text-[10px] sm:text-xs print:hidden">
+          <div className="flex items-center gap-1.5 font-bold text-slate-700">
+            <span>Show:</span>
+            <select
+              value={limit}
+              onChange={(e) => {
+                const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                setLimit(val);
+                setPage(1);
+              }}
+              className="h-6 sm:h-7 px-1.5 border border-slate-300 rounded bg-white text-[10px] sm:text-xs font-semibold focus:outline-none cursor-pointer"
+            >
+              <option value={15}>15 medicines (Default)</option>
+              <option value={25}>25 medicines</option>
+              <option value={50}>50 medicines</option>
+              <option value={100}>100 medicines</option>
+              <option value="all">All ({filteredItems.length})</option>
+            </select>
+          </div>
+
+          <div className="text-slate-500 font-semibold text-[10px] sm:text-[11px]">
+            Page {page} of {totalPages}
+          </div>
+        </div>
+
+        {/* Dense Table Layout with 2-Way (Horizontal & Vertical) Scrolling and Sticky Header */}
+        <div className="overflow-x-auto overflow-y-auto max-h-[70vh] sm:max-h-[660px] scrollbar-thin touch-pan-x touch-pan-y relative border-b border-slate-200">
+          <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
+            <thead className="sticky top-0 z-20 shadow-xs">
               {/* Row 1: Group Headers matching client sheet */}
-              <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider font-extrabold text-center select-none">
-                <th colSpan="4" className="py-1.5 px-2 bg-slate-100/90 text-slate-700 border-r border-slate-200 text-left">
+              <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider font-extrabold text-center select-none shadow-2xs">
+                <th colSpan="4" className="sticky left-0 z-30 py-1.5 px-2 bg-slate-100 text-slate-700 border-r border-slate-200 text-left shadow-[1px_0_0_0_#e2e8f0]">
                   Medicine Info
                 </th>
                 <th colSpan="3" className="py-1.5 px-2 bg-blue-100/70 text-blue-800 border-r border-slate-200">
@@ -484,9 +529,9 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
               </tr>
 
               {/* Row 2: Sub-column headers */}
-              <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-600 bg-slate-50 text-center whitespace-nowrap">
+              <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-600 bg-slate-50 text-center whitespace-nowrap shadow-xs">
                 {/* Medicine Info */}
-                <th className="py-1.5 px-2 text-left border-r border-slate-200 min-w-[150px]">Name of Medicine</th>
+                <th className="sticky left-0 z-30 py-1.5 px-2 text-left border-r border-slate-200 min-w-[150px] bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">Name of Medicine</th>
                 <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px]">Packing</th>
                 <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[60px]">Pack Size</th>
                 <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[50px]">Unit</th>
@@ -547,7 +592,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((it, idx) => {
+                paginatedItems.map((it, idx) => {
                   const physicalVal = physicalCounts[it._id];
                   const hasPhysical = physicalVal !== undefined && physicalVal !== '';
                   const diff = hasPhysical ? Number((Number(physicalVal) - (it.closing?.total || 0)).toFixed(3)) : null;
@@ -559,8 +604,8 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                         idx % 2 === 1 ? 'bg-slate-50/30' : 'bg-white'
                       }`}
                     >
-                      {/* Name of Medicine */}
-                      <td className="py-1.5 px-2 text-left border-r border-slate-100 font-bold text-slate-800">
+                      {/* Name of Medicine (Sticky on Left for Horizontal Scrolling) */}
+                      <td className={`sticky left-0 z-10 py-1.5 px-2 text-left border-r border-slate-200 font-bold text-slate-800 shadow-[1px_0_0_0_#e2e8f0] ${idx % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}>
                         <div className="flex flex-col leading-tight">
                           <span>{it.name}</span>
                           {it.code && <span className="text-[9px] text-slate-400 font-normal">{it.code}</span>}
@@ -670,6 +715,40 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
             </tbody>
           </table>
         </div>
+
+        {/* Bottom Pagination Bar */}
+        {filteredItems.length > 0 && limit !== 'all' && (
+          <div data-html2canvas-ignore="true" className="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-semibold print:hidden">
+            <span className="text-slate-500">
+              Showing {filteredItems.length > 0 ? (page - 1) * limit + 1 : 0} to{' '}
+              {Math.min(page * limit, filteredItems.length)} of {filteredItems.length} medicines
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 transition cursor-pointer"
+              >
+                ◀ Previous
+              </button>
+
+              <span className="px-2 text-slate-700 font-bold">
+                {page} / {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 transition cursor-pointer"
+              >
+                Next ▶
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
