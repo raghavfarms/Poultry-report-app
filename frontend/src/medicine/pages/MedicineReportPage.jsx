@@ -175,7 +175,18 @@ export default function MedicineReportPage() {
   const { user } = useAuth();
 
   // Active Tab: 1. Daily In/Out (Default) | 2. Current Stock | 3. Consumption Register | 4. Traceability
-  const [activeTab, setActiveTab] = useState('daily');
+  const isAdminUser = ['admin', 'developer'].includes(user?.role);
+  const [activeTab, setActiveTab] = useState(() => (isAdminUser ? 'register' : 'daily'));
+  const initialTabSetRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialTabSetRef.current && user?.role) {
+      initialTabSetRef.current = true;
+      if (['admin', 'developer'].includes(user.role)) {
+        setActiveTab('register');
+      }
+    }
+  }, [user?.role]);
 
   // Farm Store Filter
   const [selectedFarm, setSelectedFarm] = useState('');
@@ -870,64 +881,87 @@ export default function MedicineReportPage() {
           </div>
         </div>
 
-        {/* The Clean Farm Views Tabs */}
+        {/* The Clean Farm Views Tabs (Admin: Register -> Consume -> Stock -> In/Out; Others: In/Out -> Stock -> Consume -> Register) */}
         <div className="grid grid-cols-4 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
-          <button
-            type="button"
-            onClick={() => setActiveTab('daily')}
-            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-              activeTab === 'daily'
-                ? 'bg-emerald-600 !text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <span>⚡</span>
-            <span className={activeTab === 'daily' ? '!text-white' : ''}>In / Out</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('stock')}
-            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-              activeTab === 'stock'
-                ? 'bg-emerald-600 !text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <span>📦</span>
-            <span className={activeTab === 'stock' ? '!text-white' : ''}>Stock</span>
-            {(radar.expiredCount || 0) > 0 && (
-              <span className="px-1 py-0.2 bg-rose-500 !text-white rounded-full text-[9px] leading-tight">
-                {radar.expiredCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('consumption')}
-            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-              activeTab === 'consumption'
-                ? 'bg-emerald-600 !text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <span>📋</span>
-            <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('register')}
-            className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
-              activeTab === 'register'
-                ? 'bg-emerald-600 !text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-            }`}
-          >
-            <span>📑</span>
-            <span className={activeTab === 'register' ? '!text-white' : ''}>Register</span>
-          </button>
+          {(isAdminUser
+            ? ['register', 'consumption', 'stock', 'daily']
+            : ['daily', 'stock', 'consumption', 'register']
+          ).map((tabKey) => {
+            if (tabKey === 'register') {
+              return (
+                <button
+                  key="register"
+                  type="button"
+                  onClick={() => setActiveTab('register')}
+                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                    activeTab === 'register'
+                      ? 'bg-emerald-600 !text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>📑</span>
+                  <span className={activeTab === 'register' ? '!text-white' : ''}>Register</span>
+                </button>
+              );
+            }
+            if (tabKey === 'consumption') {
+              return (
+                <button
+                  key="consumption"
+                  type="button"
+                  onClick={() => setActiveTab('consumption')}
+                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                    activeTab === 'consumption'
+                      ? 'bg-emerald-600 !text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>📋</span>
+                  <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
+                </button>
+              );
+            }
+            if (tabKey === 'stock') {
+              return (
+                <button
+                  key="stock"
+                  type="button"
+                  onClick={() => setActiveTab('stock')}
+                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                    activeTab === 'stock'
+                      ? 'bg-emerald-600 !text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>📦</span>
+                  <span className={activeTab === 'stock' ? '!text-white' : ''}>Stock</span>
+                  {(radar.expiredCount || 0) > 0 && (
+                    <span className="px-1 py-0.2 bg-rose-500 !text-white rounded-full text-[9px] leading-tight">
+                      {radar.expiredCount}
+                    </span>
+                  )}
+                </button>
+              );
+            }
+            if (tabKey === 'daily') {
+              return (
+                <button
+                  key="daily"
+                  type="button"
+                  onClick={() => setActiveTab('daily')}
+                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                    activeTab === 'daily'
+                      ? 'bg-emerald-600 !text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span>⚡</span>
+                  <span className={activeTab === 'daily' ? '!text-white' : ''}>In / Out</span>
+                </button>
+              );
+            }
+            return null;
+          })}
         </div>
       </div>
 
