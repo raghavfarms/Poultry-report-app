@@ -1604,15 +1604,6 @@ export default function MedicineReportPage() {
         </div>
       )}
 
-      {/* VIEW 4: Monthly Medicine Consumption & Shed Issue Register */}
-      {activeTab === 'consumption' && (
-        <MedicineConsumptionRegister
-          selectedFarm={selectedFarm}
-          firms={firms}
-          onBackToDaily={() => setActiveTab('daily')}
-        />
-      )}
-
       {/* VIEW 5: Daily Stock Register (Excel Format + Physical Audit) */}
       {activeTab === 'register' && (
         <MedicineStockRegister
