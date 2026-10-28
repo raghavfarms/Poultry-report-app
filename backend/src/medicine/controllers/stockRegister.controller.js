@@ -8,6 +8,27 @@ import Firm from '../../models/Firm.js';
 import { badRequest } from '../../utils/http.js';
 
 /**
+ * Accurately calculate full packs and remaining loose quantity.
+ * Supports fractional pack sizes (e.g. 0.5 Kg box, 0.25 L bottle) as well as integer pack sizes.
+ */
+function calcPacksAndLoose(qty, packSize) {
+  const size = Number(packSize) > 0 ? Number(packSize) : 1;
+  const q = Number(qty) || 0;
+  if (size <= 0) {
+    return { packs: q, loose: 0 };
+  }
+  const exactPacks = q / size;
+  const rounded = Math.round(exactPacks);
+  if (Math.abs(exactPacks - rounded) < 0.0001) {
+    return { packs: rounded, loose: 0 };
+  }
+  const packs = Math.floor(exactPacks + 0.00001);
+  const loose = Number(Math.max(0, q - packs * size).toFixed(3));
+  return { packs, loose };
+}
+
+
+/**
  * Safely resolves a farm parameter to an ObjectId.
  */
 async function resolveFarmId(farmQuery) {
@@ -222,14 +243,9 @@ export async function getStockRegister(req, res) {
     opgQty = Number(opgQty.toFixed(3));
     const subTotalQty = Number((opgQty + recdQty).toFixed(3));
 
-    const opgPacks = packSize > 1 ? Math.floor(opgQty / packSize) : opgQty;
-    const opgLoose = packSize > 1 ? Number((opgQty - opgPacks * packSize).toFixed(3)) : 0;
-
-    const recdPacks = packSize > 1 ? Math.floor(recdQty / packSize) : recdQty;
-    const recdLoose = packSize > 1 ? Number((recdQty - recdPacks * packSize).toFixed(3)) : 0;
-
-    const clgPacks = packSize > 1 ? Math.floor(clgQty / packSize) : clgQty;
-    const clgLoose = packSize > 1 ? Number((clgQty - clgPacks * packSize).toFixed(3)) : 0;
+    const { packs: opgPacks, loose: opgLoose } = calcPacksAndLoose(opgQty, packSize);
+    const { packs: recdPacks, loose: recdLoose } = calcPacksAndLoose(recdQty, packSize);
+    const { packs: clgPacks, loose: clgLoose } = calcPacksAndLoose(clgQty, packSize);
 
     const savedItem = auditItemMap[medId];
     const physicalQty =
