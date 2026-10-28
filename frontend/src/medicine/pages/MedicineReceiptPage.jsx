@@ -79,7 +79,19 @@ export default function MedicineReceiptPage() {
         ]);
         setSuppliers(supData.suppliers || []);
         setMedicines(medData.medicines || []);
-        setFirms(firmData.firms || []);
+        const filtered = (firmData.firms || []).filter((f) => {
+          const name = (f.name || '').toLowerCase();
+          return name.includes('raghav') || name.includes('sanjana');
+        });
+        filtered.sort((a, b) => {
+          if (a.name.toLowerCase().includes('raghav')) return -1;
+          if (b.name.toLowerCase().includes('raghav')) return 1;
+          return 0;
+        });
+        setFirms(filtered);
+        if (filtered.length > 0 && !selectedFarm) {
+          setSelectedFarm(filtered[0]._id);
+        }
       } catch (err) {
         console.error('Failed to load dropdowns', err);
       }
@@ -293,8 +305,7 @@ export default function MedicineReceiptPage() {
             onChange={(e) => setSelectedFarm(e.target.value)}
             className="w-full h-7.5 px-2 border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 focus:outline-none"
           >
-            <option value="">All Farms</option>
-            {firms.map((f) => (
+                        {firms.map((f) => (
               <option key={f._id} value={f._id}>{f.name}</option>
             ))}
           </select>

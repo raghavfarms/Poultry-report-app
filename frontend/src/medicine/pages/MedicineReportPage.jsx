@@ -335,7 +335,7 @@ export default function MedicineReportPage() {
           'Medicine Name': m.medicineName || 'Medicine',
           'Alias': m.medicineAlias || '—',
           'Code': m.medicineCode || '—',
-          'Farm': m.farm?.name || 'All Farms',
+          'Farm': m.farm?.name || firms.find((f) => f._id === selectedFarm)?.name || 'Raghav',
           'Packaging': packagingStr,
           'Total In Stock': m.totalStock,
           'Unit': formatUnit(m.unit),
@@ -458,14 +458,25 @@ export default function MedicineReportPage() {
   const [traceError, setTraceError] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
-  // Load farms list
+  // Load farms list (strictly Raghav and Sanjana)
   const loadFirms = async () => {
     try {
       const data = await api('/firms');
-      const loadedFirms = data.firms || [];
+      const loadedFirms = (data.firms || []).filter((f) => {
+        const name = (f.name || '').toLowerCase();
+        return name.includes('raghav') || name.includes('sanjana');
+      });
+      loadedFirms.sort((a, b) => {
+        if (a.name.toLowerCase().includes('raghav')) return -1;
+        if (b.name.toLowerCase().includes('raghav')) return 1;
+        return 0;
+      });
       setFirms(loadedFirms);
-      if (loadedFirms.length === 1) {
-        setSelectedFarm(loadedFirms[0]._id);
+      if (loadedFirms.length > 0) {
+        setSelectedFarm((prev) => {
+          const exists = loadedFirms.some((f) => f._id === prev);
+          return exists ? prev : loadedFirms[0]._id;
+        });
       }
     } catch (err) {
       console.error('Failed to load firms:', err);
@@ -494,8 +505,9 @@ export default function MedicineReportPage() {
   }, []);
 
   useEffect(() => {
-    if (firms.length === 1 && selectedFarm !== firms[0]._id) {
-      setSelectedFarm(firms[0]._id);
+    if (firms.length > 0 && (!selectedFarm || !firms.some((f) => f._id === selectedFarm))) {
+      const defaultFarm = firms.find((f) => f.name.toLowerCase().includes('raghav')) || firms[0];
+      setSelectedFarm(defaultFarm._id);
     }
   }, [firms, selectedFarm]);
 
@@ -818,7 +830,6 @@ export default function MedicineReportPage() {
                 onChange={(e) => setSelectedFarm(e.target.value)}
                 className="h-7 sm:h-8 px-1.5 sm:px-2 border border-slate-300 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 bg-white focus:outline-none cursor-pointer"
               >
-                <option value="">All Farms</option>
                 {firms.map((f) => (
                   <option key={f._id} value={f._id}>
                     {f.name}
@@ -1144,7 +1155,7 @@ export default function MedicineReportPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-base font-bold text-slate-800">
-                    Medicine Live Stock Report — {firms.find((f) => f._id === selectedFarm)?.name || 'All Farms'}
+                    Medicine Live Stock Report — {firms.find((f) => f._id === selectedFarm)?.name || 'Raghav'}
                   </h2>
                   <p className="text-xs text-slate-500">
                     Total: {filteredMedicines.length} medicines | Generated on: {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}

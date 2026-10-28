@@ -15,8 +15,12 @@ export default function MedicineTransferAuditReport({
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    if (selectedFarm) setFarmFilter(selectedFarm);
-  }, [selectedFarm]);
+    if (selectedFarm) {
+      setFarmFilter(selectedFarm);
+    } else if (firms.length > 0 && !farmFilter) {
+      setFarmFilter(firms[0]._id);
+    }
+  }, [selectedFarm, firms]);
 
   useEffect(() => {
     let isMounted = true;
@@ -115,7 +119,6 @@ export default function MedicineTransferAuditReport({
                 }}
                 className="h-8 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
               >
-                <option value="">All Farms</option>
                 {firms.map((f) => (
                   <option key={f._id} value={f._id}>
                     🏢 {f.name}

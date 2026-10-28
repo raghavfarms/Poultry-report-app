@@ -31,10 +31,12 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
 
   // Sync selectedFarm prop if changed from parent
   useEffect(() => {
-    if (selectedFarm !== undefined) {
-      setFarm(selectedFarm || '');
+    if (selectedFarm) {
+      setFarm(selectedFarm);
+    } else if (firms && firms.length > 0 && !farm) {
+      setFarm(firms[0]._id);
     }
-  }, [selectedFarm]);
+  }, [selectedFarm, firms]);
 
   // Load stock register data
   const loadRegister = async () => {
@@ -335,24 +337,6 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs">
         {/* Left Filter Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Farm selector */}
-          {firms && firms.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FARM:</label>
-              <select
-                value={farm}
-                onChange={(e) => setFarm(e.target.value)}
-                className="text-xs font-semibold px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:bg-white focus:outline-none"
-              >
-                <option value="">All Farms</option>
-                {firms.map((f) => (
-                  <option key={f._id} value={f._id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* Date Picker with Quick Nav */}
           <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
@@ -466,15 +450,6 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
           <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
             <span>
               Total Meds: <strong className="text-slate-800">{filteredItems.length}</strong>
-            </span>
-            <span>
-              Total Stock: <strong className="text-teal-700 font-mono">{summary.totalClosing}</strong>
-            </span>
-            <span>
-              Variance:{' '}
-              <strong className={summary.varianceCount > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600 font-bold'}>
-                {summary.varianceCount > 0 ? `${summary.varianceCount} items` : '0 (Exact)'}
-              </strong>
             </span>
           </div>
         </div>

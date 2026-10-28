@@ -61,9 +61,17 @@ export default function MedicineBatchTrace({
       (async () => {
         try {
           const res = await api('/firms');
-          const list = res.firms || [];
+          const list = (res.firms || []).filter((f) => {
+            const name = (f.name || '').toLowerCase();
+            return name.includes('raghav') || name.includes('sanjana');
+          });
+          list.sort((a, b) => {
+            if (a.name.toLowerCase().includes('raghav')) return -1;
+            if (b.name.toLowerCase().includes('raghav')) return 1;
+            return 0;
+          });
           setInternalFirms(list);
-          if (list.length === 1 && !farmFilter) {
+          if (list.length > 0 && !farmFilter) {
             setFarmFilter(list[0]._id);
           }
         } catch (err) {
@@ -273,7 +281,6 @@ export default function MedicineBatchTrace({
                 }}
                 className="h-8 px-2.5 bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
               >
-                <option value="">All Farms</option>
                 {internalFirms.map((f) => (
                   <option key={f._id} value={f._id}>
                     {f.name}

@@ -63,8 +63,13 @@ export default function MedicineConsumptionRegister({
 
   // Sync prop changes
   useEffect(() => {
-    setActiveFarm(selectedFarm || '');
-  }, [selectedFarm]);
+    if (selectedFarm) {
+      setActiveFarm(selectedFarm);
+    } else if (firms.length > 0 && (!activeFarm || !firms.some((f) => f._id === activeFarm))) {
+      const defaultFarm = firms.find((f) => f.name.toLowerCase().includes('raghav')) || firms[0];
+      setActiveFarm(defaultFarm._id);
+    }
+  }, [selectedFarm, firms]);
 
   // Load Sheds when farm changes (handles "All Farms" and specific farms)
   useEffect(() => {
@@ -173,7 +178,7 @@ export default function MedicineConsumptionRegister({
 
   // Farm Name lookup
   const currentFarmName = useMemo(() => {
-    if (!activeFarm) return 'All Farms';
+    if (!activeFarm) return firms[0]?.name || 'Raghav';
     const f = firms.find((firm) => firm._id === activeFarm);
     return f ? f.name : 'Farm';
   }, [activeFarm, firms]);
@@ -516,7 +521,6 @@ export default function MedicineConsumptionRegister({
                 }}
                 className="w-full h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[10px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
               >
-                <option value="">All Farms</option>
                 {firms.map((f) => (
                   <option key={f._id} value={f._id}>
                     {f.name}
