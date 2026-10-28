@@ -170,3 +170,76 @@ export function formatPackAndLoose(totalStock, packSize, packagingType, unit) {
     loose,
   };
 }
+
+/**
+ * Accurately calculate pack count and packaging label for an issued / consumed quantity.
+ * Handles unit normalization between issued unit and medicine pack specification (e.g. g vs Kg, ml vs L).
+ *
+ * Examples:
+ *  - 500 g issued with packSize 500 g Packet -> { count: 1, packType: 'Packet', label: '1 Packet' }
+ *  - 500 g issued with packSize 0.5 Kg Box    -> { count: 1, packType: 'Box', label: '1 Box' }
+ *  - 1500 g issued with packSize 500 g Packet -> { count: 3, packType: 'Packet', label: '3 Packets' }
+ *  - 1 Kg issued with packSize 1 Kg Packet    -> { count: 1, packType: 'Packet', label: '1 Packet' }
+ *  - 1 L issued with packSize 1 L Bottle      -> { count: 1, packType: 'Bottle', label: '1 Bottle' }
+ */
+export function computeIssuedPacks(issuedQty, issuedUnit = '', medicine = null) {
+  const qty = Number(issuedQty) || 0;
+  if (!medicine) {
+    const isInt = Math.abs(qty - Math.round(qty)) < 0.0001;
+    const c = isInt ? Math.round(qty) : Number(qty.toFixed(2));
+    return {
+      count: c,
+      packType: 'Pack',
+      label: `${c} ${getPackagingPlural('Pack', c)}`,
+      packSize: 1,
+      isExact: isInt,
+      hasPackSpec: false,
+    };
+  }
+
+  const rawSize = Number(medicine.packSize);
+  const packSize = rawSize > 0 ? rawSize : 1;
+  const packType = medicine.packagingType || 'Pack';
+  const medUnit = String(medicine.unit || '').toLowerCase();
+  const issUnit = String(issuedUnit || '').toLowerCase();
+
+  const isIssKg = issUnit.includes('kg') || issUnit.includes('kilo');
+  const isIssG = !isIssKg && (issUnit.includes('gram') || issUnit.includes('gm') || issUnit === 'g' || issUnit.includes('(g)'));
+
+  const isMedKg = medUnit.includes('kg') || medUnit.includes('kilo');
+  const isMedG = !isMedKg && (medUnit.includes('gram') || medUnit.includes('gm') || medUnit === 'g' || medUnit.includes('(g)'));
+
+  const isIssMl = issUnit.includes('ml') || issUnit.includes('milli');
+  const isIssL = !isIssMl && (issUnit.includes('litre') || issUnit.includes('liter') || issUnit === 'l' || issUnit.includes('(l)'));
+
+  const isMedMl = medUnit.includes('ml') || medUnit.includes('milli');
+  const isMedL = !isMedMl && (medUnit.includes('litre') || medUnit.includes('liter') || medUnit === 'l' || medUnit.includes('(l)'));
+
+  let effectiveQty = qty;
+  if (isIssG && isMedKg) {
+    effectiveQty = qty / 1000;
+  } else if (isIssKg && isMedG) {
+    effectiveQty = qty * 1000;
+  } else if (isIssMl && isMedL) {
+    effectiveQty = qty / 1000;
+  } else if (isIssL && isMedMl) {
+    effectiveQty = qty * 1000;
+  }
+
+  // Calculate pack count
+  const rawCount = packSize > 0 ? effectiveQty / packSize : effectiveQty;
+  const rounded = Math.round(rawCount);
+  const isInt = Math.abs(rawCount - rounded) < 0.0001;
+  const count = isInt ? rounded : Number(rawCount.toFixed(2));
+  const pluralLabel = getPackagingPlural(packType, count);
+
+  return {
+    count,
+    packType,
+    label: `${count} ${pluralLabel}`,
+    packSize,
+    isExact: isInt,
+    hasPackSpec: rawSize > 0,
+    unit: medicine.unit || issuedUnit,
+  };
+}

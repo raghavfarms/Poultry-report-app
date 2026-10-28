@@ -4,10 +4,12 @@ import * as XLSX from 'xlsx';
 import { fetchIssues, deleteIssueApi } from '../api/issueApi.js';
 import { fetchMedicineLocations } from '../api/dailyActionApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
-import { getPackagingPlural, formatUnit } from '../utils/packagingHelper.js';
+import { getPackagingPlural, formatUnit, computeIssuedPacks } from '../utils/packagingHelper.js';
+import { fetchMedicines } from '../api/medicineApi.js';
 
 // In-memory instant cache for zero-millisecond tab switching
 const consumptionCache = new Map();
+let globalMedicineCatalogCache = null;
 
 export default function MedicineConsumptionRegister({
   selectedFarm = '',
@@ -61,6 +63,33 @@ export default function MedicineConsumptionRegister({
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [medicineMap, setMedicineMap] = useState(() => globalMedicineCatalogCache || {});
+
+  // Fetch full medicine master catalog for accurate pack size and packaging type calculation
+  useEffect(() => {
+    let isMounted = true;
+    const loadCatalog = async () => {
+      try {
+        const res = await fetchMedicines({ includeInactive: true });
+        if (isMounted && res?.medicines) {
+          const map = {};
+          for (const m of res.medicines) {
+            if (m._id) map[String(m._id)] = m;
+            if (m.name) map[m.name.toLowerCase().trim()] = m;
+            if (m.code) map[m.code.toLowerCase().trim()] = m;
+          }
+          globalMedicineCatalogCache = map;
+          setMedicineMap(map);
+        }
+      } catch (err) {
+        console.error('Failed to load medicine catalog for consumption register:', err);
+      }
+    };
+    loadCatalog();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Shed Locations List for Filter
   const [shedList, setShedList] = useState([]);
@@ -251,12 +280,11 @@ export default function MedicineConsumptionRegister({
           'Date': dateStr,
           'Time': timeStr,
           'Packs Issued': (() => {
-            const size = Number(iss.medicine?.packSize) || 1;
-            const packType = iss.medicine?.packagingType || 'Pack';
-            const qty = Number(iss.issuedQuantity) || 0;
-            const p = size > 0 ? qty / size : qty;
-            const count = Math.abs(p - Math.round(p)) < 0.0001 ? Math.round(p) : Number(p.toFixed(2));
-            return `${count} ${getPackagingPlural(packType, count)}`;
+            const medId = iss.medicine?._id ? String(iss.medicine._id) : (typeof iss.medicine === 'string' ? iss.medicine : null);
+            const medName = (iss.medicine?.name || '').toLowerCase().trim();
+            const medInfo = (medId && medicineMap[medId]) || (medName && medicineMap[medName]) || iss.medicine;
+            const packResult = computeIssuedPacks(iss.issuedQuantity, iss.unit, medInfo);
+            return packResult.label;
           })(),
           'Location / Shed': iss.shed || iss.destinationName || 'Shed',
           'Qty Consumed': Number(iss.issuedQuantity) || 0,
@@ -705,21 +733,19 @@ export default function MedicineConsumptionRegister({
                       {/* Scrolling Column: Packs Issued */}
                       <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center border-r border-slate-200 whitespace-nowrap">
                         {(() => {
-                          const size = Number(iss.medicine?.packSize) || 1;
-                          const packType = iss.medicine?.packagingType || 'Pack';
-                          const qty = Number(iss.issuedQuantity) || 0;
-                          const p = size > 0 ? qty / size : qty;
-                          const isExactInt = Math.abs(p - Math.round(p)) < 0.0001;
-                          const count = isExactInt ? Math.round(p) : Number(p.toFixed(2));
+                          const medId = iss.medicine?._id ? String(iss.medicine._id) : (typeof iss.medicine === 'string' ? iss.medicine : null);
+                          const medName = (iss.medicine?.name || '').toLowerCase().trim();
+                          const medInfo = (medId && medicineMap[medId]) || (medName && medicineMap[medName]) || iss.medicine;
+                          const packResult = computeIssuedPacks(iss.issuedQuantity, iss.unit, medInfo);
 
                           return (
                             <div className="inline-flex flex-col items-center">
                               <span className="font-extrabold text-[11px] sm:text-xs text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap">
-                                📦 {count} {getPackagingPlural(packType, count)}
+                                📦 {packResult.count} {getPackagingPlural(packResult.packType, packResult.count)}
                               </span>
-                              {size > 1 && (
+                              {packResult.packSize > 1 && (
                                 <span className="text-[8.5px] sm:text-[9px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
-                                  1 {packType} = {size} {formatUnit(iss.unit)}
+                                  1 {packResult.packType} = {packResult.packSize} {formatUnit(packResult.unit || iss.unit)}
                                 </span>
                               )}
                             </div>
