@@ -496,29 +496,60 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
 
         {/* Dense Table Layout with 2-Way (Horizontal & Vertical) Scrolling and Sticky Header */}
         <div className="overflow-x-auto overflow-y-auto max-h-[600px] sm:max-h-[620px] scrollbar-thin touch-pan-x touch-pan-y relative border-b border-slate-200">
-          <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[1100px]">
+          <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[450px] sm:min-w-[1100px]">
             <thead className="sticky top-0 z-20 shadow-xs">
               {/* Row 1: Group Headers matching client sheet */}
               <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider font-extrabold text-center select-none shadow-2xs">
-                <th colSpan="4" className="sticky left-0 z-30 py-1.5 px-2 bg-slate-100 text-slate-700 border-r border-slate-200 text-left shadow-[1px_0_0_0_#e2e8f0]">
+                {/* Medicine Info */}
+                <th colSpan="2" className="py-1.5 px-2 bg-slate-100 text-slate-700 border-r border-slate-200 text-left sm:hidden">
                   Medicine Info
                 </th>
-                <th colSpan="3" className="py-1.5 px-2 bg-blue-100/70 text-blue-800 border-r border-slate-200">
+                <th colSpan="4" className="hidden sm:table-cell py-1.5 px-2 bg-slate-100 text-slate-700 border-r border-slate-200 text-left">
+                  Medicine Info
+                </th>
+
+                {/* Opening */}
+                <th colSpan="1" className="py-1.5 px-2 bg-blue-100 text-blue-800 border-r border-slate-200 sm:hidden">
                   Opening
                 </th>
-                <th colSpan="3" className="py-1.5 px-2 bg-emerald-100/70 text-emerald-800 border-r border-slate-200">
+                <th colSpan="3" className="hidden sm:table-cell py-1.5 px-2 bg-blue-100 text-blue-800 border-r border-slate-200">
+                  Opening
+                </th>
+
+                {/* Received */}
+                <th colSpan="1" className="py-1.5 px-2 bg-emerald-100 text-emerald-800 border-r border-slate-200 sm:hidden">
                   Received
                 </th>
-                <th colSpan="1" className="py-1.5 px-2 bg-indigo-100/70 text-indigo-800 border-r border-slate-200">
+                <th colSpan="3" className="hidden sm:table-cell py-1.5 px-2 bg-emerald-100 text-emerald-800 border-r border-slate-200">
+                  Received
+                </th>
+
+                {/* Sub Total (Desktop only) */}
+                <th colSpan="1" className="hidden sm:table-cell py-1.5 px-2 bg-indigo-100 text-indigo-800 border-r border-slate-200">
                   Sub Total
                 </th>
-                <th colSpan="2" className="py-1.5 px-2 bg-amber-100/70 text-amber-800 border-r border-slate-200">
+
+                {/* Issued */}
+                <th colSpan="1" className="py-1.5 px-2 bg-amber-100 text-amber-800 border-r border-slate-200 sm:hidden">
                   Issued
                 </th>
-                <th colSpan="3" className="py-1.5 px-2 bg-teal-100/70 text-teal-800 border-r border-slate-200">
+                <th colSpan="2" className="hidden sm:table-cell py-1.5 px-2 bg-amber-100 text-amber-800 border-r border-slate-200">
+                  Issued
+                </th>
+
+                {/* Closing / Balance */}
+                <th colSpan="1" className="py-1.5 px-2 bg-teal-100 text-teal-800 border-r border-slate-200 sm:hidden">
+                  Closing
+                </th>
+                <th colSpan="3" className="hidden sm:table-cell py-1.5 px-2 bg-teal-100 text-teal-800 border-r border-slate-200">
                   Balance
                 </th>
-                <th colSpan="2" className="py-1.5 px-2 bg-purple-100/70 text-purple-900">
+
+                {/* Physical Audit */}
+                <th colSpan="1" className="py-1.5 px-2 bg-purple-100 text-purple-900 sm:hidden">
+                  Physical
+                </th>
+                <th colSpan="2" className="hidden sm:table-cell py-1.5 px-2 bg-purple-100 text-purple-900">
                   Physical Audit ⭐
                 </th>
               </tr>
@@ -526,48 +557,52 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
               {/* Row 2: Sub-column headers */}
               <tr className="border-b border-slate-200 text-[10px] font-bold text-slate-600 bg-slate-50 text-center whitespace-nowrap shadow-xs">
                 {/* Medicine Info */}
-                <th className="sticky left-0 z-30 py-1.5 px-2 text-left border-r border-slate-200 min-w-[150px] bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">Name of Medicine</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px]">Packing</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[60px]">Pack Size</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[50px]">Unit</th>
+                <th className="sticky left-0 z-30 py-1.5 px-2 text-left border-r border-slate-200 min-w-[125px] sm:min-w-[150px] bg-slate-50 shadow-[1px_0_0_0_#e2e8f0]">Name of Medicine</th>
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px]">Packing</th>
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[60px]">Pack Size</th>
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[45px] sm:min-w-[50px]">Unit</th>
 
                 {/* Opening */}
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-blue-50/50">No of Packs</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-blue-50/50">Loose Qty</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[70px] bg-blue-100/40 font-black text-blue-900">
-                  Opg Qty
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-blue-50/50">No of Packs</th>
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-blue-50/50">Loose Qty</th>
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[58px] sm:min-w-[70px] bg-blue-100 font-black text-blue-900">
+                  <span className="sm:hidden">Opening</span>
+                  <span className="hidden sm:inline">Opg Qty</span>
                 </th>
 
                 {/* Received */}
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-emerald-50/50">No of Packs</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-emerald-50/50">Loose Qty</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[70px] bg-emerald-100/40 font-black text-emerald-900">
-                  Recd Qty
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-emerald-50/50">No of Packs</th>
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-emerald-50/50">Loose Qty</th>
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[58px] sm:min-w-[70px] bg-emerald-100 font-black text-emerald-900">
+                  <span className="sm:hidden">Received</span>
+                  <span className="hidden sm:inline">Recd Qty</span>
                 </th>
 
-                {/* Sub Total */}
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[75px] bg-indigo-100/50 font-black text-indigo-900">
+                {/* Sub Total (Desktop only) */}
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[75px] bg-indigo-100 font-black text-indigo-900">
                   Total Qty
                 </th>
 
                 {/* Issued */}
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[90px] bg-amber-50/50">Shed No</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[70px] bg-amber-100/40 font-black text-amber-900">
-                  Qty
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[90px] bg-amber-50/50">Shed No</th>
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[50px] sm:min-w-[70px] bg-amber-100 font-black text-amber-900">
+                  <span className="sm:hidden">Issued</span>
+                  <span className="hidden sm:inline">Qty</span>
                 </th>
 
-                {/* Balance */}
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-teal-50/50">No of Packs</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-teal-50/50">Loose Qty</th>
-                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[70px] bg-teal-100/50 font-black text-teal-900">
-                  Clg Qty
+                {/* Balance / Closing */}
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-teal-50/50">No of Packs</th>
+                <th className="hidden sm:table-cell py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-teal-50/50">Loose Qty</th>
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[58px] sm:min-w-[70px] bg-teal-100 font-black text-teal-900">
+                  <span className="sm:hidden">Closing</span>
+                  <span className="hidden sm:inline">Clg Qty</span>
                 </th>
 
                 {/* Physical Audit */}
-                <th className="py-1.5 px-2 border-r border-slate-200 min-w-[80px] bg-purple-50 font-black text-purple-900">
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] sm:min-w-[80px] bg-purple-50 font-black text-purple-900">
                   Physical
                 </th>
-                <th className="py-1.5 px-2 min-w-[90px] bg-purple-50 font-black text-purple-900">
+                <th className="hidden sm:table-cell py-1.5 px-2 min-w-[90px] bg-purple-50 font-black text-purple-900">
                   Difference
                 </th>
               </tr>
