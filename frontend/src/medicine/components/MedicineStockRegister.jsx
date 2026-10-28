@@ -27,14 +27,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
   const [physicalCounts, setPhysicalCounts] = useState({});
   const [savingAudit, setSavingAudit] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(15); // 15 medicines show in one view
   const printRef = useRef(null);
-
-  // Reset page when search, date, or farm changes
-  useEffect(() => {
-    setPage(1);
-  }, [search, date, farm]);
 
   // Sync selectedFarm prop if changed from parent
   useEffect(() => {
@@ -105,17 +98,6 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
     );
   }, [data.items, search, physicalCounts]);
 
-  const totalPages = useMemo(() => {
-    if (limit === 'all') return 1;
-    return Math.max(1, Math.ceil(filteredItems.length / (Number(limit) || 15)));
-  }, [filteredItems.length, limit]);
-
-  const paginatedItems = useMemo(() => {
-    if (limit === 'all') return filteredItems;
-    const l = Number(limit) || 15;
-    const startIndex = (page - 1) * l;
-    return filteredItems.slice(startIndex, startIndex + l);
-  }, [filteredItems, page, limit]);
 
   // Calculate summary metrics
   const summary = useMemo(() => {
@@ -352,17 +334,16 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
 
   return (
     <div className="space-y-2.5">
-      {/* Clean Compact Top Filter & Toolbar */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs">
-        {/* Left Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-
-          {/* Date Picker with Quick Nav */}
-          <div className="flex items-center gap-0.5 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+      {/* Clean Compact Top Filter & Toolbar (Mobile Optimized Layout) */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-2.5 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-2.5 text-xs">
+        {/* Date and Search Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+          {/* Date Picker with Quick Nav (Today removed on mobile) */}
+          <div className="flex items-center justify-between sm:justify-start gap-1 bg-slate-50 border border-slate-200 rounded-lg p-1 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => shiftDate(-1)}
-              className="px-1.5 py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition"
+              className="px-2.5 sm:px-1.5 py-1 sm:py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition cursor-pointer"
               title="Previous Day"
             >
               ◀
@@ -371,28 +352,29 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="text-xs font-semibold px-1.5 py-0.5 bg-transparent text-slate-700 focus:outline-none cursor-pointer"
+              className="flex-1 sm:flex-initial text-xs font-semibold px-2 py-0.5 bg-transparent text-slate-700 focus:outline-none cursor-pointer text-center"
             />
             <button
               type="button"
               onClick={() => shiftDate(1)}
-              className="px-1.5 py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition"
+              className="px-2.5 sm:px-1.5 py-1 sm:py-0.5 text-xs font-bold text-slate-600 hover:bg-white hover:text-slate-900 rounded transition cursor-pointer"
               title="Next Day"
             >
               ▶
             </button>
+            {/* Today Button: Removed on mobile screen as requested */}
             <button
               type="button"
               onClick={() => setDate(new Date().toISOString().slice(0, 10))}
-              className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200/80 text-emerald-700 hover:bg-emerald-50 rounded shadow-2xs transition"
+              className="hidden sm:inline-flex px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200/80 text-emerald-700 hover:bg-emerald-50 rounded shadow-2xs transition cursor-pointer"
             >
               Today
             </button>
           </div>
 
-          {/* Search Box */}
-          <div className="relative min-w-[170px]">
-            <span className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-slate-400 text-xs">
+          {/* Search Box (Full width on mobile below date) */}
+          <div className="relative w-full sm:w-auto sm:min-w-[190px]">
+            <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400 text-xs">
               🔍
             </span>
             <input
@@ -400,34 +382,40 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search medicine..."
-              className="w-full text-xs pl-6 pr-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none"
+              className="w-full text-xs pl-7 pr-2.5 py-2 sm:py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none"
             />
           </div>
         </div>
 
-        {/* Right Action Buttons */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
-            title="Download Excel Register"
-          >
-            <span>📊</span> Export Excel
-          </button>
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
-            title="Download PDF"
-          >
-            <span>📄</span> Export PDF
-          </button>
+        {/* Action Buttons (On mobile: CSV & PDF half/half, Save Audit full width below) */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 w-full sm:w-auto">
+          <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto sm:flex sm:items-center">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
+              title="Download CSV / Excel Register"
+            >
+              <span>📊</span>
+              <span className="sm:hidden">CSV</span>
+              <span className="hidden sm:inline">Export Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-2 sm:py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer"
+              title="Download PDF"
+            >
+              <span>📄</span>
+              <span className="sm:hidden">PDF</span>
+              <span className="hidden sm:inline">Export PDF</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={handleSaveAudit}
             disabled={savingAudit}
-            className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold rounded-lg shadow-2xs transition cursor-pointer disabled:opacity-50"
             title="Save physical stock counts to database"
           >
             <span>💾</span> {savingAudit ? 'Saving...' : 'Save Audit'}
@@ -473,35 +461,10 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
           </div>
         </div>
 
-        {/* Table Rows & View Controls Bar */}
-        <div data-html2canvas-ignore="true" className="px-3 py-1.5 sm:py-2 bg-slate-50/90 border-b border-slate-200 flex justify-between items-center text-[10px] sm:text-xs print:hidden">
-          <div className="flex items-center gap-1.5 font-bold text-slate-700">
-            <span>Show:</span>
-            <select
-              value={limit}
-              onChange={(e) => {
-                const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
-                setLimit(val);
-                setPage(1);
-              }}
-              className="h-6 sm:h-7 px-1.5 border border-slate-300 rounded bg-white text-[10px] sm:text-xs font-semibold focus:outline-none cursor-pointer"
-            >
-              <option value={15}>15 medicines (Default)</option>
-              <option value={25}>25 medicines</option>
-              <option value={50}>50 medicines</option>
-              <option value={100}>100 medicines</option>
-              <option value="all">All ({filteredItems.length})</option>
-            </select>
-          </div>
-
-          <div className="text-slate-500 font-semibold text-[10px] sm:text-[11px]">
-            Page {page} of {totalPages}
-          </div>
-        </div>
 
         {/* Dense Table Layout with 2-Way (Horizontal & Vertical) Scrolling and Sticky Header */}
-        <div className="overflow-x-auto overflow-y-auto max-h-[70vh] sm:max-h-[660px] scrollbar-thin touch-pan-x touch-pan-y relative border-b border-slate-200">
-          <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[600px] sm:max-h-[620px] scrollbar-thin touch-pan-x touch-pan-y relative border-b border-slate-200">
+          <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[1100px]">
             <thead className="sticky top-0 z-20 shadow-xs">
               {/* Row 1: Group Headers matching client sheet */}
               <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider font-extrabold text-center select-none shadow-2xs">
@@ -592,7 +555,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((it, idx) => {
+                filteredItems.map((it, idx) => {
                   const physicalVal = physicalCounts[it._id];
                   const hasPhysical = physicalVal !== undefined && physicalVal !== '';
                   const diff = hasPhysical ? Number((Number(physicalVal) - (it.closing?.total || 0)).toFixed(3)) : null;
@@ -716,39 +679,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
           </table>
         </div>
 
-        {/* Bottom Pagination Bar */}
-        {filteredItems.length > 0 && limit !== 'all' && (
-          <div data-html2canvas-ignore="true" className="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-semibold print:hidden">
-            <span className="text-slate-500">
-              Showing {filteredItems.length > 0 ? (page - 1) * limit + 1 : 0} to{' '}
-              {Math.min(page * limit, filteredItems.length)} of {filteredItems.length} medicines
-            </span>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 transition cursor-pointer"
-              >
-                ◀ Previous
-              </button>
-
-              <span className="px-2 text-slate-700 font-bold">
-                {page} / {totalPages}
-              </span>
-
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-700 transition cursor-pointer"
-              >
-                Next ▶
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
