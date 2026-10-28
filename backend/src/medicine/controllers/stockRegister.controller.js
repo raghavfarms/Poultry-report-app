@@ -238,6 +238,18 @@ export async function getStockRegister(req, res) {
         : null;
     const difference = physicalQty !== null ? Number((physicalQty - clgQty).toFixed(3)) : null;
 
+    // Only show medicines that are in stock, in loose, or had movements today
+    const hasStockOrActivity =
+      clgQty > 0 ||
+      opgQty > 0 ||
+      recdQty > 0 ||
+      issuedQty > 0 ||
+      physicalQty !== null;
+
+    if (!hasStockOrActivity) {
+      continue;
+    }
+
     registerItems.push({
       _id: med._id,
       code: med.code,

@@ -76,7 +76,15 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
 
   // Filter items by search
   const filteredItems = useMemo(() => {
-    const list = data.items || [];
+    const rawList = data.items || [];
+    const list = rawList.filter((it) => {
+      const closing = Number(it.closing?.total) || 0;
+      const opening = Number(it.opening?.total) || 0;
+      const received = Number(it.received?.total) || 0;
+      const issued = Number(it.issued?.total) || 0;
+      const hasPhysical = physicalCounts[it._id] !== undefined && physicalCounts[it._id] !== '';
+      return closing > 0 || opening > 0 || received > 0 || issued > 0 || hasPhysical;
+    });
     if (!search.trim()) return list;
     const q = search.trim().toLowerCase();
     return list.filter(
@@ -86,7 +94,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
         (it.aliasName && it.aliasName.toLowerCase().includes(q)) ||
         (it.packagingType && it.packagingType.toLowerCase().includes(q))
     );
-  }, [data.items, search]);
+  }, [data.items, search, physicalCounts]);
 
   // Calculate summary metrics
   const summary = useMemo(() => {
