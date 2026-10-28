@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { fetchIssues, deleteIssueApi } from '../api/issueApi.js';
 import { fetchMedicineLocations } from '../api/dailyActionApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
+import { getPackagingPlural, formatUnit } from '../utils/packagingHelper.js';
 
 // In-memory instant cache for zero-millisecond tab switching
 const consumptionCache = new Map();
@@ -249,7 +250,14 @@ export default function MedicineConsumptionRegister({
           'Category': iss.medicine?.category || '—',
           'Date': dateStr,
           'Time': timeStr,
-          'Farm': iss.farm?.name || 'Farm',
+          'Packs Issued': (() => {
+            const size = Number(iss.medicine?.packSize) || 1;
+            const packType = iss.medicine?.packagingType || 'Pack';
+            const qty = Number(iss.issuedQuantity) || 0;
+            const p = size > 0 ? qty / size : qty;
+            const count = Math.abs(p - Math.round(p)) < 0.0001 ? Math.round(p) : Number(p.toFixed(2));
+            return `${count} ${getPackagingPlural(packType, count)}`;
+          })(),
           'Location / Shed': iss.shed || iss.destinationName || 'Shed',
           'Qty Consumed': Number(iss.issuedQuantity) || 0,
           'Unit': iss.unit || '',
@@ -634,8 +642,8 @@ export default function MedicineConsumptionRegister({
 
                   {/* Scrolling Columns */}
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Date & Time</th>
-                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Farm</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Location / Shed</th>
+                  <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap border-r border-slate-200">Packs Issued</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-right whitespace-nowrap border-r border-slate-200">Qty Consumed</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Batch No</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Issued By</th>
@@ -687,22 +695,36 @@ export default function MedicineConsumptionRegister({
                         <div className="text-[9px] sm:text-[10px] text-slate-400">{timeStr}</div>
                       </td>
 
-                      {/* Scrolling Column: Farm */}
-                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 font-semibold text-slate-700 whitespace-nowrap border-r border-slate-200 text-[10px] sm:text-xs">
-                        {iss.farm?.name ? (
-                          <span className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 text-[9px] sm:text-[11px] font-bold">
-                            🏢 {iss.farm.name}
-                          </span>
-                        ) : (
-                          'Farm'
-                        )}  
-                      </td>
-
                       {/* Scrolling Column: Location / Shed */}
                       <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 border-r border-slate-200 whitespace-nowrap text-[10px] sm:text-xs">
                         <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded print:p-0 print:bg-transparent text-[9px] sm:text-xs">
                           <span>🏠</span> {iss.shed || iss.destinationName || 'Shed'}
                         </span>
+                      </td>
+
+                      {/* Scrolling Column: Packs Issued */}
+                      <td className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center border-r border-slate-200 whitespace-nowrap">
+                        {(() => {
+                          const size = Number(iss.medicine?.packSize) || 1;
+                          const packType = iss.medicine?.packagingType || 'Pack';
+                          const qty = Number(iss.issuedQuantity) || 0;
+                          const p = size > 0 ? qty / size : qty;
+                          const isExactInt = Math.abs(p - Math.round(p)) < 0.0001;
+                          const count = isExactInt ? Math.round(p) : Number(p.toFixed(2));
+
+                          return (
+                            <div className="inline-flex flex-col items-center">
+                              <span className="font-extrabold text-[11px] sm:text-xs text-emerald-800 bg-emerald-50 border border-emerald-200/90 px-2 py-0.5 rounded-md shadow-2xs whitespace-nowrap">
+                                📦 {count} {getPackagingPlural(packType, count)}
+                              </span>
+                              {size > 1 && (
+                                <span className="text-[8.5px] sm:text-[9px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
+                                  1 {packType} = {size} {formatUnit(iss.unit)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Scrolling Column: Quantity Consumed */}

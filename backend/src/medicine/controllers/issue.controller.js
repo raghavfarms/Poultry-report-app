@@ -365,7 +365,7 @@ export async function getIssues(req, res) {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum)
-        .populate('medicine', 'code name unit category aliasName')
+        .populate('medicine', 'code name unit category aliasName packSize packagingType')
         .populate('batch', 'batchNumber expiryDate quantityAvailable status')
         .populate('farm', 'name code')
         .populate('issuedBy', 'username name')
