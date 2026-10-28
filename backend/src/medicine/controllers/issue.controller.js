@@ -428,6 +428,11 @@ export async function getIssueById(req, res) {
  */
 export async function deleteIssue(req, res) {
   try {
+    const isAdmin = ['admin', 'developer'].includes(req.user?.role);
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only administrators have access to delete consumption records.' });
+    }
+
     const { id } = req.params;
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       throw badRequest('Invalid consumption issue ID');

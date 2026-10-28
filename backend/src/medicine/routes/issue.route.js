@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../../middleware/auth.js';
+import { protect, adminOnly } from '../../middleware/auth.js';
 import {
   getFefoRecommendations,
   createIssue,
@@ -20,7 +20,6 @@ router.get('/fefo-recommendations', getFefoRecommendations);
 router.get('/', getIssues);
 router.post('/', createIssue);
 router.get('/:id', getIssueById);
-router.delete('/:id', deleteIssue);
+router.delete('/:id', adminOnly, deleteIssue);
 
 export default router;
-

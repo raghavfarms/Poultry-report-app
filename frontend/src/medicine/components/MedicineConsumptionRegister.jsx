@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useAuth } from '../../context/AuthContext.jsx';
 import * as XLSX from 'xlsx';
 import { fetchIssues, deleteIssueApi } from '../api/issueApi.js';
 import { fetchMedicineLocations } from '../api/dailyActionApi.js';
@@ -13,6 +14,8 @@ export default function MedicineConsumptionRegister({
   onBackToDaily,
   onConsumedDeleted,
 }) {
+  const { user } = useAuth();
+  const isAdmin = ['admin', 'developer'].includes(user?.role);
   const registerRef = useRef(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
@@ -637,7 +640,9 @@ export default function MedicineConsumptionRegister({
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Batch No</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Issued By</th>
                   <th className="py-1.5 px-2 sm:py-2.5 sm:px-3 whitespace-nowrap border-r border-slate-200">Received By</th>
-                  <th data-html2canvas-ignore="true" className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap print:hidden">Action</th>
+                  {isAdmin && (
+                    <th data-html2canvas-ignore="true" className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap print:hidden">Action</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800">
@@ -725,28 +730,30 @@ export default function MedicineConsumptionRegister({
                         {iss.issuedTo || 'Worker'}
                       </td>
 
-                      {/* Action Column: Delete */}
-                      <td data-html2canvas-ignore="true" className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap print:hidden">
-                        <button
-                          type="button"
-                          disabled={deletingId === iss._id}
-                          onClick={() => handleDeleteIssue(iss)}
-                          className="px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition shadow-2xs cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
-                          title={`Delete entry & restore ${iss.issuedQuantity} ${iss.unit} to batch #${iss.batchNumber}`}
-                        >
-                          {deletingId === iss._id ? (
-                            <>
-                              <span className="animate-spin text-[10px]">↻</span>
-                              <span>Restoring...</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>🗑️</span>
-                              <span>Delete</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
+                      {/* Action Column: Delete (Admin & Developer Only) */}
+                      {isAdmin && (
+                        <td data-html2canvas-ignore="true" className="py-1.5 px-2 sm:py-2.5 sm:px-3 text-center whitespace-nowrap print:hidden">
+                          <button
+                            type="button"
+                            disabled={deletingId === iss._id}
+                            onClick={() => handleDeleteIssue(iss)}
+                            className="px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-[11px] font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition shadow-2xs cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                            title={`Delete entry & restore ${iss.issuedQuantity} ${iss.unit} to batch #${iss.batchNumber}`}
+                          >
+                            {deletingId === iss._id ? (
+                              <>
+                                <span className="animate-spin text-[10px]">↻</span>
+                                <span>Restoring...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>🗑️</span>
+                                <span>Delete</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );  
                 })}
