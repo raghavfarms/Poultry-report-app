@@ -457,7 +457,7 @@ export default function MedicineReportPage() {
   // Load farms list (strictly Raghav and Sanjana)
   const loadFirms = async () => {
     try {
-      const data = await api('/firms');
+      const data = await api('/firms?module=medicine');
       const loadedFirms = (data.firms || []).filter((f) => {
         const name = (f.name || '').toLowerCase();
         return name.includes('raghav') || name.includes('sanjana');

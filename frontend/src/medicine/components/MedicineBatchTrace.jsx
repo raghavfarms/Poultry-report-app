@@ -60,7 +60,7 @@ export default function MedicineBatchTrace({
     } else {
       (async () => {
         try {
-          const res = await api('/firms');
+          const res = await api('/firms?module=medicine');
           const list = (res.firms || []).filter((f) => {
             const name = (f.name || '').toLowerCase();
             return name.includes('raghav') || name.includes('sanjana');

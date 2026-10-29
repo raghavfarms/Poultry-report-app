@@ -75,7 +75,7 @@ export default function MedicineReceiptPage() {
         const [supData, medData, firmData] = await Promise.all([
           fetchSuppliers(),
           fetchMedicines({ includeInactive: false }),
-          api('/firms'),
+          api('/firms?module=medicine'),
         ]);
         setSuppliers(supData.suppliers || []);
         setMedicines(medData.medicines || []);

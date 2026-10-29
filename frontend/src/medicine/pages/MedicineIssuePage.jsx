@@ -75,7 +75,7 @@ export default function MedicineIssuePage() {
       try {
         const [medData, firmData] = await Promise.all([
           fetchMedicines({ includeInactive: false }),
-          api('/firms'),
+          api('/firms?module=medicine'),
         ]);
         setMedicines(medData.medicines || []);
         const filtered = (firmData.firms || []).filter((f) => {

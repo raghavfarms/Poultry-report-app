@@ -6,6 +6,7 @@ import MedicineIssue from '../models/MedicineIssue.js';
 import MedicineReceipt from '../models/MedicineReceipt.js';
 
 import Firm from '../../models/Firm.js';
+import { getPermittedFirmsForModule } from '../../utils/userFirms.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 
 /**
@@ -57,7 +58,10 @@ export async function resolveUserFarmScope(req, farmQuery) {
   let allowedFirms = [];
 
   if (!isAdmin && req.user) {
-    if (Array.isArray(req.user.firms) && req.user.firms.length > 0) {
+    const permitted = getPermittedFirmsForModule(req.user, 'medicine');
+    if (permitted !== null) {
+      allowedFirms = permitted.map((id) => new mongoose.Types.ObjectId(id));
+    } else if (Array.isArray(req.user.firms) && req.user.firms.length > 0) {
       allowedFirms = req.user.firms.map((f) => new mongoose.Types.ObjectId(f._id || f));
     } else if (req.user.firm) {
       allowedFirms = [new mongoose.Types.ObjectId(req.user.firm._id || req.user.firm)];
@@ -66,8 +70,11 @@ export async function resolveUserFarmScope(req, farmQuery) {
 
   if (farmQuery) {
     const requestedId = await resolveFarmId(farmQuery);
-    if (!isAdmin && allowedFirms.length > 0) {
-      const isAllowed = allowedFirms.some((f) => f.toString() === requestedId?.toString());
+    if (!isAdmin) {
+      if (allowedFirms.length === 0) {
+        return { farm: new mongoose.Types.ObjectId() };
+      }
+      const isAllowed = requestedId && allowedFirms.some((f) => f.toString() === requestedId?.toString());
       if (isAllowed) {
         return { farm: requestedId };
       }
@@ -76,7 +83,10 @@ export async function resolveUserFarmScope(req, farmQuery) {
     if (requestedId) return { farm: requestedId };
   }
 
-  if (!isAdmin && allowedFirms.length > 0) {
+  if (!isAdmin) {
+    if (allowedFirms.length === 0) {
+      return { farm: new mongoose.Types.ObjectId() };
+    }
     return allowedFirms.length === 1 ? { farm: allowedFirms[0] } : { farm: { $in: allowedFirms } };
   }
 

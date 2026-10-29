@@ -6,7 +6,7 @@ export function firmScope(user, requestedFirm) {
   const firm = requestedFirm === undefined ? undefined : objectId(requestedFirm, 'Firm');
   if (['developer', 'admin'].includes(user.role)) return firm ? { firm } : {};
   const modulePermitted = getPermittedFirmsForModule(user, 'attendance');
-  const permitted = modulePermitted && modulePermitted.length > 0
+  const permitted = modulePermitted !== null
     ? modulePermitted
     : (user.firms || []).map((id) => String(id._id || id));
   if (firm && !permitted.includes(String(firm))) {
@@ -35,5 +35,3 @@ export function sortFirms(firms = []) {
     return (a.name || '').localeCompare(b.name || '');
   });
 }
-
-

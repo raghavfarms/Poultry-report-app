@@ -280,7 +280,7 @@ export default function MedicineMasterPage() {
 
   useEffect(() => {
     loadSuppliers();
-    api('/firms')
+    api('/firms?module=medicine')
       .then((data) => setFirms(data.firms || data || []))
       .catch((err) => console.error('Failed to load firms:', err));
   }, []);
