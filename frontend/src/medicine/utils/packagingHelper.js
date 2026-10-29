@@ -122,7 +122,9 @@ export function formatPackAndLoose(totalStock, packSize, packagingType, unit) {
   const type = packagingType || 'Bottle';
   const u = formatUnit(unit) || 'Units';
 
-  if (size <= 0 || size === 1) {
+  const isContainerDistinct = type && type.toLowerCase() !== u.toLowerCase() && !['unit', 'units', 'item', 'items', 'count'].includes(type.toLowerCase());
+
+  if (size <= 0 || (size === 1 && !isContainerDistinct)) {
     return {
       main: `${qty} ${u}`,
       sub: '',

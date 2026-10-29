@@ -276,6 +276,12 @@ export default function MedicineReportPage() {
     setEditExpiryDate(batch.expiryDate || '');
     const qty = batch.quantityAvailable !== undefined ? batch.quantityAvailable : '';
     setEditQuantity(qty);
+    const pSize = Number(batch.packSize) || Number(batch.medicine?.packSize) || 1;
+    if (pSize > 0 && qty !== '' && !isNaN(qty)) {
+      setEditPacks(Number((Number(qty) / pSize).toFixed(3)));
+    } else {
+      setEditPacks('');
+    }
     setEditBatchError('');
     setIsEditModalOpen(true);
 
@@ -1747,7 +1753,7 @@ export default function MedicineReportPage() {
                     </div>
 
                     {/* Dual Linked Pack / Unit inputs when packSize is customized */}
-                    {editPackSize > 0 && editPackSize !== 1 ? (
+                    {editPackSize > 0 && (editPackSize !== 1 || (editPackaging && editPackaging.toLowerCase() !== editUnit.toLowerCase() && !['unit', 'units', 'item', 'items'].includes(editPackaging.toLowerCase()))) ? (
                       <div className="space-y-2 p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl">
                         <div className="flex items-center justify-between text-[11px] font-bold text-emerald-900">
                           <span>📦 1 {editPackaging} = {editPackSize} {editUnit}</span>

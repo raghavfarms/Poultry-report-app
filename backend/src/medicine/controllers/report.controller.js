@@ -675,10 +675,18 @@ export async function updateBatchDetails(req, res) {
     if (isNaN(parsedQty) || parsedQty < 0) {
       throw badRequest('Quantity available must be a valid non-negative number');
     }
+
+    const issuesAgg = await MedicineIssue.aggregate([
+      { $match: { batch: batch._id } },
+      { $group: { _id: null, total: { $sum: '$issuedQuantity' } } },
+    ]);
+    const totalIssued = issuesAgg[0]?.total || 0;
+    const disposed = Number(batch.disposedQuantity) || 0;
+    const transferred = Number(batch.transferredOutQuantity) || 0;
+    const onHold = Number(batch.quantityOnHold) || 0;
+
     batch.quantityAvailable = parsedQty;
-    if (batch.initialQuantity < parsedQty) {
-      batch.initialQuantity = parsedQty;
-    }
+    batch.initialQuantity = parsedQty + totalIssued + disposed + transferred + onHold;
   }
 
   const oldBatchNumber = batch.batchNumber;
