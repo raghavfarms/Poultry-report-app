@@ -125,7 +125,7 @@ function Sidebar({ open, close }) {
               ) : null}
               {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
-                  <span>💊</span>General Medicine
+                  <span>💊</span>General Medicine Master
                 </NavLink>
               )}
               {canManageTemperature && (

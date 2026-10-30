@@ -212,7 +212,7 @@ function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
   if (unrestricted || permissions.attendance_autocut) allowed.push("Auto Cut Attendance");
   if (unrestricted || permissions.asset_master) allowed.push("Firms & Assets");
   if (unrestricted || permissions.transport_master) allowed.push("Transport Vehicles & Stations");
-  if (unrestricted || permissions.medicine_master) allowed.push("General Medicine");
+  if (unrestricted || permissions.medicine_master) allowed.push("General Medicine Master");
   if (unrestricted || permissions.attendance_scan) allowed.push("Camera Scan");
   if (unrestricted || permissions.worker_master) allowed.push("Worker Master");
   if (unrestricted || permissions.attendance_admin_master) allowed.push("Attendance Master");
@@ -1628,7 +1628,7 @@ export default function UserAdminPage() {
                     ["attendance_autocut", "Auto Cut Attendance"],
                     ["asset_master", "Firms & Assets"],
                     ["transport_master", "Transport Vehicles & Stations"],
-                    ["medicine_master", "General Medicine"],
+                    ["medicine_master", "General Medicine Master"],
                     ...(userForm.allowedModules?.includes("temperature")
                       ? [["temperature_master", "Temperature Master"]]
                       : []),
@@ -1856,7 +1856,7 @@ export default function UserAdminPage() {
                     ["attendance_autocut", "Auto Cut Attendance"],
                     ["asset_master", "Firms & Assets"],
                     ["transport_master", "Transport Vehicles & Stations"],
-                    ["medicine_master", "General Medicine"],
+                    ["medicine_master", "General Medicine Master"],
                     ...(roleForm.allowedModules?.includes("temperature")
                       ? [["temperature_master", "Temperature Master"]]
                       : []),
