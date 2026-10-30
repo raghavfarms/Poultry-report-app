@@ -634,8 +634,7 @@ export default function MedicineMasterPage() {
           }`}
         >
           <span>🔄</span>
-          <span>Transfers</span>
-          <span className="hidden sm:inline">Audit</span>
+          <span>Transferred Medicines</span>
         </button>
 
         {canAccessTrace && (
