@@ -6,6 +6,7 @@ import {
   getSupplierById,
   updateSupplier,
   toggleSupplierStatus,
+  bulkImportSuppliers
 } from '../controllers/supplier.controller.js';
 import { protect } from '../../middleware/auth.js';
 
@@ -19,6 +20,8 @@ router.use(protect);
 router.route('/')
   .get(getSuppliers)
   .post(createSupplier);
+
+  router.post('/bulk-import', bulkImportSuppliers);
 
 // 3. GET /api/medicine/suppliers/:id - Fetch single supplier
 // 4. PUT /api/medicine/suppliers/:id - Update supplier

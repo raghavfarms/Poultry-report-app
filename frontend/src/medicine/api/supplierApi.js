@@ -50,3 +50,10 @@ export async function toggleSupplierStatusApi(id) {
     method: 'PATCH',
   });
 }
+
+export async function bulkImportSuppliersApi(suppliers) {
+  return await api('/medicine/suppliers/bulk-import', {
+    method: 'POST',
+    body: { suppliers },
+  });
+}

@@ -22,6 +22,11 @@ import MedicineTransferModal from '../components/MedicineTransferModal.jsx';
 import MedicineBatchTrace from '../components/MedicineBatchTrace.jsx';
 import { DEFAULT_PACKAGING_TYPES, DEFAULT_MEASUREMENT_UNITS, formatStockDisplay } from '../utils/packagingHelper.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
+import * as XLSX from 'xlsx';
+import { bulkImportSuppliersApi } from '../api/supplierApi.js';
+
+
+
 
 const DEFAULT_CATEGORIES = [
   'General',
@@ -204,6 +209,101 @@ export default function MedicineMasterPage() {
   const [supplierError, setSupplierError] = useState('');
   const [supplierSuccessMsg, setSupplierSuccessMsg] = useState('');
 
+    // Bulk Excel Import States
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // 📥 Download Sample Excel Template
+  const handleDownloadSampleExcel = () => {
+    const sampleData = [
+      {
+        'Supplier Name': 'Venkateshwara Hatcheries Pvt Ltd',
+        'Contact Person': 'Rajesh Sharma',
+        'Mobile': '9876543210',
+        'Email': 'contact@venkys.com',
+        'GSTIN': '07AAAAA0000A1Z5',
+        'Address': 'Pune, Maharashtra',
+      },
+      {
+        'Supplier Name': 'Zydus Animal Health',
+        'Contact Person': 'Anil Verma',
+        'Mobile': '9123456780',
+        'Email': 'sales@zydus.com',
+        'GSTIN': '',
+        'Address': 'Ahmedabad, Gujarat',
+      },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Suppliers_Template');
+    XLSX.writeFile(wb, 'Suppliers_Sample_Template.xlsx');
+  };
+
+  // 📂 Upload & Read Excel
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawData = XLSX.utils.sheet_to_json(ws);
+
+        const parsed = rawData
+          .map((row) => ({
+            name: String(row['Supplier Name'] || row['name'] || row['Name'] || row['Party Name'] || '').trim(),
+            contactPerson: String(row['Contact Person'] || row['contactPerson'] || row['Contact'] || '').trim(),
+            mobile: String(row['Mobile'] || row['mobile'] || row['Phone'] || '').trim(),
+            email: String(row['Email'] || row['email'] || '').trim(),
+            gstin: String(row['GSTIN'] || row['gstin'] || row['GST'] || '').trim(),
+            address: String(row['Address'] || row['address'] || '').trim(),
+          }))
+          .filter((s) => s.name.length > 0);
+
+        if (parsed.length === 0) {
+          alert('No valid supplier rows found! Please ensure column "Supplier Name" is present.');
+          return;
+        }
+
+        setImportPreview(parsed);
+        setIsBulkImportOpen(true);
+      } catch (err) {
+        console.error('Error reading Excel:', err);
+        alert('Failed to parse Excel file. Please upload a valid .xlsx or .xls file.');
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // 💾 Confirm & Save to Database
+  const handleConfirmImport = async () => {
+    if (importPreview.length === 0) return;
+    try {
+      setIsImporting(true);
+      const res = await bulkImportSuppliersApi(importPreview);
+      setSupplierSuccessMsg(res.message || 'Suppliers imported successfully!');
+      setIsBulkImportOpen(false);
+      setImportPreview([]);
+      loadSuppliers();
+      setTimeout(() => setSupplierSuccessMsg(''), 4000);
+    } catch (err) {
+      alert(err.message || 'Failed to import suppliers');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+
+  
   // Dynamic categories & units combining poultry presets with database items
   const safeMedicines = Array.isArray(medicines) ? medicines.filter(Boolean) : [];
   const dbCategories = safeMedicines
@@ -1180,16 +1280,52 @@ export default function MedicineMasterPage() {
             Manage vendors & suppliers. All active suppliers show in the Stock In entry dropdown.
           </p>
         </div>
-        {canManage && (
+        <div className="flex items-center gap-2">
+          {/* Hidden file input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".xlsx, .xls"
+            className="hidden"
+          />
+
+          {/* 1. Download Sample Button */}
           <button
             type="button"
-            onClick={handleOpenAddSupplierModal}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer text-xs sm:text-sm shrink-0"
+            onClick={handleDownloadSampleExcel}
+            className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-2xs transition flex items-center gap-1.5 cursor-pointer text-xs shrink-0"
+            title="Download sample Excel template"
           >
-            <span className="text-base leading-none font-bold">+</span>
-            <span>Add Supplier</span>
+            <span>📥</span>
+            <span className="hidden sm:inline">Sample Excel</span>
           </button>
-        )}
+
+          {/* 2. Upload Excel Button */}
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs shrink-0"
+              title="Upload supplier Excel sheet"
+            >
+              <span>📊</span>
+              <span>Upload Excel</span>
+            </button>
+          )}
+
+          {/* 3. Regular Add Supplier Button */}
+          {canManage && (
+            <button
+              type="button"
+              onClick={handleOpenAddSupplierModal}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer text-xs shrink-0"
+            >
+              <span className="text-base leading-none font-bold">+</span>
+              <span>Add Supplier</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Supplier Notifications */}
@@ -1918,6 +2054,76 @@ export default function MedicineMasterPage() {
         firms={firms}
         onSuccess={() => setAuditRefreshKey((k) => k + 1)}
       />
+
+      {/* Excel Import Preview Modal */}
+      {isBulkImportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-5 py-3.5 bg-slate-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-sm">📊 Import Suppliers Preview</h3>
+                <p className="text-xs text-slate-300">Found {importPreview.length} suppliers ready to import</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkImportOpen(false)}
+                className="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-bold">
+                    <th className="p-2 border">#</th>
+                    <th className="p-2 border">Supplier Name</th>
+                    <th className="p-2 border">Contact</th>
+                    <th className="p-2 border">Mobile</th>
+                    <th className="p-2 border">GSTIN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.slice(0, 50).map((s, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="p-2 border text-slate-400">{idx + 1}</td>
+                      <td className="p-2 border font-bold text-slate-800">{s.name}</td>
+                      <td className="p-2 border text-slate-600">{s.contactPerson || '—'}</td>
+                      <td className="p-2 border text-slate-600">{s.mobile || '—'}</td>
+                      <td className="p-2 border font-mono text-slate-600">{s.gstin || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {importPreview.length > 50 && (
+                <p className="text-center text-xs text-slate-400 mt-2">
+                  ...and {importPreview.length - 50} more suppliers
+                </p>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkImportOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isImporting}
+                onClick={handleConfirmImport}
+                className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isImporting ? 'Saving to Database...' : `Confirm & Save (${importPreview.length})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

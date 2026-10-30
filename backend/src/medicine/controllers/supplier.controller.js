@@ -140,4 +140,65 @@ export async function toggleSupplierStatus(req, res) {
     message: `Supplier ${supplier.active ? 'activated' : 'deactivated'} successfully.`,
     supplier,
   });
+
 }
+  export async function bulkImportSuppliers(req, res) {
+  const { suppliers } = req.body; // Array of parsed objects from frontend
+  if (!Array.isArray(suppliers) || suppliers.length === 0) {
+    throw badRequest('No suppliers data provided.');
+  }
+
+  // 1. Fetch current counter for sequential code generation (e.g. SUP-001)
+  let currentCount = await Supplier.countDocuments();
+
+  const bulkOps = suppliers.map((s) => {
+    currentCount++;
+    const code = s.code?.trim().toUpperCase() || `SUP-${String(currentCount).padStart(3, '0')}`;
+    const name = s.name.trim();
+
+    return {
+      updateOne: {
+        // If supplier with same name or GSTIN exists, update it; otherwise insert!
+        filter: {
+          $or: [
+            { name: new RegExp(`^${name}$`, 'i') },
+            ...(s.gstin ? [{ gstin: s.gstin.trim().toUpperCase() }] : []),
+          ],
+        },
+        update: {
+          $setOnInsert: { code, createdBy: req.user._id },
+          $set: {
+            name,
+            contactPerson: s.contactPerson?.trim() || '',
+            mobile: s.mobile?.trim() || '',
+            email: s.email?.trim().toLowerCase() || '',
+            address: s.address?.trim() || '',
+            gstin: s.gstin?.trim().toUpperCase() || '',
+            active: true,
+          },
+        },
+        upsert: true,
+      },
+    };
+  });
+
+  const result = await Supplier.bulkWrite(bulkOps);
+  res.json({
+    success: true,
+    message: `Imported successfully! (${result.upsertedCount} added, ${result.modifiedCount} updated)`,
+    result,
+  });
+}
+   
+
+
+ 
+
+
+
+
+
+
+
+
+
