@@ -759,7 +759,7 @@ export default function MedicineMasterPage() {
           {/* 1. Header Section */}
           <div className="flex justify-between items-center gap-3 bg-white p-3 sm:p-5 rounded-xl border border-slate-200 shadow-xs">
         <div>
-          <h1 className="text-base sm:text-2xl font-bold text-slate-800">General Medicine Master</h1>
+          <h1 className="text-base sm:text-2xl font-bold text-slate-800">Medicine Master</h1>
           <p className="text-xs text-slate-500 hidden sm:block">Manage general medicine catalog, specifications, and stock alert levels</p>
         </div>
         <div className="flex items-center gap-2">

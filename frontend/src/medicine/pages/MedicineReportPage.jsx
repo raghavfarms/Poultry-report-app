@@ -811,7 +811,7 @@ export default function MedicineReportPage() {
             <div className="flex items-center gap-1.5">
               <span className="text-base sm:text-lg">💊</span>
               <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-                General Medicine
+                General Med Movement
               </h1>
             </div>
             <p className="hidden sm:block text-[10px] sm:text-[11px] text-slate-500">

@@ -7,7 +7,7 @@ export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
-  ["medicine", "General Medicine", "💊"],
+  ["medicine", "General Med Movement", "💊"],
   ["temperature", "Temperature Monitoring", "🌡️"],
 ];
 
@@ -121,7 +121,7 @@ function Sidebar({ open, close }) {
               ) : null}
               {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
-                  <span>💊</span>General Medicine Master
+                  <span>💊</span>Medicine Master
                 </NavLink>
               )}
             </>
