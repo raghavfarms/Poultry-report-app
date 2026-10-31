@@ -913,7 +913,7 @@ export default function MedicineReportPage() {
                   }`}
                 >
                   <span>📑</span>
-                  <span className={activeTab === 'register' ? '!text-white' : ''}>Register</span>
+                  <span className={activeTab === 'register' ? '!text-white' : ''}>Stock Movement Report</span>
                 </button>
               );
             }
@@ -930,7 +930,7 @@ export default function MedicineReportPage() {
                   }`}
                 >
                   <span>📋</span>
-                  <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consume</span>
+                  <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consumption Report</span>
                 </button>
               );
             }
@@ -947,7 +947,7 @@ export default function MedicineReportPage() {
                   }`}
                 >
                   <span>📦</span>
-                  <span className={activeTab === 'stock' ? '!text-white' : ''}>Stock</span>
+                  <span className={activeTab === 'stock' ? '!text-white' : ''}>Stock Report</span>
                   {(radar.expiredCount || 0) > 0 && (
                     <span className="px-1 py-0.2 bg-rose-500 !text-white rounded-full text-[9px] leading-tight">
                       {radar.expiredCount}
@@ -969,7 +969,7 @@ export default function MedicineReportPage() {
                   }`}
                 >
                   <span>⚡</span>
-                  <span className={activeTab === 'daily' ? '!text-white' : ''}>In / Out</span>
+                  <span className={activeTab === 'daily' ? '!text-white' : ''}>Medicine IN/OUT</span>
                 </button>
               );
             }

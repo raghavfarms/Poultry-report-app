@@ -751,7 +751,7 @@ export default function DailyMedicineActionPage({
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-[11px] sm:text-xs font-bold truncate flex items-center gap-1.5">
-              <span>- Give to Birds</span>
+              <span>Medicine OUT</span>
               {activeFarmName && (
                 <span className="bg-blue-900/50 text-blue-100 text-[9px] px-1.5 py-0.2 rounded font-extrabold truncate">
                   {activeFarmName}
@@ -809,7 +809,7 @@ export default function DailyMedicineActionPage({
                 className="text-[11px] font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200 flex items-center gap-1 transition cursor-pointer"
                 title="View full monthly consumption"
               >
-                <span>📋</span> Consume ➔
+                <span>📋</span> Consumption Report ➔
               </button>
             )}
           </div>
@@ -824,7 +824,7 @@ export default function DailyMedicineActionPage({
             <p className="text-xs font-semibold text-slate-600">No movements recorded today</p>
             <p className="text-[11px]">
               Tap <strong className="text-emerald-700">+ Medicine In</strong> or{' '}
-              <strong className="text-blue-700">- Give to Birds</strong> above.
+              <strong className="text-blue-700">Medicine OUT</strong> above.
             </p>
           </div>
         ) : (
@@ -1634,7 +1634,7 @@ export default function DailyMedicineActionPage({
               <div className="flex items-center gap-1.5">
                 <span className="text-base">💉</span>
                 <div>
-                  <h3 className="text-xs font-bold leading-tight">- Give to Birds (Stock Out)</h3>
+                  <h3 className="text-xs font-bold leading-tight">Medicine OUT (Stock Out)</h3>
                   <p className="text-[9px] text-blue-100">Automatic FEFO deduction</p>
                 </div>
               </div>
