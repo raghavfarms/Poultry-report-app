@@ -664,6 +664,11 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                           {it.issued?.shedNo || '-'}
                         </span>
                       </td>
+                      <td className="py-1.5 px-1.5 border-r border-slate-100 text-slate-700 bg-amber-50/20 font-mono">
+                        {it.issued?.packs !== undefined
+                          ? it.issued.packs
+                          : (Number(it.packSize) > 0 ? Math.floor((it.issued?.total || 0) / Number(it.packSize)) : 0)}
+                      </td>
                       <td className="py-1.5 px-1.5 border-r border-slate-100 font-bold text-amber-900 bg-amber-50/40 font-mono">
                         {it.issued?.total ?? 0}
                       </td>
