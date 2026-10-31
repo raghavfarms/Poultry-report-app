@@ -10,7 +10,7 @@ import {
   toggleSpotStatus
 } from '../api/temperatureApi.js';
 
-export default function TemperatureMasterPage() {
+export default function TemperatureMasterPage({ embedded = false }) {
   // 1. Data States
   const [firms, setFirms] = useState([]);
   const [selectedFirm, setSelectedFirm] = useState('');
@@ -267,7 +267,7 @@ export default function TemperatureMasterPage() {
   }, [qrModalSpot]);
 
   return (
-    <div className="p-2.5 sm:p-4 md:p-8 max-w-7xl mx-auto space-y-3 sm:space-y-5 bg-slate-50 min-h-screen">
+    <div className={embedded ? "space-y-3 sm:space-y-5" : "p-2.5 sm:p-4 md:p-8 max-w-7xl mx-auto space-y-3 sm:space-y-5 bg-slate-50 min-h-screen"}>
       {/* Top Header */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>

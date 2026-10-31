@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
+import { canAccessTemperatureMaster } from "../utils/moduleAccess.js";
+import TransportAdminPage from "./TransportAdminPage.jsx";
+import TemperatureMasterPage from "../temperature/pages/TemperatureMaster.jsx";
 import {
   Alert,
   Field,
@@ -17,7 +22,7 @@ const blank = {
   order: 0,
 };
 
-export default function AssetAdminPage() {
+function AssetSection() {
   const [firms, setFirms] = useState([]);
   const [firmId, setFirmId] = useState("");
   const [assets, setAssets] = useState([]);
@@ -47,6 +52,7 @@ export default function AssetAdminPage() {
       })
       .catch((err) => setError(err.message));
   }, []);
+
   const loadAssets = () => {
     if (!firmId) return;
     setLoading(true);
@@ -55,12 +61,15 @@ export default function AssetAdminPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   };
+
   useEffect(loadAssets, [firmId, firms]);
+
   const reset = () => {
     setForm(blank);
     setEditing(null);
     setShowForm(false);
   };
+
   const edit = (asset) => {
     setEditing(asset._id);
     setShowForm(true);
@@ -73,6 +82,7 @@ export default function AssetAdminPage() {
       active: asset.active,
     });
   };
+
   const saveAsset = async (event) => {
     event.preventDefault();
     setBusy(true);
@@ -92,6 +102,7 @@ export default function AssetAdminPage() {
       setBusy(false);
     }
   };
+
   const remove = async (asset) => {
     if (
       !window.confirm(
@@ -106,59 +117,50 @@ export default function AssetAdminPage() {
       setError(err.message);
     }
   };
+
   const restore = async (asset) => {
     try {
-      await api(`/assets/${asset._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          label: asset.label,
-          category: asset.category,
-          tankCapacity: asset.tankCapacity,
-          serviceHours: asset.serviceIntervalMinutes / 60,
-          order: asset.order,
-          active: true,
-        }),
-      });
+      await api(`/assets/${asset._id}/restore`, { method: "PATCH" });
       loadAssets();
     } catch (err) {
       setError(err.message);
     }
   };
+
   const saveOpeningBalance = async (event) => {
     event.preventDefault();
+    if (!firmId) return;
     setSavingBalance(true);
     setError("");
     setSuccess("");
     try {
-      const { firm: updatedFirm } = await api(`/firms/${firmId}`, {
+      const response = await api(`/firms/${firmId}/diesel-balance`, {
         method: "PATCH",
-        body: JSON.stringify({ dieselOpeningBalance: Number(openingBalance) }),
+        body: JSON.stringify({ openingBalance }),
       });
-      setFirms((items) =>
-        items.map((item) =>
-          item._id === updatedFirm._id ? updatedFirm : item,
+      setSuccess("Opening balance updated.");
+      setFirms((prev) =>
+        prev.map((item) =>
+          item._id === firmId
+            ? {
+                ...item,
+                dieselOpeningBalance: response.firm.dieselOpeningBalance,
+              }
+            : item,
         ),
       );
-      setSuccess("Opening diesel balance updated.");
     } catch (err) {
       setError(err.message);
     } finally {
       setSavingBalance(false);
     }
   };
-  const compactInput = `${inputClass} !min-h-9 !rounded-lg !px-2.5 !py-1`;
+
+  const compactInput = `${inputClass} !min-h-8 !py-1 !px-2 !text-xs`;
   const compactSecondary = `${secondaryButton} !min-h-8 !rounded-lg !px-3 !py-1 !text-xs`;
+
   return (
     <div className="max-w-3xl space-y-3">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-          Admin only
-        </p>
-        <h1 className="text-xl font-black text-slate-900">Asset Management</h1>
-        <p className="text-xs text-slate-500">
-          Manage firm assets and opening diesel balance.
-        </p>
-      </div>
       <div className="flex flex-wrap gap-1.5">
         {firms.map((item) => (
           <button
@@ -167,7 +169,11 @@ export default function AssetAdminPage() {
               setFirmId(item._id);
               reset();
             }}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold ${firmId === item._id ? "bg-emerald-800 text-white" : "border border-slate-300 bg-white text-slate-600"}`}
+            className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+              firmId === item._id
+                ? "bg-emerald-800 text-white"
+                : "border border-slate-300 bg-white text-slate-600"
+            }`}
           >
             {item.name}
           </button>
@@ -205,7 +211,11 @@ export default function AssetAdminPage() {
                 assets.map((asset) => (
                   <article
                     key={asset._id}
-                    className={`rounded-lg border p-2 ${asset.active ? "border-slate-200" : "border-slate-200 bg-slate-50 opacity-70"}`}
+                    className={`rounded-lg border p-2 ${
+                      asset.active
+                        ? "border-slate-200"
+                        : "border-slate-200 bg-slate-50 opacity-70"
+                    }`}
                   >
                     <div className="flex items-center gap-1.5">
                       <h3 className="mr-1 min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
@@ -381,6 +391,99 @@ export default function AssetAdminPage() {
           </form>
         </section>
       )}
+    </div>
+  );
+}
+
+export default function AssetAdminPage() {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const isAdminOrDev = ["admin", "developer"].includes(user?.role);
+  const canManageAssets = isAdminOrDev || user?.permissions?.asset_master;
+  const canManageTransport = isAdminOrDev || user?.permissions?.transport_master;
+  const canManageTemperature = canAccessTemperatureMaster(user);
+
+  const allowedTabs = useMemo(() => {
+    const list = [];
+    if (canManageAssets) list.push("asset");
+    if (canManageTransport) list.push("vehicle");
+    if (canManageTemperature) list.push("temperature");
+    return list;
+  }, [canManageAssets, canManageTransport, canManageTemperature]);
+
+  const rawTab = searchParams.get("tab") || "asset";
+  const activeTab = allowedTabs.includes(rawTab)
+    ? rawTab
+    : allowedTabs[0] || "asset";
+
+  const setActiveTab = (tab) => {
+    setSearchParams(tab === "asset" ? {} : { tab });
+  };
+
+  return (
+    <div className="space-y-4 max-w-7xl">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+          Admin only
+        </p>
+        <h1 className="text-xl font-black text-slate-900">Asset Management</h1>
+        <p className="text-xs text-slate-500">
+          Manage firm assets, transport vehicles, and temperature monitoring spots.
+        </p>
+      </div>
+
+      {/* Top Navigation Tabs: 1 tab asset, 2 tab vehicle, 3 tab temperature */}
+      <div className="flex items-center gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 shadow-2xs overflow-x-auto no-scrollbar whitespace-nowrap">
+        {canManageAssets && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("asset")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === "asset"
+                ? "bg-white text-emerald-800 shadow-xs border border-slate-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+            }`}
+          >
+            <span>⚙</span>
+            <span>Asset</span>
+          </button>
+        )}
+
+        {canManageTransport && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("vehicle")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === "vehicle"
+                ? "bg-white text-emerald-800 shadow-xs border border-slate-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+            }`}
+          >
+            <span>🚚</span>
+            <span>Vehicle</span>
+          </button>
+        )}
+
+        {canManageTemperature && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("temperature")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === "temperature"
+                ? "bg-white text-emerald-800 shadow-xs border border-slate-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+            }`}
+          >
+            <span>🌡️</span>
+            <span>Temperature</span>
+          </button>
+        )}
+      </div>
+
+      {activeTab === "asset" && <AssetSection />}
+      {activeTab === "vehicle" && <TransportAdminPage embedded={true} />}
+      {activeTab === "temperature" && <TemperatureMasterPage embedded={true} />}
     </div>
   );
 }

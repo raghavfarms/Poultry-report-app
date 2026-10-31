@@ -136,17 +136,10 @@ export default function App() {
         />
         <Route path="worker/temperature" element={<Navigate to="/temperature/entry" replace />} />
 
-        {/* Administration: Temperature Master */}
-        <Route
-          path="admin/temperature/master"
-          element={
-            <ProtectedRoute temperatureAdmin>
-              <TemperatureMasterPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="admin/temperature" element={<Navigate to="/admin/temperature/master" replace />} />
-        <Route path="temperature/master" element={<Navigate to="/admin/temperature/master" replace />} />
+        {/* Administration: Temperature Master -> Redirect to Asset Management tab */}
+        <Route path="admin/temperature/master" element={<Navigate to="/admin/assets?tab=temperature" replace />} />
+        <Route path="admin/temperature" element={<Navigate to="/admin/assets?tab=temperature" replace />} />
+        <Route path="temperature/master" element={<Navigate to="/admin/assets?tab=temperature" replace />} />
 
         <Route
           path="admin/users"
@@ -159,18 +152,14 @@ export default function App() {
         <Route
           path="admin/assets"
           element={
-            <ProtectedRoute admin>
+            <ProtectedRoute assetHubAdmin>
               <AssetAdminPage />
             </ProtectedRoute>
           }
         />
         <Route
           path="admin/transport"
-          element={
-            <ProtectedRoute admin>
-              <TransportAdminPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/admin/assets?tab=vehicle" replace />}
         />
         <Route
           path="admin/attendance"

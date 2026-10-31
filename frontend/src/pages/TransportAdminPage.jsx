@@ -4,7 +4,7 @@ import { Alert, Field, inputClass, primaryButton, secondaryButton, Spinner } fro
 
 const blank = { name: "", number: "", tankCapacity: "", order: 0 };
 
-export default function TransportAdminPage() {
+export default function TransportAdminPage({ embedded = false }) {
   const [vehicles, setVehicles] = useState([]), [form, setForm] = useState(blank);
   const [editing, setEditing] = useState(null), [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false);
@@ -110,11 +110,13 @@ export default function TransportAdminPage() {
   };
 
   return <div className="max-w-4xl space-y-4">
+    {!embedded && (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Admin only</p>
       <h1 className="text-xl font-black">Transport Vehicles</h1>
       <p className="text-xs text-slate-500">Vehicles are independent and are not connected to a firm.</p>
     </div>
+    )}
     <Alert>{error}</Alert>
     <Alert type="success">{success}</Alert>
 

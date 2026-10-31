@@ -38,6 +38,7 @@ function Sidebar({ open, close }) {
   const canManageTemperature = canAccessTemperatureMaster(user);
   const hasAttendanceMaster = isAdminOrDev || user?.permissions?.attendance_admin_master === true;
   const hasWorkerMaster = isAdminOrDev || user?.permissions?.worker_master === true;
+  const canManageAnyAssetHub = canManageAssets || canManageTransport || canManageTemperature;
 
   const visibleModules = modules.filter(([slug]) => canAccessModule(user, slug));
     
@@ -94,7 +95,7 @@ function Sidebar({ open, close }) {
             </NavLink>
           ))}
 
-          {(canManageAssets || canManageTransport || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster || canManageTemperature) && (
+          {(canManageAnyAssetHub || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster || canManageMedicine) && (
             <>
               <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Administration
@@ -104,14 +105,9 @@ function Sidebar({ open, close }) {
                   <span>👥</span>Users & Roles
                 </NavLink>
               )}
-              {canManageAssets && (
+              {canManageAnyAssetHub && (
                 <NavLink to="/admin/assets" className={linkClass}>
                   <span>⚙</span>Asset Management
-                </NavLink>
-              )}
-              {canManageTransport && (
-                <NavLink to="/admin/transport" className={linkClass}>
-                  <span>🚚</span>Transport Vehicles
                 </NavLink>
               )}
               {hasAttendanceMaster ? (
@@ -126,11 +122,6 @@ function Sidebar({ open, close }) {
               {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
                   <span>💊</span>General Medicine Master
-                </NavLink>
-              )}
-              {canManageTemperature && (
-                <NavLink to="/admin/temperature/master" className={linkClass}>
-                  <span>🌡️</span>Temperature Master
                 </NavLink>
               )}
             </>

@@ -1,4 +1,4 @@
-import { canAccessModule } from "../utils/moduleAccess.js";
+import { canAccessModule, canAccessTemperatureMaster } from "../utils/moduleAccess.js";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { Spinner } from "./Ui.jsx";
@@ -10,6 +10,7 @@ export default function ProtectedRoute({
   attendanceAdmin = false,
   medicineAdmin = false,
   temperatureAdmin = false,
+  assetHubAdmin = false,
   module = null,
   permission = null,
   children,
@@ -22,6 +23,15 @@ export default function ProtectedRoute({
 
   if (admin && !isAdminOrDev) return <Navigate to="/" replace />;
   if (developer && user.role !== "developer") return <Navigate to="/" replace />;
+
+  if (assetHubAdmin) {
+    const hasAssetAccess =
+      isAdminOrDev ||
+      user.permissions?.asset_master === true ||
+      user.permissions?.transport_master === true ||
+      canAccessTemperatureMaster(user);
+    if (!hasAssetAccess) return <Navigate to="/" replace />;
+  }
 
   if (module && !canAccessModule(user, module)) {
     return <Navigate to="/" replace />;
