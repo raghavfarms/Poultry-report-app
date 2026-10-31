@@ -255,6 +255,7 @@ export async function getStockRegister(req, res) {
 
     const { packs: opgPacks, loose: opgLoose } = calcPacksAndLoose(opgQty, packSize);
     const { packs: recdPacks, loose: recdLoose } = calcPacksAndLoose(recdQty, packSize);
+    const { packs: issPacks, loose: issLoose } = calcPacksAndLoose(issuedQty, packSize);
     const { packs: clgPacks, loose: clgLoose } = calcPacksAndLoose(clgQty, packSize);
 
     const savedItem = auditItemMap[medId];
@@ -300,6 +301,8 @@ export async function getStockRegister(req, res) {
       },
       issued: {
         shedNo,
+        packs: issPacks,
+        loose: issLoose,
         total: issuedQty,
       },
       closing: {

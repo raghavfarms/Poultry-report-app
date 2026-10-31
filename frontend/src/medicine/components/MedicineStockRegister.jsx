@@ -519,7 +519,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                 <th colSpan="1" className="py-1.5 px-2 bg-indigo-100/70 text-indigo-800 border-r border-slate-200">
                   Sub Total
                 </th>
-                <th colSpan="2" className="py-1.5 px-2 bg-amber-100/70 text-amber-800 border-r border-slate-200">
+                <th colSpan="3" className="py-1.5 px-2 bg-amber-100/70 text-amber-800 border-r border-slate-200">
                   Issued
                 </th>
                 <th colSpan="3" className="py-1.5 px-2 bg-teal-100/70 text-teal-800 border-r border-slate-200">
@@ -558,6 +558,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
 
                 {/* Issued */}
                 <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[90px] bg-amber-50/50">Shed No</th>
+                <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[65px] bg-amber-50/50">No of Packs</th>
                 <th className="py-1.5 px-1.5 border-r border-slate-200 min-w-[70px] bg-amber-100/40 font-black text-amber-900">
                   Qty
                 </th>
@@ -582,13 +583,13 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan="18" className="py-8 text-center text-slate-400">
+                  <td colSpan="19" className="py-8 text-center text-slate-400">
                     <span className="inline-block animate-spin mr-1">⏳</span> Loading stock register data...
                   </td>
                 </tr>
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan="18" className="py-8 text-center text-slate-400">
+                  <td colSpan="19" className="py-8 text-center text-slate-400">
                     No medicine records found.
                   </td>
                 </tr>
