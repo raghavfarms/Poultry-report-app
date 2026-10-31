@@ -104,26 +104,41 @@ function Sidebar({ open, close }) {
               </p>
               {isAdminOrDev && (
                 <NavLink to="/admin/users" className={linkClass}>
-                  <img src={usersRolesIcon} alt="" className="h-5 w-5 shrink-0 object-contain" />Users & Roles
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                    <img src={usersRolesIcon} alt="" className="h-4 w-4 object-contain" />
+                  </span>
+                  Users & Roles
                 </NavLink>
               )}
               {canManageAnyAssetHub && (
                 <NavLink to="/admin/assets" className={linkClass}>
-                  <span>⚙</span>Asset Management
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700 text-xs font-bold">
+                    ⚙
+                  </span>
+                  Asset Management
                 </NavLink>
               )}
               {hasAttendanceMaster ? (
                 <NavLink to="/admin/attendance" className={linkClass}>
-                  <img src={attendanceAdminIcon} alt="" className="h-5 w-5 shrink-0 object-contain" />Attendance Admin
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-cyan-100 text-cyan-700">
+                    <img src={attendanceAdminIcon} alt="" className="h-4 w-4 object-contain" />
+                  </span>
+                  Attendance Admin
                 </NavLink>
               ) : hasWorkerMaster ? (
                 <NavLink to="/admin/attendance" className={linkClass}>
-                  <img src={attendanceAdminIcon} alt="" className="h-5 w-5 shrink-0 object-contain" />Worker Master
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-cyan-100 text-cyan-700">
+                    <img src={attendanceAdminIcon} alt="" className="h-4 w-4 object-contain" />
+                  </span>
+                  Worker Master
                 </NavLink>
               ) : null}
               {canManageMedicine && (
                 <NavLink to="/admin/medicine/master" className={linkClass}>
-                  <span>💊</span>Medicine Master
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-rose-100 text-rose-700 text-sm">
+                    💊
+                  </span>
+                  Medicine Master
                 </NavLink>
               )}
             </>
