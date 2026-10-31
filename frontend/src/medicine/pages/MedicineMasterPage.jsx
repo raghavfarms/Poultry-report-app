@@ -734,7 +734,7 @@ export default function MedicineMasterPage() {
           }`}
         >
           <span>🔄</span>
-          <span>Transferred Medicines</span>
+          <span>Medicines Transferred</span>
         </button>
 
         {canAccessTrace && (
