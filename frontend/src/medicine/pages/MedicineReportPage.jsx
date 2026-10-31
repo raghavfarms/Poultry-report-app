@@ -894,8 +894,8 @@ export default function MedicineReportPage() {
           </div>
         </div>
 
-        {/* The Clean Farm Views Tabs (Admin: Register -> Consume -> Stock -> In/Out; Others: In/Out -> Stock -> Consume -> Register) */}
-        <div className="grid grid-cols-4 gap-1 p-0.5 sm:p-1 bg-slate-100 rounded-xl text-center">
+        {/* The Clean Farm Views Tabs with smooth horizontal scroll on mobile */}
+        <div className="flex sm:grid sm:grid-cols-4 gap-1 p-1 bg-slate-100/90 rounded-xl overflow-x-auto no-scrollbar scroll-smooth">
           {(isAdminUser
             ? ['register', 'consumption', 'stock', 'daily']
             : ['daily', 'stock', 'consumption', 'register']
@@ -906,13 +906,13 @@ export default function MedicineReportPage() {
                   key="register"
                   type="button"
                   onClick={() => setActiveTab('register')}
-                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 min-w-[125px] sm:min-w-0 py-2 sm:py-2 px-2.5 sm:px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                     activeTab === 'register'
                       ? 'bg-emerald-600 !text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
                   }`}
                 >
-                  <span>📑</span>
+                  <span className="text-sm">📑</span>
                   <span className={activeTab === 'register' ? '!text-white' : ''}>Stock Movement Report</span>
                 </button>
               );
@@ -923,13 +923,13 @@ export default function MedicineReportPage() {
                   key="consumption"
                   type="button"
                   onClick={() => setActiveTab('consumption')}
-                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 min-w-[125px] sm:min-w-0 py-2 sm:py-2 px-2.5 sm:px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                     activeTab === 'consumption'
                       ? 'bg-emerald-600 !text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
                   }`}
                 >
-                  <span>📋</span>
+                  <span className="text-sm">📋</span>
                   <span className={activeTab === 'consumption' ? '!text-white' : ''}>Consumption Report</span>
                 </button>
               );
@@ -940,16 +940,16 @@ export default function MedicineReportPage() {
                   key="stock"
                   type="button"
                   onClick={() => setActiveTab('stock')}
-                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 min-w-[110px] sm:min-w-0 py-2 sm:py-2 px-2.5 sm:px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                     activeTab === 'stock'
                       ? 'bg-emerald-600 !text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
                   }`}
                 >
-                  <span>📦</span>
+                  <span className="text-sm">📦</span>
                   <span className={activeTab === 'stock' ? '!text-white' : ''}>Stock Report</span>
                   {(radar.expiredCount || 0) > 0 && (
-                    <span className="px-1 py-0.2 bg-rose-500 !text-white rounded-full text-[9px] leading-tight">
+                    <span className="px-1.5 py-0.2 bg-rose-500 !text-white rounded-full text-[9px] font-black leading-tight">
                       {radar.expiredCount}
                     </span>
                   )}
@@ -962,13 +962,13 @@ export default function MedicineReportPage() {
                   key="daily"
                   type="button"
                   onClick={() => setActiveTab('daily')}
-                  className={`py-1.5 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 min-w-[120px] sm:min-w-0 py-2 sm:py-2 px-2.5 sm:px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                     activeTab === 'daily'
                       ? 'bg-emerald-600 !text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
                   }`}
                 >
-                  <span>⚡</span>
+                  <span className="text-sm">⚡</span>
                   <span className={activeTab === 'daily' ? '!text-white' : ''}>Medicine IN/OUT</span>
                 </button>
               );
