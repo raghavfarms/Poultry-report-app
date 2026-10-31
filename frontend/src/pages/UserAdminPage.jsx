@@ -1,3 +1,4 @@
+import usersRolesIcon from "../assets/icon-users-roles.png";
 import { useEffect, useState, useRef } from "react";
 import { api } from "../api/client.js";
 import { Alert, Field, inputClass, primaryButton, secondaryButton, Spinner } from "../components/Ui.jsx";
@@ -984,7 +985,7 @@ export default function UserAdminPage() {
               : "border-transparent text-slate-600 hover:text-slate-900"
           }`}
         >
-          <span>👥</span> Users ({users.length})
+          <img src={usersRolesIcon} alt="" className="h-4 w-4 object-contain inline-block" /> Users ({users.length})
         </button>
         <button
           type="button"

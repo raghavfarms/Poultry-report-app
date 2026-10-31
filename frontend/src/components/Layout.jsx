@@ -1,3 +1,5 @@
+import usersRolesIcon from "../assets/icon-users-roles.png";
+import attendanceAdminIcon from "../assets/icon-attendance-admin.png";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -102,7 +104,7 @@ function Sidebar({ open, close }) {
               </p>
               {isAdminOrDev && (
                 <NavLink to="/admin/users" className={linkClass}>
-                  <span>👥</span>Users & Roles
+                  <img src={usersRolesIcon} alt="" className="h-5 w-5 shrink-0 object-contain" />Users & Roles
                 </NavLink>
               )}
               {canManageAnyAssetHub && (
@@ -112,11 +114,11 @@ function Sidebar({ open, close }) {
               )}
               {hasAttendanceMaster ? (
                 <NavLink to="/admin/attendance" className={linkClass}>
-                  <span>👤</span>Attendance Admin
+                  <img src={attendanceAdminIcon} alt="" className="h-5 w-5 shrink-0 object-contain" />Attendance Admin
                 </NavLink>
               ) : hasWorkerMaster ? (
                 <NavLink to="/admin/attendance" className={linkClass}>
-                  <span>👤</span>Worker Master
+                  <img src={attendanceAdminIcon} alt="" className="h-5 w-5 shrink-0 object-contain" />Worker Master
                 </NavLink>
               ) : null}
               {canManageMedicine && (
