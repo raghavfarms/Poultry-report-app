@@ -508,7 +508,7 @@ export default function MedicineConsumptionRegister({
         </div>
 
         {/* Row B: Filter Inputs (Collapsed by default on mobile, always visible on desktop) */}
-        <div className={`${showMobileFilters ? 'grid' : 'hidden'} sm:grid grid-cols-2 lg:grid-cols-5 gap-2 items-end pt-1 sm:pt-0 border-t border-slate-100 sm:border-0`}>
+        <div className={`${showMobileFilters ? 'grid' : 'hidden'} sm:grid grid-cols-2 sm:grid-cols-4 gap-2 items-end pt-1 sm:pt-0 border-t border-slate-100 sm:border-0`}>
           {/* 1. From Date */}
           <div>
             <label className="block text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mb-0.5 sm:mb-1">
@@ -545,32 +545,8 @@ export default function MedicineConsumptionRegister({
             />
           </div>
 
-          {/* 3. Farm Select */}
-          {firms.length > 1 && (
-            <div>
-              <label className="block text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mb-0.5 sm:mb-1">
-                Farm Store
-              </label>
-              <select
-                value={activeFarm}
-                onChange={(e) => {
-                  setActiveFarm(e.target.value);
-                  setSelectedShed('ALL');
-                  setPage(1);
-                }}
-                className="w-full h-7 sm:h-8 px-2 border border-slate-300 rounded-lg text-[10px] sm:text-xs font-semibold text-slate-800 bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer"
-              >
-                {firms.map((f) => (
-                  <option key={f._id} value={f._id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* 4. Location / Shed Filter */}
-          <div className={firms.length > 1 ? '' : 'col-span-2 sm:col-span-1'}>
+          {/* 3. Location / Shed Filter */}
+          <div>
             <label className="block text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mb-0.5 sm:mb-1">
               Shed / Location
             </label>
@@ -591,8 +567,8 @@ export default function MedicineConsumptionRegister({
             </select>
           </div>
 
-          {/* 5. Live Search */}
-          <div className="col-span-2 lg:col-span-1">
+          {/* 4. Live Search */}
+          <div className="col-span-2 sm:col-span-1">
             <label className="block text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase mb-0.5 sm:mb-1">
               Search
             </label>
