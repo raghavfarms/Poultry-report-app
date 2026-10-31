@@ -272,7 +272,7 @@ export default function EntryForm({
         {!assets.length && (
           <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-sm text-amber-800">
             No active assets exist for this firm. An admin must add gensets or
-            tractors under <b>Firms & Assets</b>.
+            tractors under <b>Asset Management</b>.
           </div>
         )}
         {!!assets.length && (

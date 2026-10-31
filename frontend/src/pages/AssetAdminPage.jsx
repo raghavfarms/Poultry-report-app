@@ -154,7 +154,7 @@ export default function AssetAdminPage() {
         <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
           Admin only
         </p>
-        <h1 className="text-xl font-black text-slate-900">Firms & Assets</h1>
+        <h1 className="text-xl font-black text-slate-900">Asset Management</h1>
         <p className="text-xs text-slate-500">
           Manage firm assets and opening diesel balance.
         </p>

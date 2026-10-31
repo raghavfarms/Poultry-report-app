@@ -106,7 +106,7 @@ function Sidebar({ open, close }) {
               )}
               {canManageAssets && (
                 <NavLink to="/admin/assets" className={linkClass}>
-                  <span>⚙</span>Firms & Assets
+                  <span>⚙</span>Asset Management
                 </NavLink>
               )}
               {canManageTransport && (
