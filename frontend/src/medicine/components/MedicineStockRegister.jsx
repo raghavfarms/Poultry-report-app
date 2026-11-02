@@ -646,15 +646,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                         }`}
                       >
                         <div className="flex flex-col leading-tight">
-                          <div className="flex items-center gap-1">
-                            {hasMovement && (
-                              <span
-                                className="inline-block w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 shrink-0"
-                                title="Active movement (In/Out) on this date"
-                              />
-                            )}
-                            <span className="truncate">{it.name}</span>
-                          </div>
+                          <span className="truncate">{it.name}</span>
                           {it.code && <span className="text-[9px] text-slate-400 font-normal">{it.code}</span>}
                         </div>
                       </td>
