@@ -4,6 +4,7 @@ import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath, saveAttendance, getWorkLocationSortRank } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
+import * as XLSX from 'xlsx';
 
 function getTodayString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -261,6 +262,82 @@ export default function DailyRegisterView({
     }
   };
 
+  // Export Daily Register to Excel (.xlsx)
+  const exportExcel = () => {
+    if (!records.length) return;
+
+    const activeFirm = firms.find((f) => String(f._id) === String(firmId));
+    const firmName = activeFirm ? (activeFirm.code || activeFirm.name).replace(/[^a-zA-Z0-9_-]/g, '_') : 'Farm';
+
+    const rows = records.map((r, index) => {
+      const inTime = r.dutyIn
+        ? new Date(r.dutyIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
+        : '—';
+      const isNextDayOut = r.dutyIn && r.dutyOut && new Date(r.dutyOut).getDate() !== new Date(r.dutyIn).getDate();
+      const outTime = r.dutyOut
+        ? `${new Date(r.dutyOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}${isNextDayOut ? ' (+1 day)' : ''}`
+        : '—';
+
+      const lunchText = r.onLunch
+        ? 'On Lunch'
+        : r.lunchMinutes > 0
+        ? (formatLunchBreak(r.lunchMinutes) || `${r.lunchMinutes} min`)
+        : r.lunchOut && !r.lunchIn
+        ? `Left at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}`
+        : '—';
+
+      const statusText = r.onLunch
+        ? 'On Lunch'
+        : r.status === 'COMPLETED'
+        ? 'Full Day (P)'
+        : r.status === 'HALF_DAY'
+        ? 'Half Day (HD)'
+        : r.status === 'ON_DUTY'
+        ? 'On Duty'
+        : r.status === 'PRESENT'
+        ? 'Present (P)'
+        : 'Absent (A)';
+
+      const workedHours = r.workedMinutes > 0
+        ? (r.workedHoursFormatted || `${r.workedMinutes}m`)
+        : (r.onLunch ? 'On lunch break' : '—');
+
+      return {
+        'S.No': index + 1,
+        'Worker Code': r.workerCode,
+        'Worker Name': r.workerName,
+        'Work Location': r.workLocationName || 'Unassigned',
+        'Designation': r.designationName || '—',
+        'Status': statusText,
+        'Duty IN (IST)': inTime,
+        'Duty OUT (IST)': outTime,
+        'Worked Hours': workedHours,
+        'Lunch Break': lunchText,
+        'Source': r.source || '—',
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 10 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily Register');
+    XLSX.writeFile(wb, `Daily_Attendance_${firmName}_${date}.xlsx`);
+  };
+
   return (
     <div className="space-y-1.5 sm:space-y-2">
       {/* Secondary Filters Bar - Ultra-Slim Single Row */}
@@ -360,6 +437,18 @@ export default function DailyRegisterView({
 
         {/* Quick PDF & Print Action Buttons */}
         <div className="flex items-center gap-1 shrink-0 pl-1 border-l border-slate-200">
+          <button
+            type="button"
+            onClick={exportExcel}
+            disabled={loadingData || !records.length}
+            title="Export Daily Register to Excel (.xlsx)"
+            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
+          >
+            <svg className="w-3 h-3 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v1a1 1 0 102 0v-1zm2-3a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1zm4 1a1 1 0 10-2 0v3a1 1 0 102 0v-3z" clipRule="evenodd" />
+            </svg>
+            <span>Excel</span>
+          </button>
           <button
             type="button"
             onClick={exportPdf}
