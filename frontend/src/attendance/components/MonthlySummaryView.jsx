@@ -301,7 +301,7 @@ export default function MonthlySummaryView({
       <div className="flex flex-wrap items-center gap-1.5 text-xs px-1 text-slate-500 no-print print:hidden">
         <span className="font-semibold text-[10px] uppercase tracking-wider">Legend:</span>
         <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200/50">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> P (Full Day)
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> P (Present)
         </span>
         <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200/50">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span> HD (Half Day)

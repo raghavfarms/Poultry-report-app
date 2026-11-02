@@ -246,7 +246,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
                         type="button"
                         onClick={() => setWorkerStatus(w._id, 'P')}
                         disabled={isSaving}
-                        title="Present (Full Day)"
+                        title="Present"
                         className={`min-w-10 sm:min-w-14 h-7.5 sm:h-7 px-2 text-xs font-black rounded-md transition-all cursor-pointer whitespace-nowrap ${
                           currentStatus === 'P'
                             ? 'bg-emerald-600 text-white shadow-xs'

@@ -289,7 +289,7 @@ export default function DailyRegisterView({
       const statusText = r.onLunch
         ? 'On Lunch'
         : r.status === 'COMPLETED'
-        ? 'Full Day (P)'
+        ? 'Present (P)'
         : r.status === 'HALF_DAY'
         ? 'Half Day (HD)'
         : r.status === 'ON_DUTY'
@@ -376,7 +376,7 @@ export default function DailyRegisterView({
             >
               <option value="ALL">All Staff</option>
               <option value="ON_DUTY">On Duty Now</option>
-              <option value="COMPLETED">{"Full Day (>= 7h 55m)"}</option>
+              <option value="COMPLETED">{"Present (>= 7h 55m)"}</option>
               <option value="HALF_DAY">{"Half Day (3h 55m–7h 55m)"}</option>
               <option value="ABSENT">{"Absent (< 3h 55m)"}</option>
             </select>
@@ -549,17 +549,13 @@ export default function DailyRegisterView({
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
                             ON DUTY
                           </span>
-                        ) : r.status === 'COMPLETED' ? (
-                          <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
-                            FULL DAY
+                        ) : (r.status === 'COMPLETED' || r.status === 'PRESENT') ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                            PRESENT
                           </span>
                         ) : r.status === 'HALF_DAY' ? (
                           <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                             HALF DAY
-                          </span>
-                        ) : r.status === 'PRESENT' ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                            PRESENT
                           </span>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
