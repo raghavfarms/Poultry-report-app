@@ -8,6 +8,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
   const [date, setDate] = useState(initialDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()));
   const [workers, setWorkers] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({}); // workerId -> 'P' | 'HD' | 'A'
+  const [initialMap, setInitialMap] = useState({}); // workerId -> initial loaded status
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingAction, setSavingAction] = useState(null); // 'save' | 'next' | null
@@ -15,46 +16,41 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  // 1. Fetch active workers and existing saved attendance for the selected date
+  // 1. Fetch exact daily attendance report for the selected date
   useEffect(() => {
     if (!firmId || !date) return;
     let isMounted = true;
     setLoading(true);
     setError('');
 
-    Promise.all([
-      api(attendancePath('workers', { firmId, active: true, limit: 300 })),
-      api(attendancePath('sessions', { firmId, date, limit: 500 })),
-    ])
-      .then(([workersRes, sessionsRes]) => {
+    api(attendancePath('reports/daily', { firmId, date }))
+      .then((res) => {
         if (!isMounted) return;
-        const workerList = workersRes.items || [];
+        const records = res?.records || [];
+        const workerList = records.map((r) => ({
+          _id: r.workerId,
+          fullName: r.workerName,
+          workerCode: r.workerCode,
+          workLocationName: r.workLocationName,
+          designation: { name: r.designationName },
+        }));
         setWorkers(workerList);
 
-        const savedSessions = sessionsRes.items || [];
-        const sessionMap = new Map();
-        for (const s of savedSessions) {
-          const wId = String(s.worker?._id || s.worker);
-          sessionMap.set(wId, s);
-        }
-
         const map = {};
-        workerList.forEach((w) => {
-          const s = sessionMap.get(String(w._id));
-          if (s) {
-            if (s.status === 'ABSENT') {
-              map[w._id] = 'A';
-            } else if (s.status === 'DUTY_COMPLETED' && s.workedMinutes >= 235 && s.workedMinutes < 475) {
-              map[w._id] = 'HD';
-            } else {
-              map[w._id] = 'P';
-            }
+        records.forEach((r) => {
+          let st = 'A';
+          if (r.status === 'COMPLETED' || r.status === 'ON_DUTY' || r.status === 'PRESENT') {
+            st = 'P';
+          } else if (r.status === 'HALF_DAY') {
+            st = 'HD';
           } else {
-            // Not recorded yet for this date: default to P
-            map[w._id] = 'P';
+            st = 'A';
           }
+          map[r.workerId] = st;
         });
+
         setAttendanceMap(map);
+        setInitialMap(map);
       })
       .catch((err) => {
         if (isMounted) setError(err.message || 'Failed to load attendance data.');
@@ -67,18 +63,6 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
       isMounted = false;
     };
   }, [firmId, date]);
-
-  // Quick Action: Batch mark all workers
-  const markAll = (status) => {
-    if (isSaving) return;
-    setAttendanceMap((prev) => {
-      const next = { ...prev };
-      workers.forEach((w) => {
-        next[w._id] = status;
-      });
-      return next;
-    });
-  };
 
   // Toggle single worker status
   const setWorkerStatus = (id, status) => {
@@ -116,14 +100,35 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
       return;
     }
 
+    const advanceDate = () => {
+      const currentParts = date.split('-').map(Number);
+      const nextDateObj = new Date(currentParts[0], currentParts[1] - 1, currentParts[2] + 1, 12, 0, 0);
+      const nextDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(nextDateObj);
+      setDate(nextDateStr);
+      return nextDateStr;
+    };
+
+    // Filter only workers whose status was changed by the user
+    const changedRecords = workers
+      .filter((w) => attendanceMap[w._id] !== initialMap[w._id])
+      .map((w) => ({
+        workerId: w._id,
+        status: attendanceMap[w._id] || 'A',
+      }));
+
+    if (changedRecords.length === 0) {
+      if (advanceNextDay) {
+        const nextDateStr = advanceDate();
+        setNotice(`No changes made on ${date}. Moved to ${nextDateStr}.`);
+      } else {
+        onClose();
+      }
+      return;
+    }
+
     setSavingAction(advanceNextDay ? 'next' : 'save');
     setError('');
     setNotice('');
-
-    const records = workers.map((w) => ({
-      workerId: w._id,
-      status: attendanceMap[w._id] || 'P',
-    }));
 
     try {
       await api(attendancePath('sessions/bulk-day'), {
@@ -131,21 +136,18 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
         body: JSON.stringify({
           firmId,
           date,
-          records,
+          records: changedRecords,
           defaultDutyIn: '08:00',
           defaultDutyOut: '17:00',
-          reason: 'Bulk paper muster roll entry',
+          reason: 'Bulk muster roll entry',
         }),
       });
 
-      const successMsg = `✅ Saved ${date}: ${counts.p} P, ${counts.hd} HD, ${counts.a} A.`;
+      const successMsg = `✅ Saved ${date}: ${counts.p} P, ${counts.hd} HD, ${counts.a} A (${changedRecords.length} updated).`;
       if (onSuccess) onSuccess(successMsg);
 
       if (advanceNextDay) {
-        const currentParts = date.split('-').map(Number);
-        const nextDateObj = new Date(currentParts[0], currentParts[1] - 1, currentParts[2] + 1, 12, 0, 0);
-        const nextDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(nextDateObj);
-        setDate(nextDateStr);
+        const nextDateStr = advanceDate();
         setNotice(successMsg + ` Now on ${nextDateStr}.`);
       } else {
         onClose();
@@ -165,7 +167,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
 
         {/* Top Controls: Compact & Mobile Optimized */}
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 space-y-2 shadow-2xs">
-          {/* Row 1: Date + Quick Batch Buttons */}
+          {/* Row 1: Date + Live Badge Counts */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Date:</label>
@@ -178,50 +180,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
               />
             </div>
 
-            {/* Quick Set Pills */}
-            <div className="flex items-center justify-start sm:justify-end gap-1 overflow-x-auto py-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap mr-0.5">
-                Set All:
-              </span>
-              <button
-                type="button"
-                onClick={() => markAll('P')}
-                disabled={isSaving}
-                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-              >
-                All P
-              </button>
-              <button
-                type="button"
-                onClick={() => markAll('HD')}
-                disabled={isSaving}
-                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-              >
-                All HD
-              </button>
-              <button
-                type="button"
-                onClick={() => markAll('A')}
-                disabled={isSaving}
-                className="whitespace-nowrap px-2.5 py-1 text-xs font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-              >
-                All A
-              </button>
-            </div>
-          </div>
-
-          {/* Row 2: Search Input + Live Badge Counts */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-1.5 border-t border-slate-200/70">
-            <input
-              type="text"
-              placeholder="Search worker…"
-              value={search}
-              disabled={isSaving}
-              onChange={(e) => setSearch(e.target.value)}
-              className={`${inputClass} !min-h-7 !h-7 !py-0 !px-2 text-xs rounded-md bg-white w-full sm:w-48`}
-            />
-
-            <div className="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto whitespace-nowrap">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold overflow-x-auto whitespace-nowrap py-0.5">
               <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
                 {counts.p} P
               </span>
@@ -235,6 +194,18 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
                 Total: {counts.total}
               </span>
             </div>
+          </div>
+
+          {/* Row 2: Search Input */}
+          <div className="pt-1.5 border-t border-slate-200/70">
+            <input
+              type="text"
+              placeholder="Search worker by name or code…"
+              value={search}
+              disabled={isSaving}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${inputClass} !min-h-7.5 !h-7.5 !py-0 !px-2.5 text-xs rounded-md bg-white w-full`}
+            />
           </div>
         </div>
 
@@ -251,7 +222,7 @@ export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSu
           ) : (
             <div className="max-h-[50dvh] sm:max-h-[380px] overflow-y-auto divide-y divide-slate-100">
               {filteredWorkers.map((w) => {
-                const currentStatus = attendanceMap[w._id] || 'P';
+                const currentStatus = attendanceMap[w._id] || 'A';
                 return (
                   <div
                     key={w._id}
