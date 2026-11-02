@@ -76,7 +76,7 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
     }));
   };
 
-  // Filter items by search
+  // Filter items by search and sort: moved items (Received > 0 or Issued > 0) on top, then alphabetical
   const filteredItems = useMemo(() => {
     const rawList = data.items || [];
     const list = rawList.filter((it) => {
@@ -87,16 +87,34 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
       const hasPhysical = physicalCounts[it._id] !== undefined && physicalCounts[it._id] !== '';
       return closing > 0 || opening > 0 || received > 0 || issued > 0 || hasPhysical;
     });
-    if (!search.trim()) return list;
-    const q = search.trim().toLowerCase();
-    return list.filter(
-      (it) =>
-        (it.name && it.name.toLowerCase().includes(q)) ||
-        (it.code && it.code.toLowerCase().includes(q)) ||
-        (it.aliasName && it.aliasName.toLowerCase().includes(q)) ||
-        (it.packagingType && it.packagingType.toLowerCase().includes(q))
-    );
+
+    let result = list;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      result = list.filter(
+        (it) =>
+          (it.name && it.name.toLowerCase().includes(q)) ||
+          (it.code && it.code.toLowerCase().includes(q)) ||
+          (it.aliasName && it.aliasName.toLowerCase().includes(q)) ||
+          (it.packagingType && it.packagingType.toLowerCase().includes(q))
+      );
+    }
+
+    return [...result].sort((a, b) => {
+      const aMovement = (Number(a.received?.total) || 0) > 0 || (Number(a.issued?.total) || 0) > 0;
+      const bMovement = (Number(b.received?.total) || 0) > 0 || (Number(b.issued?.total) || 0) > 0;
+      if (aMovement && !bMovement) return -1;
+      if (!aMovement && bMovement) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
   }, [data.items, search, physicalCounts]);
+
+  // Count medicines with movement on this date
+  const movedCount = useMemo(() => {
+    return (data.items || []).filter((it) => {
+      return (Number(it.received?.total) || 0) > 0 || (Number(it.issued?.total) || 0) > 0;
+    }).length;
+  }, [data.items]);
 
 
   // Calculate summary metrics
@@ -486,7 +504,13 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
             )}
           </div>
 
-          <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
+          <div className="flex items-center gap-2 sm:gap-3 text-[11px] text-slate-500 font-medium">
+            {movedCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-emerald-800 font-bold bg-emerald-100/70 border border-emerald-300/80 px-2 py-0.5 rounded-md text-[10px]">
+                <span>⚡</span>
+                <span>Active Movement: <strong>{movedCount}</strong></span>
+              </span>
+            )}
             <span>
               Total Meds: <strong className="text-slate-800">{filteredItems.length}</strong>
             </span>
@@ -598,18 +622,39 @@ export default function MedicineStockRegister({ selectedFarm, firms = [] }) {
                   const physicalVal = physicalCounts[it._id];
                   const hasPhysical = physicalVal !== undefined && physicalVal !== '';
                   const diff = hasPhysical ? Number((Number(physicalVal) - (it.closing?.total || 0)).toFixed(3)) : null;
+                  const hasMovement = (Number(it.received?.total) || 0) > 0 || (Number(it.issued?.total) || 0) > 0;
 
                   return (
                     <tr
                       key={it._id}
-                      className={`hover:bg-slate-50/80 transition text-center text-[11px] ${
-                        idx % 2 === 1 ? 'bg-slate-50/30' : 'bg-white'
+                      className={`transition text-center text-[11px] ${
+                        hasMovement
+                          ? 'bg-[#edfbf2] hover:bg-[#e2f7ea]'
+                          : idx % 2 === 1
+                          ? 'bg-slate-50/30 hover:bg-slate-50/80'
+                          : 'bg-white hover:bg-slate-50/80'
                       }`}
                     >
                       {/* Name of Medicine (Sticky on Left for Horizontal Scrolling) */}
-                      <td className={`sticky left-0 z-10 py-1.5 px-2 text-left border-r border-slate-200 font-bold text-slate-800 shadow-[1px_0_0_0_#e2e8f0] ${idx % 2 === 1 ? 'bg-slate-50' : 'bg-white'}`}>
+                      <td
+                        className={`sticky left-0 z-10 py-1.5 px-2 text-left border-r border-slate-200 font-bold shadow-[1px_0_0_0_#e2e8f0] ${
+                          hasMovement
+                            ? 'bg-[#e2f7ea] text-emerald-950 font-black'
+                            : idx % 2 === 1
+                            ? 'bg-slate-50 text-slate-800'
+                            : 'bg-white text-slate-800'
+                        }`}
+                      >
                         <div className="flex flex-col leading-tight">
-                          <span>{it.name}</span>
+                          <div className="flex items-center gap-1">
+                            {hasMovement && (
+                              <span
+                                className="inline-block w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200 shrink-0"
+                                title="Active movement (In/Out) on this date"
+                              />
+                            )}
+                            <span className="truncate">{it.name}</span>
+                          </div>
                           {it.code && <span className="text-[9px] text-slate-400 font-normal">{it.code}</span>}
                         </div>
                       </td>

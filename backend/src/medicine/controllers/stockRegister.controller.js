@@ -316,6 +316,15 @@ export async function getStockRegister(req, res) {
     });
   }
 
+  // Sort items: medicines with movement (recdQty > 0 || issuedQty > 0) on top, then alphabetical
+  registerItems.sort((a, b) => {
+    const aMovement = (Number(a.received?.total) || 0) > 0 || (Number(a.issued?.total) || 0) > 0;
+    const bMovement = (Number(b.received?.total) || 0) > 0 || (Number(b.issued?.total) || 0) > 0;
+    if (aMovement && !bMovement) return -1;
+    if (!aMovement && bMovement) return 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
   res.json({
     success: true,
     date: targetDate,
