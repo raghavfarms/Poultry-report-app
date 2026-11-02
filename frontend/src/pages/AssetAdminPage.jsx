@@ -406,19 +406,19 @@ export default function AssetAdminPage() {
 
   const allowedTabs = useMemo(() => {
     const list = [];
-    if (canManageAssets) list.push("asset");
-    if (canManageTransport) list.push("genset", "vehicle");
+    if (canManageAssets) list.push("genset", "asset");
+    if (canManageTransport) list.push("vehicle");
     if (canManageTemperature) list.push("temperature");
     return list;
   }, [canManageAssets, canManageTransport, canManageTemperature]);
 
-  const rawTab = searchParams.get("tab") || "asset";
+  const rawTab = searchParams.get("tab") || "genset";
   const activeTab = allowedTabs.includes(rawTab)
-    ? rawTab
-    : allowedTabs[0] || "asset";
+    ? (rawTab === "asset" ? "genset" : rawTab)
+    : allowedTabs[0] || "genset";
 
   const setActiveTab = (tab) => {
-    setSearchParams(tab === "asset" ? {} : { tab });
+    setSearchParams(tab === "genset" ? {} : { tab });
   };
 
   return (
@@ -429,39 +429,39 @@ export default function AssetAdminPage() {
         </p>
         <h1 className="text-xl font-black text-slate-900">Asset Management</h1>
         <p className="text-xs text-slate-500">
-          Manage firm assets, gensets, and temperature monitoring spots.
+          Manage firm gensets, transport vehicles, and temperature monitoring spots.
         </p>
       </div>
 
-      {/* Top Navigation Tabs: 1 tab asset, 2 tab genset, 3 tab temperature */}
+      {/* Top Navigation Tabs: 1 tab genset, 2 tab vehicle, 3 tab temperature */}
       <div className="flex items-center gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 shadow-2xs overflow-x-auto no-scrollbar whitespace-nowrap">
         {canManageAssets && (
           <button
             type="button"
-            onClick={() => setActiveTab("asset")}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
-              activeTab === "asset"
-                ? "bg-white text-emerald-800 shadow-xs border border-slate-200"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-            }`}
-          >
-            <span>⚙</span>
-            <span>Asset</span>
-          </button>
-        )}
-
-        {canManageTransport && (
-          <button
-            type="button"
             onClick={() => setActiveTab("genset")}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
-              activeTab === "genset" || activeTab === "vehicle"
+              activeTab === "genset" || activeTab === "asset"
                 ? "bg-white text-emerald-800 shadow-xs border border-slate-200"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
             }`}
           >
             <span>⚡</span>
             <span>Genset</span>
+          </button>
+        )}
+
+        {canManageTransport && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("vehicle")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === "vehicle"
+                ? "bg-white text-emerald-800 shadow-xs border border-slate-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+            }`}
+          >
+            <span>🚚</span>
+            <span>Vehicle</span>
           </button>
         )}
 
@@ -481,8 +481,8 @@ export default function AssetAdminPage() {
         )}
       </div>
 
-      {activeTab === "asset" && <AssetSection />}
-      {(activeTab === "genset" || activeTab === "vehicle") && <TransportAdminPage embedded={true} />}
+      {(activeTab === "genset" || activeTab === "asset") && <AssetSection />}
+      {activeTab === "vehicle" && <TransportAdminPage embedded={true} />}
       {activeTab === "temperature" && <TemperatureMasterPage embedded={true} />}
     </div>
   );

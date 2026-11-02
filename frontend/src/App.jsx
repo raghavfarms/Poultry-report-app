@@ -159,7 +159,7 @@ export default function App() {
         />
         <Route
           path="admin/transport"
-          element={<Navigate to="/admin/assets?tab=genset" replace />}
+          element={<Navigate to="/admin/assets?tab=vehicle" replace />}
         />
         <Route
           path="admin/attendance"
