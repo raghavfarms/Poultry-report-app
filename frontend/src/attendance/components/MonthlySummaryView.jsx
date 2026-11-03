@@ -3,6 +3,7 @@ import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import AttendanceCorrectionModal from './AttendanceCorrectionModal.jsx';
 import BulkAttendanceModal from './BulkAttendanceModal.jsx';
@@ -124,48 +125,48 @@ export default function MonthlySummaryView({
     </div>
   );
 
-  // Export Monthly Matrix to CSV
-  const exportCsv = () => {
+  // Export Monthly Matrix to Excel (.xlsx)
+  const exportExcel = () => {
     if (!records.length) return;
-    const activeFirm = firms.find((f) => f._id === firmId);
-    const firmName = activeFirm ? activeFirm.name.replace(/,/g, ' ') : 'Firm';
+    const activeFirm = firms.find((f) => String(f._id) === String(firmId));
+    const firmName = activeFirm ? (activeFirm.code || activeFirm.name).replace(/[^a-zA-Z0-9_-]/g, '_') : 'Farm';
 
-    const dayHeaders = daysArray.map((d) => `Day ${Number(d)}`);
-    const headers = [
-      'Worker Code',
-      'Worker Name',
-      'Designation',
-      'Work Location',
-      ...dayHeaders,
-      'Total Days Present',
-      'Total Days Absent',
+    const rows = records.map((r, index) => {
+      const row = {
+        'S.No': index + 1,
+        'Worker Code': r.workerCode || '',
+        'Worker Name': r.workerName || '',
+        'Designation': r.designationName || '—',
+        'Work Location': r.workLocationName || 'Unassigned',
+      };
+
+      daysArray.forEach((d) => {
+        row[`Day ${Number(d)}`] = r.days?.[d] || '—';
+      });
+
+      row['Total Days Present'] = r.totalDaysPresent || 0;
+      row['Total Days Absent'] = r.totalDaysAbsent ?? Object.values(r.days || {}).filter((code) => code === 'A').length;
+
+      return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    const colWidths = [
+      { wch: 6 },
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 18 },
+      ...daysArray.map(() => ({ wch: 7 })),
+      { wch: 18 },
+      { wch: 18 },
     ];
+    ws['!cols'] = colWidths;
 
-    const rows = records.map((r) => [
-      `"${r.workerCode || ''}"`,
-      `"${r.workerName || ''}"`,
-      `"${r.designationName || ''}"`,
-      `"${r.workLocationName || ''}"`,
-      ...daysArray.map((d) => `"${r.days[d] || '—'}"`),
-      `"${r.totalDaysPresent || 0}"`,
-      `"${r.totalDaysAbsent ?? Object.values(r.days || {}).filter((code) => code === 'A').length}"`,
-    ]);
-
-    const csvContent = [
-      `"Monthly Attendance Summary - ${firmName} (${month})"`,
-      headers.join(','),
-      ...rows.map((row) => row.join(',')),
-    ].join('\r\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `monthly-attendance-${month}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Monthly Summary');
+    XLSX.writeFile(wb, `Monthly_Attendance_${firmName}_${month}.xlsx`);
   };
 
   // Export Monthly Matrix to PDF
@@ -245,7 +246,7 @@ export default function MonthlySummaryView({
           <span className="font-black text-slate-900 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">{totalWorkers}</span>
         </div>
 
-        {/* Action Buttons: Export PDF, CSV, Print & Bulk Entry */}
+        {/* Action Buttons: Export Excel, PDF, Print & Bulk Entry */}
         <div className="flex items-center gap-1 overflow-x-auto py-0.5 shrink-0">
           {canEdit && (
             <button
@@ -260,6 +261,19 @@ export default function MonthlySummaryView({
 
           <button
             type="button"
+            onClick={exportExcel}
+            disabled={loadingData || !records.length}
+            title="Export Monthly Matrix to Excel (.xlsx)"
+            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
+          >
+            <svg className="w-3 h-3 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v1a1 1 0 102 0v-1zm2-3a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1zm4 1a1 1 0 10-2 0v3a1 1 0 102 0v-3z" clipRule="evenodd" />
+            </svg>
+            <span>Excel</span>
+          </button>
+
+          <button
+            type="button"
             onClick={exportPdf}
             disabled={loadingData || !records.length || exportingPdf}
             title="Export Monthly Matrix to PDF"
@@ -269,17 +283,6 @@ export default function MonthlySummaryView({
               <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
             </svg>
             <span>{exportingPdf ? 'Exporting…' : 'PDF'}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={loadingData || !records.length}
-            title="Export Monthly Matrix to CSV"
-            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs whitespace-nowrap shrink-0"
-          >
-            <span className="text-emerald-600">📊</span>
-            <span>CSV</span>
           </button>
 
           <button
