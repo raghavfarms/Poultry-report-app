@@ -6,6 +6,37 @@ import { fetchTemperatureReport, deleteTemperatureLogs, fetchSpots } from '../ap
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 
+
+// Helper: Group firm rows by Shed for Variation 1 (Shed column with sorted chronological time)
+function groupRowsByShed(rows = []) {
+  const shedMap = new Map();
+  for (const r of rows) {
+    const sName = r.shed || 'Shed 1';
+    if (!shedMap.has(sName)) {
+      shedMap.set(sName, []);
+    }
+    shedMap.get(sName).push(r);
+  }
+
+  // Natural sort by shed name (Shed 1, Shed 2...)
+  const sortedShedEntries = Array.from(shedMap.entries()).sort((a, b) =>
+    a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
+  );
+
+  return sortedShedEntries.map(([shedName, shedRows]) => {
+    // Inside each shed, ensure chronological time sorting
+    const sortedTimeRows = [...shedRows].sort((a, b) => {
+      const tA = a.timestamps?.[0] || 0;
+      const tB = b.timestamps?.[0] || 0;
+      return tA - tB;
+    });
+    return {
+      shedName,
+      rows: sortedTimeRows,
+    };
+  });
+}
+
 export default function TemperatureReportPage({ compact = false, onSwitchToEntry = null }) {
   const navigate = useNavigate();
   const { user } = useAuth();

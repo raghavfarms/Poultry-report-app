@@ -410,22 +410,25 @@ export const getTemperatureReport = async (req, res) => {
       };
     });
 
-    // Sort: First by Firm Name (e.g. Raghav, Sanjana), then by actual Time, then Shed, then Line
+    // Sort: First by Firm Name (e.g. Raghav, Sanjana), then by Shed natural order, Line, and then chronological Time
     rows.sort((a, b) => {
       // 1. Group by Firm Name
       const firmCompare = (a.firmName || '').localeCompare(b.firmName || '');
       if (firmCompare !== 0) return firmCompare;
 
-      // 2. Chronological order by actual timestamp
+      // 2. Sort by Shed naturally (Shed 1, Shed 2, Shed 3...)
+      const shedCompare = (a.shed || '').localeCompare(b.shed || '', undefined, { numeric: true, sensitivity: 'base' });
+      if (shedCompare !== 0) return shedCompare;
+
+      // 3. Then by Line
+      const lineCompare = (a.line || '').localeCompare(b.line || '', undefined, { numeric: true, sensitivity: 'base' });
+      if (lineCompare !== 0) return lineCompare;
+
+      // 4. Chronological order by actual timestamp inside each shed
       const timeA = a.timestamps?.[0] || 0;
       const timeB = b.timestamps?.[0] || 0;
-      if (timeA !== timeB) return timeA - timeB;
-
-      // 3. Then by Shed and Line
-      if (a.shed !== b.shed) return a.shed.localeCompare(b.shed);
-      return (a.line || '').localeCompare(b.line || '');
+      return timeA - timeB;
     });
-
     const avgTemp = logs.length > 0 ? Math.round(totalTemp / logs.length) : '—';
 
     return res.status(200).json({
