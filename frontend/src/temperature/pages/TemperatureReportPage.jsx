@@ -321,17 +321,17 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     }
   };
 
-  // Helper for temp cell styling - clean plain text without colored badges
+  // Helper for temp cell styling - clean plain text without colored badges, compact size
   const renderTempCell = (val, isVerified, captureTime, spotLabel) => {
     if (val === null || val === undefined) {
-      return <span className="text-slate-300 font-light">—</span>;
+      return <span className="text-slate-300 font-light text-xs">—</span>;
     }
     const num = Number(val);
-    const displayVal = Number.isInteger(num) ? `${num}.0°C` : `${num.toFixed(1)}°C`;
+    const displayVal = Number.isInteger(num) ? `${num}°C` : `${parseFloat(num.toFixed(1))}°C`;
 
     return (
       <span
-        className="font-semibold text-slate-800 text-sm"
+        className="font-medium text-slate-700 text-xs"
         title={captureTime ? `${spotLabel}: ${displayVal} recorded at ${captureTime}` : undefined}
       >
         {displayVal}
