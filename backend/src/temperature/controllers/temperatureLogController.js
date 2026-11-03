@@ -538,9 +538,10 @@ export const getWeeklyTemperatureReport = async (req, res) => {
 
     if (isAllFirms) {
       if (permittedFirms === null) {
-        targetFirmIds = await Firm.find({}).distinct('_id');
+        targetFirmIds = await Firm.find({ code: { $ne: 'OFFICE' }, name: { $not: /office/i } }).distinct('_id');
       } else {
-        targetFirmIds = permittedFirms;
+        const allowed = await Firm.find({ _id: { $in: permittedFirms }, code: { $ne: 'OFFICE' }, name: { $not: /office/i } }).distinct('_id');
+        targetFirmIds = allowed;
       }
     } else {
       if (!firm) {
@@ -600,8 +601,12 @@ export const getWeeklyTemperatureReport = async (req, res) => {
       .populate('firm', 'name code')
       .populate('worker', 'name');
 
-    // Fetch firm details in permitted order (Raghav first, etc.)
-    const firmDocs = await Firm.find({ _id: { $in: targetFirmIds } }).sort({ orderIndex: 1, name: 1 });
+    // Fetch firm details in permitted order (Raghav first, etc.), excluding non-farm Head Office
+    const firmDocs = await Firm.find({
+      _id: { $in: targetFirmIds },
+      code: { $ne: 'OFFICE' },
+      name: { $not: /office/i },
+    }).sort({ orderIndex: 1, name: 1 });
     const firmsMap = new Map();
     firmDocs.forEach((f) => {
       firmsMap.set(String(f._id), {

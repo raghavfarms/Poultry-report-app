@@ -31,20 +31,18 @@ export default function TemperatureWeeklyPage({ compact = false }) {
   const reportContainerRef = useRef(null);
   const dateInputRef = useRef(null);
 
-  // 1. Load accessible farms (matching Daily Report Page)
+  // 1. Load accessible poultry farms (only actual production farms: Raghav, Sanjana)
   useEffect(() => {
     let isMounted = true;
     api('/firms?module=temperature')
       .then((data) => {
         if (!isMounted) return;
-        const list = data.firms || (Array.isArray(data) ? data : data?.data || []);
+        const rawList = data.firms || (Array.isArray(data) ? data : data?.data || []);
+        // Strictly filter out Head Office, keeping only actual poultry farms (Raghav, Sanjana)
+        const list = rawList.filter((f) => f.code !== 'OFFICE' && !/office/i.test(f.name));
         setFirms(list);
-        if (list.length > 0 && !selectedFirm) {
-          if (list.length > 1) {
-            setSelectedFirm('all');
-          } else {
-            setSelectedFirm(String(list[0]._id));
-          }
+        if (list.length > 0) {
+          setSelectedFirm(String(list[0]._id));
         }
       })
       .catch((err) => {
@@ -135,7 +133,6 @@ export default function TemperatureWeeklyPage({ compact = false }) {
 
   // Active farm display name
   const currentFarmName = useMemo(() => {
-    if (selectedFirm === 'all') return 'All Farms';
     const found = firms.find((f) => String(f._id) === String(selectedFirm));
     return found ? found.name : 'Farm';
   }, [selectedFirm, firms]);
@@ -269,9 +266,6 @@ export default function TemperatureWeeklyPage({ compact = false }) {
               onChange={(e) => setSelectedFirm(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
             >
-              {firms.length > 1 && (
-                <option value="all">All Farms</option>
-              )}
               {firms.map((f) => (
                 <option key={f._id} value={f._id}>
                   {f.name}
