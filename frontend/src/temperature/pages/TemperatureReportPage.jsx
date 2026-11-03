@@ -575,9 +575,9 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                     </td>
                                   )}
 
-                                  {/* 2. Time Column (Bold text matching reference) */}
-                                  <td className="py-2.5 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
-                                    <b>{row.time}</b>
+                                  {/* 2. Time Column (Lighter color than shed column) */}
+                                  <td className="py-2.5 px-3 font-semibold text-slate-500 text-xs whitespace-nowrap">
+                                    {row.time}
                                   </td>
 
                                   {/* 3. Pad Side Reading */}
