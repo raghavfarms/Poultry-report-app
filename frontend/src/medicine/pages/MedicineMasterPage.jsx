@@ -208,6 +208,15 @@ export default function MedicineMasterPage() {
   const [submittingSupplier, setSubmittingSupplier] = useState(false);
   const [supplierError, setSupplierError] = useState('');
   const [supplierSuccessMsg, setSupplierSuccessMsg] = useState('');
+  const [openSupplierMenuId, setOpenSupplierMenuId] = useState(null);
+
+  // Close supplier 3-dot action menu when clicking outside
+  useEffect(() => {
+    if (!openSupplierMenuId) return;
+    const handleOutsideClick = () => setOpenSupplierMenuId(null);
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [openSupplierMenuId]);
 
     // Bulk Excel Import States
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -1411,14 +1420,15 @@ export default function MedicineMasterPage() {
                 <th className="py-2.5 px-3">Contact Person</th>
                 <th className="py-2.5 px-3">Phone / Mobile</th>
                 <th className="py-2.5 px-3">Address</th>
+                <th className="py-2.5 px-3">GST No</th>
                 <th className="py-2.5 px-3 text-center">Status</th>
-                {canManage && <th className="py-2.5 px-3 text-right">Actions</th>}
+                {canManage && <th className="py-2.5 px-3 text-center w-14">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredSuppliers.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 6 : 5} className="py-8 text-center text-slate-400">
+                  <td colSpan={canManage ? 7 : 6} className="py-8 text-center text-slate-400">
                     No suppliers found matching your filters.
                   </td>
                 </tr>
@@ -1443,6 +1453,15 @@ export default function MedicineMasterPage() {
                     <td className="py-2.5 px-3 text-slate-600 text-[11px]">
                       <div>{s.address || <span className="text-slate-400">No address</span>}</div>
                     </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-slate-700 whitespace-nowrap">
+                      {s.gstin ? (
+                        <span className="font-semibold text-slate-800 tracking-wide bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          {s.gstin}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">--</span>
+                      )}
+                    </td>
                     <td className="py-2.5 px-3 text-center">
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -1455,28 +1474,53 @@ export default function MedicineMasterPage() {
                       </span>
                     </td>
                     {canManage && (
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="py-2.5 px-3 text-center">
+                        <div className="relative inline-block text-left">
                           <button
                             type="button"
-                            onClick={() => handleOpenEditSupplierModal(s)}
-                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-semibold transition cursor-pointer"
-                            title="Edit Supplier"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenSupplierMenuId(openSupplierMenuId === s._id ? null : s._id);
+                            }}
+                            className="w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-slate-200/70 text-slate-500 hover:text-slate-900 transition cursor-pointer text-base font-bold leading-none"
+                            title="Actions"
                           >
-                            Edit
+                            <span className="block mb-0.5 font-mono">⋮</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSupplierStatus(s)}
-                            className={`px-2 py-1 rounded text-xs font-semibold transition cursor-pointer ${
-                              s.active !== false
-                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700'
-                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
-                            }`}
-                            title={s.active !== false ? 'Deactivate' : 'Activate'}
-                          >
-                            {s.active !== false ? 'Deactivate' : 'Activate'}
-                          </button>
+
+                          {openSupplierMenuId === s._id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-left"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenSupplierMenuId(null);
+                                  handleOpenEditSupplierModal(s);
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition"
+                              >
+                                <span>✏️</span>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenSupplierMenuId(null);
+                                  handleToggleSupplierStatus(s);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 text-xs font-semibold flex items-center gap-2 cursor-pointer transition ${
+                                  s.active !== false
+                                    ? 'text-rose-600 hover:bg-rose-50'
+                                    : 'text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                              >
+                                <span>{s.active !== false ? '🚫' : '🟢'}</span>
+                                <span>{s.active !== false ? 'Deactivate' : 'Activate'}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </td>
                     )}
@@ -1527,32 +1571,59 @@ export default function MedicineMasterPage() {
                       </span>
 
                       {canManage && (
-                        <div className="flex items-center gap-1 ml-0.5">
+                        <div className="relative inline-block text-left ml-0.5">
                           <button
                             type="button"
-                            onClick={() => handleOpenEditSupplierModal(s)}
-                            className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold border border-slate-200 transition cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenSupplierMenuId(openSupplierMenuId === `m_${s._id}` ? null : `m_${s._id}`);
+                            }}
+                            className="w-6 h-6 inline-flex items-center justify-center rounded-lg hover:bg-slate-200/70 text-slate-500 hover:text-slate-900 transition cursor-pointer text-base font-bold leading-none"
+                            title="Actions"
                           >
-                            Edit
+                            <span className="block mb-0.5 font-mono">⋮</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSupplierStatus(s)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border transition cursor-pointer ${
-                              isActive
-                                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
-                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-                            }`}
-                          >
-                            {isActive ? 'Deactivate' : 'Activate'}
-                          </button>
+
+                          {openSupplierMenuId === `m_${s._id}` && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-left"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenSupplierMenuId(null);
+                                  handleOpenEditSupplierModal(s);
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition"
+                              >
+                                <span>✏️</span>
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenSupplierMenuId(null);
+                                  handleToggleSupplierStatus(s);
+                                }}
+                                className={`w-full text-left px-3 py-1.5 text-xs font-semibold flex items-center gap-2 cursor-pointer transition ${
+                                  isActive
+                                    ? 'text-rose-600 hover:bg-rose-50'
+                                    : 'text-emerald-600 hover:bg-emerald-50'
+                                }`}
+                              >
+                                <span>{isActive ? '🚫' : '🟢'}</span>
+                                <span>{isActive ? 'Deactivate' : 'Activate'}</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   </div>
 
                   {/* Row 2: Details (Only displayed if details exist, inline & compact) */}
-                  {(hasContact || hasPhone) && (
+                  {(hasContact || hasPhone || s.gstin) && (
                     <div className="flex items-center gap-3 text-[10px] text-slate-600 flex-wrap">
                       {hasContact && (
                         <span className="flex items-center gap-1">
@@ -1568,6 +1639,12 @@ export default function MedicineMasterPage() {
                           <span>📞</span>
                           <span>{s.mobile}</span>
                         </a>
+                      )}
+                      {s.gstin && (
+                        <span className="flex items-center gap-1 font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                          <span className="text-slate-400 font-sans font-normal">GST:</span>
+                          <span>{s.gstin}</span>
+                        </span>
                       )}
                     </div>
                   )}
@@ -1977,24 +2054,25 @@ export default function MedicineMasterPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                  Contact Person <span className="text-slate-400 font-normal">(opt)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rajesh Kumar"
+                  value={supplierFormData.contactPerson}
+                  onChange={(e) =>
+                    setSupplierFormData({
+                      ...supplierFormData,
+                      contactPerson: e.target.value,
+                    })
+                  }
+                  className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                    Contact Person <span className="text-slate-400 font-normal">(opt)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Rajesh Kumar"
-                    value={supplierFormData.contactPerson}
-                    onChange={(e) =>
-                      setSupplierFormData({
-                        ...supplierFormData,
-                        contactPerson: e.target.value,
-                      })
-                    }
-                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
                     Phone / Mobile <span className="text-slate-400 font-normal">(opt)</span>
@@ -2007,6 +2085,23 @@ export default function MedicineMasterPage() {
                       setSupplierFormData({ ...supplierFormData, mobile: e.target.value })
                     }
                     className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                    GST No / GSTIN <span className="text-slate-400 font-normal">(opt)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 09ABCDE1234F1Z5"
+                    value={supplierFormData.gstin}
+                    onChange={(e) =>
+                      setSupplierFormData({
+                        ...supplierFormData,
+                        gstin: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
               </div>
