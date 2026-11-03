@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../api/client.js';
-import { fetchWeeklyTemperatureReport } from '../api/temperatureApi.js';
+import { fetchWeeklyTemperatureReport, fetchSpots } from '../api/temperatureApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import * as XLSX from 'xlsx';
 
@@ -9,7 +9,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
   const { user } = useAuth();
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
 
-  // Today in IST
+  // Today in IST (YYYY-MM-DD)
   const todayIST = useMemo(() => {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   }, []);
@@ -20,9 +20,10 @@ export default function TemperatureWeeklyPage({ compact = false }) {
   const [selectedEndDate, setSelectedEndDate] = useState(todayIST);
   const [selectedShed, setSelectedShed] = useState('All sheds');
   const [selectedSpot, setSelectedSpot] = useState('Middle'); // 'Pad Side' | 'Middle' | 'Fan Side'
+  const [configuredSheds, setConfiguredSheds] = useState([]);
 
   // Data & Loading States
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState({ days: [], firms: [] });
   const [error, setError] = useState('');
   const [exportingPdf, setExportingPdf] = useState(false);
@@ -30,37 +31,53 @@ export default function TemperatureWeeklyPage({ compact = false }) {
   const reportContainerRef = useRef(null);
   const dateInputRef = useRef(null);
 
-  // 1. Load accessible firms
+  // 1. Load accessible farms (matching Daily Report Page)
   useEffect(() => {
-    let mounted = true;
-    const loadFirms = async () => {
-      try {
-        const res = await api('/firms?module=temperature');
-        const list = Array.isArray(res) ? res : res?.data || [];
-        if (!mounted) return;
+    let isMounted = true;
+    api('/firms?module=temperature')
+      .then((data) => {
+        if (!isMounted) return;
+        const list = data.firms || (Array.isArray(data) ? data : data?.data || []);
         setFirms(list);
-
-        if (list.length > 0) {
-          // If multiple firms and admin/dev, default to 'all', else first firm
-          if (list.length > 1 && isAdminOrDev) {
+        if (list.length > 0 && !selectedFirm) {
+          if (list.length > 1) {
             setSelectedFirm('all');
           } else {
             setSelectedFirm(String(list[0]._id));
           }
         }
-      } catch (err) {
-        console.error('Failed to load farms:', err);
-      }
-    };
-    loadFirms();
+      })
+      .catch((err) => {
+        console.error('Error fetching farms:', err);
+        setError('Failed to load farms list');
+      });
     return () => {
-      mounted = false;
+      isMounted = false;
     };
-  }, [isAdminOrDev]);
+  }, []);
 
-  // 2. Fetch Weekly Report Data
-  const loadWeeklyReport = async () => {
+  // 2. Load configured sheds for the selected farm
+  useEffect(() => {
     if (!selectedFirm) return;
+    const firmParam = selectedFirm === 'all' ? 'all' : selectedFirm;
+    fetchSpots(firmParam)
+      .then((res) => {
+        const spotsList = res.data || [];
+        const set = new Set();
+        spotsList.forEach((s) => {
+          if (s.shed && s.active !== false) set.add(s.shed);
+        });
+        setConfiguredSheds(Array.from(set).sort());
+      })
+      .catch((err) => console.error('Failed to load sheds for filter:', err));
+  }, [selectedFirm]);
+
+  // 3. Fetch Weekly Report Data
+  const loadWeeklyReport = async () => {
+    if (!selectedFirm) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -85,10 +102,12 @@ export default function TemperatureWeeklyPage({ compact = false }) {
   };
 
   useEffect(() => {
-    loadWeeklyReport();
+    if (selectedFirm) {
+      loadWeeklyReport();
+    }
   }, [selectedFirm, selectedEndDate, selectedShed]);
 
-  // 3. Navigation helpers for week jumping (-7 days / +7 days)
+  // 4. Navigation helpers for week jumping (-7 days / +7 days)
   const shiftWeek = (offsetDays) => {
     const [y, m, d] = selectedEndDate.split('-').map(Number);
     const dateObj = new Date(Date.UTC(y, m - 1, d + offsetDays));
@@ -105,14 +124,14 @@ export default function TemperatureWeeklyPage({ compact = false }) {
 
   // Available sheds list for dropdown
   const availableSheds = useMemo(() => {
-    const shedSet = new Set();
+    const shedSet = new Set(configuredSheds);
     (reportData.firms || []).forEach((f) => {
       (f.sheds || []).forEach((s) => {
         if (s.shedName) shedSet.add(s.shedName);
       });
     });
     return Array.from(shedSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  }, [reportData.firms]);
+  }, [configuredSheds, reportData.firms]);
 
   // Active farm display name
   const currentFarmName = useMemo(() => {
@@ -121,7 +140,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     return found ? found.name : 'Farm';
   }, [selectedFirm, firms]);
 
-  // 4. Excel Export
+  // 5. Excel Export
   const handleExportExcel = () => {
     if (!reportData.days || reportData.days.length === 0) return;
     try {
@@ -167,7 +186,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     }
   };
 
-  // 5. PDF Export
+  // 6. PDF Export
   const handleExportPdf = async () => {
     if (!reportContainerRef.current) return;
     setExportingPdf(true);
@@ -250,7 +269,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
               onChange={(e) => setSelectedFirm(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
             >
-              {firms.length > 1 && isAdminOrDev && (
+              {firms.length > 1 && (
                 <option value="all">All Farms</option>
               )}
               {firms.map((f) => (
