@@ -553,88 +553,67 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                       <tbody className="divide-y divide-slate-100">
                         {group.rows.length === 0 ? (
                           <tr>
-                            <td colSpan={isAdminOrDev ? 7 : 6} className="py-6 text-center text-slate-400">
+                            <td colSpan={isAdminOrDev ? 7 : 6} className="py-8 text-center text-slate-400">
                               <p className="text-sm font-medium text-slate-500">
                                 No temperature records found for {group.firmName} on {formattedDisplayDate}
                               </p>
                             </td>
                           </tr>
                         ) : (
-                          groupRowsByShed(group.rows).map((shedGroup) => {
+                          groupRowsByShed(group.rows).map((shedGroup, sIdx) => {
                             const totalRowsInShed = shedGroup.rows.length;
                             return shedGroup.rows.map((row, idx) => {
                               const isFirstRowOfShed = idx === 0;
+                              const isLastRowOfShed = idx === totalRowsInShed - 1;
                               const isDeletingThis = deletingId === `${row.time}-${row.shedLine}`;
 
                               return (
                                 <tr
                                   key={`row-${shedGroup.shedName}-${row.time}-${idx}`}
-                                  className="hover:bg-slate-50/70 transition border-b border-slate-100"
+                                  className={`hover:bg-slate-50/50 transition ${
+                                    isLastRowOfShed ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
+                                  }`}
                                 >
-                                  {/* 1. Grouped Left Shed Column (Rowspan across all its chronological time rows) */}
+                                  {/* 1. Grouped Left Shed Column (Exact blue pill & light-slate background matching reference) */}
                                   {isFirstRowOfShed && (
                                     <td
                                       rowSpan={totalRowsInShed}
-                                      className="p-4 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-44"
+                                      className="py-4 px-5 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-44"
                                     >
-                                      <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-slate-600 text-white font-bold text-xs tracking-wide shadow-xs">
+                                      <div className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-[#4a6382] text-white font-bold text-xs tracking-wide shadow-sm">
                                         {shedGroup.shedName} · {row.line || 'Line 1'}
                                       </div>
                                     </td>
                                   )}
 
-                                  {/* 2. Chronological Time Column inside this Shed */}
-                                  <td
-                                    className="py-2.5 px-4 font-bold text-slate-800 whitespace-nowrap"
-                                    title={row.timeSpan ? `Round span: ${row.timeSpan}` : undefined}
-                                  >
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="font-mono text-xs">{row.time}</span>
-                                      {row.readingsCount > 1 && (
-                                        <span
-                                          className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded"
-                                          title={`Average time of ${row.readingsCount} readings (${row.timeSpan})`}
-                                        >
-                                          Avg
-                                        </span>
-                                      )}
-                                    </div>
-                                    {row.timeSpan && row.readingsCount > 1 && (
-                                      <div className="text-[10px] text-slate-400 font-normal">
-                                        {row.timeSpan}
-                                      </div>
-                                    )}
+                                  {/* 2. Time Column (clean 06:00 PM font, exactly matching reference) */}
+                                  <td className="py-3.5 px-6 font-bold text-slate-900 text-sm whitespace-nowrap">
+                                    {row.time}
                                   </td>
 
                                   {/* 3. Pad Side Reading */}
-                                  <td className="py-2.5 px-4 text-center">
+                                  <td className="py-3.5 px-6 text-center">
                                     {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side')}
                                   </td>
 
                                   {/* 4. Middle Reading */}
-                                  <td className="py-2.5 px-4 text-center">
+                                  <td className="py-3.5 px-6 text-center">
                                     {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle')}
                                   </td>
 
                                   {/* 5. Fan Side Reading */}
-                                  <td className="py-2.5 px-4 text-center">
+                                  <td className="py-3.5 px-6 text-center">
                                     {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
                                   </td>
 
-                                  {/* 6. Round Average */}
-                                  <td className="py-3 px-6 text-center">
-                                    {row.avg !== '—' && row.avg !== undefined ? (
-                                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold border border-emerald-200 bg-emerald-100 text-emerald-800 shadow-2xs">
-                                        {Number.isInteger(Number(row.avg)) ? `${Number(row.avg)}.0°C` : `${Number(row.avg).toFixed(1)}°C`}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-300 font-light">—</span>
-                                    )}
+                                  {/* 6. Avg Temp Reading (exact pill matching reference) */}
+                                  <td className="py-3.5 px-6 text-center">
+                                    {renderTempCell(row.avg, false, null, 'Avg Temp')}
                                   </td>
 
                                   {/* 7. Action (Admin only) */}
                                   {isAdminOrDev && (
-                                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteRow(row)}
