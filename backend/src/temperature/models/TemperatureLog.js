@@ -5,7 +5,7 @@ const temperatureLogSchema=new mongoose.Schema({
   firm:{
     type: mongoose.Schema.Types.ObjectId,
     ref:'Firm',
-    required:[true,'firm name is rrquired'],
+    required:[true,'firm name is required'],
     index: true,
   },
   spot:{
@@ -32,7 +32,7 @@ const temperatureLogSchema=new mongoose.Schema({
   temperature:{
      type: Number,
       required: [true, 'Temperature reading is required'],
-      min: [-10, 'Temperature too low'],
+      min: [0, 'Temperature too low'],
       max: [55, 'Temperature too high'],
   },
   verifiedByqr:{
