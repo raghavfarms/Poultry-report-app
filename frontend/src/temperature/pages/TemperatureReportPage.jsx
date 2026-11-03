@@ -522,16 +522,17 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                     )}
                   </div>
 
-                  {/* 5-Column Clean Table */}
+                  {/* Variation 1: Dedicated Left Shed Column (Rowspan) with Sorted Chronological Time */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                          <th className="py-2.5 px-4 w-32">Time</th>
-                          <th className="py-2.5 px-4 w-44">Shed · Line</th>
-                          <th className="py-2.5 px-4 text-center">Pad</th>
-                          <th className="py-2.5 px-4 text-center">Mid</th>
-                          <th className="py-2.5 px-4 text-center">Fan</th>
+                          <th className="py-2.5 px-4 w-36 bg-slate-100/80 border-r border-slate-200">Shed</th>
+                          <th className="py-2.5 px-4 w-36">Time</th>
+                          <th className="py-2.5 px-4 text-center">Pad Side</th>
+                          <th className="py-2.5 px-4 text-center">Middle</th>
+                          <th className="py-2.5 px-4 text-center">Fan Side</th>
+                          <th className="py-2.5 px-4 text-center w-20">Avg</th>
                           {isAdminOrDev && (
                             <th className="py-2.5 px-3 text-center w-16">Action</th>
                           )}
@@ -540,118 +541,127 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                       <tbody className="divide-y divide-slate-100">
                         {group.rows.length === 0 ? (
                           <tr>
-                            <td colSpan={isAdminOrDev ? 6 : 5} className="py-6 text-center text-slate-400">
+                            <td colSpan={isAdminOrDev ? 7 : 6} className="py-6 text-center text-slate-400">
                               <p className="text-sm font-medium text-slate-500">
                                 No temperature records found for {group.firmName} on {formattedDisplayDate}
                               </p>
                             </td>
                           </tr>
                         ) : (
-                          group.rows.map((row, idx) => {
-                            if (row.missed) {
+                          groupRowsByShed(group.rows).map((shedGroup) => {
+                            const totalRowsInShed = shedGroup.rows.length;
+                            return shedGroup.rows.map((row, idx) => {
+                              const isFirstRowOfShed = idx === 0;
+                              const isDeletingThis = deletingId === `${row.time}-${row.shedLine}`;
+
                               return (
                                 <tr
-                                  key={`missed-${row.time}-${row.shedLine}-${idx}`}
-                                  className="bg-rose-50/40 hover:bg-rose-50/70 transition"
+                                  key={`row-${shedGroup.shedName}-${row.time}-${idx}`}
+                                  className="hover:bg-slate-50/70 transition border-b border-slate-100"
                                 >
-                                  <td className="py-2.5 px-4 font-bold text-slate-700 whitespace-nowrap">
-                                    {row.time}
+                                  {/* 1. Grouped Left Shed Column (Rowspan across all its chronological time rows) */}
+                                  {isFirstRowOfShed && (
+                                    <td
+                                      rowSpan={totalRowsInShed}
+                                      className="py-3 px-4 align-top font-black text-slate-900 bg-slate-50/90 border-r border-slate-200 select-none whitespace-nowrap"
+                                    >
+                                      <div className="sticky top-2">
+                                        <div className="inline-flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1 rounded-xl shadow-2xs font-extrabold text-xs text-slate-900 tracking-wide">
+                                          <span>🏠</span>
+                                          <span>{shedGroup.shedName}</span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 font-semibold mt-1.5 pl-1">
+                                          {row.line || 'Line 1'}
+                                        </div>
+                                        <div className="text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md mt-1 inline-block font-bold">
+                                          {totalRowsInShed} {totalRowsInShed === 1 ? 'Round' : 'Rounds'}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  )}
+
+                                  {/* 2. Chronological Time Column inside this Shed */}
+                                  <td
+                                    className="py-2.5 px-4 font-bold text-slate-800 whitespace-nowrap"
+                                    title={row.timeSpan ? `Round span: ${row.timeSpan}` : undefined}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono text-xs">{row.time}</span>
+                                      {row.readingsCount > 1 && (
+                                        <span
+                                          className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded"
+                                          title={`Average time of ${row.readingsCount} readings (${row.timeSpan})`}
+                                        >
+                                          Avg
+                                        </span>
+                                      )}
+                                    </div>
+                                    {row.timeSpan && row.readingsCount > 1 && (
+                                      <div className="text-[10px] text-slate-400 font-normal">
+                                        {row.timeSpan}
+                                      </div>
+                                    )}
                                   </td>
-                                  <td className="py-2.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
-                                    {row.shed} · {row.line}
+
+                                  {/* 3. Pad Side Reading */}
+                                  <td className="py-2.5 px-4 text-center">
+                                    {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side')}
                                   </td>
-                                  <td colSpan={isAdminOrDev ? 4 : 3} className="py-2.5 px-4 text-center">
-                                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 italic">
-                                      <span>⚠️</span>
-                                      <span>No reading saved for this hour (Missed)</span>
-                                    </span>
+
+                                  {/* 4. Middle Reading */}
+                                  <td className="py-2.5 px-4 text-center">
+                                    {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle')}
                                   </td>
+
+                                  {/* 5. Fan Side Reading */}
+                                  <td className="py-2.5 px-4 text-center">
+                                    {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
+                                  </td>
+
+                                  {/* 6. Round Average */}
+                                  <td className="py-2.5 px-4 text-center font-bold text-slate-700">
+                                    {row.avg !== '—' && row.avg !== undefined ? (
+                                      <span className="bg-slate-100 text-slate-800 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-slate-200">
+                                        {row.avg}°C
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-300 font-light">—</span>
+                                    )}
+                                  </td>
+
+                                  {/* 7. Action (Admin only) */}
+                                  {isAdminOrDev && (
+                                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteRow(row)}
+                                        disabled={isDeletingThis}
+                                        className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
+                                        title="Delete reading"
+                                      >
+                                        {isDeletingThis ? (
+                                          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-rose-600 border-t-transparent" />
+                                        ) : (
+                                          <svg
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                            />
+                                          </svg>
+                                        )}
+                                      </button>
+                                    </td>
+                                  )}
                                 </tr>
                               );
-                            }
-
-                            const isDeletingThis = deletingId === `${row.time}-${row.shedLine}`;
-
-                            return (
-                              <tr
-                                key={`row-${row.time}-${row.shedLine}-${idx}`}
-                                className="hover:bg-slate-50/70 transition"
-                              >
-                                {/* 1. Time (Average of readings if 2 or 3, or exact time if 1) */}
-                                <td
-                                  className="py-2.5 px-4 font-bold text-slate-800 whitespace-nowrap"
-                                  title={row.timeSpan ? `Round span: ${row.timeSpan}` : undefined}
-                                >
-                                  <div className="flex items-center gap-1.5">
-                                    <span>{row.time}</span>
-                                    {row.readingsCount > 1 && (
-                                      <span
-                                        className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200 px-1 py-0.2 rounded"
-                                        title={`Average time of ${row.readingsCount} readings (${row.timeSpan})`}
-                                      >
-                                        Avg
-                                      </span>
-                                    )}
-                                  </div>
-                                  {row.timeSpan && row.readingsCount > 1 && (
-                                    <div className="text-[10px] text-slate-400 font-normal">
-                                      {row.timeSpan}
-                                    </div>
-                                  )}
-                                </td>
-
-                                {/* 2. Shed · Line */}
-                                <td className="py-2.5 px-4 font-semibold text-slate-700 whitespace-nowrap">
-                                  {row.shed} · {row.line}
-                                </td>
-
-                                {/* 3. Pad */}
-                                <td className="py-2.5 px-4 text-center">
-                                  {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side')}
-                                </td>
-
-                                {/* 4. Mid */}
-                                <td className="py-2.5 px-4 text-center">
-                                  {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle')}
-                                </td>
-
-                                {/* 5. Fan */}
-                                <td className="py-2.5 px-4 text-center">
-                                  {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
-                                </td>
-
-                                {/* 6. Action (Admin only) */}
-                                {isAdminOrDev && (
-                                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteRow(row)}
-                                      disabled={isDeletingThis}
-                                      className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
-                                      title="Delete reading"
-                                    >
-                                      {isDeletingThis ? (
-                                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border border-rose-600 border-t-transparent" />
-                                      ) : (
-                                        <svg
-                                          className="h-4 w-4"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                          strokeWidth="2"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                          />
-                                        </svg>
-                                      )}
-                                    </button>
-                                  </td>
-                                )}
-                              </tr>
-                            );
+                            });
                           })
                         )}
                       </tbody>
