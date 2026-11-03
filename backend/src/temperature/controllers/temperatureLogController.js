@@ -530,7 +530,7 @@ export const deleteTemperatureLog = async (req, res) => {
  */
 export const getWeeklyTemperatureReport = async (req, res) => {
   try {
-    const { firm, date, endDate, shed } = req.query;
+    const { firm, date, endDate, startDate, shed } = req.query;
 
     const permittedFirms = getPermittedFirmsForModule(req.user, 'temperature');
     const isAllFirms = firm === 'all';
