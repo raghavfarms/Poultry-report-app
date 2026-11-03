@@ -321,7 +321,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     }
   };
 
-  // Helper for temp cell styling - clean plain text without colored badges, compact size
+  // Helper for temp cell styling - clean plain text without colored badges, matching report-table text size
   const renderTempCell = (val, isVerified, captureTime, spotLabel) => {
     if (val === null || val === undefined) {
       return <span className="text-slate-300 font-light text-xs">—</span>;
@@ -331,7 +331,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
 
     return (
       <span
-        className="font-medium text-slate-700 text-xs"
+        className="text-xs text-slate-800 font-normal"
         title={captureTime ? `${spotLabel}: ${displayVal} recorded at ${captureTime}` : undefined}
       >
         {displayVal}
@@ -527,15 +527,15 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-700">
-                          <th className="py-3 px-6 w-44 font-semibold text-slate-800 border-r border-slate-200">Shed</th>
-                          <th className="py-3 px-6 w-36 font-semibold text-slate-800">Time</th>
-                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Pad Side</th>
-                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Middle</th>
-                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Fan Side</th>
-                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Avg Temp</th>
+                        <tr className="border-b border-slate-200 bg-slate-50/70 text-xs font-bold text-slate-700">
+                          <th className="py-2.5 px-3 w-40 font-bold text-slate-800 border-r border-slate-200 text-center">Shed</th>
+                          <th className="py-2.5 px-3 w-28 font-bold text-slate-800">Time</th>
+                          <th className="py-2.5 px-3 text-center font-bold text-slate-800">Pad Side</th>
+                          <th className="py-2.5 px-3 text-center font-bold text-slate-800">Middle</th>
+                          <th className="py-2.5 px-3 text-center font-bold text-slate-800">Fan Side</th>
+                          <th className="py-2.5 px-3 text-center font-bold text-slate-800">Avg Temp</th>
                           {isAdminOrDev && (
-                            <th className="py-3 px-4 text-center font-semibold text-slate-800 w-16">Action</th>
+                            <th className="py-2.5 px-2 text-center font-bold text-slate-800 w-14">Action</th>
                           )}
                         </tr>
                       </thead>
@@ -563,51 +563,51 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                     isLastRowOfShed ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
                                   }`}
                                 >
-                                  {/* 1. Grouped Left Shed Column (Light pill badge) */}
+                                  {/* 1. Grouped Left Shed Column (Bold text matching reference date column) */}
                                   {isFirstRowOfShed && (
                                     <td
                                       rowSpan={totalRowsInShed}
-                                      className="py-4 px-5 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-44"
+                                      className="py-2.5 px-3 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-40"
                                     >
-                                      <div className="inline-flex items-center justify-center px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs tracking-wide shadow-2xs">
+                                      <b className="font-bold text-slate-900 text-xs">
                                         {shedGroup.shedName} · {row.line || 'Line 1'}
-                                      </div>
+                                      </b>
                                     </td>
                                   )}
 
-                                  {/* 2. Time Column (clean 06:00 PM font, exactly matching reference) */}
-                                  <td className="py-3.5 px-6 font-bold text-slate-900 text-sm whitespace-nowrap">
-                                    {row.time}
+                                  {/* 2. Time Column (Bold text matching reference) */}
+                                  <td className="py-2.5 px-3 font-bold text-slate-900 text-xs whitespace-nowrap">
+                                    <b>{row.time}</b>
                                   </td>
 
                                   {/* 3. Pad Side Reading */}
-                                  <td className="py-3.5 px-6 text-center">
+                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
                                     {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side')}
                                   </td>
 
                                   {/* 4. Middle Reading */}
-                                  <td className="py-3.5 px-6 text-center">
+                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
                                     {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle')}
                                   </td>
 
                                   {/* 5. Fan Side Reading */}
-                                  <td className="py-3.5 px-6 text-center">
+                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
                                     {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
                                   </td>
 
-                                  {/* 6. Avg Temp Reading (exact pill matching reference) */}
-                                  <td className="py-3.5 px-6 text-center">
+                                  {/* 6. Avg Temp Reading */}
+                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
                                     {renderTempCell(row.avg, false, null, 'Avg Temp')}
                                   </td>
 
                                   {/* 7. Action (Admin only) */}
                                   {isAdminOrDev && (
-                                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                                    <td className="py-2 px-2 text-center whitespace-nowrap">
                                       <button
                                         type="button"
                                         onClick={() => handleDeleteRow(row)}
                                         disabled={isDeletingThis}
-                                        className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
+                                        className="inline-flex items-center justify-center h-6 w-6 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
                                         title="Delete reading"
                                       >
                                         {isDeletingThis ? (
