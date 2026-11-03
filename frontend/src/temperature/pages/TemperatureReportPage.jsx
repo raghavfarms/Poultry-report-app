@@ -533,7 +533,6 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                           <th className="py-2.5 px-3 text-center font-bold text-slate-800">Pad Side</th>
                           <th className="py-2.5 px-3 text-center font-bold text-slate-800">Middle</th>
                           <th className="py-2.5 px-3 text-center font-bold text-slate-800">Fan Side</th>
-                          <th className="py-2.5 px-3 text-center font-bold text-slate-800">Avg Temp</th>
                           {isAdminOrDev && (
                             <th className="py-2.5 px-2 text-center font-bold text-slate-800 w-14">Action</th>
                           )}
@@ -542,7 +541,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                       <tbody className="divide-y divide-slate-100">
                         {group.rows.length === 0 ? (
                           <tr>
-                            <td colSpan={isAdminOrDev ? 7 : 6} className="py-8 text-center text-slate-400">
+                            <td colSpan={isAdminOrDev ? 6 : 5} className="py-8 text-center text-slate-400">
                               <p className="text-sm font-medium text-slate-500">
                                 No temperature records found for {group.firmName} on {formattedDisplayDate}
                               </p>
@@ -595,12 +594,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                     {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
                                   </td>
 
-                                  {/* 6. Avg Temp Reading */}
-                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.avg, false, null, 'Avg Temp')}
-                                  </td>
-
-                                  {/* 7. Action (Admin only) */}
+                                  {/* 6. Action (Admin only) */}
                                   {isAdminOrDev && (
                                     <td className="py-2 px-2 text-center whitespace-nowrap">
                                       <button
