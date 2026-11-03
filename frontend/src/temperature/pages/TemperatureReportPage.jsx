@@ -321,19 +321,31 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     }
   };
 
-  // Helper for temp cell styling
+  // Helper for temp cell styling - exactly matching mockup pill design
   const renderTempCell = (val, isVerified, captureTime, spotLabel) => {
     if (val === null || val === undefined) {
-      return <span className="text-slate-400 font-light">—</span>;
+      return <span className="text-slate-300 font-light">—</span>;
     }
-    const num = Math.round(Number(val));
+    const num = Number(val);
+    const displayVal = Number.isInteger(num) ? `${num}.0°C` : `${num.toFixed(1)}°C`;
+
+    // Dynamic color coding matching the mockup:
+    // Green pill (22°C - 25.5°C): Optimal cool/pad
+    // Neutral slate pill (25.6°C - 27.5°C): Comfortable
+    // Amber pill (> 27.5°C): Warm fan side
+    let badgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
+    if (num <= 25.5) {
+      badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    } else if (num >= 27.5) {
+      badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+    }
 
     return (
       <span
-        className="inline-flex items-center font-semibold text-slate-800"
-        title={captureTime ? `${spotLabel}: ${num}°C recorded at ${captureTime}` : undefined}
+        className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold border shadow-2xs ${badgeClass}`}
+        title={captureTime ? `${spotLabel}: ${displayVal} recorded at ${captureTime}` : undefined}
       >
-        <span>{num}°C</span>
+        {displayVal}
       </span>
     );
   };
@@ -526,15 +538,15 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                          <th className="py-2.5 px-4 w-36 bg-slate-100/80 border-r border-slate-200">Shed</th>
-                          <th className="py-2.5 px-4 w-36">Time</th>
-                          <th className="py-2.5 px-4 text-center">Pad Side</th>
-                          <th className="py-2.5 px-4 text-center">Middle</th>
-                          <th className="py-2.5 px-4 text-center">Fan Side</th>
-                          <th className="py-2.5 px-4 text-center w-20">Avg</th>
+                        <tr className="border-b border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-700">
+                          <th className="py-3 px-6 w-44 font-semibold text-slate-800 border-r border-slate-200">Shed</th>
+                          <th className="py-3 px-6 w-36 font-semibold text-slate-800">Time</th>
+                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Pad Side</th>
+                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Middle</th>
+                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Fan Side</th>
+                          <th className="py-3 px-6 text-center font-semibold text-slate-800">Avg Temp</th>
                           {isAdminOrDev && (
-                            <th className="py-2.5 px-3 text-center w-16">Action</th>
+                            <th className="py-3 px-4 text-center font-semibold text-slate-800 w-16">Action</th>
                           )}
                         </tr>
                       </thead>
@@ -563,19 +575,10 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                   {isFirstRowOfShed && (
                                     <td
                                       rowSpan={totalRowsInShed}
-                                      className="py-3 px-4 align-top font-black text-slate-900 bg-slate-50/90 border-r border-slate-200 select-none whitespace-nowrap"
+                                      className="p-4 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-44"
                                     >
-                                      <div className="sticky top-2">
-                                        <div className="inline-flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1 rounded-xl shadow-2xs font-extrabold text-xs text-slate-900 tracking-wide">
-                                          <span>🏠</span>
-                                          <span>{shedGroup.shedName}</span>
-                                        </div>
-                                        <div className="text-[10px] text-slate-400 font-semibold mt-1.5 pl-1">
-                                          {row.line || 'Line 1'}
-                                        </div>
-                                        <div className="text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md mt-1 inline-block font-bold">
-                                          {totalRowsInShed} {totalRowsInShed === 1 ? 'Round' : 'Rounds'}
-                                        </div>
+                                      <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full bg-slate-600 text-white font-bold text-xs tracking-wide shadow-xs">
+                                        {shedGroup.shedName} · {row.line || 'Line 1'}
                                       </div>
                                     </td>
                                   )}
@@ -619,10 +622,10 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                   </td>
 
                                   {/* 6. Round Average */}
-                                  <td className="py-2.5 px-4 text-center font-bold text-slate-700">
+                                  <td className="py-3 px-6 text-center">
                                     {row.avg !== '—' && row.avg !== undefined ? (
-                                      <span className="bg-slate-100 text-slate-800 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-slate-200">
-                                        {row.avg}°C
+                                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold border border-emerald-200 bg-emerald-100 text-emerald-800 shadow-2xs">
+                                        {Number.isInteger(Number(row.avg)) ? `${Number(row.avg)}.0°C` : `${Number(row.avg).toFixed(1)}°C`}
                                       </span>
                                     ) : (
                                       <span className="text-slate-300 font-light">—</span>
