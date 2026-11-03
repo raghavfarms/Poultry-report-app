@@ -87,11 +87,12 @@ export async function deleteTemperatureLogs(logIds) {
   });
 }
 
-// Fetch 7-day weekly temperature report with spot readings
-export async function fetchWeeklyTemperatureReport(firmId, date = '', shed = '') {
+// Fetch weekly / date range temperature report with spot readings
+export async function fetchWeeklyTemperatureReport(firmId, startDate = '', endDate = '', shed = '') {
   if (!firmId) return { success: false, days: [], firms: [] };
   let url = `/temperature/logs/weekly-report?firm=${encodeURIComponent(firmId)}`;
-  if (date) url += `&date=${encodeURIComponent(date)}`;
+  if (startDate) url += `&startDate=${encodeURIComponent(startDate)}`;
+  if (endDate) url += `&endDate=${encodeURIComponent(endDate)}`;
   if (shed && shed !== 'All sheds' && shed !== 'All Sheds') {
     url += `&shed=${encodeURIComponent(shed)}`;
   }

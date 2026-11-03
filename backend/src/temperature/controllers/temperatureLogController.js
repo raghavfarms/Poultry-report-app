@@ -553,7 +553,7 @@ export const getWeeklyTemperatureReport = async (req, res) => {
       targetFirmIds = [firm];
     }
 
-    // Determine target 7-day window in IST
+    // Determine target date window in IST
     const tz = 'Asia/Kolkata';
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
 
@@ -562,12 +562,29 @@ export const getWeeklyTemperatureReport = async (req, res) => {
       targetEndStr = todayStr;
     }
 
-    const [endY, endM, endD] = targetEndStr.split('-').map(Number);
+    let targetStartStr = (startDate || '').trim();
+    if (!targetStartStr || !targetStartStr.includes('-')) {
+      const [endY, endM, endD] = targetEndStr.split('-').map(Number);
+      targetStartStr = new Date(Date.UTC(endY, endM - 1, endD - 6)).toISOString().slice(0, 10);
+    }
 
-    // Calculate 7 days ending on targetEndStr
+    // Ensure valid chronological order
+    if (targetStartStr > targetEndStr) {
+      const temp = targetStartStr;
+      targetStartStr = targetEndStr;
+      targetEndStr = temp;
+    }
+
+    const [sY, sM, sD] = targetStartStr.split('-').map(Number);
+    const [eY, eM, eD] = targetEndStr.split('-').map(Number);
+    const startUtc = new Date(Date.UTC(sY, sM - 1, sD));
+    const endUtc = new Date(Date.UTC(eY, eM - 1, eD));
+    // Limit to max 31 days to ensure fast and responsive performance
+    const diffDays = Math.min(Math.round((endUtc - startUtc) / (24 * 60 * 60 * 1000)), 30);
+
     const days = [];
-    for (let i = 0; i < 7; i++) {
-      const cur = new Date(Date.UTC(endY, endM - 1, endD - 6 + i));
+    for (let i = 0; i <= diffDays; i++) {
+      const cur = new Date(Date.UTC(sY, sM - 1, sD + i));
       const curStr = cur.toISOString().slice(0, 10);
       const curDateObj = new Date(`${curStr}T12:00:00+05:30`);
       const dayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(curDateObj);

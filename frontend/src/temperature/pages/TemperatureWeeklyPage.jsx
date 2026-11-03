@@ -14,10 +14,17 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   }, []);
 
+  // Default to 1 week (6 days before todayIST to todayIST)
+  const defaultStartIST = useMemo(() => {
+    const [y, m, d] = todayIST.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d - 6)).toISOString().slice(0, 10);
+  }, [todayIST]);
+
   // Filter States
   const [firms, setFirms] = useState([]);
   const [selectedFirm, setSelectedFirm] = useState('');
-  const [selectedEndDate, setSelectedEndDate] = useState(todayIST);
+  const [startDate, setStartDate] = useState(defaultStartIST);
+  const [endDate, setEndDate] = useState(todayIST);
   const [selectedShed, setSelectedShed] = useState('All sheds');
   const [selectedSpot, setSelectedSpot] = useState('Middle'); // 'Pad Side' | 'Middle' | 'Fan Side'
   const [configuredSheds, setConfiguredSheds] = useState([]);
@@ -29,7 +36,6 @@ export default function TemperatureWeeklyPage({ compact = false }) {
   const [exportingPdf, setExportingPdf] = useState(false);
 
   const reportContainerRef = useRef(null);
-  const dateInputRef = useRef(null);
 
   // 1. Load accessible poultry farms (only actual production farms: Raghav, Sanjana)
   useEffect(() => {
@@ -70,7 +76,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
       .catch((err) => console.error('Failed to load sheds for filter:', err));
   }, [selectedFirm]);
 
-  // 3. Fetch Weekly Report Data
+  // 3. Fetch Weekly / Date Range Report Data
   const loadWeeklyReport = async () => {
     if (!selectedFirm) {
       setLoading(false);
@@ -79,7 +85,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetchWeeklyTemperatureReport(selectedFirm, selectedEndDate, selectedShed);
+      const res = await fetchWeeklyTemperatureReport(selectedFirm, startDate, endDate, selectedShed);
       if (res && res.success) {
         setReportData({
           startDate: res.startDate,
@@ -103,22 +109,15 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     if (selectedFirm) {
       loadWeeklyReport();
     }
-  }, [selectedFirm, selectedEndDate, selectedShed]);
+  }, [selectedFirm, startDate, endDate, selectedShed]);
 
-  // 4. Navigation helpers for week jumping (-7 days / +7 days)
-  const shiftWeek = (offsetDays) => {
-    const [y, m, d] = selectedEndDate.split('-').map(Number);
-    const dateObj = new Date(Date.UTC(y, m - 1, d + offsetDays));
-    setSelectedEndDate(dateObj.toISOString().slice(0, 10));
-  };
-
-  // Formatted display date for the week range (e.g. "28-Oct-2026 to 03-Nov-2026")
+  // Formatted display date for the date range
   const formattedWeekRange = useMemo(() => {
-    if (!reportData.days || reportData.days.length === 0) return selectedEndDate;
+    if (!reportData.days || reportData.days.length === 0) return `${startDate} to ${endDate}`;
     const start = reportData.days[0];
     const end = reportData.days[reportData.days.length - 1];
     return `${start.dayNum}-${start.monthName}-${start.date.slice(0, 4)} to ${end.dayNum}-${end.monthName}-${end.date.slice(0, 4)}`;
-  }, [reportData.days, selectedEndDate]);
+  }, [reportData.days, startDate, endDate]);
 
   // Available sheds list for dropdown
   const availableSheds = useMemo(() => {
@@ -137,7 +136,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     return found ? found.name : 'Farm';
   }, [selectedFirm, firms]);
 
-  // 5. Excel Export
+  // 4. Excel Export
   const handleExportExcel = () => {
     if (!reportData.days || reportData.days.length === 0) return;
     try {
@@ -175,7 +174,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Weekly Temperature');
       XLSX.writeFile(
         workbook,
-        `Weekly_Temperature_${selectedSpot.replace(/\s+/g, '_')}_${selectedEndDate}.xlsx`
+        `Weekly_Temperature_${selectedSpot.replace(/\s+/g, '_')}_${startDate}_to_${endDate}.xlsx`
       );
     } catch (err) {
       console.error('Excel Export Error:', err);
@@ -183,13 +182,13 @@ export default function TemperatureWeeklyPage({ compact = false }) {
     }
   };
 
-  // 6. PDF Export
+  // 5. PDF Export
   const handleExportPdf = async () => {
     if (!reportContainerRef.current) return;
     setExportingPdf(true);
     try {
       await exportReportToPdf(reportContainerRef.current, {
-        filename: `Weekly_Temperature_${selectedSpot.replace(/\s+/g, '_')}_${selectedEndDate}.pdf`,
+        filename: `Weekly_Temperature_${selectedSpot.replace(/\s+/g, '_')}_${startDate}_to_${endDate}.pdf`,
         orientation: 'landscape',
         format: 'a4',
       });
@@ -214,7 +213,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
               Weekly Temperature report
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-              7-Day Reading Matrix · {formattedWeekRange}
+              Reading Matrix · {formattedWeekRange}
             </p>
           </div>
         </div>
@@ -253,9 +252,9 @@ export default function TemperatureWeeklyPage({ compact = false }) {
         </div>
       </div>
 
-      {/* 2. Top Controls & Filter Bar */}
+      {/* 2. Top Controls & Filter Bar (Farm, From Date, To Date, Shed, Spot Filter) */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-3 sm:p-3.5 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
           {/* Farm Dropdown */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
@@ -274,51 +273,33 @@ export default function TemperatureWeeklyPage({ compact = false }) {
             </select>
           </div>
 
-          {/* 7-Day Date Range Navigator (< 28-Oct-2026 to 03-Nov-2026 >) */}
+          {/* From Date */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-              7-Day Range
+              From Date
             </label>
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-1 py-0.5">
-              <button
-                type="button"
-                onClick={() => shiftWeek(-7)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 transition cursor-pointer"
-                title="Previous Week (-7 days)"
-              >
-                ‹
-              </button>
+            <input
+              type="date"
+              value={startDate}
+              max={endDate || todayIST}
+              onChange={(e) => e.target.value && setStartDate(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+            />
+          </div>
 
-              <div
-                onClick={() => dateInputRef.current?.showPicker?.()}
-                className="flex-1 flex items-center justify-center gap-1 cursor-pointer select-none px-1"
-                title="Click to pick custom end date"
-              >
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-tight text-center truncate">
-                  {formattedWeekRange}
-                </span>
-                <span className="text-slate-400 text-xs">📅</span>
-              </div>
-
-              <input
-                ref={dateInputRef}
-                type="date"
-                value={selectedEndDate}
-                max={todayIST}
-                onChange={(e) => e.target.value && setSelectedEndDate(e.target.value)}
-                className="sr-only"
-              />
-
-              <button
-                type="button"
-                onClick={() => shiftWeek(7)}
-                disabled={selectedEndDate >= todayIST}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200/70 hover:text-slate-800 transition disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
-                title="Next Week (+7 days)"
-              >
-                ›
-              </button>
-            </div>
+          {/* To Date */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+              To Date
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              max={todayIST}
+              onChange={(e) => e.target.value && setEndDate(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+            />
           </div>
 
           {/* Shed Dropdown */}
@@ -375,7 +356,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
           <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-xs">
             <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
             <p className="mt-2 text-xs font-semibold text-slate-600">
-              Loading 7-day weekly temperature readings…
+              Loading weekly temperature readings…
             </p>
           </div>
         ) : error ? (
@@ -427,7 +408,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                   </button>
                 </div>
 
-                {/* 7-Day Matrix Table */}
+                {/* Date Matrix Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
@@ -460,7 +441,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                             className="py-8 text-center text-slate-400"
                           >
                             <p className="text-sm font-medium text-slate-500">
-                              No temperature records found for {firmGroup.firmName} during this week.
+                              No temperature records found for {firmGroup.firmName} during this period.
                             </p>
                           </td>
                         </tr>
@@ -496,7 +477,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                                   {round.slot}
                                 </td>
 
-                                {/* 3. 7 Day Readings */}
+                                {/* 3. Day Readings */}
                                 {reportData.days.map((day) => {
                                   const r = round.readings ? round.readings[day.date] : null;
                                   let val = null;
