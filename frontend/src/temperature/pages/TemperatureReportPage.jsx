@@ -321,7 +321,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     }
   };
 
-  // Helper for temp cell styling - exactly matching mockup pill design
+  // Helper for temp cell styling - clean plain text without colored badges
   const renderTempCell = (val, isVerified, captureTime, spotLabel) => {
     if (val === null || val === undefined) {
       return <span className="text-slate-300 font-light">—</span>;
@@ -329,20 +329,9 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     const num = Number(val);
     const displayVal = Number.isInteger(num) ? `${num}.0°C` : `${num.toFixed(1)}°C`;
 
-    // Dynamic color coding matching the mockup:
-    // Green pill (22°C - 25.5°C): Optimal cool/pad
-    // Neutral slate pill (25.6°C - 27.5°C): Comfortable
-    // Amber pill (> 27.5°C): Warm fan side
-    let badgeClass = 'bg-slate-100 text-slate-800 border-slate-200';
-    if (num <= 25.5) {
-      badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-    } else if (num >= 27.5) {
-      badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
-    }
-
     return (
       <span
-        className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold border shadow-2xs ${badgeClass}`}
+        className="font-semibold text-slate-800 text-sm"
         title={captureTime ? `${spotLabel}: ${displayVal} recorded at ${captureTime}` : undefined}
       >
         {displayVal}
@@ -574,13 +563,13 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                     isLastRowOfShed ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
                                   }`}
                                 >
-                                  {/* 1. Grouped Left Shed Column (Exact blue pill & light-slate background matching reference) */}
+                                  {/* 1. Grouped Left Shed Column (Light pill badge) */}
                                   {isFirstRowOfShed && (
                                     <td
                                       rowSpan={totalRowsInShed}
                                       className="py-4 px-5 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-44"
                                     >
-                                      <div className="inline-flex items-center justify-center px-4 py-2 rounded-full bg-[#4a6382] text-white font-bold text-xs tracking-wide shadow-sm">
+                                      <div className="inline-flex items-center justify-center px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs tracking-wide shadow-2xs">
                                         {shedGroup.shedName} · {row.line || 'Line 1'}
                                       </div>
                                     </td>
