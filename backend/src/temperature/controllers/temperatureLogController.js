@@ -524,6 +524,205 @@ export const deleteTemperatureLog = async (req, res) => {
   }
 };
 
+/**
+ * 7-Day Weekly Temperature Report
+ * Returns full readings (Pad Side, Middle, Fan Side) across 7 days for each shed and time round.
+ */
+export const getWeeklyTemperatureReport = async (req, res) => {
+  try {
+    const { firm, date, endDate, shed } = req.query;
 
+    const permittedFirms = getPermittedFirmsForModule(req.user, 'temperature');
+    const isAllFirms = firm === 'all';
+    let targetFirmIds = [];
 
-    
+    if (isAllFirms) {
+      if (permittedFirms === null) {
+        targetFirmIds = await Firm.find({}).distinct('_id');
+      } else {
+        targetFirmIds = permittedFirms;
+      }
+    } else {
+      if (!firm) {
+        return res.status(400).json({ success: false, message: 'Farm ID is required' });
+      }
+      if (permittedFirms !== null && !permittedFirms.includes(String(firm))) {
+        return res.status(403).json({ success: false, message: 'You do not have access to this farm.' });
+      }
+      targetFirmIds = [firm];
+    }
+
+    // Determine target 7-day window in IST
+    const tz = 'Asia/Kolkata';
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+
+    let targetEndStr = (endDate || date || '').trim();
+    if (!targetEndStr || !targetEndStr.includes('-')) {
+      targetEndStr = todayStr;
+    }
+
+    const [endY, endM, endD] = targetEndStr.split('-').map(Number);
+
+    // Calculate 7 days ending on targetEndStr
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const cur = new Date(Date.UTC(endY, endM - 1, endD - 6 + i));
+      const curStr = cur.toISOString().slice(0, 10);
+      const curDateObj = new Date(`${curStr}T12:00:00+05:30`);
+      const dayName = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(curDateObj);
+      const dayNum = new Intl.DateTimeFormat('en-US', { timeZone: tz, day: '2-digit' }).format(curDateObj);
+      const monthName = new Intl.DateTimeFormat('en-US', { timeZone: tz, month: 'short' }).format(curDateObj);
+      days.push({
+        date: curStr,
+        dayName,
+        dayNum,
+        monthName,
+        label: `${dayName} ${dayNum}`,
+        fullLabel: `${dayName}, ${dayNum} ${monthName}`,
+        isToday: curStr === todayStr,
+      });
+    }
+
+    const startStr = days[0].date;
+    const dayStart = new Date(`${startStr}T00:00:00+05:30`);
+    const dayEnd = new Date(`${targetEndStr}T23:59:59.999+05:30`);
+
+    const query = {
+      firm: { $in: targetFirmIds },
+      capturedAt: { $gte: dayStart, $lte: dayEnd },
+    };
+    if (shed && shed !== 'All sheds' && shed !== 'All Sheds') {
+      query.shed = shed;
+    }
+
+    const logs = await TemperatureLog.find(query)
+      .sort({ capturedAt: 1 })
+      .populate('firm', 'name code')
+      .populate('worker', 'name');
+
+    // Fetch firm details in permitted order (Raghav first, etc.)
+    const firmDocs = await Firm.find({ _id: { $in: targetFirmIds } }).sort({ orderIndex: 1, name: 1 });
+    const firmsMap = new Map();
+    firmDocs.forEach((f) => {
+      firmsMap.set(String(f._id), {
+        firmId: String(f._id),
+        firmName: f.name,
+        shedsMap: new Map(),
+      });
+    });
+
+    const parseSlotMinutes = (slotStr) => {
+      if (!slotStr) return 0;
+      const match = slotStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (!match) return 0;
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const period = match[3].toUpperCase();
+      if (period === 'PM' && h < 12) h += 12;
+      if (period === 'AM' && h === 12) h = 0;
+      return h * 60 + m;
+    };
+
+    for (const log of logs) {
+      const firmIdStr = String(log.firm?._id || log.firm || '');
+      if (!firmsMap.has(firmIdStr)) {
+        firmsMap.set(firmIdStr, {
+          firmId: firmIdStr,
+          firmName: log.firm?.name || 'Farm',
+          shedsMap: new Map(),
+        });
+      }
+      const firmEntry = firmsMap.get(firmIdStr);
+      const shedName = log.shed;
+      const line = log.line || 'Line 1';
+      const shedKey = `${shedName}_${line}`;
+
+      if (!firmEntry.shedsMap.has(shedKey)) {
+        firmEntry.shedsMap.set(shedKey, {
+          shedName,
+          line,
+          roundsMap: new Map(),
+        });
+      }
+      const shedEntry = firmEntry.shedsMap.get(shedKey);
+
+      const logTime = new Date(log.capturedAt);
+      const logDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(logTime);
+      const exactTime = formatTimeIST(logTime);
+      const roundSlot = log.roundSlot || getHourSlot(logTime);
+
+      if (!shedEntry.roundsMap.has(roundSlot)) {
+        shedEntry.roundsMap.set(roundSlot, {
+          slot: roundSlot,
+          readings: {},
+        });
+      }
+      const round = shedEntry.roundsMap.get(roundSlot);
+
+      if (!round.readings[logDateStr]) {
+        round.readings[logDateStr] = {
+          pad: null,
+          mid: null,
+          fan: null,
+          exactTimes: {},
+          logIds: {},
+        };
+      }
+
+      const temp = Math.round(Number(log.temperature));
+      const pos = log.position;
+      if (pos === 'Pad Side') {
+        round.readings[logDateStr].pad = temp;
+        round.readings[logDateStr].exactTimes.pad = exactTime;
+        round.readings[logDateStr].logIds.pad = log._id;
+      } else if (pos === 'Middle') {
+        round.readings[logDateStr].mid = temp;
+        round.readings[logDateStr].exactTimes.mid = exactTime;
+        round.readings[logDateStr].logIds.mid = log._id;
+      } else if (pos === 'Fan Side') {
+        round.readings[logDateStr].fan = temp;
+        round.readings[logDateStr].exactTimes.fan = exactTime;
+        round.readings[logDateStr].logIds.fan = log._id;
+      }
+    }
+
+    // Convert to structured response
+    const groupedFirms = [];
+    for (const firmEntry of firmsMap.values()) {
+      const sheds = [];
+      for (const shedEntry of firmEntry.shedsMap.values()) {
+        const rounds = Array.from(shedEntry.roundsMap.values());
+        rounds.sort((a, b) => parseSlotMinutes(a.slot) - parseSlotMinutes(b.slot));
+        sheds.push({
+          shedName: shedEntry.shedName,
+          line: shedEntry.line,
+          rounds,
+        });
+      }
+
+      // Sort sheds naturally (Shed 1, Shed 2, Shed 3...)
+      sheds.sort((a, b) => a.shedName.localeCompare(b.shedName, undefined, { numeric: true }));
+
+      groupedFirms.push({
+        firmId: firmEntry.firmId,
+        firmName: firmEntry.firmName,
+        sheds,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      startDate: startStr,
+      endDate: targetEndStr,
+      days,
+      firms: groupedFirms,
+    });
+  } catch (error) {
+    console.error('Weekly Temperature Report Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error generating weekly temperature report',
+      error: error.message,
+    });
+  }
+};

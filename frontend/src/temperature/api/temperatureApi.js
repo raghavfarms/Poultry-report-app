@@ -1,10 +1,9 @@
-import {api} from '../../api/client.js'
+import { api } from '../../api/client.js';
 
-export async function fetchSpots(firmId){
-      if (!firmId) return { data: [] };
+export async function fetchSpots(firmId) {
+  if (!firmId) return { data: [] };
   return await api(`/temperature/spots?firm=${encodeURIComponent(firmId)}`);
 }
-
 
 export async function createSpot(spotData) {
   return await api('/temperature/spots', {
@@ -20,7 +19,6 @@ export async function quickSetupSpots(setupData) {
   });
 }
 
-
 export async function deleteSpot(spotId) {
   return await api(`/temperature/spots/${spotId}`, {
     method: 'DELETE',
@@ -32,7 +30,8 @@ export async function updateSpot(spotId, spotData) {
   return await api(`/temperature/spots/${spotId}`, {
     method: 'PUT',
     body: spotData,
-  }) }
+  });
+}
 
 // Spot ko Activate / Deactivate karne ke liye (PATCH)
 export async function toggleSpotStatus(spotId) {
@@ -88,3 +87,13 @@ export async function deleteTemperatureLogs(logIds) {
   });
 }
 
+// Fetch 7-day weekly temperature report with spot readings
+export async function fetchWeeklyTemperatureReport(firmId, date = '', shed = '') {
+  if (!firmId) return { success: false, days: [], firms: [] };
+  let url = `/temperature/logs/weekly-report?firm=${encodeURIComponent(firmId)}`;
+  if (date) url += `&date=${encodeURIComponent(date)}`;
+  if (shed && shed !== 'All sheds' && shed !== 'All Sheds') {
+    url += `&shed=${encodeURIComponent(shed)}`;
+  }
+  return await api(url);
+}

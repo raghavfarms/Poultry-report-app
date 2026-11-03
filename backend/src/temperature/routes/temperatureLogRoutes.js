@@ -3,6 +3,7 @@ import {
   recordTemperature,
   getRecentLogs,
   getTemperatureReport,
+  getWeeklyTemperatureReport,
   scanThermometerAi,
   deleteTemperatureLog,
 } from '../controllers/temperatureLogController.js';
@@ -24,6 +25,7 @@ router.get('/recent', getRecentLogs);
 
 // Route for generating full 5-column temperature report with KPIs
 router.get('/report', temperaturePermission('temperature_report'), getTemperatureReport);
+router.get('/weekly-report', temperaturePermission('temperature_report'), getWeeklyTemperatureReport);
 
 // Admin-only routes to delete temperature readings
 router.delete('/:id', adminOnly, deleteTemperatureLog);
