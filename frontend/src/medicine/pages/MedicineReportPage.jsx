@@ -188,12 +188,39 @@ export default function MedicineReportPage() {
     }
   }, [user?.role]);
 
-  // Farm Store Filter
-  const [selectedFarm, setSelectedFarm] = useState('');
-  const [firms, setFirms] = useState([]);
+  // Farm Store Filter with instant localStorage cache
+  const [firms, setFirms] = useState(() => {
+    try {
+      const cached = localStorage.getItem('poultry_med_firms');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  // Live Stock State
-  const [stats, setStats] = useState(null);
+  const [selectedFarm, setSelectedFarm] = useState(() => {
+    try {
+      const savedFarm = localStorage.getItem('poultry_med_selected_farm');
+      if (savedFarm) return savedFarm;
+      const cachedFirms = JSON.parse(localStorage.getItem('poultry_med_firms') || '[]');
+      const defaultFarm = cachedFirms.find((f) => (f.name || '').toLowerCase().includes('raghav')) || cachedFirms[0];
+      return defaultFarm?._id || '';
+    } catch {
+      return '';
+    }
+  });
+
+  // Live Stock State with instant sessionStorage cache
+  const [stats, setStats] = useState(() => {
+    try {
+      const savedFarm = localStorage.getItem('poultry_med_selected_farm');
+      if (savedFarm) {
+        const cached = sessionStorage.getItem(`poultry_med_stats_${savedFarm}`);
+        if (cached) return JSON.parse(cached);
+      }
+    } catch {}
+    return null;
+  });
   const [loadingStats, setLoadingStats] = useState(false);
   const [stockSearch, setStockSearch] = useState('');
   const [stockFilter, setStockFilter] = useState('ALL'); // 'ALL' | 'SAFE' | 'SOON' | 'EXPIRED' | 'LOW'
@@ -462,6 +489,18 @@ export default function MedicineReportPage() {
   const [traceError, setTraceError] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
+  const handleSelectFarm = (newFarmId) => {
+    if (!newFarmId) return;
+    setSelectedFarm(newFarmId);
+    try {
+      localStorage.setItem('poultry_med_selected_farm', newFarmId);
+      const cached = sessionStorage.getItem(`poultry_med_stats_${newFarmId}`);
+      if (cached) {
+        setStats(JSON.parse(cached));
+      }
+    } catch {}
+  };
+
   // Load farms list (strictly Raghav and Sanjana)
   const loadFirms = async () => {
     try {
@@ -476,10 +515,18 @@ export default function MedicineReportPage() {
         return 0;
       });
       setFirms(loadedFirms);
+      try {
+        localStorage.setItem('poultry_med_firms', JSON.stringify(loadedFirms));
+      } catch {}
+
       if (loadedFirms.length > 0) {
         setSelectedFarm((prev) => {
           const exists = loadedFirms.some((f) => f._id === prev);
-          return exists ? prev : loadedFirms[0]._id;
+          const nextFarm = exists ? prev : (loadedFirms.find((f) => (f.name || '').toLowerCase().includes('raghav')) || loadedFirms[0])._id;
+          try {
+            localStorage.setItem('poultry_med_selected_farm', nextFarm);
+          } catch {}
+          return nextFarm;
         });
       }
     } catch (err) {
@@ -488,13 +535,20 @@ export default function MedicineReportPage() {
   };
 
   // Load Stock & Expiry stats with background refresh
-  const loadStats = async (silent = false) => {
+  const loadStats = async (farmId, silent = false) => {
+    const targetFarm = farmId !== undefined && typeof farmId === 'string' ? farmId : selectedFarm;
+    if (!targetFarm) return; // NEVER fetch all-farm scope (which caused the 109 all medicines flash)
+
+    const isSilent = typeof farmId === 'boolean' ? farmId : silent;
     try {
-      if (!silent && !stats?.expiryRadar) {
+      if (!isSilent && !stats?.expiryRadar) {
         setLoadingStats(true);
       }
-      const data = await fetchDashboardStats({ farm: selectedFarm });
+      const data = await fetchDashboardStats({ farm: targetFarm });
       setStats(data);
+      try {
+        sessionStorage.setItem(`poultry_med_stats_${targetFarm}`, JSON.stringify(data));
+      } catch {}
     } catch (err) {
       console.error('Failed to load stock stats:', err);
     } finally {
@@ -504,21 +558,25 @@ export default function MedicineReportPage() {
    
   useEffect(() => {
     loadFirms();
-    // Proactively pre-load stock stats so Stock tab is instant
-    loadStats(true);
+    // Only pre-load if selectedFarm is already resolved from cache
+    if (selectedFarm) {
+      loadStats(selectedFarm, true);
+    }
   }, []);
 
   useEffect(() => {
     if (firms.length > 0 && (!selectedFarm || !firms.some((f) => f._id === selectedFarm))) {
-      const defaultFarm = firms.find((f) => f.name.toLowerCase().includes('raghav')) || firms[0];
-      setSelectedFarm(defaultFarm._id);
+      const defaultFarm = firms.find((f) => (f.name || '').toLowerCase().includes('raghav')) || firms[0];
+      handleSelectFarm(defaultFarm._id);
     }
   }, [firms, selectedFarm]);
 
   useEffect(() => {
     if (activeTab === 'stock') {
       setStockFilter('ALL');
-      loadStats(Boolean(stats?.expiryRadar));
+      if (selectedFarm) {
+        loadStats(selectedFarm, Boolean(stats?.expiryRadar));
+      }
     } else if (activeTab === 'traceability' && searchBatch.trim()) {
       handleTraceSearch(null, searchBatch);
     }
@@ -547,7 +605,7 @@ export default function MedicineReportPage() {
       if (data?.batch?.farm) {
         const bFarmId = (data.batch.farm?._id || data.batch.farm)?.toString();
         if (bFarmId) {
-          setSelectedFarm(bFarmId);
+          handleSelectFarm(bFarmId);
         }
       }
     } catch (err) {
@@ -853,7 +911,7 @@ export default function MedicineReportPage() {
             ) : firms.length > 1 ? (
               <select
                 value={selectedFarm}
-                onChange={(e) => setSelectedFarm(e.target.value)}
+                onChange={(e) => handleSelectFarm(e.target.value)}
                 className="h-7 sm:h-8 px-1.5 sm:px-2 border border-slate-300 rounded-lg text-[10px] sm:text-[11px] font-semibold text-slate-700 bg-white focus:outline-none cursor-pointer"
               >
                 {firms.map((f) => (

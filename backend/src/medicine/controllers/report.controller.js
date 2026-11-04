@@ -101,20 +101,20 @@ export async function getDashboardStats(req, res) {
   const { farm } = req.query;
   const matchFilter = await resolveUserFarmScope(req, farm);
 
-  // 1. Fetch all catalog medicines for reorder & minimum stock comparisons
-  const medicines = await MedicineMaster.find({ active: true }).lean();
-
-  // 2. Fetch all active/available batches (Sorted by earliest expiry date - FEFO)
-  const batches = await MedicineBatch.find({
-    ...matchFilter,
-    quantityAvailable: { $gt: 0 },
-    status: { $in: ['AVAILABLE', 'EXPIRED'] }
-  })
-    .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName packagingType packSize')
-    .populate('supplier', 'name code')
-    .populate('farm', 'name code')
-    .sort({ expiryDate: 1 })
-    .lean();
+  // 1. Fetch catalog medicines & active batches in parallel
+  const [medicines, batches] = await Promise.all([
+    MedicineMaster.find({ active: true }).lean(),
+    MedicineBatch.find({
+      ...matchFilter,
+      quantityAvailable: { $gt: 0 },
+      status: { $in: ['AVAILABLE', 'EXPIRED'] }
+    })
+      .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName packagingType packSize')
+      .populate('supplier', 'name code')
+      .populate('farm', 'name code')
+      .sort({ expiryDate: 1 })
+      .lean()
+  ]);
 
   const now = new Date(new Date().toISOString().slice(0, 10));
   let totalAvailableUnits = 0;
@@ -213,17 +213,17 @@ export async function getDashboardStats(req, res) {
   expiryRadar.warning90.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   expiryRadar.safe.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
 
-  // Identify Low Stock Medicines (Current Stock <= Reorder Level or Minimum Stock)
-  const disposedMedicineIds = new Set((await MedicineBatch.distinct('medicine', {
-    ...matchFilter,
-    quantityAvailable: 0,
-    disposedQuantity: { $gt: 0 },
-  })).map(String));
-
-  // Only check low stock for medicines that have actually been inwarded/stocked at this farm
-  const farmMedicineIds = new Set(
-    (await MedicineBatch.distinct('medicine', matchFilter)).map((id) => id?.toString()).filter(Boolean)
-  );
+  // Identify Low Stock Medicines & farm distinct medicines in parallel
+  const [disposedMedList, farmMedList] = await Promise.all([
+    MedicineBatch.distinct('medicine', {
+      ...matchFilter,
+      quantityAvailable: 0,
+      disposedQuantity: { $gt: 0 },
+    }),
+    MedicineBatch.distinct('medicine', matchFilter)
+  ]);
+  const disposedMedicineIds = new Set(disposedMedList.map(String));
+  const farmMedicineIds = new Set(farmMedList.map((id) => id?.toString()).filter(Boolean));
 
   const lowStockAlerts = [];
   for (const med of medicines) {
