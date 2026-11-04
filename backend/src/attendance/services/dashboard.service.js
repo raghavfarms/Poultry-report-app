@@ -174,7 +174,7 @@ export async function getLiveDashboardData(user, query = {}) {
       ? String(latestSession.workLocation)
       : (dep?.workLocation ? String(dep.workLocation) : null);
 
-    const desig = (latestSession?.designationNameSnapshot || w?.designation?.name || dep?.designationNameSnapshot || '').toLowerCase();
+    const desig = (w?.designation?.name || dep?.designationNameSnapshot || latestSession?.designationNameSnapshot || '').toLowerCase();
     const isSecurity = desig.includes('security');
     const isSupervisor = !isSecurity && (w?.isSupervisor || desig.includes('supervisor'));
     const isFemale = !isSecurity && !isSupervisor && (w?.gender === 'FEMALE');
@@ -323,12 +323,13 @@ export async function getLiveDashboardData(user, query = {}) {
   const onDutyStaff = onDutySessions.map((session) => {
     const dutyInTime = new Date(session.dutyIn).getTime();
     const elapsedMinutes = Math.max(0, Math.floor((now.getTime() - dutyInTime) / 60000));
+    const w = workerMap.get(String(session.worker));
     return {
       sessionId: session._id,
       workerId: session.worker,
-      workerCode: session.workerCodeSnapshot,
-      workerName: session.workerNameSnapshot,
-      designationName: session.designationNameSnapshot,
+      workerCode: w?.workerCode || session.workerCodeSnapshot,
+      workerName: w?.fullName || session.workerNameSnapshot,
+      designationName: w?.designation?.name || session.designationNameSnapshot,
       workLocationId: session.workLocation,
       workLocationName: session.workLocationNameSnapshot,
       supervisorName: session.supervisorNameSnapshot,

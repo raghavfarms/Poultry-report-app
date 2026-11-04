@@ -157,7 +157,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
     const latestSession = workerSessions[workerSessions.length - 1];
     const workLocationId = latestSession?.workLocation ? String(latestSession.workLocation) : (deployment?.workLocation ? String(deployment.workLocation) : null);
     const workLocationName = latestSession?.workLocationNameSnapshot || deployment?.workLocationNameSnapshot || 'None';
-    const designationName = latestSession?.designationNameSnapshot || worker.designation?.name || deployment?.designationNameSnapshot || '—';
+    const designationName = worker.designation?.name || deployment?.designationNameSnapshot || latestSession?.designationNameSnapshot || '—';
     const supervisorName = latestSession?.supervisorNameSnapshot || deployment?.supervisorNameSnapshot || '—';
 
     const matchedLoc = (workLocationId && locationById.get(workLocationId))
@@ -177,7 +177,8 @@ export async function getDailyAttendanceReport(user, query = {}) {
       const matchesName = worker.fullName.toLowerCase().includes(term);
       const matchesCode = worker.workerCode.toLowerCase().includes(term);
       const matchesShed = workLocationName.toLowerCase().includes(term);
-      if (!matchesName && !matchesCode && !matchesShed) {
+      const matchesDesig = designationName.toLowerCase().includes(term);
+      if (!matchesName && !matchesCode && !matchesShed && !matchesDesig) {
         continue;
       }
     }

@@ -464,6 +464,29 @@ export async function updateWorker(user, id, body) {
   worker.set(workerData);
   validateWorkerDates(worker);
   await worker.save();
+
+  // Synchronize past and open attendance sessions & events if name or designation was updated
+  const sessionUpdates = {};
+  if (desigDoc) {
+    sessionUpdates.designationNameSnapshot = desigDoc.name;
+  }
+  if (data.fullName) {
+    sessionUpdates.workerNameSnapshot = data.fullName;
+  }
+  if (Object.keys(sessionUpdates).length > 0) {
+    try {
+      await AttendanceSession.updateMany(
+        { worker: worker._id },
+        { $set: sessionUpdates }
+      );
+      await AttendanceEvent.updateMany(
+        { worker: worker._id },
+        { $set: sessionUpdates }
+      );
+    } catch (syncErr) {
+      console.warn('Session snapshot sync note:', syncErr.message);
+    }
+  }
   await worker.populate(workerPopulation);
   return publicWorker(worker);
 }
