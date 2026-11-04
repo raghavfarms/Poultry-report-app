@@ -23,9 +23,22 @@ export default function MedicineBatchTrace({
   const canManage = canManageProp !== undefined ? canManageProp : isAdminOrDev;
   const canAccessTrace = isAdminOrDev || user?.permissions?.medicine_master === true;
 
+    const cleanFirmsList = (rawList = []) => {
+    const filtered = (rawList || []).filter((f) => {
+      const name = (f.name || '').toLowerCase();
+      return name.includes('raghav') || name.includes('sanjana');
+    });
+    filtered.sort((a, b) => {
+      if (a.name.toLowerCase().includes('raghav')) return -1;
+      if (b.name.toLowerCase().includes('raghav')) return 1;
+      return 0;
+    });
+    return filtered;
+  };
+
   // Farm selection
-  const [internalFirms, setInternalFirms] = useState(firms);
-  const [farmFilter, setFarmFilter] = useState(initialFarm || selectedFarm || '');
+  const [internalFirms, setInternalFirms] = useState(() => cleanFirmsList(firms));
+  const [farmFilter, setFarmFilter] = useState(() => initialFarm || selectedFarm || (firms?.length > 0 ? cleanFirmsList(firms)[0]?._id : ''));
 
   // Search state
   const [searchBatch, setSearchBatch] = useState(initialQuery || '');
@@ -54,33 +67,29 @@ export default function MedicineBatchTrace({
   const [deleteError, setDeleteError] = useState('');
   const [deleteSuccess, setDeleteSuccess] = useState('');
 
-  // Load firms if not provided
+  // Load firms strictly for Raghav and Sanjana
   useEffect(() => {
     if (firms && firms.length > 0) {
-      setInternalFirms(firms);
+      const list = cleanFirmsList(firms);
+      setInternalFirms(list);
+      if (!farmFilter && list.length > 0) {
+        setFarmFilter(initialFarm || selectedFarm || list[0]._id);
+      }
     } else {
       (async () => {
         try {
           const res = await api('/firms?module=medicine');
-          const list = (res.firms || []).filter((f) => {
-            const name = (f.name || '').toLowerCase();
-            return name.includes('raghav') || name.includes('sanjana');
-          });
-          list.sort((a, b) => {
-            if (a.name.toLowerCase().includes('raghav')) return -1;
-            if (b.name.toLowerCase().includes('raghav')) return 1;
-            return 0;
-          });
+          const list = cleanFirmsList(res.firms);
           setInternalFirms(list);
           if (list.length > 0 && !farmFilter) {
-            setFarmFilter(initialFarm || selectedFarm || '');
+            setFarmFilter(initialFarm || selectedFarm || list[0]._id);
           }
         } catch (err) {
           console.error('Failed to load firms in trace component:', err);
         }
       })();
     }
-  }, [firms]);
+  }, [firms, initialFarm, selectedFarm]);
 
   useEffect(() => {
     if (selectedFarm) {
@@ -289,7 +298,7 @@ export default function MedicineBatchTrace({
                 }}
                 className="h-8 px-2.5 bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
               >
-                <option value="">🏢 All Farms</option>
+                
                 {internalFirms.map((f) => (
                   <option key={f._id} value={f._id}>
                     {f.name}
