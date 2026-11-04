@@ -266,6 +266,57 @@ export async function getDashboardStats(req, res) {
   enrichWithStockAlert(expiryRadar.caution60);
   enrichWithStockAlert(expiryRadar.warning90);
   enrichWithStockAlert(expiryRadar.safe);
+
+  // Fetch Depleted (0-stock / Out-of-Stock) batches for medicines ever inwarded at this farm
+  const activeMedIds = new Set(
+    Object.keys(medicineStockMap).filter((id) => (medicineStockMap[id] || 0) > 0)
+  );
+  const zeroStockMedIds = Array.from(farmMedicineIds).filter((id) => !activeMedIds.has(id));
+
+  const depletedBatches = [];
+  if (zeroStockMedIds.length > 0) {
+    try {
+      const rawDepleted = await MedicineBatch.find({
+        ...matchFilter,
+        medicine: { $in: zeroStockMedIds },
+      })
+        .populate('medicine', 'code name unit category minimumStock reorderLevel aliasName packagingType packSize')
+        .populate('supplier', 'name code')
+        .populate('farm', 'name code')
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .lean();
+
+      for (const b of rawDepleted) {
+        const expDate = b.expiryDate ? new Date(b.expiryDate) : null;
+        const diffTime = expDate ? expDate - now : 0;
+        const daysLeft = expDate ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
+
+        depletedBatches.push({
+          _id: b._id,
+          medicineId: b.medicine?._id?.toString() || '',
+          batchNumber: b.batchNumber,
+          medicineName: b.medicine?.name || 'Unknown',
+          medicineAlias: b.medicine?.aliasName || '',
+          medicineCode: b.medicine?.code || '—',
+          unit: b.medicine?.unit || 'units',
+          quantityAvailable: 0,
+          reorderLevel: b.medicine?.reorderLevel || 0,
+          minimumStock: b.medicine?.minimumStock || 0,
+          packagingType: b.medicine?.packagingType || 'Bottle',
+          packSize: b.medicine?.packSize || 1,
+          expiryDate: b.expiryDate,
+          daysLeft,
+          urgency: 'DEPLETED',
+          canIssue: false,
+          farm: b.farm,
+          isDepleted: true,
+        });
+      }
+    } catch {
+      // Depleted query fallback
+    }
+  }
+  expiryRadar.depleted = depletedBatches;
   res.json({
     success: true,
     summary: {
@@ -276,19 +327,22 @@ export async function getDashboardStats(req, res) {
       expiredCount: expiryRadar.expired.length,
       critical30Count: expiryRadar.critical30.length,
       caution60Count: expiryRadar.caution60.length,
-      warning90Count: expiryRadar.warning90.length
+      warning90Count: expiryRadar.warning90.length,
+      depletedCount: (expiryRadar.depleted || []).length
     },
     expiryRadar: {
       expiredCount: expiryRadar.expired.length,
       critical30Count: expiryRadar.critical30.length,
       caution60Count: expiryRadar.caution60.length,
       warning90Count: expiryRadar.warning90.length,
+      depletedCount: (expiryRadar.depleted || []).length,
       safeCount: expiryRadar.safe.length,
       expired: expiryRadar.expired,
       critical30: expiryRadar.critical30,
       caution60: expiryRadar.caution60,
       warning90: expiryRadar.warning90,
-      safe: expiryRadar.safe
+      safe: expiryRadar.safe,
+      depleted: expiryRadar.depleted || []
     },
     lowStockAlerts
   });
@@ -307,7 +361,8 @@ export async function getBatchTraceability(req, res) {
 
   const farmFilter = await resolveUserFarmScope(req, farm);
 
-  const cleanQuery = (batchNumber || '').trim();
+  const rawQuery = (batchNumber || '').trim();
+  const cleanQuery = rawQuery.replace(/^#+/, '').trim();
   let batch = null;
 
   // 1. If batchId is provided, look up that specific batch directly
@@ -337,9 +392,10 @@ export async function getBatchTraceability(req, res) {
   }
 
   // 2. Locate the batch by exact batch number (case-insensitive)
-  if (!batch && cleanQuery) {
+  if (!batch && (cleanQuery || rawQuery)) {
+    const searchBatchNumbers = Array.from(new Set([cleanQuery.toUpperCase(), cleanQuery, rawQuery.toUpperCase(), rawQuery])).filter(Boolean);
     batch = await MedicineBatch.findOne({
-      batchNumber: cleanQuery.toUpperCase(),
+      batchNumber: { $in: searchBatchNumbers },
       ...farmFilter,
     })
       .populate('medicine', 'code name category unit aliasName')
@@ -357,7 +413,14 @@ export async function getBatchTraceability(req, res) {
     const isPureNumber = /^\d+$/.test(cleanQuery);
 
     try {
-      const foundBatches = await MedicineBatch.find({ batchNumber: regex, ...farmFilter })
+      const escapedRaw = rawQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const foundBatches = await MedicineBatch.find({
+        $or: [
+          { batchNumber: regex },
+          { batchNumber: new RegExp(escapedRaw, 'i') },
+        ],
+        ...farmFilter,
+      })
         .populate('medicine', 'code name category unit aliasName')
         .populate('supplier', 'code name contactPerson mobile')
         .populate('farm', 'name code')
@@ -412,7 +475,7 @@ export async function getBatchTraceability(req, res) {
   }
 
   if (!batch) {
-    throw notFoundError(`No batch or medicine history found for '${cleanQuery}'.`);
+    throw notFoundError(`No batch or medicine history found for '${rawQuery || cleanQuery}'.`);
   }
 
   // 4. Fetch related batches for the same medicine so user can toggle between all batches

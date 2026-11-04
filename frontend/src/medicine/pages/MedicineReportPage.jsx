@@ -525,7 +525,8 @@ export default function MedicineReportPage() {
   // Handle Traceability Search
   const handleTraceSearch = async (e, queryOverride, batchIdOverride) => {
     if (e) e.preventDefault();
-    const query = (queryOverride !== undefined ? queryOverride : searchBatch).trim();
+    const raw = (queryOverride !== undefined ? queryOverride : searchBatch).trim();
+    const query = raw.replace(/^#+/, '').trim();
     if (!query && !batchIdOverride) return;
 
     try {
@@ -606,6 +607,7 @@ export default function MedicineReportPage() {
       ...(radarObj.caution60 || []).map((b) => ({ ...b, urgency: 'CAUTION' })),
       ...(radarObj.warning90 || []).map((b) => ({ ...b, urgency: 'WARNING' })),
       ...(radarObj.safe || []).map((b) => ({ ...b, urgency: 'SAFE' })),
+      ...(radarObj.depleted || []).map((b) => ({ ...b, urgency: 'DEPLETED' })),
     ].sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
   }, [stats]);
 
@@ -659,6 +661,7 @@ export default function MedicineReportPage() {
       CAUTION: 2,
       WARNING: 1,
       SAFE: 0,
+      DEPLETED: -1,
     };
 
     const list = Array.from(map.values()).map((entry) => {
@@ -666,9 +669,9 @@ export default function MedicineReportPage() {
       entry.batches.sort((a, b) => new Date(a.expiryDate) - new Date(b.expiryDate));
       entry.earliestBatch = entry.batches[0] || null;
 
-      let highestUrgency = 'SAFE';
+      let highestUrgency = entry.totalStock === 0 ? 'DEPLETED' : 'SAFE';
       for (const b of entry.batches) {
-        if ((urgencyRank[b.urgency] || 0) > (urgencyRank[highestUrgency] || 0)) {
+        if ((urgencyRank[b.urgency] ?? -1) > (urgencyRank[highestUrgency] ?? -1)) {
           highestUrgency = b.urgency;
         }
       }
@@ -701,7 +704,11 @@ export default function MedicineReportPage() {
         (!isStockSearchPureNumber && m.medicineCode?.toLowerCase().includes(q)) ||
         m.medicineAlias?.toLowerCase().includes(q) ||
         m.farm?.name?.toLowerCase().includes(q) ||
-        m.batches.some((b) => b.batchNumber?.toLowerCase().includes(q));
+        m.batches.some((b) => {
+          const bNum = (b.batchNumber || '').toLowerCase();
+          const cleanQ = q.replace(/^#+/, '');
+          return bNum.includes(q) || (cleanQ && bNum.includes(cleanQ));
+        });
 
       if (!matchesSearch) return false;
 
@@ -709,7 +716,9 @@ export default function MedicineReportPage() {
       if (stockFilter === 'SAFE') return m.urgency === 'SAFE';
       if (stockFilter === 'SOON') return m.urgency === 'CRITICAL' || m.urgency === 'CAUTION' || m.urgency === 'WARNING';
       if (stockFilter === 'EXPIRED') return m.urgency === 'EXPIRED';
+      if (stockFilter === 'DEPLETED' || stockFilter === 'OUT_OF_STOCK') return m.urgency === 'DEPLETED';
       if (stockFilter === 'LOW') return Boolean(m.isLowStock);
+      if (!q && m.urgency === 'DEPLETED') return false;
       return true;
     });
   }, [groupedMedicines, deferredStockSearch, isStockSearchPureNumber, stockFilter]);
@@ -765,6 +774,13 @@ export default function MedicineReportPage() {
 
   const renderShelfBadge = (urgency, daysLeft) => {
     const hasDays = daysLeft !== null && daysLeft !== undefined && !isNaN(daysLeft);
+    if (urgency === 'DEPLETED') {
+      return (
+        <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center gap-1 shrink-0 whitespace-nowrap" title="0 in stock">
+          ⚪ Out of Stock (0)
+        </span>
+      );
+    }
     if (urgency === 'EXPIRED') {
       return (
         <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200 inline-flex items-center gap-1 shrink-0 whitespace-nowrap">
@@ -1054,7 +1070,7 @@ export default function MedicineReportPage() {
                       : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                   }`}
                 >
-                  All ({groupedMedicines.length})
+                  All ({groupedMedicines.filter((m) => m.urgency !== 'DEPLETED').length})
                 </button>
                 <button
                   type="button"
@@ -1088,6 +1104,17 @@ export default function MedicineReportPage() {
                   }`}
                 >
                   <span>🔴</span> Expired ({groupedMedicines.filter((m) => m.urgency === 'EXPIRED').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilter('DEPLETED')}
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
+                    stockFilter === 'DEPLETED'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>⚪</span> Out of Stock ({groupedMedicines.filter((m) => m.urgency === 'DEPLETED').length})
                 </button>
                 {lowStock.length > 0 && (
                   <button
@@ -1230,6 +1257,7 @@ export default function MedicineReportPage() {
                       const isCritical = m.urgency === 'CRITICAL';
                       const isCaution = m.urgency === 'CAUTION';
                       const isWarning = m.urgency === 'WARNING';
+                      const isDepleted = m.urgency === 'DEPLETED';
 
                       const isSoon = isCritical || isCaution || isWarning;
 
@@ -1239,6 +1267,8 @@ export default function MedicineReportPage() {
                         ? 'bg-rose-50 hover:bg-rose-100/80'
                         : isSoon
                         ? 'bg-amber-50 hover:bg-amber-100/80'
+                        : isDepleted
+                        ? 'bg-slate-50/70 hover:bg-slate-100/80 text-slate-600'
                         : 'bg-white hover:bg-slate-50';
 
                       const stickyCellBgClass = isExpanded
@@ -1247,6 +1277,8 @@ export default function MedicineReportPage() {
                         ? 'bg-rose-50 group-hover:bg-rose-100/80'
                         : isSoon
                         ? 'bg-amber-50 group-hover:bg-amber-100/80'
+                        : isDepleted
+                        ? 'bg-slate-50/90 group-hover:bg-slate-100/90'
                         : 'bg-white group-hover:bg-slate-50';
 
                       return (
@@ -1313,7 +1345,13 @@ export default function MedicineReportPage() {
                                 const packaging = formatPackAndLoose(m.totalStock, m.packSize, m.packagingType, m.unit);
                                 return (
                                   <div className="inline-flex flex-col items-center">
-                                    <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                    <span
+                                      className={`font-extrabold text-[11px] px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap ${
+                                        isDepleted
+                                          ? 'text-slate-600 bg-slate-100 border border-slate-300'
+                                          : 'text-emerald-900 bg-emerald-50 border border-emerald-200/90'
+                                      }`}
+                                    >
                                       {packaging.main}
                                     </span>
                                     {packaging.sub && (
@@ -1336,7 +1374,11 @@ export default function MedicineReportPage() {
                                 )}
                                 <span
                                   className={`font-black text-xs ${
-                                    m.isLowStock ? 'text-rose-700' : 'text-slate-900'
+                                    isDepleted
+                                      ? 'text-slate-400'
+                                      : m.isLowStock
+                                      ? 'text-rose-700'
+                                      : 'text-slate-900'
                                   }`}
                                 >
                                   {m.totalStock}
@@ -1401,7 +1443,20 @@ export default function MedicineReportPage() {
                                     <span className="font-mono text-[10px]">({m.batches.length})</span>
                                   </button>
                                 ) : (
-                                  <div className="flex items-center justify-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {isDepleted && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleTraceBatch(singleBatch);
+                                        }}
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                                        title="Trace history for this batch"
+                                      >
+                                        <span>🔍</span> Trace
+                                      </button>
+                                    )}
                                     <BatchActionMenu
                                       batch={singleBatch}
                                       onTrace={handleTraceBatch}
@@ -1502,7 +1557,13 @@ export default function MedicineReportPage() {
 
                                               return (
                                                 <div className="inline-flex flex-col items-center">
-                                                  <span className="font-extrabold text-[11px] text-emerald-900 bg-emerald-50 border border-emerald-200/90 px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap">
+                                                  <span
+                                      className={`font-extrabold text-[11px] px-2 py-0.2 rounded-md shadow-2xs whitespace-nowrap ${
+                                        isDepleted
+                                          ? 'text-slate-600 bg-slate-100 border border-slate-300'
+                                          : 'text-emerald-900 bg-emerald-50 border border-emerald-200/90'
+                                      }`}
+                                    >
                                                     📦 {displayCount} {typeLabel}
                                                   </span>
                                                   <span className="text-[9px] text-slate-500 font-semibold mt-0.5 whitespace-nowrap">

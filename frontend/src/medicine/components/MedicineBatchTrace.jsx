@@ -119,7 +119,8 @@ export default function MedicineBatchTrace({
   // Perform traceability search
   const handleTraceSearch = async (e, queryOverride, batchIdOverride) => {
     if (e) e.preventDefault();
-    const query = (queryOverride !== undefined ? queryOverride : searchBatch).trim();
+    const raw = (queryOverride !== undefined ? queryOverride : searchBatch).trim();
+    const query = raw.replace(/^#+/, '').trim();
     if (!query && !batchIdOverride) return;
 
     try {

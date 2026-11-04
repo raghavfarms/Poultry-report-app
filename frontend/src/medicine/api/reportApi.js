@@ -25,7 +25,8 @@ export async function fetchBatchTraceability(batchQuery, params = {}) {
   if (params.batchId) query.append('batchId', params.batchId);
   if (params.farm) query.append('farm', params.farm);
   const queryString = query.toString() ? `?${query.toString()}` : '';
-  const paramVal = batchQuery ? encodeURIComponent(batchQuery.trim()) : 'current';
+  const sanitized = batchQuery ? String(batchQuery).trim().replace(/^#+/, '').trim() : '';
+  const paramVal = sanitized ? encodeURIComponent(sanitized) : 'current';
   return await api(`/medicine/reports/traceability/${paramVal}${queryString}`);
 }
 
