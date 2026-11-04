@@ -187,6 +187,7 @@ export default function MedicineMasterPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'medicines';
   const batchParam = searchParams.get('batch') || '';
+  const farmParam = searchParams.get('farm') || '';
   const setActiveTab = (tab) => {
     setSearchParams(tab === 'medicines' ? {} : { tab });
   };
@@ -1688,6 +1689,8 @@ export default function MedicineMasterPage() {
           firms={firms}
           canManage={canManage}
           initialQuery={batchParam}
+          initialFarm={farmParam}
+          selectedFarm={farmParam}
         />
       ) : (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-center text-xs font-semibold">

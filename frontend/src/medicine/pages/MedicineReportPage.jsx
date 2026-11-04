@@ -413,7 +413,9 @@ export default function MedicineReportPage() {
 
   const handleTraceBatch = (batch) => {
     if (!batch) return;
-    navigate(`/admin/medicine/master?tab=trace&batch=${encodeURIComponent(batch.batchNumber)}`);
+    const farmId = (batch.farm?._id || batch.farm || selectedFarm || '')?.toString();
+    const farmParam = farmId ? `&farm=${encodeURIComponent(farmId)}` : '';
+    navigate(`/admin/medicine/master?tab=trace&batch=${encodeURIComponent(batch.batchNumber)}${farmParam}`);
   };
 
   const handleConfirmDeleteBatch = async () => {
@@ -542,6 +544,12 @@ export default function MedicineReportPage() {
           : { farm: selectedFarm }
       );
       setTraceData(data);
+      if (data?.batch?.farm) {
+        const bFarmId = (data.batch.farm?._id || data.batch.farm)?.toString();
+        if (bFarmId) {
+          setSelectedFarm(bFarmId);
+        }
+      }
     } catch (err) {
       setTraceError(err.message || `No history found for '${query}'`);
     } finally {

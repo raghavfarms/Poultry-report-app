@@ -474,6 +474,51 @@ export async function getBatchTraceability(req, res) {
     }
   }
 
+  // 3c. Cross-Farm Fallback:
+  // If not found in the specifically selected farm, check across all accessible farms
+  if (!batch && farmFilter.farm && (cleanQuery || rawQuery)) {
+    const userAccessibleScope = await resolveUserFarmScope(req, null);
+    const searchBatchNumbers = Array.from(new Set([cleanQuery.toUpperCase(), cleanQuery, rawQuery.toUpperCase(), rawQuery])).filter(Boolean);
+
+    batch = await MedicineBatch.findOne({
+      batchNumber: { $in: searchBatchNumbers },
+      ...userAccessibleScope,
+    })
+      .populate('medicine', 'code name category unit aliasName')
+      .populate('supplier', 'code name contactPerson mobile')
+      .populate('farm', 'name code')
+      .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+      .lean();
+
+    if (!batch && cleanQuery) {
+      const escapedClean = cleanQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedClean, 'i');
+      const escapedRaw = rawQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      try {
+        const foundBatches = await MedicineBatch.find({
+          $or: [
+            { batchNumber: regex },
+            { batchNumber: new RegExp(escapedRaw, 'i') },
+          ],
+          ...userAccessibleScope,
+        })
+          .populate('medicine', 'code name category unit aliasName')
+          .populate('supplier', 'code name contactPerson mobile')
+          .populate('farm', 'name code')
+          .populate('firstReceipt', 'receiptNumber invoiceOrChallanNo createdAt verifiedAt verifiedBy')
+          .sort({ quantityAvailable: -1, expiryDate: 1, createdAt: -1 })
+          .lean();
+
+        if (foundBatches && foundBatches.length > 0) {
+          batch = foundBatches[0];
+        }
+      } catch {
+        batch = null;
+      }
+    }
+  }
+
   if (!batch) {
     throw notFoundError(`No batch or medicine history found for '${rawQuery || cleanQuery}'.`);
   }
@@ -483,7 +528,9 @@ export async function getBatchTraceability(req, res) {
   try {
     const medId = batch.medicine?._id || batch.medicine;
     if (medId && (mongoose.connection.readyState === 1 || MedicineBatch.find?.mock)) {
-      const batchesList = await MedicineBatch.find({ medicine: medId, ...farmFilter })
+      const batchFarmId = batch.farm?._id || batch.farm;
+      const relatedFilter = batchFarmId ? { farm: batchFarmId } : farmFilter;
+      const batchesList = await MedicineBatch.find({ medicine: medId, ...relatedFilter })
         .select('batchNumber expiryDate quantityAvailable initialQuantity status createdAt farm')
         .populate('farm', 'name code')
         .sort({ createdAt: -1 })

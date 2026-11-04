@@ -16,6 +16,7 @@ export default function MedicineBatchTrace({
   canManage: canManageProp,
   initialQuery = '',
   initialBatchId = '',
+  initialFarm = '',
 }) {
   const { user } = useAuth();
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
@@ -24,7 +25,7 @@ export default function MedicineBatchTrace({
 
   // Farm selection
   const [internalFirms, setInternalFirms] = useState(firms);
-  const [farmFilter, setFarmFilter] = useState(selectedFarm || '');
+  const [farmFilter, setFarmFilter] = useState(initialFarm || selectedFarm || '');
 
   // Search state
   const [searchBatch, setSearchBatch] = useState(initialQuery || '');
@@ -72,7 +73,7 @@ export default function MedicineBatchTrace({
           });
           setInternalFirms(list);
           if (list.length > 0 && !farmFilter) {
-            setFarmFilter(list[0]._id);
+            setFarmFilter(initialFarm || selectedFarm || '');
           }
         } catch (err) {
           console.error('Failed to load firms in trace component:', err);
@@ -83,9 +84,9 @@ export default function MedicineBatchTrace({
 
   useEffect(() => {
     if (selectedFarm) {
-      setFarmFilter(selectedFarm);
+      setFarmFilter(initialFarm || selectedFarm);
     }
-  }, [selectedFarm]);
+  }, [initialFarm, selectedFarm]);
 
   // Initial query execution if provided
   useEffect(() => {
@@ -137,6 +138,12 @@ export default function MedicineBatchTrace({
           : { farm: farmFilter || undefined }
       );
       setTraceData(data);
+      if (data?.batch?.farm) {
+        const bFarmId = (data.batch.farm?._id || data.batch.farm)?.toString();
+        if (bFarmId) {
+          setFarmFilter(bFarmId);
+        }
+      }
     } catch (err) {
       setTraceError(err.message || `No history found for '${query}'`);
       setTraceData(null);
@@ -282,6 +289,7 @@ export default function MedicineBatchTrace({
                 }}
                 className="h-8 px-2.5 bg-slate-50 text-slate-700 text-xs font-bold border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
               >
+                <option value="">🏢 All Farms</option>
                 {internalFirms.map((f) => (
                   <option key={f._id} value={f._id}>
                     {f.name}
