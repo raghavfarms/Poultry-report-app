@@ -656,16 +656,23 @@ export default function TemperatureMasterPage({ embedded = false }) {
                   <img
                     src={qrDataUrl}
                     alt={`QR for ${qrModalSpot.spotCode}`}
-                    className="w-44 h-44 border border-slate-200 p-2 rounded-xl bg-white shadow-sm"
+                    className="w-36 h-36 border border-slate-200 p-2 rounded-xl bg-white shadow-sm"
                   />
                 ) : (
-                  <div className="w-44 h-44 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-center text-xs text-slate-400">
+                  <div className="w-36 h-36 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-center text-xs text-slate-400">
                     Generating QR...
                   </div>
                 )}
               </div>
 
-              <div className="font-mono text-xs font-bold tracking-widest text-slate-800 bg-slate-100 py-1.5 px-3 rounded-lg inline-block mt-1 border border-slate-200">
+              {/* Location Text directly below QR */}
+              <div className="mt-1 text-xs font-bold text-slate-800">
+                <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wide">Location: </span>
+                <span className="text-slate-900">{qrModalSpot.shed} • {qrModalSpot.position}</span>
+                {qrModalSpot.line && <span className="text-slate-500 font-medium"> ({qrModalSpot.line})</span>}
+              </div>
+
+              <div className="font-mono text-xs font-bold tracking-widest text-slate-800 bg-slate-100 py-1.5 px-3 rounded-lg inline-block mt-2 border border-slate-200">
                 {qrModalSpot.spotCode}
               </div>
               <p className="text-[10px] text-slate-400 mt-2 font-medium">
