@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import TemperatureLog from "../models/TemperatureLog.js";
 import ThermometerSpot from "../models/ThermometerSpot.js";
 import User from "../../models/User.js";
