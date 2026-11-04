@@ -547,10 +547,27 @@ export const getWeeklyTemperatureReport = async (req, res) => {
       if (!firm) {
         return res.status(400).json({ success: false, message: 'Farm ID is required' });
       }
-      if (permittedFirms !== null && !permittedFirms.includes(String(firm))) {
-        return res.status(403).json({ success: false, message: 'You do not have access to this farm.' });
+      let firmDoc = null;
+      if (mongoose.Types.ObjectId.isValid(firm)) {
+        firmDoc = await Firm.findById(firm);
       }
-      targetFirmIds = [firm];
+      if (!firmDoc) {
+        firmDoc = await Firm.findOne({
+          $or: [{ code: String(firm).toUpperCase() }, { name: new RegExp('^' + String(firm).trim() + '$', 'i') }],
+          code: { $ne: 'OFFICE' },
+        });
+      }
+      if (!firmDoc) {
+        firmDoc = await Firm.findOne({ code: { $ne: 'OFFICE' }, name: { $not: /office/i } });
+      }
+      if (firmDoc) {
+        if (permittedFirms !== null && !permittedFirms.includes(String(firmDoc._id))) {
+          return res.status(403).json({ success: false, message: 'You do not have access to this farm.' });
+        }
+        targetFirmIds = [firmDoc._id];
+      } else {
+        targetFirmIds = mongoose.Types.ObjectId.isValid(firm) ? [firm] : [];
+      }
     }
 
     // Determine target date window in IST
@@ -723,7 +740,7 @@ export const getWeeklyTemperatureReport = async (req, res) => {
       }
 
       // Sort sheds naturally (Shed 1, Shed 2, Shed 3...)
-      sheds.sort((a, b) => a.shedName.localeCompare(b.shedName, undefined, { numeric: true }));
+      sheds.sort((a, b) => String(a.shedName || '').localeCompare(String(b.shedName || ''), undefined, { numeric: true }));
 
       groupedFirms.push({
         firmId: firmEntry.firmId,

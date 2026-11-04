@@ -18,7 +18,7 @@ function getAiClient() {
 
 /**
  * High-Precision Thermometer Vision Service.
- * Powered by Gemini 3.8 / 3.7 Vision with strict physical liquid column verification.
+ * Powered by Gemini 3.5 Flash Lite & 3.8 Flash for rapid sub-2s response.
  */
 export async function extractTemperatureFromImage(base64Image, mimeType = 'image/jpeg') {
   if (!base64Image || typeof base64Image !== 'string') {
@@ -46,39 +46,36 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Comprehensive physical metrology validator closing all loopholes (empty tubes, full tubes, low temps)
+  // Physical metrology validator for liquid-in-glass shed thermometers
   const prompt = `You are a precision physical metrology validator for physical liquid-in-glass poultry shed thermometers.
 
 FULL OPERATING TEMPERATURE RANGE:
-- The thermometer operates across the full range from -10°C to 50°C.
-- In cold sheds or winter conditions, temperatures below 15°C (such as 5°C, 8°C, 10°C, 12°C, 14°C) ARE COMPLETELY VALID.
-- Do NOT assume or bias towards 20°C-30°C. Read the genuine position of the liquid meniscus wherever it rests on the scale.
+- The thermometer operates from -10°C to 50°C.
+- Read the genuine position of the colored liquid meniscus (red spirit line) on the scale.
 
-MANDATORY PHYSICAL MENISCUS RULES (CLOSING ALL LOOPHOLES):
+MANDATORY PHYSICAL MENISCUS RULES:
 1. WHAT IS THE MENISCUS:
-   The meniscus is the visible physical boundary where the colored liquid column (red spirit) ENDS and the clear/empty capillary tube BEGINS.
+   The physical boundary where the colored liquid column (red spirit) ENDS and the clear capillary tube BEGINS.
 
-2. LOOPHOLE 1 - TUBE COMPLETELY EMPTY (Meniscus is below frame):
-   If the capillary tube in this photo is clear or empty with NO colored liquid column or no meniscus:
-   DO NOT guess or extract any number from the printed scale!
-   Return detected=false, error="MENISCUS_BELOW_FRAME", reasoning="Capillary tube is empty in this view. Please point camera lower towards the bulb to capture where the red liquid line ends."
+2. TUBE COMPLETELY EMPTY:
+   If the capillary tube is clear with NO colored liquid or no meniscus:
+   Return detected=false, error="MENISCUS_BELOW_FRAME", reasoning="Capillary tube is empty in this view. Please point camera lower towards the bulb."
 
-3. LOOPHOLE 2 - TUBE COMPLETELY FULL (Meniscus is above frame):
-   If the colored liquid fills the capillary tube from the bottom edge of the photo all the way through to the top edge with NO visible meniscus:
-   DO NOT take the top visible number on the scale as the reading! The true liquid level is higher outside this photo.
-   Return detected=false, error="MENISCUS_ABOVE_FRAME", reasoning="Liquid column fills the entire view past the top edge. Please point camera higher to capture where the red liquid line ends."
+3. TUBE COMPLETELY FULL:
+   If colored liquid fills the tube past the top edge with NO visible meniscus:
+   Return detected=false, error="MENISCUS_ABOVE_FRAME", reasoning="Liquid column fills view past the top edge. Please point camera higher."
 
-4. LOOPHOLE 3 - NOT A REAL THERMOMETER (Paper / Digital Screen / Wall):
-   If this is a piece of paper, printed digits, phone screen, hand, wall, or not an authentic physical liquid-in-glass thermometer:
-   Return detected=false, error="NOT_A_THERMOMETER", reasoning="Please point the camera directly at an authentic physical liquid-in-glass poultry shed thermometer."
+4. NOT A REAL THERMOMETER:
+   If this is a piece of paper, phone screen, hand, wall, or not an authentic physical thermometer:
+   Return detected=false, error="NOT_A_THERMOMETER", reasoning="Please point the camera directly at a physical liquid-in-glass poultry shed thermometer."
 
-5. VALID READING (Meniscus transition is clearly inside the frame):
-   Only when the actual top meniscus (red liquid stops, clear capillary begins) is visibly positioned between printed numbers inside the frame:
-   - Identify the exact Celsius temperature (°C) at the meniscus (can be < 15°C e.g. 10°C, 12°C, or > 20°C e.g. 25°C, 30°C).
-   - Cross-check with the Fahrenheit scale (°F) at the exact same horizontal height: F ≈ C * 1.8 + 32.
+5. VALID READING:
+   When the top meniscus (red liquid stops, clear capillary begins) is visibly positioned between printed numbers inside the frame:
+   - Identify the exact Celsius temperature (°C) at the meniscus.
+   - Cross-check with Fahrenheit (°F) at the same horizontal height: F ≈ C * 1.8 + 32.
 
 Return strictly JSON:
-If valid meniscus transition is visible and authentic:
+If valid meniscus transition is visible:
 {
   "detected": true,
   "hasLiquid": true,
@@ -86,7 +83,7 @@ If valid meniscus transition is visible and authentic:
   "celsiusExact": <float or int>,
   "fahrenheitExact": <float or int>,
   "crossValidated": true,
-  "reasoning": "<clear explanation of meniscus level, Celsius tick, and Fahrenheit cross-check>"
+  "reasoning": "<clear explanation of meniscus level and Celsius tick>"
 }
 
 If rejected (empty tube, full tube, fake object, or unclear):
@@ -94,17 +91,13 @@ If rejected (empty tube, full tube, fake object, or unclear):
   "detected": false,
   "hasLiquid": false,
   "error": "MENISCUS_BELOW_FRAME" | "MENISCUS_ABOVE_FRAME" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
-  "reasoning": "<specific instruction telling the user how to move camera>"
+  "reasoning": "<instruction telling the user how to move camera>"
 }`;
 
-  // Prioritize active quota-available fast vision models first, then frontier fallbacks
+  // Ultra-fast 3.5-flash-lite first (~1s latency), with 3.8-flash fallback
   const candidateGeminiModels = [
     'gemini-3.5-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-3.1-flash-lite',
     'gemini-3.8-flash',
-    'gemini-3.7-flash',
-    'gemini-3.5-flash',
   ];
 
   for (const model of candidateGeminiModels) {
@@ -113,7 +106,7 @@ If rejected (empty tube, full tube, fake object, or unclear):
         responseMimeType: 'application/json',
       };
 
-      // 18-second timeout to allow complete visual reasoning and network transfer
+      // 4.5-second timeout per model for rapid industrial-grade speed
       const generatePromise = ai.models.generateContent({
         model,
         contents: [
@@ -129,7 +122,7 @@ If rejected (empty tube, full tube, fake object, or unclear):
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after 18000ms on ${model}`)), 18000)
+        setTimeout(() => reject(new Error(`Timeout after 4500ms on ${model}`)), 4500)
       );
 
       const response = await Promise.race([generatePromise, timeoutPromise]);
@@ -145,7 +138,7 @@ If rejected (empty tube, full tube, fake object, or unclear):
           if (parsed.detected === false || parsed.hasLiquid === false) {
             return {
               success: false,
-              error: parsed.reasoning || 'Liquid level (meniscus) not visible in photo. Please frame the thermometer lower so where the liquid column ends is clearly visible.',
+              error: parsed.reasoning || 'Liquid level (meniscus) not visible in photo. Please frame the thermometer so where the red line ends is clearly visible.',
               errorCode: parsed.error || 'MENISCUS_NOT_VISIBLE',
               modelUsed: `Gemini (${model})`,
             };
@@ -177,7 +170,7 @@ If rejected (empty tube, full tube, fake object, or unclear):
   // Never return any fake or random number
   return {
     success: false,
-    error: 'Could not detect thermometer liquid level. Please ensure the top of the liquid column is inside the camera frame and rescan.',
+    error: 'Could not detect thermometer liquid level. Please ensure the top of the red liquid column is inside the camera frame and rescan.',
     errorCode: 'NO_READING_DETECTED',
   };
 }
