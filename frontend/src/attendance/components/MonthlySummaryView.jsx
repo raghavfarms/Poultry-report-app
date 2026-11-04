@@ -8,6 +8,13 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import AttendanceCorrectionModal from './AttendanceCorrectionModal.jsx';
 import BulkAttendanceModal from './BulkAttendanceModal.jsx';
 
+function getYesterdayString() {
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const dateObj = new Date(Date.UTC(y, m - 1, d - 1));
+  return dateObj.toISOString().slice(0, 10);
+}
+
 function getCurrentMonthString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()).slice(0, 7);
 }
@@ -423,7 +430,9 @@ export default function MonthlySummaryView({
       />}
       {showBulkModal && <BulkAttendanceModal
         firmId={firmId}
-        initialDate={`${month}-01`}
+        initialDate={month === getCurrentMonthString()
+          ? getYesterdayString()
+          : `${month}-01`}
         onClose={() => setShowBulkModal(false)}
         onSuccess={(message) => { setNotice(message); loadMonthlySummary(); }}
       />}

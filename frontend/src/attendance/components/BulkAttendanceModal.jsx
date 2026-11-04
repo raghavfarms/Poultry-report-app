@@ -4,8 +4,15 @@ import { api } from '../../api/client.js';
 import { Alert, Spinner, inputClass, secondaryButton, primaryButton } from '../../components/Ui.jsx';
 import { attendancePath } from '../services/adminApi.js';
 
+function getYesterdayString() {
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const dateObj = new Date(Date.UTC(y, m - 1, d - 1));
+  return dateObj.toISOString().slice(0, 10);
+}
+
 export default function BulkAttendanceModal({ firmId, initialDate, onClose, onSuccess }) {
-  const [date, setDate] = useState(initialDate || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()));
+  const [date, setDate] = useState(initialDate || getYesterdayString());
   const [workers, setWorkers] = useState([]);
   const [attendanceMap, setAttendanceMap] = useState({}); // workerId -> 'P' | 'HD' | 'A'
   const [initialMap, setInitialMap] = useState({}); // workerId -> initial loaded status
