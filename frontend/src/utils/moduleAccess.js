@@ -77,3 +77,13 @@ export function canAccessTemperatureMaster(user) {
 }
 
 
+
+export function canAccessTemperatureWeekly(user) {
+  if (!user) return false;
+  if (!canAccessModule(user, 'temperature')) return false;
+  if (['admin', 'developer'].includes(user.role)) return true;
+  if (user.permissions?.temperature_weekly !== undefined) {
+    return Boolean(user.permissions.temperature_weekly);
+  }
+  return user.permissions?.temperature_report === true;
+}

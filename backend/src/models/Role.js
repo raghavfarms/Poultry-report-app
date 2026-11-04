@@ -25,6 +25,7 @@ const roleSchema = new mongoose.Schema(
       attendance_admin_master: { type: Boolean, default: false },
       temperature_entry: { type: Boolean, default: false },
       temperature_report: { type: Boolean, default: false },
+      temperature_weekly: { type: Boolean, default: false },
       temperature_master: { type: Boolean, default: false },
     },
     isSystem: { type: Boolean, default: false },

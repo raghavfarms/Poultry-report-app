@@ -117,7 +117,16 @@ export function temperaturePermission(perm) {
       if (req.user?.permissions?.temperature_report === true) {
         return next();
       }
-      return res.status(403).json({ message: 'Temperature report access is required.' });
+      return res.status(403).json({ message: 'Temperature daily report access is required.' });
+    }
+    if (perm === 'temperature_weekly') {
+      if (
+        req.user?.permissions?.temperature_weekly === true ||
+        (req.user?.permissions?.temperature_weekly === undefined && req.user?.permissions?.temperature_report === true)
+      ) {
+        return next();
+      }
+      return res.status(403).json({ message: 'Weekly temperature report access is required.' });
     }
     next();
   };

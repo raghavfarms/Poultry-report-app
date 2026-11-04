@@ -25,7 +25,7 @@ router.get('/recent', getRecentLogs);
 
 // Route for generating full 5-column temperature report with KPIs
 router.get('/report', temperaturePermission('temperature_report'), getTemperatureReport);
-router.get('/weekly-report', temperaturePermission('temperature_report'), getWeeklyTemperatureReport);
+router.get('/weekly-report', temperaturePermission('temperature_weekly'), getWeeklyTemperatureReport);
 
 // Admin-only routes to delete temperature readings
 router.delete('/:id', adminOnly, deleteTemperatureLog);

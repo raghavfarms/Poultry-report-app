@@ -29,6 +29,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: true,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -49,6 +50,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: true,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -69,6 +71,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -89,6 +92,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -109,6 +113,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -129,6 +134,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -149,6 +155,7 @@ const DEFAULT_ROLES = [
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
+      temperature_weekly: false,
       temperature_master: false,
     },
     isSystem: true,
@@ -175,6 +182,7 @@ const INITIAL_USER_FORM = {
     attendance_admin_master: false,
     temperature_entry: false,
     temperature_report: false,
+      temperature_weekly: false,
     temperature_master: false,
   },
 };
@@ -196,6 +204,7 @@ const INITIAL_ROLE_FORM = {
     attendance_admin_master: false,
     temperature_entry: false,
     temperature_report: false,
+      temperature_weekly: false,
     temperature_master: false,
   },
 };
@@ -223,7 +232,8 @@ function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
   if (hasTemp) {
     if (unrestricted || permissions.temperature_master) allowed.push("Temp Master");
     if (unrestricted || permissions.temperature_entry) allowed.push("Temp Entry");
-    if (unrestricted || permissions.temperature_report) allowed.push("Temp Report");
+    if (unrestricted || permissions.temperature_report) allowed.push("Temp Daily");
+    if (unrestricted || permissions.temperature_weekly) allowed.push("Temp Weekly");
   }
 
   if (allowed.length === 0) {
@@ -510,6 +520,7 @@ export default function UserAdminPage() {
         attendance_admin_master: false,
         temperature_entry: false,
         temperature_report: false,
+      temperature_weekly: false,
         temperature_master: false,
       },
     });
@@ -556,6 +567,7 @@ export default function UserAdminPage() {
         attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
         temperature_entry: u.permissions?.temperature_entry ?? false,
         temperature_report: u.permissions?.temperature_report ?? false,
+        temperature_weekly: u.permissions?.temperature_weekly ?? (u.permissions?.temperature_report ?? false),
         temperature_master: u.permissions?.temperature_master ?? (["admin", "developer"].includes(u.role) ? true : false),
       },
     });
@@ -796,6 +808,7 @@ export default function UserAdminPage() {
         attendance_admin_master: role.permissions?.attendance_admin_master ?? false,
         temperature_entry: role.permissions?.temperature_entry ?? false,
         temperature_report: role.permissions?.temperature_report ?? false,
+        temperature_weekly: role.permissions?.temperature_weekly ?? (role.permissions?.temperature_report ?? false),
         temperature_master: role.permissions?.temperature_master ?? (["admin", "developer"].includes(role.code) ? true : false),
       },
     });
@@ -1734,7 +1747,23 @@ export default function UserAdminPage() {
                           onChange={() => toggleUserPermission("temperature_report")}
                           className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
                         />
-                        <span className="truncate text-xs">Temperature Report</span>
+                        <span className="truncate text-xs">Daily Report (Single Day)</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          userForm.permissions.temperature_weekly
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(userForm.permissions.temperature_weekly)}
+                          onChange={() => toggleUserPermission("temperature_weekly")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Weekly Report (7-Day Matrix)</span>
                       </label>
                     </>
                   )}
@@ -1962,7 +1991,23 @@ export default function UserAdminPage() {
                           onChange={() => toggleRolePermission("temperature_report")}
                           className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
                         />
-                        <span className="truncate text-xs">Temperature Report</span>
+                        <span className="truncate text-xs">Daily Report (Single Day)</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          roleForm.permissions.temperature_weekly
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(roleForm.permissions.temperature_weekly)}
+                          onChange={() => toggleRolePermission("temperature_weekly")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Weekly Report (7-Day Matrix)</span>
                       </label>
                     </>
                   )}
