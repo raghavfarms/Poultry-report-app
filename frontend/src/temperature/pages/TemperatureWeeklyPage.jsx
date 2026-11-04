@@ -254,16 +254,16 @@ export default function TemperatureWeeklyPage({ compact = false }) {
 
       {/* 2. Top Controls & Filter Bar (Farm, From Date, To Date, Shed, Spot Filter) */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-3 sm:p-3.5 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
-          {/* Farm Dropdown */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3 items-end">
+          {/* Farm Dropdown (Mobile Col 1) */}
+          <div className="order-1 sm:order-none">
+            <label className="block text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
               Farm
             </label>
             <select
               value={selectedFirm}
               onChange={(e) => setSelectedFirm(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
             >
               {firms.map((f) => (
                 <option key={f._id} value={f._id}>
@@ -273,44 +273,15 @@ export default function TemperatureWeeklyPage({ compact = false }) {
             </select>
           </div>
 
-          {/* From Date */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-              From Date
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              max={endDate || todayIST}
-              onChange={(e) => e.target.value && setStartDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
-            />
-          </div>
-
-          {/* To Date */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-              To Date
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              min={startDate}
-              max={todayIST}
-              onChange={(e) => e.target.value && setEndDate(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
-            />
-          </div>
-
-          {/* Shed Dropdown */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+          {/* Shed Dropdown (Mobile Col 2, paired with Farm) */}
+          <div className="order-2 sm:order-none">
+            <label className="block text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
               Shed
             </label>
             <select
               value={selectedShed}
               onChange={(e) => setSelectedShed(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
             >
               <option value="All sheds">All sheds</option>
               {availableSheds.map((s) => (
@@ -321,9 +292,38 @@ export default function TemperatureWeeklyPage({ compact = false }) {
             </select>
           </div>
 
-          {/* Spot Filter Selector (Pad Side / Middle / Fan Side) */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+          {/* From Date (Mobile Row 2 Col 1) */}
+          <div className="order-3 sm:order-none">
+            <label className="block text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
+              From Date
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              max={endDate || todayIST}
+              onChange={(e) => e.target.value && setStartDate(e.target.value)}
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+            />
+          </div>
+
+          {/* To Date (Mobile Row 2 Col 2) */}
+          <div className="order-4 sm:order-none">
+            <label className="block text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1 truncate">
+              To Date
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              max={todayIST}
+              onChange={(e) => e.target.value && setEndDate(e.target.value)}
+              className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+            />
+          </div>
+
+          {/* Spot Filter Selector (Pad Side / Middle / Fan Side - Spans 2 cols on mobile) */}
+          <div className="order-5 sm:order-none col-span-2 lg:col-span-1">
+            <label className="block text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
               Spot Filter
             </label>
             <div className="grid grid-cols-3 gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200/80">
@@ -334,7 +334,7 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                     key={spotName}
                     type="button"
                     onClick={() => setSelectedSpot(spotName)}
-                    className={`py-1 px-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition text-center truncate cursor-pointer ${
+                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition text-center truncate cursor-pointer ${
                       isActive
                         ? 'bg-emerald-700 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
