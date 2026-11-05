@@ -23,7 +23,7 @@ import TemperatureWeeklyPage from './TemperatureWeeklyPage.jsx';
  * - Non-admin users: Only tabs explicitly permitted by Admin are shown.
  * - Single-tab users: Lands directly on their permitted tab with zero tab navigation clutter.
  */
-export default function TemperatureHubPage() {
+export default function TemperatureHubPage({ compact = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
 
@@ -56,7 +56,9 @@ export default function TemperatureHubPage() {
   }
 
   const handleTabChange = (tab) => {
-    setSearchParams({ tab });
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tab', tab);
+    setSearchParams(nextParams, { replace: true });
   };
 
   // If user has zero permitted tabs
@@ -75,7 +77,7 @@ export default function TemperatureHubPage() {
   }
 
   return (
-    <div className="space-y-2.5 max-w-7xl mx-auto pb-12">
+    <div className={`space-y-2.5 ${compact ? '' : 'max-w-7xl mx-auto pb-12'}`}>
       {/* Top Tab Navigation Bar (Shown only when user has 2 or more accessible tabs) */}
       {accessibleTabs.length > 1 && (
         <div className="flex items-center justify-between border-b border-slate-200/80 pb-2 px-1">
@@ -107,9 +109,9 @@ export default function TemperatureHubPage() {
       {currentTab === 'entry' && hasEntryAccess ? (
         <TemperatureEntryPage />
       ) : currentTab === 'report' && hasDailyAccess ? (
-        <TemperatureReportPage />
+        <TemperatureReportPage compact={compact} />
       ) : currentTab === 'weekly' && hasWeeklyAccess ? (
-        <TemperatureWeeklyPage />
+        <TemperatureWeeklyPage compact={compact} />
       ) : null}
     </div>
   );

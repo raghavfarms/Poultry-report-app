@@ -4,11 +4,10 @@ import TransportPage from "./TransportPage.jsx";
 import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
 import WorkerAttendancePortal from "../attendance/pages/WorkerAttendancePortal.jsx";
 import MedicineReportPage from "../medicine/pages/MedicineReportPage.jsx";
-import TemperatureReportPage from "../temperature/pages/TemperatureReportPage.jsx";
-import TemperatureEntryPage from "../temperature/pages/TemperatureEntryPage.jsx";
+import TemperatureHubPage from "../temperature/pages/TemperatureHubPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { canAccessModule, canAccessTemperatureReport } from "../utils/moduleAccess.js";
+import { canAccessModule } from "../utils/moduleAccess.js";
 
 export default function OverviewPage() {
   const { user } = useAuth();
@@ -113,11 +112,7 @@ export default function OverviewPage() {
         )}
         {(activeTab === "medicine" || activeTab === "all") && hasMedicine && <MedicineReportPage />}
         {(activeTab === "temperature" || activeTab === "all") && hasTemperature && (
-          canAccessTemperatureReport(user) ? (
-            <TemperatureReportPage compact />
-          ) : (
-            <TemperatureEntryPage />
-          )
+          <TemperatureHubPage compact />
         )}
         {!hasDiesel && !hasTransport && !hasAttendance && !hasMedicine && !hasTemperature && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
@@ -205,11 +200,7 @@ export default function OverviewPage() {
                   ) : slug === "medicine" ? (
                     <MedicineReportPage />
                   ) : slug === "temperature" ? (
-                    canAccessTemperatureReport(user) ? (
-                      <TemperatureReportPage compact />
-                    ) : (
-                      <TemperatureEntryPage />
-                    )
+                    <TemperatureHubPage compact />
                   ) : (
                     <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
                       <h2 className="font-bold text-slate-800">{label}</h2>

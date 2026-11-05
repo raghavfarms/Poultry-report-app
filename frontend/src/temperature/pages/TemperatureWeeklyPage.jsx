@@ -378,6 +378,31 @@ export default function TemperatureWeeklyPage({ compact = false }) {
           reportData.firms.map((firmGroup) => {
             const hasSheds = firmGroup.sheds && firmGroup.sheds.length > 0;
 
+            // Calculate lowest and highest temperatures for this farm's weekly matrix
+            let minTemp = null;
+            let maxTemp = null;
+            if (hasSheds && Array.isArray(reportData.days)) {
+              for (const shed of firmGroup.sheds) {
+                for (const round of shed.rounds || []) {
+                  for (const day of reportData.days) {
+                    const r = round.readings ? round.readings[day.date] : null;
+                    let v = null;
+                    if (r) {
+                      if (selectedSpot === 'Middle') v = r.mid;
+                      else if (selectedSpot === 'Pad Side') v = r.pad;
+                      else v = r.fan;
+                    }
+                    if (v !== null && v !== undefined && !isNaN(Number(v))) {
+                      const num = Number(v);
+                      if (minTemp === null || num < minTemp) minTemp = num;
+                      if (maxTemp === null || num > maxTemp) maxTemp = num;
+                    }
+                  }
+                }
+              }
+            }
+            const hasVariation = minTemp !== null && maxTemp !== null && minTemp !== maxTemp;
+
             return (
               <div
                 key={firmGroup.firmId}
@@ -397,15 +422,29 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={loadWeeklyReport}
-                    className="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer flex items-center gap-1"
-                    title="Refresh readings"
-                  >
-                    <span>↻</span>
-                    <span>Refresh</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {hasVariation && (
+                      <div className="hidden sm:flex items-center gap-3 text-[11px] font-medium text-slate-500 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200/60">
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-xs bg-sky-100 border border-sky-300"></span>
+                          <span>Lowest ({minTemp}°C)</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2.5 h-2.5 rounded-xs bg-orange-100 border border-orange-300"></span>
+                          <span>Highest ({maxTemp}°C)</span>
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={loadWeeklyReport}
+                      className="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer flex items-center gap-1"
+                      title="Refresh readings"
+                    >
+                      <span>↻</span>
+                      <span>Refresh</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Date Matrix Table */}
@@ -496,6 +535,10 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                                     }
                                   }
 
+                                  const num = (val !== null && val !== undefined) ? Number(val) : null;
+                                  const isLowest = hasVariation && num !== null && num === minTemp;
+                                  const isHighest = hasVariation && num !== null && num === maxTemp;
+
                                   return (
                                     <td
                                       key={`cell-${day.date}-${round.slot}`}
@@ -505,14 +548,20 @@ export default function TemperatureWeeklyPage({ compact = false }) {
                                     >
                                       {val !== null && val !== undefined ? (
                                         <span
-                                          className="text-xs text-slate-800 font-normal"
+                                          className={
+                                            isLowest
+                                              ? 'text-xs font-bold bg-sky-100 text-sky-900 border border-sky-300 px-1.5 py-0.5 rounded-md inline-block shadow-2xs'
+                                              : isHighest
+                                              ? 'text-xs font-bold bg-orange-100 text-orange-900 border border-orange-300 px-1.5 py-0.5 rounded-md inline-block shadow-2xs'
+                                              : 'text-xs text-slate-800 font-normal'
+                                          }
                                           title={
                                             exactTime
-                                              ? `${selectedSpot}: ${val}°C recorded at ${exactTime} on ${day.fullLabel}`
-                                              : `${selectedSpot}: ${val}°C on ${day.fullLabel}`
+                                              ? `${shed.shedName} · ${shed.line || 'Line 1'} (${selectedSpot})\nReading: ${val}°C\nLogged at: ${exactTime} on ${day.fullLabel}`
+                                              : `${shed.shedName} · ${selectedSpot}: ${val}°C on ${day.fullLabel}`
                                           }
                                         >
-                                          {val}°C
+                                          {Number(val)}°C
                                         </span>
                                       ) : (
                                         <span className="text-slate-300 font-light text-xs">—</span>
