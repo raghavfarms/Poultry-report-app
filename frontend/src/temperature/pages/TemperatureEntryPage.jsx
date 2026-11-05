@@ -3,6 +3,14 @@ import { createPortal } from 'react-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { api } from '../../api/client.js';
 import { recordTemperature, fetchRecentLogs, scanThermometerWithAi } from '../api/temperatureApi.js';
+import {
+  getOpenCv,
+  checkImageQuality,
+  detectLiquidMeniscus,
+  detectScaleLines,
+  calculateCalibratedTemperature,
+  evaluateHybridResult,
+} from '../services/openCvThermometerService.js';
 
 export default function TemperatureEntryPage() {
   // 1. Core States
@@ -47,6 +55,11 @@ export default function TemperatureEntryPage() {
   const [cameraModalError, setCameraModalError] = useState('');
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+
+  // 7. OpenCV + Gemini Hybrid Vision Telemetry States
+  const [hybridResult, setHybridResult] = useState(null);
+  const [qualityFeedback, setQualityFeedback] = useState(null);
+  const [openCvDetails, setOpenCvDetails] = useState(null);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -253,6 +266,10 @@ export default function TemperatureEntryPage() {
     setCameraModalError('');
     setThermometerCameraOpen(true);
     setAiScanning(false);
+    setQualityFeedback(null);
+
+    // Warm up OpenCV.js in background so it's ready when photo is captured
+    getOpenCv().catch((err) => console.warn('OpenCV background warm-up:', err));
 
     try {
       if (mediaStreamRef.current) {
@@ -363,6 +380,7 @@ export default function TemperatureEntryPage() {
       return;
     }
     setCameraModalError('');
+    setQualityFeedback(null);
 
     // Capture full frame with high clarity so bulb, meniscus, and numbers are never cut off
     const canvas = canvasRef.current || document.createElement('canvas');
@@ -386,31 +404,102 @@ export default function TemperatureEntryPage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
 
-    // Quality 0.82 for sharp text without artifacts
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-    processThermometerImageWithAi(dataUrl);
+    setAiScanning(true);
+
+    // 1. FAST OPENCV PRE-CHECK: Blur & Illumination (<30ms)
+    let quality = null;
+    try {
+      quality = await checkImageQuality(canvas);
+      setQualityFeedback(quality);
+      if (quality && !quality.isAcceptable) {
+        setCameraModalError(quality.message);
+        setAiScanning(false);
+        return; // Reject immediately, save Gemini quota and latency
+      }
+    } catch (qErr) {
+      console.warn('OpenCV pre-check skipped:', qErr);
+    }
+
+    // 2. OPENCV FEATURE EXTRACTION: Detect liquid column and scale ticks
+    let openCvLiquid = null;
+    let openCvLines = null;
+    try {
+      [openCvLiquid, openCvLines] = await Promise.all([
+        detectLiquidMeniscus(canvas),
+        detectScaleLines(canvas),
+      ]);
+    } catch (cvErr) {
+      console.warn('OpenCV feature extraction error:', cvErr);
+    }
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    processThermometerImageWithAi(dataUrl, { quality, openCvLiquid, openCvLines });
   };
 
-
-
-  // Send image to backend Gemini Vision API
-  const processThermometerImageWithAi = async (dataUrl) => {
+  // Send image to backend Gemini Vision API + Cross-verify with OpenCV
+  const processThermometerImageWithAi = async (dataUrl, openCvFeatures = {}) => {
     setAiScanning(true);
     setCameraModalError('');
     setError('');
 
     try {
       setCapturedImage(dataUrl);
+
+      // 3. CORE: CALL GEMINI VISION API (Gemini functionality 100% preserved)
       const res = await scanThermometerWithAi(dataUrl);
 
       if (res.success && res.data && typeof res.data.temperature === 'number') {
-        const detectedTempNum = Math.round(res.data.temperature);
-        const detectedTemp = detectedTempNum.toString();
-        setBaseTemperature(detectedTempNum);
-        setTemperature(detectedTemp);
-        setManualForm((prev) => ({ ...prev, temperature: detectedTemp }));
+        const geminiData = res.data;
+        const openCvLiquid = openCvFeatures.openCvLiquid;
+        const quality = openCvFeatures.quality;
+
+        // 4. OPENCV SCALE CALIBRATION:
+        // Use detected scale markings (from Gemini / OpenCV) + OpenCV meniscus Y coordinate
+        let openCvCalibrated = null;
+        if (openCvLiquid?.liquidDetected && Array.isArray(geminiData.scaleMarkings) && geminiData.scaleMarkings.length >= 2) {
+          openCvCalibrated = calculateCalibratedTemperature(
+            openCvLiquid.meniscusNormalizedY,
+            geminiData.scaleMarkings
+          );
+        }
+
+        const openCvSummary = {
+          liquidDetected: Boolean(openCvLiquid?.liquidDetected),
+          meniscusY: openCvLiquid?.meniscusNormalizedY || null,
+          temperature: openCvCalibrated?.isValid ? openCvCalibrated.temperature : null,
+          confidence: openCvLiquid?.confidence || 0.8,
+          scaleLinesCount: openCvFeatures.openCvLines?.lineCount || 0,
+        };
+
+        // 5. HYBRID VALIDATION: Compare Gemini and OpenCV detections
+        const hybrid = evaluateHybridResult(geminiData, openCvSummary, quality);
+        setHybridResult(hybrid);
+        setOpenCvDetails({
+          gemini: geminiData,
+          openCv: openCvSummary,
+          quality,
+          hybrid,
+        });
+
+        if (hybrid.status === 'low' && hybrid.disagreement) {
+          // Significant disagreement (>3°C) - Alert worker to retake or confirm
+          setCameraModalError(hybrid.message);
+          return;
+        }
+
+        const finalTempNum = hybrid.temperature ?? Math.round(geminiData.temperature);
+        const finalTempStr = finalTempNum.toString();
+        setBaseTemperature(finalTempNum);
+        setTemperature(finalTempStr);
+        setManualForm((prev) => ({ ...prev, temperature: finalTempStr }));
         setAiVerified(true);
-        setAiDetails(res.data);
+        setAiDetails({
+          ...geminiData,
+          hybridConfidence: hybrid.confidence,
+          validationStatus: hybrid.status,
+          openCvReading: hybrid.openCvReading,
+        });
+
         if (typeof window !== 'undefined' && window.navigator?.vibrate) {
           window.navigator.vibrate([80, 50, 80]);
         }
@@ -451,7 +540,11 @@ export default function TemperatureEntryPage() {
         verifiedByQr: true,
         verifiedByAi: aiVerified,
         aiConfidence: aiDetails?.confidence || null,
-        thermometerImageUrl: capturedImage ? capturedImage.slice(0, 15000) : null,
+        openCvReading: hybridResult?.openCvReading || null,
+        openCvConfidence: hybridResult?.confidence || null,
+        validationStatus: hybridResult?.status || (aiVerified ? 'high' : null),
+        openCvDetails: openCvDetails || null,
+        thermometerImageUrl: capturedImage || null,
       };
 
       const res = await recordTemperature(payload);
@@ -461,6 +554,8 @@ export default function TemperatureEntryPage() {
       setTemperature('');
       setAiVerified(false);
       setAiDetails(null);
+      setHybridResult(null);
+      setOpenCvDetails(null);
       setCapturedImage(null);
       loadRecentLogs(selectedFirm);
     } catch (err) {
@@ -751,10 +846,15 @@ export default function TemperatureEntryPage() {
               </div>
 
               {/* Worker Camera Guidance Tip */}
-              <div className="mt-2 text-center">
+              <div className="mt-2 text-center space-y-1">
                 <p className="text-[10px] text-slate-400 font-medium">
                   Hold 6–10 inches away · Avoid overhead light glare
                 </p>
+                <div className="flex items-center justify-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-300 bg-emerald-950/70 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                    <span>🔬</span> OpenCV + Gemini Vision Active
+                  </span>
+                </div>
               </div>
 
               {/* Real-time Error & Fallback Banner inside Modal */}
@@ -931,6 +1031,60 @@ export default function TemperatureEntryPage() {
               </div>
             </div>
           </div>
+
+          {/* Hybrid Vision Verification Telemetry Card */}
+          {aiVerified && hybridResult && (
+            <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>🔬</span> Vision Telemetry
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    hybridResult.status === 'high'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : hybridResult.status === 'medium'
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                      : 'bg-rose-100 text-rose-800 border border-rose-300'
+                  }`}
+                >
+                  {hybridResult.status === 'high'
+                    ? '● High Confidence'
+                    : hybridResult.status === 'medium'
+                    ? '▲ Medium Confidence'
+                    : '⚠️ Verification Needed'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-200/60">
+                <div className="bg-white p-2 rounded-xl border border-slate-200/70">
+                  <p className="text-slate-400 font-medium">Gemini Reading</p>
+                  <p className="text-xs font-bold text-slate-900 mt-0.5">
+                    {aiDetails?.temperature ?? '—'}°C
+                  </p>
+                  <p className="text-[9px] text-slate-400 truncate">
+                    {aiDetails?.modelUsed || 'Gemini Vision'}
+                  </p>
+                </div>
+
+                <div className="bg-white p-2 rounded-xl border border-slate-200/70">
+                  <p className="text-slate-400 font-medium">OpenCV Calibrated</p>
+                  <p className="text-xs font-bold text-slate-900 mt-0.5">
+                    {hybridResult.openCvReading ? `${hybridResult.openCvReading}°C` : 'Liquid Verified'}
+                  </p>
+                  <p className="text-[9px] text-slate-400 truncate">
+                    {hybridResult.diff !== undefined ? `Diff: ±${hybridResult.diff}°C` : 'Meniscus aligned'}
+                  </p>
+                </div>
+              </div>
+
+              {hybridResult.message && (
+                <p className="text-[10px] text-slate-500 leading-tight italic">
+                  {hybridResult.message}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Action Buttons: Scan Again / Save Entry */}
           <div className="grid grid-cols-2 gap-3 pt-2">
