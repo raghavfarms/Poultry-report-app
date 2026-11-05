@@ -630,66 +630,92 @@ export default function TemperatureMasterPage({ embedded = false }) {
       {/* Printable QR Sticker Modal */}
       {qrModalSpot && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-xs w-full p-4 text-center shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
             <button
               onClick={() => setQrModalSpot(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100"
+              className="absolute top-3 right-3 text-slate-400 hover:text-slate-700 text-base font-bold w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-100"
             >
               ✕
             </button>
 
-            {/* Printable Sticker Preview Card */}
-            <div id="printable-sticker-card" className="bg-white text-slate-900 rounded-2xl p-5 border-2 border-dashed border-slate-300 my-4 shadow-sm">
-              <h2 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            {/* Printable Sticker Preview Card (Compact for cutting & sticking on thermometer) */}
+            <div
+              id="printable-sticker-card"
+              className="bg-white text-slate-900 rounded-xl p-3 max-w-[220px] mx-auto border-2 border-dashed border-slate-300 my-2 shadow-sm text-center"
+            >
+              <h2 className="text-[9px] font-bold uppercase tracking-wider text-slate-400 leading-tight">
                 {qrModalSpot.firmName}
               </h2>
-              <h1 className="text-lg font-black text-slate-900 mt-1">
+              <h1 className="text-sm font-black text-slate-900 mt-0.5 leading-tight">
                 {qrModalSpot.shed} • {qrModalSpot.line}
               </h1>
-              <p className="text-xs font-bold text-emerald-600 uppercase mb-3">
+              <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1.5 leading-tight">
                 {qrModalSpot.position}
               </p>
 
               {/* Scannable QR Code */}
-              <div className="flex justify-center my-3">
+              <div className="flex justify-center my-1.5">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
                     alt={`QR for ${qrModalSpot.spotCode}`}
-                    className="w-36 h-36 border border-slate-200 p-2 rounded-xl bg-white shadow-sm"
+                    className="w-28 h-28 border border-slate-200 p-1 rounded-lg bg-white shadow-sm"
                   />
                 ) : (
-                  <div className="w-36 h-36 border border-slate-200 rounded-xl bg-slate-50 flex items-center justify-center text-xs text-slate-400">
-                    Generating QR...
+                  <div className="w-28 h-28 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center text-[10px] text-slate-400">
+                    Generating...
                   </div>
                 )}
               </div>
 
               {/* Location Text directly below QR */}
-              <div className="mt-1 text-xs font-bold text-slate-800">
-                <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-wide">Location: </span>
+              <div className="text-[11px] font-bold text-slate-800 leading-tight">
+                <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wide">Location: </span>
                 <span className="text-slate-900">{qrModalSpot.shed} • {qrModalSpot.position}</span>
-                {qrModalSpot.line && <span className="text-slate-500 font-medium"> ({qrModalSpot.line})</span>}
+                {qrModalSpot.line && <span className="text-slate-500 font-normal"> ({qrModalSpot.line})</span>}
               </div>
 
-              <div className="font-mono text-xs font-bold tracking-widest text-slate-800 bg-slate-100 py-1.5 px-3 rounded-lg inline-block mt-2 border border-slate-200">
+              <div className="font-mono text-[10px] font-bold tracking-widest text-slate-800 bg-slate-100 py-0.5 px-2 rounded-md inline-block mt-1 border border-slate-200">
                 {qrModalSpot.spotCode}
               </div>
-              <p className="text-[10px] text-slate-400 mt-2 font-medium">
-                Paste beside physical thermometer inside shed
+              <p className="text-[9px] text-slate-400 mt-1 font-medium leading-tight">
+                Paste beside physical thermometer
               </p>
             </div>
 
-            <div className="flex gap-2 justify-center mt-5">
+            <style>{`
+              @media print {
+                body * {
+                  visibility: hidden;
+                }
+                #printable-sticker-card, #printable-sticker-card * {
+                  visibility: visible;
+                }
+                #printable-sticker-card {
+                  position: absolute;
+                  left: 50%;
+                  top: 20px;
+                  transform: translateX(-50%);
+                  width: 200px !important;
+                  max-width: 200px !important;
+                  padding: 8px !important;
+                  margin: 0 !important;
+                  border: 1.5px dashed #475569 !important;
+                  box-shadow: none !important;
+                }
+              }
+            `}</style>
+
+            <div className="flex gap-2 justify-center mt-3">
               <button
                 onClick={() => window.print()}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm cursor-pointer transition flex items-center gap-1.5"
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm cursor-pointer transition flex items-center gap-1.5"
               >
                 <span>🖨️</span> Print Sticker
               </button>
               <button
                 onClick={() => setQrModalSpot(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer transition"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer transition"
               >
                 Close
               </button>
