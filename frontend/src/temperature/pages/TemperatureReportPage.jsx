@@ -507,7 +507,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
               </NavLink>
             </div>
           </div>
-        ) : (
+        ) : ( 
           <div className="space-y-4">
             {groupedFirmsData.map((group) => {
               const recordedCount = group.rows.filter((r) => !r.missed).length;
@@ -680,3 +680,4 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     </div>
   );
 }
+              
