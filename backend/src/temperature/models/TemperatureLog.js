@@ -47,6 +47,23 @@ const temperatureLogSchema=new mongoose.Schema({
           type: Number,
          default: null,
   },
+  openCvReading:{
+          type: Number,
+         default: null,
+  },
+  openCvConfidence:{
+          type: Number,
+         default: null,
+  },
+  validationStatus:{
+          type: String,
+         enum: ['high', 'medium', 'low', 'manual', null],
+         default: null,
+  },
+  openCvDetails:{
+          type: mongoose.Schema.Types.Mixed,
+         default: null,
+  },
   thermometerImageUrl:{
           type: String,
          default: null,

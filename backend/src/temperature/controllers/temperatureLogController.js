@@ -21,7 +21,9 @@ import { getPermittedFirmsForModule } from "../../utils/userFirms.js";
                 line,position,
                 temperature,verifiedQr,
                 verifiedByQr,verifiedByAi,
-                aiConfidence,thermometerImageUrl
+                aiConfidence,thermometerImageUrl,
+                openCvReading,openCvConfidence,
+                validationStatus,openCvDetails
              }=req.body;
 
             if (!firm) {
@@ -72,6 +74,10 @@ import { getPermittedFirmsForModule } from "../../utils/userFirms.js";
       verifiedByqr: Boolean(verifiedQr || verifiedByQr),
       verifiedByAi: Boolean(verifiedByAi),
       aiConfidence: aiConfidence ? Number(aiConfidence) : null,
+      openCvReading: openCvReading !== undefined && openCvReading !== null ? Number(openCvReading) : null,
+      openCvConfidence: openCvConfidence !== undefined && openCvConfidence !== null ? Number(openCvConfidence) : null,
+      validationStatus: validationStatus || null,
+      openCvDetails: openCvDetails || null,
       thermometerImageUrl: thermometerImageUrl || null,
       roundSlot,
       capturedAt: new Date(),

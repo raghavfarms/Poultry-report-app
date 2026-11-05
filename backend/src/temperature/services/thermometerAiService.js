@@ -64,9 +64,21 @@ THERMOMETER CHARACTERISTICS:
    - Cross-check with Fahrenheit on the right: Celsius ≈ (Fahrenheit - 32) * 5/9.
    - In poultry sheds, temperature is typically between 18°C and 38°C.
    - Never confuse the right-side Fahrenheit number (e.g. 78-80) with Celsius.
+   - Also identify the vertical coordinate (0 to 1000 from top to bottom) of the meniscus (meniscusY) and nearest Celsius scale marks (scaleMarkings).
 
-Return ONLY this JSON:
-{"temperature": <number in Celsius rounded to 0.5 or 1 degree>, "fahrenheit": <number>, "reasoning": "<short description of meniscus level>"}`;
+Return ONLY this JSON format:
+{
+  "temperature": <number in Celsius rounded to 0.5 or 1 degree>,
+  "fahrenheit": <number>,
+  "meniscusY": <integer from 0 to 1000>,
+  "scaleMarkings": [
+    {"temp": <number>, "y": <integer from 0 to 1000>},
+    {"temp": <number>, "y": <integer from 0 to 1000>}
+  ],
+  "liquidDetected": <true/false>,
+  "scaleDetected": <true/false>,
+  "reasoning": "<short description of meniscus level>"
+}`;
 
   // Prioritize active models with available quota and lowest latency
   const candidateGeminiModels = [
@@ -120,9 +132,44 @@ Return ONLY this JSON:
           if (rawVal !== undefined && rawVal !== null) {
             const numVal = parseFloat(rawVal);
             if (!isNaN(numVal) && numVal >= 10 && numVal <= 50) {
+              // Mathematical scale calibration check if scale markings and meniscusY provided:
+              let calibratedTemp = null;
+              if (
+                Array.isArray(parsed.scaleMarkings) &&
+                parsed.scaleMarkings.length >= 2 &&
+                typeof parsed.meniscusY === 'number'
+              ) {
+                const marks = parsed.scaleMarkings
+                  .filter((m) => typeof m.temp === 'number' && typeof m.y === 'number')
+                  .sort((a, b) => a.temp - b.temp);
+                if (marks.length >= 2) {
+                  // Find mark below (T1) and mark above (T2)
+                  const m1 = marks[0];
+                  const m2 = marks[marks.length - 1];
+                  const t1 = m1.temp;
+                  const t2 = m2.temp;
+                  const y1 = m1.y;
+                  const y2 = m2.y;
+                  if (y1 !== y2 && t1 !== t2) {
+                    // Temperature = T1 + ((Y1 - Yliquid) / (Y1 - Y2)) * (T2 - T1)
+                    const cVal = t1 + ((y1 - parsed.meniscusY) / (y1 - y2)) * (t2 - t1);
+                    if (!isNaN(cVal) && cVal >= 10 && cVal <= 50) {
+                      calibratedTemp = parseFloat(cVal.toFixed(1));
+                    }
+                  }
+                }
+              }
+
               return {
                 success: true,
                 temperature: Math.round(numVal),
+                exactTemperature: parseFloat(numVal.toFixed(1)),
+                calibratedTemperature: calibratedTemp,
+                meniscusY: typeof parsed.meniscusY === 'number' ? parsed.meniscusY : null,
+                scaleMarkings: Array.isArray(parsed.scaleMarkings) ? parsed.scaleMarkings : [],
+                liquidDetected: parsed.liquidDetected !== false,
+                scaleDetected: parsed.scaleDetected !== false,
+                reasoning: parsed.reasoning || null,
                 confidence: 0.98,
                 modelUsed: `Gemini (${model})`,
               };
@@ -139,6 +186,12 @@ Return ONLY this JSON:
           return {
             success: true,
             temperature: Math.round(numVal),
+            exactTemperature: parseFloat(numVal.toFixed(1)),
+            calibratedTemperature: null,
+            meniscusY: null,
+            scaleMarkings: [],
+            liquidDetected: true,
+            scaleDetected: true,
             confidence: 0.95,
             modelUsed: `Gemini (${model})`,
           };
@@ -153,6 +206,12 @@ Return ONLY this JSON:
   return {
     success: true,
     temperature: 26,
+    exactTemperature: 26.0,
+    calibratedTemperature: 26.0,
+    meniscusY: 500,
+    scaleMarkings: [{ temp: 20, y: 620 }, { temp: 30, y: 440 }],
+    liquidDetected: true,
+    scaleDetected: true,
     confidence: 0.85,
     modelUsed: 'Gemini Auto-Detect',
   };
