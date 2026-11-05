@@ -321,40 +321,7 @@ export default function TemperatureMasterPage({ embedded = false }) {
   }, [qrModalSpot]);
 
   return (
-    <div className={embedded ? "space-y-3 sm:space-y-5" : "p-2.5 sm:p-4 md:p-8 max-w-7xl mx-auto space-y-3 sm:space-y-5 bg-slate-50 min-h-screen"}>
-      {/* Top Header */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl sm:text-2xl">🌡️</span>
-            <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900">
-              Thermometer Spot Master
-            </h1>
-          </div>
-          <p className="text-[11px] sm:text-xs md:text-sm text-slate-500 mt-0.5">
-            Configure shed spots, generate location QR stickers, and manage active monitoring zones.
-          </p>
-        </div>
-
-        {/* Farm Selector (Reduced by 30% for compact mobile layout) */}
-        <div className="self-start sm:self-auto inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl shadow-xs">
-          <label className="text-[11px] font-bold text-slate-600 whitespace-nowrap">
-            Farm:
-          </label>
-          <select
-            value={selectedFirm}
-            onChange={(e) => setSelectedFirm(e.target.value)}
-            className="bg-white border border-slate-300 text-slate-900 font-semibold text-xs rounded-lg px-2 py-1 focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-xs cursor-pointer min-w-[120px] max-w-[180px]"
-          >
-            {firms.map((f) => (
-              <option key={f._id} value={f._id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
+    <div className={embedded ? "space-y-3" : "p-2.5 sm:p-4 md:p-6 max-w-7xl mx-auto space-y-3 bg-slate-50 min-h-screen"}>
       {/* Notifications */}
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-800 px-3.5 py-2.5 rounded-xl flex items-center justify-between shadow-sm animate-in fade-in duration-200">
@@ -375,62 +342,109 @@ export default function TemperatureMasterPage({ embedded = false }) {
         </div>
       )}
 
-      {/* Add Thermometer Spot Form */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setShowSetupForms(!showSetupForms)}
-          className="w-full flex items-center justify-between text-left cursor-pointer group"
-        >
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <span className="text-base sm:text-xl">➕</span>
+      {/* Spots List Table (Uplifted to Top of View) */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        {/* Unified Top Control Bar */}
+        <div className="p-3 sm:p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-3 bg-slate-50/70">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🌡️</span>
             <div>
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-1.5">
-                <span>Add Thermometer Spot</span>
-              </h3>
-              <p className="text-[10px] sm:text-xs text-slate-400">
-                {showSetupForms ? 'Click to collapse form' : 'Register a new thermometer spot for this farm'}
+              <h2 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-1.5">
+                <span>Registered Thermometer Spots</span>
+                <span className="text-xs text-slate-500 font-semibold">({spots.length})</span>
+              </h2>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5">
+                Arranged physically: Pad Side (Front) → Middle → Fan Side (Back)
               </p>
             </div>
           </div>
-          <span className="text-[10px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-lg bg-slate-100 group-hover:bg-slate-200 text-slate-700 transition flex items-center gap-1 whitespace-nowrap">
-            {showSetupForms ? 'Hide Form ▲' : '+ Add Spot ▼'}
-          </span>
-        </button>
 
+          {/* Controls: Farm Filter + Add Spot Button + Print QR Sheet Button */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Shifted Farm Selector (Raghav / Sanjana) */}
+            <div className="inline-flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1 rounded-xl shadow-2xs">
+              <label className="text-[11px] font-bold text-slate-600 whitespace-nowrap">Farm:</label>
+              <select
+                value={selectedFirm}
+                onChange={(e) => setSelectedFirm(e.target.value)}
+                className="bg-transparent text-slate-900 font-bold text-xs focus:outline-none cursor-pointer pr-1"
+              >
+                {firms.map((f) => (
+                  <option key={f._id} value={f._id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Toggle Add Spot Form */}
+            <button
+              type="button"
+              onClick={() => setShowSetupForms(!showSetupForms)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition whitespace-nowrap"
+            >
+              <span>{showSetupForms ? '✕' : '➕'}</span>
+              <span>{showSetupForms ? 'Close' : 'Add Spot'}</span>
+            </button>
+
+            {/* Print All QRs on A4 PDF Sheet */}
+            {spots.length > 0 && (
+              <button
+                type="button"
+                onClick={handleOpenAllQrModal}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer transition whitespace-nowrap"
+                title="Print all QR codes on a single A4 PDF sheet"
+              >
+                <span>🖨️</span>
+                <span>Print QR Sheet (PDF)</span>
+              </button>
+            )}
+
+            {spots.length > 0 && (
+              <span className="hidden xl:inline-block text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+                {spots.length} Active
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Add Spot Form (Directly below table header) */}
         {showSetupForms && (
-          <form onSubmit={handleCreateSpot} className="mt-3.5 pt-3.5 border-t border-slate-100 animate-in fade-in duration-150">
+          <form
+            onSubmit={handleCreateSpot}
+            className="p-3.5 sm:p-4 bg-emerald-50/40 border-b border-emerald-100 animate-in fade-in duration-150"
+          >
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 items-end">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Shed Name / No</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Shed Name / No</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Shed 1"
                   value={formData.shed}
                   onChange={(e) => setFormData({ ...formData, shed: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Line / Row</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Line / Row</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Line 1"
                   value={formData.line}
                   onChange={(e) => setFormData({ ...formData, line: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Position along Line</label>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Position along Line</label>
                 <select
                   value={formData.position}
                   onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
                 >
                   <option value="Pad Side">Pad Side (Front)</option>
                   <option value="Middle">Middle (Center)</option>
@@ -451,35 +465,6 @@ export default function TemperatureMasterPage({ embedded = false }) {
             </div>
           </form>
         )}
-      </div>
-
-      {/* Spots List Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row justify-between sm:items-center gap-2 bg-slate-50/50">
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm">
-              Registered Thermometer Spots ({spots.length})
-            </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Arranged physically: Pad Side (Front) → Middle → Fan Side (Back)
-            </p>
-          </div>
-          {spots.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                {spots.length} Scannable Spots Active
-              </span>
-              <button
-                type="button"
-                onClick={handleOpenAllQrModal}
-                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer transition"
-                title="Print all QR codes on a single A4 PDF sheet"
-              >
-                <span>🖨️</span> Print QR Sheet (PDF)
-              </button>
-            </div>
-          )}
-        </div>
 
         {loading ? (
           <div className="p-12 text-center text-slate-400 font-medium text-sm">Loading spots...</div>
