@@ -321,18 +321,33 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     }
   };
 
-  // Helper for temp cell styling - clean plain text without colored badges, matching report-table text size
-  const renderTempCell = (val, isVerified, captureTime, spotLabel) => {
+  // Helper for temp cell styling - highlight lowest (light blue) and highest (orange), highlighting all occurrences
+  const renderTempCell = (val, isVerified, captureTime, spotLabel, minTemp, maxTemp) => {
     if (val === null || val === undefined) {
       return <span className="text-slate-300 font-light text-xs">—</span>;
     }
     const num = Number(val);
     const displayVal = Number.isInteger(num) ? `${num}°C` : `${parseFloat(num.toFixed(1))}°C`;
 
+    const hasVariation = minTemp !== null && maxTemp !== null && minTemp !== maxTemp;
+    const isLowest = hasVariation && num === minTemp;
+    const isHighest = hasVariation && num === maxTemp;
+
+    let cellClass = "text-xs text-slate-800 font-normal";
+    if (isLowest) {
+      cellClass = "text-xs font-bold bg-sky-100 text-sky-900 border border-sky-300 px-1.5 py-0.5 rounded-md inline-block shadow-2xs";
+    } else if (isHighest) {
+      cellClass = "text-xs font-bold bg-orange-100 text-orange-900 border border-orange-300 px-1.5 py-0.5 rounded-md inline-block shadow-2xs";
+    }
+
     return (
       <span
-        className="text-xs text-slate-800 font-normal"
-        title={captureTime ? `${spotLabel}: ${displayVal} recorded at ${captureTime}` : undefined}
+        className={cellClass}
+        title={
+          captureTime
+            ? `${spotLabel}: ${displayVal} recorded at ${captureTime}${isLowest ? ' (Lowest Temp)' : ''}${isHighest ? ' (Highest Temp)' : ''}`
+            : isLowest ? `${displayVal} (Lowest Temp)` : isHighest ? `${displayVal} (Highest Temp)` : undefined
+        }
       >
         {displayVal}
       </span>
@@ -511,16 +526,31 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                         {group.firmName}
                       </h2>
                     </div>
-                    {selectedFirm !== 'all' && (
-                      <button
-                        type="button"
-                        onClick={loadReport}
-                        disabled={loading}
-                        className="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer"
-                      >
-                        ↻ Refresh
-                      </button>
-                    )}
+
+                    <div className="flex items-center gap-3">
+                      {/* Highlight Legend */}
+                      <div className="hidden sm:flex items-center gap-2.5 text-[11px] font-semibold text-slate-600">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-sky-100 border border-sky-300 inline-block shadow-2xs"></span>
+                          <span>Lowest Temp</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-orange-100 border border-orange-300 inline-block shadow-2xs"></span>
+                          <span>Highest Temp</span>
+                        </span>
+                      </div>
+
+                      {selectedFirm !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={loadReport}
+                          disabled={loading}
+                          className="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer"
+                        >
+                          ↻ Refresh
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Variation 1: Dedicated Left Shed Column (Rowspan) with Sorted Chronological Time */}
@@ -550,6 +580,15 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                         ) : (
                           groupRowsByShed(group.rows).map((shedGroup, sIdx) => {
                             const totalRowsInShed = shedGroup.rows.length;
+
+                            // Calculate min and max temperatures in this shed to highlight all occurrences
+                            const validTemps = shedGroup.rows
+                              .flatMap((r) => [r.pad, r.mid, r.fan])
+                              .filter((v) => v !== null && v !== undefined && !isNaN(v))
+                              .map(Number);
+                            const minTemp = validTemps.length > 0 ? Math.min(...validTemps) : null;
+                            const maxTemp = validTemps.length > 0 ? Math.max(...validTemps) : null;
+
                             return shedGroup.rows.map((row, idx) => {
                               const isFirstRowOfShed = idx === 0;
                               const isLastRowOfShed = idx === totalRowsInShed - 1;
@@ -581,17 +620,17 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
 
                                   {/* 3. Pad Side Reading */}
                                   <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side')}
+                                    {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side', minTemp, maxTemp)}
                                   </td>
 
                                   {/* 4. Middle Reading */}
                                   <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle')}
+                                    {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle', minTemp, maxTemp)}
                                   </td>
 
                                   {/* 5. Fan Side Reading */}
                                   <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side')}
+                                    {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side', minTemp, maxTemp)}
                                   </td>
 
                                   {/* 6. Action (Admin only) */}
