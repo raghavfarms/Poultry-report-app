@@ -27,13 +27,7 @@ export default function TemperatureMasterPage({ embedded = false }) {
   const [batchShedCount, setBatchShedCount] = useState(4);
   const [batchLine, setBatchLine] = useState('Line 1');
 
-  // 4. Custom Spot Form State (100% dynamic for any custom shed/line)
-  const [formData, setFormData] = useState({
-    shed: 'Shed 1',
-    line: 'Line 1',
-    position: 'Pad Side',
-    customSpotCode: '',
-  });
+
 
    // 5. QR Sticker Modal State
   const [qrModalSpot, setQrModalSpot] = useState(null);
@@ -130,46 +124,7 @@ export default function TemperatureMasterPage({ embedded = false }) {
     }
   };
 
-  // 2. Manual Custom Spot Creation Handler
-  const handleCreateSpot = async (e) => {
-    e.preventDefault();
-    if (!selectedFirm) {
-      setError('Please select a farm first');
-      return;
-    }
 
-    const currentFirm = firms.find((f) => f._id === selectedFirm);
-    const firmName = currentFirm?.name || 'Poultry Farm';
-
-    setActionLoading(true);
-    setError('');
-    setSuccessMsg('');
-
-    try {
-      const res = await createSpot({
-        firm: selectedFirm,
-        firmName,
-        shed: formData.shed.trim(),
-        line: formData.line.trim(),
-        position: formData.position,
-        spotCode: formData.customSpotCode ? formData.customSpotCode.trim() : undefined,
-      });
-
-      setSuccessMsg(`Registered spot: ${res.data.spotCode}`);
-      setFormData({
-        shed: formData.shed,
-        line: formData.line,
-        position: 'Pad Side',
-        customSpotCode: '',
-      });
-      loadSpots(selectedFirm);
-    } catch (err) {
-      console.error('Create spot error:', err);
-      setError(err.message || 'Failed to create spot');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   // 3. Delete Spot Handler
   const handleDeleteSpot = async (id, spotCode) => {
@@ -409,7 +364,7 @@ export default function TemperatureMasterPage({ embedded = false }) {
         </div>
       )}
 
-      {/* Collapsible Setup & Add Spot Section (Saves vertical space so 7-8 spots show on mobile) */}
+      {/* Batch Spot Generator (Creates all 3 spots per shed at once) */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-sm">
         <button
           type="button"
@@ -420,55 +375,54 @@ export default function TemperatureMasterPage({ embedded = false }) {
             <span className="text-base sm:text-xl">⚡</span>
             <div>
               <h3 className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-emerald-700 transition flex items-center gap-1.5">
-                <span>Configure & Add Thermometer Spots</span>
-                <span className="hidden sm:inline-block text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                  Batch Generator & Custom
+                <span>Batch Spot Generator</span>
+                <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                  Generate All at Once
                 </span>
               </h3>
               <p className="text-[10px] sm:text-xs text-slate-400">
-                {showSetupForms ? 'Click to collapse configuration' : 'Click to auto-generate or manually add spots'}
+                {showSetupForms ? 'Click to collapse batch generator' : 'Click to generate 3-position spots (Pad, Middle, Fan) for all sheds at once'}
               </p>
             </div>
           </div>
           <span className="text-[10px] sm:text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-lg bg-slate-100 group-hover:bg-slate-200 text-slate-700 transition flex items-center gap-1 whitespace-nowrap">
-            {showSetupForms ? 'Hide Options ▲' : 'Open Setup ▼'}
+            {showSetupForms ? 'Hide Generator ▲' : 'Open Generator ▼'}
           </span>
         </button>
 
         {showSetupForms && (
-          <div className="mt-3.5 pt-3.5 border-t border-slate-100 space-y-3 sm:space-y-4 animate-in fade-in duration-150">
-            {/* Batch Spot Generator */}
+          <div className="mt-3.5 pt-3.5 border-t border-slate-100 animate-in fade-in duration-150">
             <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 sm:p-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div>
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <span className="text-amber-500">⚡</span> Batch Spot Generator (Flexible)
+                    <span className="text-amber-500">⚡</span> Auto-Generate Spots for All Sheds
                   </h4>
                   <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5">
-                    Quickly create 3-position spots (Pad, Middle, Fan) for multiple sheds and lines.
+                    Instantly creates 3 monitoring spots (Pad Side, Middle, Fan Side) for each shed with automatic QR codes.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <div className="flex items-center gap-1">
-                    <label className="text-[11px] font-semibold text-slate-600">Sheds:</label>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-bold text-slate-700">Total Sheds:</label>
                     <input
                       type="number"
                       min="1"
                       max="20"
                       value={batchShedCount}
                       onChange={(e) => setBatchShedCount(e.target.value)}
-                      className="w-14 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 text-center focus:ring-2 focus:ring-emerald-500"
+                      className="w-14 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 text-center focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
-                  <div className="flex items-center gap-1">
-                    <label className="text-[11px] font-semibold text-slate-600">Line:</label>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-bold text-slate-700">Line Name:</label>
                     <input
                       type="text"
                       value={batchLine}
                       onChange={(e) => setBatchLine(e.target.value)}
-                      className="w-20 bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                      className="w-24 bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
                       placeholder="Line 1"
                     />
                   </div>
@@ -476,67 +430,13 @@ export default function TemperatureMasterPage({ embedded = false }) {
                   <button
                     onClick={handleQuickSetup}
                     disabled={actionLoading || !selectedFirm}
-                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg transition shadow-sm disabled:opacity-50 flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-sm disabled:opacity-50 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                   >
-                    {actionLoading ? 'Generating...' : `⚡ Generate for ${batchShedCount} Sheds`}
+                    <span>⚡</span>
+                    {actionLoading ? 'Generating...' : `Generate All (${(Number(batchShedCount) || 0) * 3} Spots)`}
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Add Custom Spot Form */}
-            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 sm:p-4">
-              <h4 className="text-xs sm:text-sm font-bold text-slate-900 mb-2 flex items-center gap-1.5">
-                <span className="text-emerald-600">➕</span> Add Single Thermometer Spot
-              </h4>
-              <form onSubmit={handleCreateSpot} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 items-end">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Shed Name / No</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Shed 1"
-                    value={formData.shed}
-                    onChange={(e) => setFormData({ ...formData, shed: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Line / Row</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Line 1"
-                    value={formData.line}
-                    onChange={(e) => setFormData({ ...formData, line: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">Position along Line</label>
-                  <select
-                    value={formData.position}
-                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
-                  >
-                    <option value="Pad Side">Pad Side (Front)</option>
-                    <option value="Middle">Middle (Center)</option>
-                    <option value="Fan Side">Fan Side (Back / End)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <button
-                    type="submit"
-                    disabled={actionLoading || !selectedFirm}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs py-1.5 px-3 rounded-lg transition disabled:opacity-50 cursor-pointer shadow-sm"
-                  >
-                    Add Spot
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
         )}
