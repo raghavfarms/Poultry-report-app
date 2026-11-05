@@ -364,20 +364,20 @@ export default function TemperatureEntryPage() {
     }
     setCameraModalError('');
 
-    // High-speed crop to viewfinder ROI (~25KB payload instead of 600KB)
+    // Capture full frame with high clarity so bulb, meniscus, and numbers are never cut off
     const canvas = canvasRef.current || document.createElement('canvas');
 
     const vWidth = video.videoWidth || 1280;
     const vHeight = video.videoHeight || 720;
 
-    // Viewfinder ROI: Center 60% width and 75% height where thermometer sits
-    const cropW = Math.round(vWidth * 0.60);
-    const cropH = Math.round(vHeight * 0.75);
+    // Keep 96% width and 98% height so the entire thermometer is visible to the AI
+    const cropW = Math.round(vWidth * 0.96);
+    const cropH = Math.round(vHeight * 0.98);
     const cropX = Math.round((vWidth - cropW) / 2);
     const cropY = Math.round((vHeight - cropH) / 2);
 
-    // Scale to max 420px width for ultra-fast network transmission (<25KB)
-    const targetW = 420;
+    // Maintain crisp 800px resolution so tick marks and numbers are sharp and legible
+    const targetW = Math.min(cropW, 800);
     const targetH = Math.round((cropH * targetW) / cropW);
 
     canvas.width = targetW;
@@ -386,7 +386,8 @@ export default function TemperatureEntryPage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.70);
+    // Quality 0.82 for sharp text without artifacts
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
     processThermometerImageWithAi(dataUrl);
   };
 

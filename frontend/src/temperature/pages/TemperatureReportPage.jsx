@@ -66,11 +66,11 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     const newD = String(dateObj.getUTCDate()).padStart(2, '0');
     setSelectedDate(`${newY}-${newM}-${newD}`);
   };
-
+    
   const [reportData, setReportData] = useState({
-    rows: [],
-    availableSheds: [],
-    kpis: {
+      rows: [],
+      availableSheds: [],
+      kpis: {
       totalReadings: 0,
       roundsDone: '0 of 12',
       avgTemp: '—',

@@ -17,8 +17,8 @@ function getAiClient() {
 }
 
 /**
- * High-Precision Thermometer Vision Service.
- * Powered by Gemini 3.5 Flash Lite & 3.8 Flash for rapid sub-2s response.
+ * High-Speed & Resilient Poultry Shed Thermometer Vision Service.
+ * Powered by Gemini 3.5 Flash Lite & 3.8 Flash for sub-second readings.
  */
 export async function extractTemperatureFromImage(base64Image, mimeType = 'image/jpeg') {
   if (!base64Image || typeof base64Image !== 'string') {
@@ -46,58 +46,50 @@ export async function extractTemperatureFromImage(base64Image, mimeType = 'image
     };
   }
 
-  // Physical metrology validator for liquid-in-glass shed thermometers
-  const prompt = `You are a precision physical metrology validator for physical liquid-in-glass poultry shed thermometers.
+  // High-accuracy practical reading prompt for farm sheds
+  const prompt = `You are a high-speed vision system that reads temperature from physical thermometers in poultry farms.
 
-FULL OPERATING TEMPERATURE RANGE:
-- The thermometer operates from -10°C to 50°C.
-- Read the genuine position of the colored liquid meniscus (red spirit line) on the scale.
+YOUR TASK:
+Carefully inspect the image and read the temperature shown on the thermometer.
 
-MANDATORY PHYSICAL MENISCUS RULES:
-1. WHAT IS THE MENISCUS:
-   The physical boundary where the colored liquid column (red spirit) ENDS and the clear capillary tube BEGINS.
+SUPPORTED THERMOMETERS:
+1. Liquid-in-glass (red alcohol/spirit, blue liquid, or mercury):
+   - Locate the colored column (usually red or blue) and read where its top level points on the printed Celsius (°C) scale.
+   - Look at the nearby printed numbers (e.g. 15, 20, 25, 30, 35, 40) and scale lines.
+2. Digital thermometer (LCD / LED screen):
+   - Read the digital temperature number shown in Celsius (°C).
+3. Dial / bimetallic gauge thermometer:
+   - Read where the indicator needle points on the Celsius (°C) scale.
 
-2. TUBE COMPLETELY EMPTY:
-   If the capillary tube is clear with NO colored liquid or no meniscus:
-   Return detected=false, error="MENISCUS_BELOW_FRAME", reasoning="Capillary tube is empty in this view. Please point camera lower towards the bulb."
+RULES:
+- Be practical and helpful: Shed lighting and angles vary. If you see a thermometer and can determine the temperature (usually between 10°C and 45°C), return detected=true with the Celsius temperature immediately.
+- DO NOT reject valid images with technical errors about liquid meniscus boundaries.
+- ONLY return detected=false if the image genuinely does NOT show a thermometer (e.g. a face, ceiling, wall, clothes, or completely dark/blank).
 
-3. TUBE COMPLETELY FULL:
-   If colored liquid fills the tube past the top edge with NO visible meniscus:
-   Return detected=false, error="MENISCUS_ABOVE_FRAME", reasoning="Liquid column fills view past the top edge. Please point camera higher."
-
-4. NOT A REAL THERMOMETER:
-   If this is a piece of paper, phone screen, hand, wall, or not an authentic physical thermometer:
-   Return detected=false, error="NOT_A_THERMOMETER", reasoning="Please point the camera directly at a physical liquid-in-glass poultry shed thermometer."
-
-5. VALID READING:
-   When the top meniscus (red liquid stops, clear capillary begins) is visibly positioned between printed numbers inside the frame:
-   - Identify the exact Celsius temperature (°C) at the meniscus.
-   - Cross-check with Fahrenheit (°F) at the same horizontal height: F ≈ C * 1.8 + 32.
-
-Return strictly JSON:
-If valid meniscus transition is visible:
+RETURN STRICTLY JSON:
+If temperature is found:
 {
   "detected": true,
-  "hasLiquid": true,
-  "temperature": <integer Celsius reading>,
-  "celsiusExact": <float or int>,
-  "fahrenheitExact": <float or int>,
-  "crossValidated": true,
-  "reasoning": "<clear explanation of meniscus level and Celsius tick>"
+  "temperature": <integer Celsius rounded, e.g. 26>,
+  "celsiusExact": <float or int, e.g. 26.2>,
+  "confidence": 0.95,
+  "type": "liquid_glass" | "digital" | "dial",
+  "reasoning": "<short description, e.g. Red liquid column reaches 26°C mark on scale>"
 }
 
-If rejected (empty tube, full tube, fake object, or unclear):
+If no thermometer is visible or completely unreadable:
 {
   "detected": false,
-  "hasLiquid": false,
-  "error": "MENISCUS_BELOW_FRAME" | "MENISCUS_ABOVE_FRAME" | "NOT_A_THERMOMETER" | "UNCLEAR_IMAGE",
-  "reasoning": "<instruction telling the user how to move camera>"
+  "error": "NO_THERMOMETER_DETECTED",
+  "reasoning": "Thermometer not clearly visible. Please point the camera directly at the thermometer and hold steady."
 }`;
 
-  // Ultra-fast 3.5-flash-lite first (~1s latency), with 3.8-flash fallback
+  // Priority list of Gemini models for speed and uptime
   const candidateGeminiModels = [
     'gemini-3.5-flash-lite',
+    'gemini-flash-lite-latest',
     'gemini-3.8-flash',
+    'gemini-3.5-flash',
   ];
 
   for (const model of candidateGeminiModels) {
@@ -106,7 +98,7 @@ If rejected (empty tube, full tube, fake object, or unclear):
         responseMimeType: 'application/json',
       };
 
-      // 4.5-second timeout per model for rapid industrial-grade speed
+      // 4.5-second timeout per model for rapid speed
       const generatePromise = ai.models.generateContent({
         model,
         contents: [
@@ -134,12 +126,11 @@ If rejected (empty tube, full tube, fake object, or unclear):
         try {
           const parsed = JSON.parse(jsonMatch[0]);
 
-          // Strictly reject when meniscus is not in frame, no liquid, or not a thermometer
-          if (parsed.detected === false || parsed.hasLiquid === false) {
+          if (parsed.detected === false) {
             return {
               success: false,
-              error: parsed.reasoning || 'Liquid level (meniscus) not visible in photo. Please frame the thermometer so where the red line ends is clearly visible.',
-              errorCode: parsed.error || 'MENISCUS_NOT_VISIBLE',
+              error: parsed.reasoning || 'Thermometer not detected. Please point the camera directly at the thermometer scale and hold steady.',
+              errorCode: parsed.error || 'NO_THERMOMETER_DETECTED',
               modelUsed: `Gemini (${model})`,
             };
           }
@@ -147,14 +138,12 @@ If rejected (empty tube, full tube, fake object, or unclear):
           const rawVal = parsed.temperature ?? parsed.celsiusExact ?? parsed.temp ?? parsed.celsius;
           if (rawVal !== undefined && rawVal !== null) {
             const numVal = parseFloat(rawVal);
-            if (!isNaN(numVal) && numVal >= -30 && numVal <= 60) {
+            if (!isNaN(numVal) && numVal >= -30 && numVal <= 65) {
               return {
                 success: true,
                 temperature: Math.round(numVal),
                 celsiusExact: parsed.celsiusExact ?? numVal,
-                fahrenheitExact: parsed.fahrenheitExact ?? null,
-                crossValidated: Boolean(parsed.crossValidated),
-                confidence: parsed.crossValidated ? 1.0 : 0.99,
+                confidence: parsed.confidence || 0.95,
                 reasoning: parsed.reasoning || '',
                 modelUsed: `Gemini (${model})`,
               };
@@ -163,14 +152,13 @@ If rejected (empty tube, full tube, fake object, or unclear):
         } catch (_) {}
       }
     } catch (gErr) {
-      console.warn(`[Gemini Vision] Model ${model} failed or timed out:`, gErr.message);
+      console.warn(`[Gemini Vision] Model ${model} failed:`, gErr.message);
     }
   }
 
-  // Never return any fake or random number
   return {
     success: false,
-    error: 'Could not detect thermometer liquid level. Please ensure the top of the red liquid column is inside the camera frame and rescan.',
+    error: 'Could not read temperature clearly. Please hold the camera 6–10 inches away facing the thermometer scale.',
     errorCode: 'NO_READING_DETECTED',
   };
 }
