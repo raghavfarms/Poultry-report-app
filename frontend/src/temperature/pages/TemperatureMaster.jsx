@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import { api } from '../../api/client.js';
+import { exportReportToPdf } from '../../utils/exportPdf.js';
 import {
   fetchSpots,
   createSpot,
@@ -237,6 +238,93 @@ export default function TemperatureMasterPage({ embedded = false }) {
 
   const [qrDataUrl, setQrDataUrl] = useState('');
 
+  // All QR Labels PDF/Print Sheet states
+  const [allQrModalOpen, setAllQrModalOpen] = useState(false);
+  const [allQrDataUrls, setAllQrDataUrls] = useState({});
+  const [generatingAllQr, setGeneratingAllQr] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const qrSheetRef = useRef(null);
+
+  // Sorted spots (by Shed number, then Pad Side -> Middle -> Fan Side)
+  const sortedSpots = useMemo(() => {
+    const posOrder = { 'Pad Side': 1, 'Middle': 2, 'Fan Side': 3 };
+    return [...spots].sort((a, b) => {
+      const numA = parseInt(a.shed.replace(/\D/g, ''), 10) || 0;
+      const numB = parseInt(b.shed.replace(/\D/g, ''), 10) || 0;
+      if (numA !== numB) return numA - numB;
+      if (a.shed !== b.shed) return a.shed.localeCompare(b.shed);
+      const pA = posOrder[a.position] || 99;
+      const pB = posOrder[b.position] || 99;
+      return pA - pB;
+    });
+  }, [spots]);
+
+  const selectedFirmName = useMemo(() => {
+    const firm = firms.find((f) => f._id === selectedFirm);
+    return firm?.name || 'Poultry Farm';
+  }, [firms, selectedFirm]);
+
+  const shedSummary = useMemo(() => {
+    const map = new Map();
+    sortedSpots.forEach((s) => {
+      if (!map.has(s.shed)) {
+        map.set(s.shed, s.line);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([shed, line]) => `${shed}${line ? ` (${line})` : ''}`)
+      .join(' • ');
+  }, [sortedSpots]);
+
+  const handleOpenAllQrModal = async () => {
+    setAllQrModalOpen(true);
+    setGeneratingAllQr(true);
+    try {
+      const urls = {};
+      for (const spot of sortedSpots) {
+        const payload = JSON.stringify({
+          spotCode: spot.spotCode,
+          firm: spot.firm,
+          firmName: spot.firmName,
+          shed: spot.shed,
+          line: spot.line,
+          position: spot.position,
+        });
+        urls[spot._id] = await QRCode.toDataURL(payload, {
+          width: 300,
+          margin: 1,
+          errorCorrectionLevel: 'M',
+          color: {
+            dark: '#0f172a',
+            light: '#ffffff',
+          },
+        });
+      }
+      setAllQrDataUrls(urls);
+    } catch (err) {
+      console.error('Error generating all QR codes:', err);
+    } finally {
+      setGeneratingAllQr(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!qrSheetRef.current) return;
+    setDownloadingPdf(true);
+    try {
+      await exportReportToPdf(qrSheetRef.current, {
+        filename: `${selectedFirmName.replace(/\s+/g, '_')}_Thermometer_QR_Sheet.pdf`,
+        orientation: 'portrait',
+        format: 'a4',
+        margin: 4,
+      });
+    } catch (err) {
+      console.error('Failed to export PDF:', err);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
   // Generate offline QR code locally in browser using `qrcode` library
   useEffect(() => {
     if (!qrModalSpot) {
@@ -466,9 +554,19 @@ export default function TemperatureMasterPage({ embedded = false }) {
             </p>
           </div>
           {spots.length > 0 && (
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-              {spots.length} Scannable Spots Active
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+                {spots.length} Scannable Spots Active
+              </span>
+              <button
+                type="button"
+                onClick={handleOpenAllQrModal}
+                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm cursor-pointer transition"
+                title="Print all QR codes on a single A4 PDF sheet"
+              >
+                <span>🖨️</span> Print QR Sheet (PDF)
+              </button>
+            </div>
           )}
         </div>
 
@@ -683,29 +781,6 @@ export default function TemperatureMasterPage({ embedded = false }) {
               </p>
             </div>
 
-            <style>{`
-              @media print {
-                body * {
-                  visibility: hidden;
-                }
-                #printable-sticker-card, #printable-sticker-card * {
-                  visibility: visible;
-                }
-                #printable-sticker-card {
-                  position: absolute;
-                  left: 50%;
-                  top: 20px;
-                  transform: translateX(-50%);
-                  width: 200px !important;
-                  max-width: 200px !important;
-                  padding: 8px !important;
-                  margin: 0 !important;
-                  border: 1.5px dashed #475569 !important;
-                  box-shadow: none !important;
-                }
-              }
-            `}</style>
-
             <div className="flex gap-2 justify-center mt-3">
               <button
                 onClick={() => window.print()}
@@ -723,6 +798,194 @@ export default function TemperatureMasterPage({ embedded = false }) {
           </div>
         </div>
       )}
+
+      {/* All QRs A4 Sheet Modal */}
+      {allQrModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-4xl w-full p-4 sm:p-5 shadow-2xl flex flex-col max-h-[95vh] animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header Controls */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-slate-200 gap-3">
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>🖨️</span> A4 Thermometer QR Labels Sheet ({sortedSpots.length} Labels)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Cut along dashed borders to paste directly onto physical thermometers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf || generatingAllQr}
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span>{downloadingPdf ? '⏳' : '📥'}</span>
+                  {downloadingPdf ? 'Generating PDF...' : 'Download PDF'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  disabled={generatingAllQr}
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm cursor-pointer transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <span>🖨️</span> Print Sheet
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAllQrModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-700 text-base font-bold w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-100 transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Sheet Preview */}
+            <div className="flex-1 overflow-y-auto p-2 sm:p-4 bg-slate-100 rounded-2xl my-2 flex justify-center">
+              {generatingAllQr ? (
+                <div className="p-12 text-center text-slate-500 space-y-2">
+                  <div className="animate-spin text-2xl">🔄</div>
+                  <div className="text-xs font-medium">Generating high-resolution QR codes for all {sortedSpots.length} spots...</div>
+                </div>
+              ) : (
+                <div
+                  ref={qrSheetRef}
+                  id="printable-all-qr-sheet"
+                  className="w-[740px] bg-white text-slate-900 p-5 rounded-lg border border-slate-300 font-sans shadow-md flex flex-col justify-between"
+                  style={{ minHeight: '980px' }}
+                >
+                  {/* Sheet Header */}
+                  <div className="text-center pb-2 border-b-2 border-slate-900">
+                    <h1 className="text-base font-black tracking-wider uppercase text-slate-900">
+                      {selectedFirmName} • THERMOMETER QR CODE LABELS
+                    </h1>
+                    <p className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                      Precision Cut Sheet ({sortedSpots.length} Labels) • Cut along dashed borders to paste directly onto thermometers
+                    </p>
+                  </div>
+
+                  {/* 3-Column Grid of 12 Cards */}
+                  <div className="grid grid-cols-3 gap-2.5 my-3 flex-1">
+                    {sortedSpots.map((spot) => (
+                      <div
+                        key={spot._id}
+                        className="border border-dashed border-slate-400 rounded-md p-2 bg-white flex flex-col justify-between items-center text-center relative"
+                      >
+                        {/* Cut Line Indicator */}
+                        <div className="w-full flex justify-between items-center text-[7.5px] font-mono text-slate-400 select-none leading-none">
+                          <span>✂ cut</span>
+                          <span>✂ cut</span>
+                        </div>
+
+                        {/* Top Primary Bold Heading */}
+                        <div className="mt-1">
+                          <div className="text-xs font-black text-slate-900 leading-tight">
+                            {spot.shed} • {spot.line}
+                          </div>
+                          <div className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-wide leading-tight">
+                            {spot.position}
+                          </div>
+                        </div>
+
+                        {/* Secondary Context */}
+                        <div className="mt-1">
+                          <div className="text-[7.5px] font-bold uppercase tracking-wider text-slate-400 leading-none">
+                            {spot.firmName || selectedFirmName}
+                          </div>
+                          <div className="text-[9px] font-bold text-slate-800 leading-tight">
+                            {spot.shed} • {spot.line}
+                          </div>
+                          <div className="text-[8px] font-bold text-emerald-600 uppercase leading-none">
+                            {spot.position}
+                          </div>
+                        </div>
+
+                        {/* Scannable QR Image */}
+                        <div className="my-1">
+                          {allQrDataUrls[spot._id] ? (
+                            <img
+                              src={allQrDataUrls[spot._id]}
+                              alt={spot.spotCode}
+                              className="w-20 h-20 mx-auto p-1 border border-slate-200 rounded-md bg-white shadow-2xs"
+                            />
+                          ) : (
+                            <div className="w-20 h-20 mx-auto border border-slate-200 rounded-md bg-slate-50 flex items-center justify-center text-[8px] text-slate-400">
+                              Loading...
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Spot Code Pill */}
+                        <div className="font-mono text-[8px] font-bold tracking-wider text-slate-800 bg-slate-100 py-0.5 px-2 rounded border border-slate-200 leading-tight">
+                          {spot.spotCode}
+                        </div>
+
+                        {/* Bottom Cut Line Indicator */}
+                        <div className="w-full flex justify-between items-center text-[7.5px] font-mono text-slate-400 mt-1 select-none leading-none">
+                          <span>✂ cut</span>
+                          <span>✂ cut</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Sheet Footer */}
+                  <div className="pt-2 border-t-2 border-slate-900 flex justify-between items-center text-[9px] text-slate-600 font-medium">
+                    <span>{sortedSpots.length} Cut-and-Paste Thermometer QR Badges</span>
+                    <span className="truncate max-w-[420px] text-right text-slate-500 font-mono text-[8px]">
+                      {shedSummary}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Print Stylesheet for both single sticker and A4 full sheet */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-sticker-card, #printable-sticker-card *,
+          #printable-all-qr-sheet, #printable-all-qr-sheet * {
+            visibility: visible !important;
+          }
+          #printable-sticker-card {
+            position: absolute !important;
+            left: 50% !important;
+            top: 20px !important;
+            transform: translateX(-50%) !important;
+            width: 200px !important;
+            max-width: 200px !important;
+            padding: 8px !important;
+            margin: 0 !important;
+            border: 1.5px dashed #475569 !important;
+            box-shadow: none !important;
+          }
+          #printable-all-qr-sheet {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 4mm !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 6mm;
+          }
+        }
+      `}</style>
 
       {/* Edit Spot Modal */}
       {editingSpot && (
