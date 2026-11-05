@@ -1032,60 +1032,6 @@ export default function TemperatureEntryPage() {
             </div>
           </div>
 
-          {/* Hybrid Vision Verification Telemetry Card */}
-          {aiVerified && hybridResult && (
-            <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2 animate-in fade-in">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
-                  <span>🔬</span> Vision Telemetry
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    hybridResult.status === 'high'
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                      : hybridResult.status === 'medium'
-                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                      : 'bg-rose-100 text-rose-800 border border-rose-300'
-                  }`}
-                >
-                  {hybridResult.status === 'high'
-                    ? '● High Confidence'
-                    : hybridResult.status === 'medium'
-                    ? '▲ Medium Confidence'
-                    : '⚠️ Verification Needed'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[10px] pt-1 border-t border-slate-200/60">
-                <div className="bg-white p-2 rounded-xl border border-slate-200/70">
-                  <p className="text-slate-400 font-medium">Gemini Reading</p>
-                  <p className="text-xs font-bold text-slate-900 mt-0.5">
-                    {aiDetails?.temperature ?? '—'}°C
-                  </p>
-                  <p className="text-[9px] text-slate-400 truncate">
-                    {aiDetails?.modelUsed || 'Gemini Vision'}
-                  </p>
-                </div>
-
-                <div className="bg-white p-2 rounded-xl border border-slate-200/70">
-                  <p className="text-slate-400 font-medium">OpenCV Calibrated</p>
-                  <p className="text-xs font-bold text-slate-900 mt-0.5">
-                    {hybridResult.openCvReading ? `${hybridResult.openCvReading}°C` : 'Liquid Verified'}
-                  </p>
-                  <p className="text-[9px] text-slate-400 truncate">
-                    {hybridResult.diff !== undefined ? `Diff: ±${hybridResult.diff}°C` : 'Meniscus aligned'}
-                  </p>
-                </div>
-              </div>
-
-              {hybridResult.message && (
-                <p className="text-[10px] text-slate-500 leading-tight italic">
-                  {hybridResult.message}
-                </p>
-              )}
-            </div>
-          )}
-
           {/* Action Buttons: Scan Again / Save Entry */}
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button
