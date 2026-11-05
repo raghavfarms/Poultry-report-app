@@ -404,17 +404,13 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
               Farm
             </label>
             <select
-              value={selectedFirm}
-              onChange={(e) => setSelectedFirm(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
+              value={selectedFirm}onChange={(e) => setSelectedFirm(e.target.value)}className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none cursor-pointer"
             >
               {firms.length > 1 && (
                 <option value="all">All Farms</option>
-              )}
-              {firms.map((f) => (
+              )}{firms.map((f) => (
                 <option key={f._id} value={f._id}>
-                  {f.name}
-                </option>
+                  {f.name}  </option>
               ))}
             </select>
           </div>
@@ -427,8 +423,7 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => handleDateChange(-1)}
-                title="Previous Day"
+                onClick={() => handleDateChange(-1)}  title="Previous Day"
                 aria-label="Previous Day"
                 className="h-8 w-7 shrink-0 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-200 active:bg-slate-300 text-slate-600 hover:text-slate-900 transition cursor-pointer"
               >
@@ -438,14 +433,11 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
               </button>
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-1 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+                value={selectedDate}  onChange={(e) => setSelectedDate(e.target.value)}  className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-1 py-1.5 text-[11px] sm:text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
               />
               <button
                 type="button"
-                onClick={() => handleDateChange(1)}
-                title="Next Day"
+                onClick={() => handleDateChange(1)}  title="Next Day"
                 aria-label="Next Day"
                 className="h-8 w-7 shrink-0 flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-200 active:bg-slate-300 text-slate-600 hover:text-slate-900 transition cursor-pointer"
               >
@@ -462,14 +454,11 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
               Shed
             </label>
             <select
-              value={selectedShed}
-              onChange={(e) => setSelectedShed(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
+              value={selectedShed}onChange={(e) => setSelectedShed(e.target.value)}className="w-full rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:border-emerald-500 focus:bg-white focus:outline-none"
             >
               {availableSheds.map((s) => (
                 <option key={s} value={s}>
-                  {s}
-                </option>
+                  {s}  </option>
               ))}
             </select>
           </div>
@@ -507,29 +496,25 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
               </NavLink>
             </div>
           </div>
-        ) : ( 
+        ) : (
           <div className="space-y-4">
             {groupedFirmsData.map((group) => {
               const recordedCount = group.rows.filter((r) => !r.missed).length;
               return (
                 <div
-                  key={group.firmId || group.firmName}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
+                  key={group.firmId || group.firmName}    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
                 >
-                  {/* Farm Header Banner */}
-                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
+                  {/* Farm Header Banner */}    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 text-xs text-emerald-800 font-bold">
                         🏡
                       </span>
                       <h2 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide">
-                        {group.firmName}
-                      </h2>
+                        {group.firmName}        </h2>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {/* Highlight Legend */}
-                      <div className="hidden sm:flex items-center gap-2.5 text-[11px] font-semibold text-slate-600">
+                      {/* Highlight Legend */}        <div className="hidden sm:flex items-center gap-2.5 text-[11px] font-semibold text-slate-600">
                         <span className="inline-flex items-center gap-1.5">
                           <span className="w-2.5 h-2.5 rounded-sm bg-sky-100 border border-sky-300 inline-block shadow-2xs"></span>
                           <span>Lowest Temp</span>
@@ -543,18 +528,14 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                       {selectedFirm !== 'all' && (
                         <button
                           type="button"
-                          onClick={loadReport}
-                          disabled={loading}
-                          className="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer"
+                          onClick={loadReport}            disabled={loading}            className="text-xs font-semibold text-slate-500 hover:text-emerald-700 transition cursor-pointer"
                         >
                           ↻ Refresh
                         </button>
-                      )}
-                    </div>
+                      )}      </div>
                   </div>
 
-                  {/* Variation 1: Dedicated Left Shed Column (Rowspan) with Sorted Chronological Time */}
-                  <div className="overflow-x-auto">
+                  {/* Variation 1: Dedicated Left Shed Column (Rowspan) with Sorted Chronological Time */}    <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/70 text-xs font-bold text-slate-700">
@@ -565,16 +546,14 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                           <th className="py-2.5 px-3 text-center font-bold text-slate-800">Fan Side</th>
                           {isAdminOrDev && (
                             <th className="py-2.5 px-2 text-center font-bold text-slate-800 w-14">Action</th>
-                          )}
-                        </tr>
+                          )}          </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {group.rows.length === 0 ? (
                           <tr>
                             <td colSpan={isAdminOrDev ? 6 : 5} className="py-8 text-center text-slate-400">
                               <p className="text-sm font-medium text-slate-500">
-                                No temperature records found for {group.firmName} on {formattedDisplayDate}
-                              </p>
+                                No temperature records found for {group.firmName} on {formattedDisplayDate}                </p>
                             </td>
                           </tr>
                         ) : (
@@ -596,51 +575,35 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
 
                               return (
                                 <tr
-                                  key={`row-${shedGroup.shedName}-${row.time}-${idx}`}
-                                  className={`hover:bg-slate-50/50 transition ${
+                                  key={`row-${shedGroup.shedName}-${row.time}-${idx}`}                    className={`hover:bg-slate-50/50 transition ${
                                     isLastRowOfShed ? 'border-b-2 border-slate-200' : 'border-b border-slate-100'
-                                  }`}
-                                >
-                                  {/* 1. Grouped Left Shed Column (Bold text matching reference date column) */}
-                                  {isFirstRowOfShed && (
+                                  }`}                  >
+                                  {/* 1. Grouped Left Shed Column (Bold text matching reference date column) */}                    {isFirstRowOfShed && (
                                     <td
-                                      rowSpan={totalRowsInShed}
-                                      className="py-2.5 px-3 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-40"
+                                      rowSpan={totalRowsInShed}                        className="py-2.5 px-3 align-middle text-center bg-slate-50/40 border-r border-slate-200 select-none whitespace-nowrap w-40"
                                     >
                                       <b className="font-bold text-slate-900 text-xs">
-                                        {shedGroup.shedName} · {row.line || 'Line 1'}
-                                      </b>
+                                        {shedGroup.shedName} · {row.line || 'Line 1'}                        </b>
                                     </td>
                                   )}
 
-                                  {/* 2. Time Column (Lighter color than shed column) */}
-                                  <td className="py-2.5 px-3 font-semibold text-slate-500 text-xs whitespace-nowrap">
-                                    {row.time}
-                                  </td>
+                                  {/* 2. Time Column (Lighter color than shed column) */}                    <td className="py-2.5 px-3 font-semibold text-slate-500 text-xs whitespace-nowrap">
+                                    {row.time}                    </td>
 
-                                  {/* 3. Pad Side Reading */}
-                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side', minTemp, maxTemp)}
-                                  </td>
+                                  {/* 3. Pad Side Reading */}                    <td className="py-2.5 px-3 text-center text-xs text-slate-800">
+                                    {renderTempCell(row.pad, row.padVerified, row.padTime, 'Pad Side', minTemp, maxTemp)}                    </td>
 
-                                  {/* 4. Middle Reading */}
-                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle', minTemp, maxTemp)}
-                                  </td>
+                                  {/* 4. Middle Reading */}                    <td className="py-2.5 px-3 text-center text-xs text-slate-800">
+                                    {renderTempCell(row.mid, row.midVerified, row.midTime, 'Middle', minTemp, maxTemp)}                    </td>
 
-                                  {/* 5. Fan Side Reading */}
-                                  <td className="py-2.5 px-3 text-center text-xs text-slate-800">
-                                    {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side', minTemp, maxTemp)}
-                                  </td>
+                                  {/* 5. Fan Side Reading */}                    <td className="py-2.5 px-3 text-center text-xs text-slate-800">
+                                    {renderTempCell(row.fan, row.fanVerified, row.fanTime, 'Fan Side', minTemp, maxTemp)}                    </td>
 
-                                  {/* 6. Action (Admin only) */}
-                                  {isAdminOrDev && (
+                                  {/* 6. Action (Admin only) */}                    {isAdminOrDev && (
                                     <td className="py-2 px-2 text-center whitespace-nowrap">
                                       <button
                                         type="button"
-                                        onClick={() => handleDeleteRow(row)}
-                                        disabled={isDeletingThis}
-                                        className="inline-flex items-center justify-center h-6 w-6 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
+                                        onClick={() => handleDeleteRow(row)}                          disabled={isDeletingThis}                          className="inline-flex items-center justify-center h-6 w-6 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition disabled:opacity-50 cursor-pointer"
                                         title="Delete reading"
                                       >
                                         {isDeletingThis ? (
@@ -659,16 +622,13 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
                                               d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                                             />
                                           </svg>
-                                        )}
-                                      </button>
+                                        )}                        </button>
                                     </td>
-                                  )}
-                                </tr>
+                                  )}                  </tr>
                               );
                             });
                           })
-                        )}
-                      </tbody>
+                        )}        </tbody>
                     </table>
                   </div>
                 </div>
@@ -680,4 +640,3 @@ export default function TemperatureReportPage({ compact = false, onSwitchToEntry
     </div>
   );
 }
-              
