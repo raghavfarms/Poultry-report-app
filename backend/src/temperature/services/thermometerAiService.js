@@ -100,6 +100,8 @@ If no thermometer is visible or completely unreadable:
 
   // Priority list of Gemini models for speed and uptime
   const candidateGeminiModels = [
+    'gemini-3.1-flash-lite',
+    'gemini-3.1-flash-lite-preview',
     'gemini-3.5-flash-lite',
     'gemini-flash-lite-latest',
     'gemini-3.8-flash',
@@ -116,7 +118,7 @@ If no thermometer is visible or completely unreadable:
         config.thinkingConfig = { thinkingBudget: 0 };
       }
 
-      // 4-second timeout to guarantee sub-second / fast fallback without hanging
+      // 7.5-second timeout for fast fallback while allowing network image upload
       const generatePromise = ai.models.generateContent({
         model,
         contents: [
@@ -132,7 +134,7 @@ If no thermometer is visible or completely unreadable:
       });
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout after 4000ms on ${model}`)), 4000)
+        setTimeout(() => reject(new Error(`Timeout after 7500ms on ${model}`)), 7500)
       );
 
       const response = await Promise.race([generatePromise, timeoutPromise]);
