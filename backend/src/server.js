@@ -147,7 +147,7 @@ async function start() {
             type: 'MISCELLANEOUS',
             order: 1,
             active: true,
-            createdBy: adminUser?._id,
+            createdBy: adminUser?._id,  
           },
         },
         { upsert: true, new: true }
