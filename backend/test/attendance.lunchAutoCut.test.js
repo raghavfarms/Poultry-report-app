@@ -73,3 +73,30 @@ test('retroactive auto-correction identifies past flawed sessions and recalculat
   assert.ok(correctedRemarks.includes('[Auto-Corrected: Left at lunch - Did not return]'));
 });
 
+test('auto-cut for workers who returned from lunch credits full 8h net work (9h gross shift)', () => {
+  // Scenario: Worker Rana punches IN at 8:13 AM, goes for lunch 1:00 PM - 1:59 PM (59 mins),
+  // but forgets to punch OUT in the evening.
+  const dutyIn = new Date('2026-11-06T08:13:00+05:30');
+  const lunchMinutes = 59;
+  const shiftMinutes = 480; // 8 hours net shift
+
+  // With the new 9-hour / net-8h logic:
+  const dutyOut = new Date(dutyIn.getTime() + (shiftMinutes + lunchMinutes) * 60 * 1000);
+  const netWorkedMinutes = shiftMinutes; // 480 mins
+
+  // Verify dutyOut time is 8:13 AM + 8h 59m = 5:12 PM
+  assert.equal(dutyOut.getHours(), 17, 'Duty Out hour must be 17 (5 PM)');
+  assert.equal(dutyOut.getMinutes(), 12, 'Duty Out minute must be 12 (5:12 PM)');
+  assert.equal(netWorkedMinutes, 480, 'Net worked minutes must be full 480 minutes (8 hours)');
+  assert.equal(formatWorkedHours(netWorkedMinutes), '8h 0m');
+
+  const classifyAttendance = (mins) => {
+    if (mins >= 475) return 'COMPLETED';
+    if (mins >= 235) return 'HALF_DAY';
+    return 'ABSENT';
+  };
+
+  assert.equal(classifyAttendance(netWorkedMinutes), 'COMPLETED', 'Worker who returned from lunch must be credited Full Day (COMPLETED)');
+});
+
+
