@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { canAutoCutAttendance } from '../../utils/moduleAccess.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath, saveAttendance, getWorkLocationSortRank } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
@@ -51,6 +53,9 @@ export default function DailyRegisterView({
   date: propDate,
   setDate: propSetDate,
 }) {
+  const { user } = useAuth();
+  const showAutoCutColumn = canAutoCutAttendance(user);
+
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());
@@ -507,7 +512,9 @@ export default function DailyRegisterView({
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Hours Logged</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Lunch Time</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Source</th>
-                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Auto Cut</th>
+                  {showAutoCutColumn && (
+                    <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Auto Cut</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -636,9 +643,11 @@ export default function DailyRegisterView({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td data-label="Auto Cut" className="px-3 py-1.5 whitespace-nowrap text-center">
-                        {renderAutoCutColumn(r)}
-                      </td>
+                      {showAutoCutColumn && (
+                        <td data-label="Auto Cut" className="px-3 py-1.5 whitespace-nowrap text-center">
+                          {renderAutoCutColumn(r)}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

@@ -48,11 +48,8 @@ export function attendanceEditOnly(req, res, next) {
 }
 
 export function attendanceAutoCutOnly(req, res, next) {
-  if (['admin', 'developer'].includes(req.user?.role) || (
-    req.user?.allowedModules?.includes('attendance') &&
-    (req.user?.permissions?.attendance_autocut === true || req.user?.permissions?.attendance_edit === true)
-  )) return next();
-  return res.status(403).json({ message: 'Auto Cut permission is required.' });
+  if (['admin', 'developer'].includes(req.user?.role)) return next();
+  return res.status(403).json({ message: 'Admin access is required for Auto Cut.' });
 }
 
 export function attendanceReportsOnly(req, res, next) {

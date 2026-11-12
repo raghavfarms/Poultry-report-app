@@ -49,11 +49,7 @@ export function canEditAttendance(user) {
 }
 
 export function canAutoCutAttendance(user) {
-  return canAccessReport(user, 'attendance') && (
-    ['admin', 'developer'].includes(user?.role) ||
-    user?.permissions?.attendance_autocut === true ||
-    user?.permissions?.attendance_edit === true
-  );
+  return canAccessReport(user, 'attendance') && ['admin', 'developer'].includes(user?.role);
 }
 
 export function canAccessTemperatureEntry(user) {
