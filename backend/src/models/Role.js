@@ -19,6 +19,7 @@ const roleSchema = new mongoose.Schema(
       asset_master: { type: Boolean, default: false },
       transport_master: { type: Boolean, default: false },
       medicine_master: { type: Boolean, default: false },
+      medicine_transfer: { type: Boolean, default: false },
       attendance_scan: { type: Boolean, default: false },
       attendance_report: { type: Boolean, default: false },
       worker_master: { type: Boolean, default: false },

@@ -233,7 +233,7 @@ export default function MedicineReportPage() {
   const canDispose = ['admin', 'developer'].includes(user?.role);
   const canEditBatch = ['admin', 'developer'].includes(user?.role);
   const canAccessTraceAndAction = ['admin', 'developer'].includes(user?.role);
-  const canTransferStock = ['admin', 'developer'].includes(user?.role);
+  const canTransferStock = ['admin', 'developer'].includes(user?.role) || user?.permissions?.medicine_transfer === true;
 
   // Transfer Modals & Notification State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);

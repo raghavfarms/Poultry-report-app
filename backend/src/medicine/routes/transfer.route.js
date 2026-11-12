@@ -8,13 +8,13 @@ import {
   cancelTransfer,
   getAvailableStockForTransfer,
 } from '../controllers/transfer.controller.js';
-import { protect, adminOnly } from '../../middleware/auth.js';
+import { protect, medicineTransferOnly } from '../../middleware/auth.js';
 
 const router = express.Router();
 
-// All transfer endpoints require authentication & Admin / Developer privileges
+// All transfer endpoints require authentication & Admin / Developer / Granted Transfer privileges
 router.use(protect);
-router.use(adminOnly);
+router.use(medicineTransferOnly);
 
 // 1. POST /api/medicine/transfers (Initiate transfer)
 router.post('/', createTransfer);

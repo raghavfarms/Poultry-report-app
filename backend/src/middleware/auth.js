@@ -209,6 +209,16 @@ export function requireFirmAccess(req, res, next) {
   next();
 }
 
+export function medicineTransferOnly(req, res, next) {
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.medicine_transfer === true
+  ) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Medicine transfer access is required.' });
+}
+
 
 
 //  useState()

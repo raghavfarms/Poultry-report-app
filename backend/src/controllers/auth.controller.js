@@ -28,6 +28,7 @@ const publicUser = (user) => {
       asset_master: user.permissions?.asset_master ?? (isAdminOrDev ? true : false),
       transport_master: user.permissions?.transport_master ?? (isAdminOrDev ? true : false),
       medicine_master: user.permissions?.medicine_master ?? (isAdminOrDev ? true : false),
+      medicine_transfer: user.permissions?.medicine_transfer ?? (isAdminOrDev ? true : false),
       attendance_admin_master: user.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
     },
   };

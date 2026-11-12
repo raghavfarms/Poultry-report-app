@@ -26,6 +26,7 @@ const DEFAULT_ROLES = [
       asset_master: true,
       transport_master: true,
       medicine_master: true,
+      medicine_transfer: true,
       attendance_admin_master: true,
       temperature_entry: false,
       temperature_report: false,
@@ -47,6 +48,7 @@ const DEFAULT_ROLES = [
       asset_master: true,
       transport_master: true,
       medicine_master: true,
+      medicine_transfer: true,
       attendance_admin_master: true,
       temperature_entry: false,
       temperature_report: false,
@@ -68,6 +70,7 @@ const DEFAULT_ROLES = [
       asset_master: false,
       transport_master: false,
       medicine_master: false,
+      medicine_transfer: false,
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
@@ -89,6 +92,7 @@ const DEFAULT_ROLES = [
       asset_master: false,
       transport_master: false,
       medicine_master: false,
+      medicine_transfer: false,
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
@@ -110,6 +114,7 @@ const DEFAULT_ROLES = [
       asset_master: false,
       transport_master: false,
       medicine_master: false,
+      medicine_transfer: false,
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
@@ -131,6 +136,7 @@ const DEFAULT_ROLES = [
       asset_master: false,
       transport_master: false,
       medicine_master: false,
+      medicine_transfer: false,
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
@@ -152,6 +158,7 @@ const DEFAULT_ROLES = [
       asset_master: false,
       transport_master: false,
       medicine_master: false,
+      medicine_transfer: false,
       attendance_admin_master: false,
       temperature_entry: false,
       temperature_report: false,
@@ -179,6 +186,7 @@ const INITIAL_USER_FORM = {
     asset_master: false,
     transport_master: false,
     medicine_master: false,
+    medicine_transfer: false,
     attendance_admin_master: false,
     temperature_entry: false,
     temperature_report: false,
@@ -201,6 +209,7 @@ const INITIAL_ROLE_FORM = {
     asset_master: false,
     transport_master: false,
     medicine_master: false,
+    medicine_transfer: false,
     attendance_admin_master: false,
     temperature_entry: false,
     temperature_report: false,
@@ -223,6 +232,7 @@ function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
   if (unrestricted || permissions.asset_master) allowed.push("Asset Management");
   if (unrestricted || permissions.transport_master) allowed.push("Transport Vehicles & Stations");
   if (unrestricted || permissions.medicine_master) allowed.push("Medicine Master");
+  if (unrestricted || permissions.medicine_transfer) allowed.push("Medicine Transfer");
   if (unrestricted || permissions.attendance_scan) allowed.push("Camera Scan");
   if (unrestricted || permissions.worker_master) allowed.push("Worker Master");
   if (unrestricted || permissions.attendance_admin_master) allowed.push("Attendance Master");
@@ -517,6 +527,7 @@ export default function UserAdminPage() {
         asset_master: false,
         transport_master: false,
         medicine_master: false,
+        medicine_transfer: false,
         attendance_admin_master: false,
         temperature_entry: false,
         temperature_report: false,
@@ -564,6 +575,7 @@ export default function UserAdminPage() {
         asset_master: u.permissions?.asset_master ?? false,
         transport_master: u.permissions?.transport_master ?? false,
         medicine_master: u.permissions?.medicine_master ?? (["admin", "developer"].includes(u.role) ? true : false),
+        medicine_transfer: u.permissions?.medicine_transfer ?? (["admin", "developer"].includes(u.role) ? true : false),
         attendance_admin_master: u.permissions?.attendance_admin_master ?? false,
         temperature_entry: u.permissions?.temperature_entry ?? false,
         temperature_report: u.permissions?.temperature_report ?? false,
@@ -805,6 +817,7 @@ export default function UserAdminPage() {
         asset_master: role.permissions?.asset_master ?? false,
         transport_master: role.permissions?.transport_master ?? false,
         medicine_master: role.permissions?.medicine_master ?? (["admin", "developer"].includes(role.code) ? true : false),
+        medicine_transfer: role.permissions?.medicine_transfer ?? (["admin", "developer"].includes(role.code) ? true : false),
         attendance_admin_master: role.permissions?.attendance_admin_master ?? false,
         temperature_entry: role.permissions?.temperature_entry ?? false,
         temperature_report: role.permissions?.temperature_report ?? false,
@@ -1643,6 +1656,7 @@ export default function UserAdminPage() {
                     ["asset_master", "Asset Management"],
                     ["transport_master", "Transport Vehicles & Stations"],
                     ["medicine_master", "Medicine Master"],
+                    ["medicine_transfer", "Medicine Transfer"],
                     ...(userForm.allowedModules?.includes("temperature")
                       ? [["temperature_master", "Temperature Master"]]
                       : []),
@@ -1887,6 +1901,7 @@ export default function UserAdminPage() {
                     ["asset_master", "Asset Management"],
                     ["transport_master", "Transport Vehicles & Stations"],
                     ["medicine_master", "Medicine Master"],
+                    ["medicine_transfer", "Medicine Transfer"],
                     ...(roleForm.allowedModules?.includes("temperature")
                       ? [["temperature_master", "Temperature Master"]]
                       : []),

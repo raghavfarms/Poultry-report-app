@@ -143,6 +143,7 @@ export default function MedicineMasterPage() {
   const { user } = useAuth();
   const canManage = ['admin', 'developer'].includes(user?.role);
   const canAccessTrace = canManage || user?.permissions?.medicine_master === true;
+  const canTransferStock = canManage || user?.permissions?.medicine_transfer === true;
 
   // Data states
   const [medicines, setMedicines] = useState([]);
@@ -734,18 +735,20 @@ export default function MedicineMasterPage() {
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('transfers')}
-          className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
-            activeTab === 'transfers'
-              ? 'bg-white text-blue-800 shadow-xs border border-slate-200'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-          }`}
-        >
-          <span>🔄</span>
-          <span>Medicines Transferred</span>
-        </button>
+        {canTransferStock && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('transfers')}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition cursor-pointer shrink-0 ${
+              activeTab === 'transfers'
+                ? 'bg-white text-blue-800 shadow-xs border border-slate-200'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+            }`}
+          >
+            <span>🔄</span>
+            <span>Medicines Transferred</span>
+          </button>
+        )}
 
         {canAccessTrace && (
           <button
@@ -1669,7 +1672,7 @@ export default function MedicineMasterPage() {
   {/* ======================================================== */}
   {/* 3. INTER-FIRM TRANSFER AUDIT TAB                         */}
   {/* ======================================================== */}
-  {activeTab === 'transfers' && (
+  {activeTab === 'transfers' && canTransferStock && (
     <div className="space-y-3 sm:space-y-4">
       <MedicineTransferAuditReport
         key={auditRefreshKey}
