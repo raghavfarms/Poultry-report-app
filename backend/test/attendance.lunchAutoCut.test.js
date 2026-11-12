@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatWorkedHours } from '../src/attendance/services/attendance.service.js';
+import { formatWorkedHours, resolveAutoCutFullShift } from '../src/attendance/services/attendance.service.js';
 
 test('auto-cut calculations for workers who left at lunch without returning', () => {
   // Duty In: 8:00 AM, Lunch Out: 1:00 PM (Worker left farm at lunch)
@@ -78,17 +78,13 @@ test('auto-cut for workers who returned from lunch credits full 8h net work (9h 
   // but forgets to punch OUT in the evening.
   const dutyIn = new Date('2026-11-06T08:13:00+05:30');
   const lunchMinutes = 59;
-  const shiftMinutes = 480; // 8 hours net shift
 
-  // With the new 9-hour / net-8h logic:
-  const dutyOut = new Date(dutyIn.getTime() + (shiftMinutes + lunchMinutes) * 60 * 1000);
-  const netWorkedMinutes = shiftMinutes; // 480 mins
+  const { dutyOut, netMinutes, maxGrossMinutes } = resolveAutoCutFullShift(dutyIn, lunchMinutes);
 
-  // Verify dutyOut time is 8:13 AM + 8h 59m = 5:12 PM
-  assert.equal(dutyOut.getHours(), 17, 'Duty Out hour must be 17 (5 PM)');
-  assert.equal(dutyOut.getMinutes(), 12, 'Duty Out minute must be 12 (5:12 PM)');
-  assert.equal(netWorkedMinutes, 480, 'Net worked minutes must be full 480 minutes (8 hours)');
-  assert.equal(formatWorkedHours(netWorkedMinutes), '8h 0m');
+  assert.equal(maxGrossMinutes, 539, 'Max gross time must be 480 + 59 = 539 minutes');
+  assert.equal(dutyOut.getTime(), new Date('2026-11-06T17:12:00+05:30').getTime(), 'Duty Out must be 05:12 PM IST');
+  assert.equal(netMinutes, 480, 'Net worked minutes must be full 480 minutes (8 hours)');
+  assert.equal(formatWorkedHours(netMinutes), '8h 0m');
 
   const classifyAttendance = (mins) => {
     if (mins >= 475) return 'COMPLETED';
@@ -96,7 +92,7 @@ test('auto-cut for workers who returned from lunch credits full 8h net work (9h 
     return 'ABSENT';
   };
 
-  assert.equal(classifyAttendance(netWorkedMinutes), 'COMPLETED', 'Worker who returned from lunch must be credited Full Day (COMPLETED)');
+  assert.equal(classifyAttendance(netMinutes), 'COMPLETED', 'Worker who returned from lunch must be credited Full Day (COMPLETED)');
 });
 
 
