@@ -95,4 +95,35 @@ test('auto-cut for workers who returned from lunch credits full 8h net work (9h 
   assert.equal(classifyAttendance(netMinutes), 'COMPLETED', 'Worker who returned from lunch must be credited Full Day (COMPLETED)');
 });
 
+test('auto-cut edge cases: no lunch, early manual cut, night shift + lunch, and never-future clamping', () => {
+  // 1. No lunch break taken (0 mins): auto-cut credits 8h from dutyIn
+  const noLunch = resolveAutoCutFullShift(new Date('2026-11-06T08:13:00+05:30'), 0, new Date('2026-11-06T23:30:00+05:30'));
+  assert.equal(noLunch.dutyOut.getTime(), new Date('2026-11-06T16:13:00+05:30').getTime());
+  assert.equal(noLunch.netMinutes, 480);
+
+  // 2. Manual auto-cut triggered early (at 2:30 PM after 1h lunch) caps at now and deducts lunch
+  const earlyCut = resolveAutoCutFullShift(
+    new Date('2026-11-06T08:00:00+05:30'),
+    60,
+    new Date('2026-11-06T14:30:00+05:30')
+  );
+  assert.equal(earlyCut.dutyOut.getTime(), new Date('2026-11-06T14:30:00+05:30').getTime());
+  assert.equal(earlyCut.netMinutes, 330, '6.5h gross - 1h lunch = 5.5h (330 mins)');
+
+  // 3. Night shift (8:00 PM IST -> 12h net) with 60m lunch auto-cut after 15h
+  const nightCut = resolveAutoCutFullShift(
+    new Date('2026-11-06T20:00:00+05:30'),
+    60,
+    new Date('2026-11-07T11:00:00+05:30')
+  );
+  assert.equal(nightCut.dutyOut.getTime(), new Date('2026-11-07T09:00:00+05:30').getTime());
+  assert.equal(nightCut.netMinutes, 720, '12h net shift preserved after deducting 1h lunch');
+
+  // 4. Extreme long break (9h) at 15h threshold never pushes dutyOut into the future beyond now
+  const now15h = new Date('2026-11-06T23:00:00+05:30');
+  const extremeBreak = resolveAutoCutFullShift(new Date('2026-11-06T08:00:00+05:30'), 540, now15h);
+  assert.equal(extremeBreak.dutyOut.getTime(), now15h.getTime());
+  assert.equal(extremeBreak.netMinutes, 360, '15h total - 9h break = 6h worked');
+});
+
 
