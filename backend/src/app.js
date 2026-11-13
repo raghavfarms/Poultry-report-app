@@ -21,8 +21,8 @@ import temperatureSpotRoutes from './temperature/routes/spotRoutes.js';
 import TemperatureLogRoutes from './temperature/routes/temperatureLogRoutes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
+import feedMedRawMasterRoutes from './FeedMedicineRaw/routes/feedMedicineRawMasterRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
-
 
 
 const app = express();
@@ -41,6 +41,7 @@ app.use('/api/assets', assetRoutes);
 app.use('/api/entries', entryRoutes);  
 
 
+
 //  transport vehicles and transport entries are separate routes for managing transportation-related data in the application
 app.use('/api/transport-vehicles', transportVehicleRoutes);
 app.use('/api/transport-entries', transportEntryRoutes);
@@ -53,12 +54,13 @@ app.use('/api/medicine/issues', issueRoutes);
 app.use('/api/medicine/reports', reportRoutes);
 app.use('/api/medicine/daily-action', dailyActionRoutes);
 app.use('/api/medicine/transfers', transferRoutes);
+app.use('/api/feed-med-raw/master', feedMedRawMasterRoutes);
 app.use('/api/temperature/spots', temperatureSpotRoutes);
 app.use('/api/temperature/logs', TemperatureLogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
 app.use(notFound);
-app.use(errorHandler);  
+app.use(errorHandler);    
 
 export default app;
     

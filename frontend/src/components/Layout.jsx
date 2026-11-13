@@ -141,6 +141,14 @@ function Sidebar({ open, close }) {
                   Medicine Master
                 </NavLink>
               )}
+              {canManageMedicine && (
+                <NavLink to="/admin/feed-med-raw/master" className={linkClass}>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700 text-sm">
+                    🌾
+                  </span>
+                  Feed Med & Raw Master
+                </NavLink>
+              )}
             </>
           )}
         </nav>

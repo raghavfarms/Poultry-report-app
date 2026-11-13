@@ -14,6 +14,7 @@ import AttendanceReportPage from "./attendance/pages/AttendanceReportPage.jsx";
 import FaceAttendancePage from "./attendance/pages/FaceAttendancePage.jsx";
 import WorkerAttendancePortal from "./attendance/pages/WorkerAttendancePortal.jsx";
 import MedicineMasterPage from "./medicine/pages/MedicineMasterPage.jsx";
+import FeedMedRawMasterPage from "./feedMedRaw/pages/FeedMedRawMasterPage.jsx";
 import MedicineReportPage from "./medicine/pages/MedicineReportPage.jsx";
 import DailyMedicineActionPage from "./medicine/pages/DailyMedicineActionPage.jsx";
 import TemperatureMasterPage from "./temperature/pages/TemperatureMaster.jsx";
@@ -124,6 +125,17 @@ export default function App() {
         <Route path="medicine/master" element={<Navigate to="/admin/medicine/master" replace />} />
         <Route path="medicine/suppliers" element={<Navigate to="/admin/medicine/master?tab=suppliers" replace />} />
         <Route path="medicine/trace" element={<Navigate to="/admin/medicine/master?tab=trace" replace />} />
+
+        {/* Feed Medicine & Raw Material Master */}
+        <Route
+          path="admin/feed-med-raw/master"
+          element={
+            <ProtectedRoute medicineAdmin>
+              <FeedMedRawMasterPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="feed-med-raw/master" element={<Navigate to="/admin/feed-med-raw/master" replace />} />
 
         {/* Worker Night Temperature Entry & QR Scanner */}
         <Route
