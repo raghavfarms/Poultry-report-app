@@ -54,11 +54,11 @@ function Sidebar({ open, close }) {
         <button
           aria-label="Close menu"
           onClick={close}
-          className="fixed inset-0 z-30 bg-slate-950/40 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/40 lg:hidden"
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white p-4 pb-1 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white p-4 pb-1 transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="mb-5 flex items-center justify-between px-2">
           <div>
@@ -183,7 +183,7 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen flex-col bg-[#f4f7f4]">
       <Sidebar open={open} close={() => setOpen(false)} />
-      <header className="sticky top-0 z-20 flex h-12 items-center border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:ml-72 lg:px-5">
+      <header className="sticky top-0 z-30 flex h-12 items-center border-b border-slate-200 bg-white px-4 lg:ml-72 lg:px-5">
         <button
           onClick={() => setOpen(true)}
           className="mr-3 rounded-lg border border-slate-200 px-2 py-1.5 lg:hidden"

@@ -207,25 +207,25 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .transport-report-table .sticky-date {
   position: sticky;
   left: 0;
-  z-index: 10;
+  z-index: 2;
   background-color: #fff;
   box-shadow: 1px 0 0 0 #cbd5e1;
 }
 .transport-report-table thead .sticky-date {
-  z-index: 20;
+  z-index: 3;
   background-color: #dce9df;
 }
 .transport-report-table .sticky-action {
   position: sticky;
   right: 0;
-  z-index: 10;
+  z-index: 2;
   background-color: #fff;
   box-shadow: -1px 0 0 0 #526b5b;
   border-left: 2px solid #526b5b;
   text-align: center;
 }
 .transport-report-table thead .sticky-action {
-  z-index: 20;
+  z-index: 3;
   background-color: #dce9df;
 }
 .transport-report-table tbody tr:hover .sticky-date,
