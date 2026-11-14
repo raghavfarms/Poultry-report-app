@@ -1,7 +1,7 @@
 import TransportEntry from '../models/TransportEntry.js';
 import TransportVehicle from '../models/TransportVehicle.js';
 import TransportStation from '../models/TransportStation.js';
-import { assertDate, todayUtc } from '../utils/date.js';
+import { assertDate, todayUtc, addDays } from '../utils/date.js';
 import { badRequest, notFoundError } from '../utils/http.js';
 import { calculateTransportRows } from '../services/transportReport.service.js';
 import { canEditTransportEntry, isTransportComplete } from '../services/transportAccess.service.js';
@@ -57,9 +57,11 @@ export async function getTransportOpening(req, res) {
       pendingFuelLiters = 0;
     }
   }
+  const lastCompletedEarlier = [...earlier].reverse().find((e) => e.closingReading != null && e.closingReading !== '');
+  const suggestedOpeningReading = lastCompletedEarlier ? Number(lastCompletedEarlier.closingReading) : null;
   const vehicle = await TransportVehicle.findById(req.query.vehicleId).lean();
   if (!vehicle) throw notFoundError('Vehicle not found.');
-  res.json({ lastFullReading, firstCycleReading, pendingFuelLiters });
+  res.json({ lastFullReading, firstCycleReading, pendingFuelLiters, suggestedOpeningReading });
 }
 
 export async function getTransportEntry(req, res) {
@@ -81,6 +83,19 @@ export async function saveTransportEntry(req, res) {
   assertDate(openingDate, 'openingDate');
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(openingTime)) throw badRequest('Opening time is required.');
   if (!['admin', 'developer'].includes(req.user.role) && openingDate > todayUtc()) return res.status(403).json({ message: 'Users cannot enter a future journey.' });
+  if (!existing && !['admin', 'developer'].includes(req.user.role)) {
+    const lastEntry = await TransportEntry.findOne({ vehicle: vehicle._id })
+      .sort({ openingDate: -1, openingTime: -1, createdAt: -1 })
+      .lean();
+    if (lastEntry) {
+      const expectedDate = addDays(lastEntry.openingDate, 1);
+      if (openingDate !== expectedDate) {
+        return res.status(400).json({
+          message: `Entries must be filled linearly without skipping dates. The next required entry date is ${expectedDate}.`,
+        });
+      }
+    }
+  }
   const wasAlreadyComplete = existing ? isTransportComplete(existing) : false;
   if (existing && !canEditTransportEntry(existing, req.user.role)) {
     return res.status(403).json({ message: 'Entries cannot be changed after 24 hours. Only an administrator or developer can edit.' });

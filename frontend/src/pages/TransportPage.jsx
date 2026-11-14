@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { exportReportToPdf } from "../utils/exportPdf.js";
+import html2pdf from "html2pdf.js";
 import { api } from "../api/client.js";
 import { addDays, displayDate, today } from "../utils/date.js";
 import { Alert, inputClass, primaryButton, secondaryButton, Spinner } from "../components/Ui.jsx";
 import TransportEntryForm from "../components/TransportEntryForm.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { manualAutoCutSession } from "../../../backend/src/attendance/services/attendance.service.js";
 
 const cell = "border border-slate-200 px-2 py-1.5 text-center align-middle text-xs";
 const divider = "!border-r-2 !border-r-emerald-800";
 const actionGreenButton = "rounded-md border border-emerald-700 bg-emerald-700 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-emerald-800 transition shadow-2xs min-h-[24px] touch-manipulation whitespace-nowrap";
 const actionEditButton = "rounded-md border border-slate-300 bg-white px-2.5 py-0.5 text-[11px] font-bold text-slate-900 hover:bg-slate-50 transition shadow-2xs min-h-[24px] touch-manipulation whitespace-nowrap";
 const sum = (rows, key) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
-const nextEntryDate = (progress, fallback) => {
-  if (progress?.hasUnfinishedEntry) return null;
-  return progress?.latestDate ? addDays(progress.latestDate, 1) : fallback || today();
-};
 const detailColumns = [
   { label: "READING", width: `w-[76px] min-w-[76px] ${divider}` },
   { label: "DATE", width: "w-[102px] min-w-[102px]" },
@@ -72,34 +69,21 @@ function StationCell({ row, stations = [], onStationUpdate, canEdit = true }) {
   );
 }
 
-function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUpdate, from, to, nextDate }) {
+function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUpdate, selectedDate }) {
   const { user } = useAuth();
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const nextExpiry = Math.min(...rows.map((row) => row.editExpiresAt).filter((expiry) => expiry != null && expiry > Date.now()));
-    if (!Number.isFinite(nextExpiry)) return;
-    const timer = setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, nextExpiry - Date.now()), 2147483647));
-    return () => clearTimeout(timer);
-  }, [rows, now]);
+  const isStaff = ["admin", "developer"].includes(user?.role);
   const sortedRows = useMemo(() => [...rows].sort((a, b) =>
     b.openingDate.localeCompare(a.openingDate) ||
     (b.openingTime || "").localeCompare(a.openingTime || "") ||
     (b.createdAt || "").localeCompare(a.createdAt || "")
   ), [rows]);
   const completedRows = sortedRows.filter((row) => row.complete);
-  const displayRows = useMemo(() => {
-    const entries = sortedRows.filter((row) => (!from || row.openingDate >= from) && (!to || row.openingDate <= to));
-    const populatedDates = new Set(entries.map((row) => row.openingDate));
-    if (from && to && from <= to) {
-      for (let date = from; date <= to; date = addDays(date, 1)) {
-        if (!populatedDates.has(date)) entries.push({ openingDate: date, empty: true });
-      }
-    }
-    return entries.sort((a, b) => b.openingDate.localeCompare(a.openingDate));
-  }, [sortedRows, from, to]);
+  const latest = completedRows[0];
+  const unfinishedRow = sortedRows.find((row) => !row.complete);
   const cycles = sortedRows.filter((row) => row.averageKmPerLiter != null);
   const cycleDistance = sum(cycles, "fullCycleDistanceKm");
   const cycleFuel = sum(cycles, "cycleFuelLiters");
+  const nextDate = selectedDate || (latest ? (latest.closingDate || addDays(latest.openingDate, 1)) : today());
   const balance = (value) => value == null ? "\u2014" : String(Number(Number(value).toFixed(2)));
   const header = cell + " bg-[#dce9df] font-bold whitespace-nowrap";
   const overallAvg = cycleFuel > 0 ? (cycleDistance / cycleFuel).toFixed(2) : "\u2014";
@@ -110,7 +94,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
       <span className="font-bold text-slate-700 text-xs sm:text-sm">{vehicle.number}</span>
     </div>
 
-    <div className="report-scroll w-full overflow-x-auto rounded-lg border border-slate-300 bg-white touch-auto overscroll-x-contain shadow-2xs">
+    <div className="report-scroll w-full overflow-x-auto rounded-lg border border-slate-300 bg-white touch-pan-x overscroll-x-contain shadow-2xs">
       <table className="transport-report-table border-separate border-spacing-0 text-xs">
         <thead>
           <tr>
@@ -126,9 +110,8 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
           <tr>{detailColumns.map((col, index) => <th key={index} className={`${header} ${col.width}`}>{col.label}</th>)}</tr>
         </thead>
         <tbody>
-          {displayRows.map((row) => {
-            if (row.empty) return <tr key={`empty-${row.openingDate}`} className="bg-[#fff6e9]">
-            <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[102px] min-w-[102px]`}>{displayDate(row.openingDate)}</td>
+          {!unfinishedRow && <tr className="bg-[#fff6e9] no-print">
+            <td className={`${cell} sticky-date whitespace-nowrap font-medium w-[102px] min-w-[102px]`}>{displayDate(nextDate)}</td>
             <td className={`${cell} ${divider} w-[76px] min-w-[76px]`}>—</td>
             <td className={cell}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
@@ -142,7 +125,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
             <td className={`${cell} ${divider}`}>—</td>
             <td className={`${cell} ${divider}`}>—</td>
             <td className={cell}>—</td>
-            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>{row.openingDate === nextDate ? <button type="button" onClick={() => onAdd(vehicle._id, row.openingDate)} className={actionGreenButton}>Add</button> : "\u2014"}</td>
+            <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>{Boolean((isStaff && nextDate && row.openingDate <= nextDate) || (!isStaff && row.openingDate === nextDate)) ? <button type="button" onClick={() => onAdd(vehicle._id, row.openingDate)} className={actionGreenButton}>Add</button> : "\u2014"}</td>
           </tr>;
             const index = sortedRows.indexOf(row);
             const previous = sortedRows[index + 1];
@@ -150,20 +133,14 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               ? previous.complete && previous.isFull && Number(previous.closingReading) === Number(row.openingReading)
               : row.openingFull !== false;
             const openingFuel = openingKnownFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
-            const isStaff = ["admin", "developer"].includes(user?.role);
-            const isJourneyComplete = Boolean(
-              row.complete &&
-              row.closingReading != null &&
-              row.closingReading !== "" &&
-              Number(row.closingReading) > 0
-            );
-            const closingFuel = isJourneyComplete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
+            const closingFuel = row.complete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
             const totalFuel = openingFuel == null ? null : openingFuel + Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
-            const isWithin24Hours = row.editExpiresAt != null && Math.max(now, Date.now()) < row.editExpiresAt;
-            // UNTIL JOURNEY IS COMPLETE, NEVER HIDE UPDATE BUTTON:
-            const canEdit = isStaff || !isJourneyComplete || isWithin24Hours;
+            const isStaff = ["admin", "developer"].includes(user?.role);
+            const entryTime = row.createdAt ? new Date(row.createdAt).getTime() : new Date(`${row.openingDate}T${row.openingTime || '00:00'}:00`).getTime();
+            const isWithin24Hours = (Date.now() - entryTime) < 24 * 60 * 60 * 1000;
+            const canEdit = isStaff || isWithin24Hours;
 
-            return <tr key={row._id} className={`group ${isJourneyComplete ? "hover:bg-emerald-50" : "bg-amber-50"}`}>
+            return <tr key={row._id} className={`group ${row.complete ? "hover:bg-emerald-50" : "bg-amber-50"}`}>
               <td className={`${cell} sticky-date w-[102px] min-w-[102px] whitespace-nowrap font-medium`}>
                 {displayDate(row.openingDate)}
               </td>
@@ -183,11 +160,10 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               <td className={`${cell} sticky-action no-print whitespace-nowrap w-16 min-w-[60px] !border-l-2 !border-l-emerald-800`}>
                 {canEdit ? (
                   <button
-                    type="button"
                     onClick={() => onEdit(row)}
-                    className={!isJourneyComplete ? actionGreenButton : actionEditButton}
+                    className={!row.complete ? actionGreenButton : actionEditButton}
                   >
-                    {!isJourneyComplete ? "Update" : "Edit"}
+                    {row.complete ? "Edit" : "Update"}
                   </button>
                 ) : (
                   "—"
@@ -221,48 +197,14 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
 }
 
 export default function TransportPage() {
-  const [vehicles, setVehicles] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem("cached_transport_vehicles");
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [vehicleId, setVehicleId] = useState("all");
-  const [rows, setRows] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem("cached_transport_rows");
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [stations, setStations] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem("cached_transport_stations");
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [loading, setLoading] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem("cached_transport_rows");
-      return !(cached && JSON.parse(cached).length > 0);
-    } catch {
-      return true;
-    }
-  });
-  const [entryProgress, setEntryProgress] = useState({});
+  const [vehicles, setVehicles] = useState([]), [vehicleId, setVehicleId] = useState("all");
+  const [rows, setRows] = useState([]), [stations, setStations] = useState([]), [loading, setLoading] = useState(true);
   const [error, setError] = useState(""), [form, setForm] = useState(null), [exporting, setExporting] = useState(false);
   const [to, setTo] = useState(today());
   const [from, setFrom] = useState(addDays(today(), -6));
   const reportRef = useRef(null);
   const load = useCallback(async () => {
-    // Only show spinner if we don't already have cached rows
-    if (!rows.length) setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const params = new URLSearchParams();
       if (vehicleId !== "all") params.set("vehicleId", vehicleId);
@@ -275,39 +217,37 @@ export default function TransportPage() {
       ]);
       setVehicles(reportData.vehicles);
       setRows(reportData.rows);
-      setEntryProgress(reportData.entryProgress || {});
       const combined = [...new Set([
         ...(reportData.stations || []),
         ...(stationData.stations || []),
       ])];
       setStations(combined);
-      try {
-        sessionStorage.setItem("cached_transport_vehicles", JSON.stringify(reportData.vehicles || []));
-        sessionStorage.setItem("cached_transport_rows", JSON.stringify(reportData.rows || []));
-        sessionStorage.setItem("cached_transport_stations", JSON.stringify(combined || []));
-      } catch {}
     } catch (error) {
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [vehicleId, from, to, rows.length]);
+  }, [vehicleId, from, to]);
   useEffect(() => { load(); }, [load]);
   const shownVehicles = useMemo(() => vehicles.filter((vehicle) => vehicle.active && (vehicleId === "all" || vehicle._id === vehicleId)), [vehicles, vehicleId]);
   const exportPdf = async () => {
     if (!reportRef.current || exporting) return;
     setExporting(true);
     setError("");
+    reportRef.current.classList.add("pdf-exporting");
     try {
-      await exportReportToPdf(reportRef.current, {
+      await html2pdf().set({
         filename: `transport-report-${from}-to-${to}.pdf`,
         margin: 6,
-        format: "a3",
-        orientation: "landscape",
-      });
+        image: { type: "jpeg", quality: .98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        jsPDF: { unit: "mm", format: "a3", orientation: "landscape" },
+        pagebreak: { mode: ["css", "legacy"], avoid: ["tr"] },
+      }).from(reportRef.current).save();
     } catch (error) {
       setError(error.message || "Could not export the PDF.");
     } finally {
+      reportRef.current?.classList.remove("pdf-exporting");
       setExporting(false);
     }
   };
@@ -386,12 +326,9 @@ export default function TransportPage() {
         <button
           onClick={() => {
             const vehicle = shownVehicles[0];
-            if (vehicle) {
-              const initialDate = nextEntryDate(entryProgress[vehicle._id], from);
-              if (initialDate) setForm({ vehicleId: vehicle._id, initialDate });
-            }
+            if (vehicle) setForm({ vehicleId: vehicle._id, initialDate: to || today() });
           }}
-          disabled={loading || !shownVehicles.length || !nextEntryDate(entryProgress[shownVehicles[0]?._id], from)}
+          disabled={!shownVehicles.length}
           style={{ fontSize: "10.5px" }}
           className="inline-flex items-center justify-center h-8 sm:h-8.5 w-[88px] sm:w-24 rounded-lg bg-emerald-800 hover:bg-emerald-900 px-1 py-1 font-bold text-white transition shadow-2xs whitespace-nowrap text-center disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -432,9 +369,7 @@ export default function TransportPage() {
             <VehicleTable
               key={vehicle._id}
               vehicle={vehicle}
-              from={from}
-              to={to}
-              nextDate={nextEntryDate(entryProgress[vehicle._id], from)}
+              selectedDate={to}
               rows={rows.filter((row) => String(row.vehicle) === vehicle._id)}
               stations={stations}
               onEdit={(row) => setForm({ entryId: row._id })}
@@ -451,3 +386,12 @@ export default function TransportPage() {
     )}
   </div>;
 }
+
+
+
+
+
+ 
+
+
+
