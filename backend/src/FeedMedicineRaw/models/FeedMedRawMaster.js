@@ -4,11 +4,11 @@ const feedMedRawMasterSchema = new mongoose.Schema({
 
      code:{
        type: String,
-     trim: true,
-     uppercase: true,
-     unique: true,
-    sparse: true,
-      maxlength: 30,
+       trim: true,
+       uppercase: true,
+       unique: true,
+       sparse: true,
+       maxlength: 30,
      },
      itemType:{
         type: String,
@@ -61,9 +61,6 @@ const feedMedRawMasterSchema = new mongoose.Schema({
         default: true,
     },
 
-    
+}, { timestamps: true });  
 
-
-}, { timestamps: true });
-
-export default mongoose.model("FeedMedRawMaster", feedMedRawMasterSchema);
+export default mongoose.model("FeedMedRawMaster", feedMedRawMasterSchema); 

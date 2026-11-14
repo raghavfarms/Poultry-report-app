@@ -22,6 +22,7 @@ import TemperatureLogRoutes from './temperature/routes/temperatureLogRoutes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
 import feedMedRawMasterRoutes from './FeedMedicineRaw/routes/feedMedicineRawMasterRoutes.js';
+import feedFormulationRoutes from './FeedMedicineRaw/routes/feedFormulationRoutes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 
@@ -55,6 +56,7 @@ app.use('/api/medicine/reports', reportRoutes);
 app.use('/api/medicine/daily-action', dailyActionRoutes);
 app.use('/api/medicine/transfers', transferRoutes);
 app.use('/api/feed-med-raw/master', feedMedRawMasterRoutes);
+app.use('/api/feed-med-raw/formulations', feedFormulationRoutes);
 app.use('/api/temperature/spots', temperatureSpotRoutes);
 app.use('/api/temperature/logs', TemperatureLogRoutes);
 app.use('/api/users', userRoutes);

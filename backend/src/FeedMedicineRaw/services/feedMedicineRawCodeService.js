@@ -13,7 +13,7 @@ const lastItem = await FeedMedRawMaster.findOne({ code: /^FMR-\d+$/ })
                                          .select('code')
                                          .lean();
                                 
-   if(!lastItem || !lastItem.code){
+   if(!lastItem || !lastItem.code){  
         return 'FMR-001'; // If no items exist, start with FMR-001
    }
 
@@ -25,6 +25,7 @@ const lastItem = await FeedMedRawMaster.findOne({ code: /^FMR-\d+$/ })
     // Pad to 3 digits: 1 -> "001", 15 -> "015", 100 -> "100"
      return `FMR-${String(nextNumber).padStart(3, '0')}`;
 
-
-
 }
+
+
+
