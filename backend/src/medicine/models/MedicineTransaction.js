@@ -108,3 +108,5 @@ medicineTransactionSchema.index({ medicine: 1, createdAt: -1 });
 medicineTransactionSchema.index({ batch: 1, createdAt: -1 });
 
 export default mongoose.model('MedicineTransaction', medicineTransactionSchema);
+
+
