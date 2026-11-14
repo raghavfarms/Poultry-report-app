@@ -184,7 +184,8 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
                 Number(row.closingReading) > 0
               );
               const closingFuel = isJourneyComplete && row.isFull ? Number(row.tankCapacity ?? vehicle.tankCapacity) : null;
-              const totalFuel = openingFuel == null ? null : openingFuel + Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0);
+              const hasFill = (row.fill1Liters != null && row.fill1Liters !== "") || (row.fill2Liters != null && row.fill2Liters !== "");
+              const totalFill = hasFill ? Number(row.fill1Liters || 0) + Number(row.fill2Liters || 0) : null;
               const isWithin24Hours = row.editExpiresAt != null && Math.max(now, Date.now()) < row.editExpiresAt;
               const canEdit = isStaff || !isJourneyComplete || isWithin24Hours;
 
@@ -199,7 +200,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
                   <td className={cell}>{balance(openingFuel)}</td>
                   <td className={cell}>{balance(row.fill1Liters)}{row.fill1Reading != null && <small className="block text-[9px]">@ {row.fill1Reading} km</small>}</td>
                   <td className={cell}>{balance(row.fill2Liters)}{row.fill2Reading != null && <small className="block text-[9px]">@ {row.fill2Reading} km</small>}</td>
-                  <td className={cell}>{balance(totalFuel)}</td>
+                  <td className={cell}>{balance(totalFill)}</td>
                   <td className={cell}>{balance(closingFuel)}</td>
                   <td className={`${cell} ${divider} font-bold`}>{balance(row.consumedLiters)}</td>
                   <td className={cell}>{balance(row.kmRun)}</td>
@@ -232,7 +233,7 @@ function VehicleTable({ vehicle, rows, stations = [], onEdit, onAdd, onStationUp
               <td className={cell}>—</td>
               <td className={cell}>{balance(sum(sortedRows, "fill1Liters"))}</td>
               <td className={cell}>{balance(sum(sortedRows, "fill2Liters"))}</td>
-              <td className={cell}>—</td>
+              <td className={cell}>{balance(sum(sortedRows, "fill1Liters") + sum(sortedRows, "fill2Liters"))}</td>
               <td className={cell}>—</td>
               <td className={`${cell} ${divider}`}>{balance(cycles.length ? sum(cycles, "consumedLiters") : null)}</td>
               <td className={cell}>{balance(sum(completedRows, "kmRun"))}</td>
