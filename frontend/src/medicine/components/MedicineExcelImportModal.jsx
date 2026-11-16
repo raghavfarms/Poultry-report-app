@@ -226,17 +226,20 @@ export default function MedicineExcelImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto cursor-pointer"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-[490px] max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 cursor-default"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-4 sm:px-6 py-3.5 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex justify-between items-center shrink-0">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xl">📊</span>
+        <div className="px-4 py-3 bg-gradient-to-r from-emerald-700 to-teal-800 text-white flex justify-between items-center shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📊</span>
             <div>
-              <h2 className="text-base sm:text-lg font-bold">Bulk Upload Medicines via Excel</h2>
+              <h2 className="text-sm sm:text-base font-bold">Bulk Upload Medicines via Excel</h2>
               <p className="text-[11px] text-emerald-100">
                 Upload a spreadsheet to register multiple medicines in 1-click
               </p>
@@ -245,54 +248,54 @@ export default function MedicineExcelImportModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer text-sm font-bold"
+            className="h-7 w-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer text-xs font-bold"
           >
             ✕
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 text-slate-800">
+        <div className="p-3.5 sm:p-4 overflow-y-auto space-y-3 flex-1 text-slate-800">
           {/* Top Actions: Template Download & File Picker */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
+          <div className="flex flex-col gap-2.5 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200">
             {/* Step 1: Download Template */}
-            <div className="flex flex-col justify-between p-3 bg-white rounded-lg border border-slate-200">
-              <div>
+            <div className="flex items-center justify-between gap-2 p-2.5 bg-white rounded-lg border border-slate-200">
+              <div className="min-w-0 pr-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <span className="h-5 w-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[11px] font-black">
+                  <span className="h-5 w-5 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[11px] font-black shrink-0">
                     1
                   </span>
-                  <span>Get Official Excel Format</span>
+                  <span className="truncate">Download Official Format</span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                  Download the ready-to-use template with correct columns (Medicine Name, Category, Packaging, Pack Size, Unit, etc.).
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                  Ready template with correct columns
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleDownloadTemplate}
-                className="mt-3 w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="shrink-0 py-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
               >
                 <span>📥</span>
-                <span>Download Sample Template (.xlsx)</span>
+                <span>Template (.xlsx)</span>
               </button>
             </div>
 
             {/* Step 2: Upload File */}
-            <div className="flex flex-col justify-between p-3 bg-white rounded-lg border border-slate-200">
-              <div>
+            <div className="flex items-center justify-between gap-2 p-2.5 bg-white rounded-lg border border-slate-200">
+              <div className="min-w-0 pr-1">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                  <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-[11px] font-black">
+                  <span className="h-5 w-5 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center text-[11px] font-black shrink-0">
                     2
                   </span>
-                  <span>Select Filled Spreadsheet</span>
+                  <span className="truncate">Select Filled Spreadsheet</span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Supports Excel (.xlsx, .xls) and CSV files.
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                  Supports .xlsx, .xls, .csv
                 </p>
               </div>
 
-              <div className="mt-3 flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -303,10 +306,10 @@ export default function MedicineExcelImportModal({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                  className="py-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                 >
                   <span>📂</span>
-                  <span>{fileName ? 'Choose Another File' : 'Browse Excel File'}</span>
+                  <span>{fileName ? 'Change' : 'Browse File'}</span>
                 </button>
                 {fileName && (
                   <button
@@ -318,19 +321,20 @@ export default function MedicineExcelImportModal({
                       setError('');
                       setImportResult(null);
                     }}
-                    className="h-8 px-2.5 text-xs text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg font-bold"
+                    className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg font-bold"
                     title="Remove file"
                   >
                     Clear
                   </button>
                 )}
               </div>
-              {fileName && (
-                <div className="mt-1.5 text-[10px] font-mono font-bold text-slate-600 truncate">
-                  📄 {fileName}
-                </div>
-              )}
             </div>
+
+            {fileName && (
+              <div className="text-[11px] font-mono font-bold text-slate-600 truncate px-1">
+                📄 {fileName}
+              </div>
+            )}
           </div>
 
           {/* Error Notice */}
@@ -423,8 +427,8 @@ export default function MedicineExcelImportModal({
               </div>
 
               {/* Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-64 overflow-y-auto">
+                <table className="w-full text-left text-xs border-collapse min-w-[500px]">
                   <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
                     <tr>
                       <th className="py-2 px-2.5 text-center w-12">#</th>
