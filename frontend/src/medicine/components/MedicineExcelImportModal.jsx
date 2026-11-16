@@ -36,9 +36,9 @@ export default function MedicineExcelImportModal({
         'Pack Size': 1,
         'Unit': 'Litre (L)',
         'Alias Name': 'IBK-5',
-        'Manufacturer': 'Venkys',
-        'Minimum Stock': 5,
-        'Reorder Level': 10,
+        'Stock Available': 10,
+        'Batch No': 'IB-501',
+        'Expiry': '2027-12-31',
       },
       {
         'Medicine Name': 'Salmonella Killed',
@@ -47,9 +47,9 @@ export default function MedicineExcelImportModal({
         'Pack Size': 500,
         'Unit': 'Millilitre (ml)',
         'Alias Name': 'Sal-K',
-        'Manufacturer': 'Indovax',
-        'Minimum Stock': 2,
-        'Reorder Level': 5,
+        'Stock Available': 25,
+        'Batch No': 'SK-204',
+        'Expiry': '2027-06-30',
       },
       {
         'Medicine Name': 'Paracetamol Vet',
@@ -58,9 +58,9 @@ export default function MedicineExcelImportModal({
         'Pack Size': 10,
         'Unit': 'Packet',
         'Alias Name': 'Dolo Vet',
-        'Manufacturer': 'Virbac',
-        'Minimum Stock': 20,
-        'Reorder Level': 50,
+        'Stock Available': 100,
+        'Batch No': 'PV-882',
+        'Expiry': '2026-10-15',
       },
       {
         'Medicine Name': 'R2B - Live',
@@ -69,23 +69,23 @@ export default function MedicineExcelImportModal({
         'Pack Size': 1000,
         'Unit': 'Dose',
         'Alias Name': 'R2B',
-        'Manufacturer': 'Indovax',
-        'Minimum Stock': 5,
-        'Reorder Level': 15,
+        'Stock Available': 5,
+        'Batch No': 'R2B-90',
+        'Expiry': '2026-12-31',
       },
     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
     ws['!cols'] = [
-      { wch: 25 }, // Medicine Name
-      { wch: 18 }, // Category
+      { wch: 24 }, // Medicine Name
+      { wch: 16 }, // Category
       { wch: 14 }, // Packaging
       { wch: 12 }, // Pack Size
-      { wch: 18 }, // Unit
-      { wch: 16 }, // Alias Name
-      { wch: 18 }, // Manufacturer
-      { wch: 16 }, // Minimum Stock
-      { wch: 16 }, // Reorder Level
+      { wch: 16 }, // Unit
+      { wch: 14 }, // Alias Name
+      { wch: 16 }, // Stock Available
+      { wch: 14 }, // Batch No
+      { wch: 14 }, // Expiry
     ];
 
     const wb = XLSX.utils.book_new();
@@ -139,9 +139,30 @@ export default function MedicineExcelImportModal({
         const packSize = Number.isFinite(packSizeRaw) && packSizeRaw > 0 ? packSizeRaw : 1;
         const unit = String(getFieldValue(row, ['Unit', 'Unit of Measurement', 'Unit (Measure)', 'Measure'], 'Nos')).trim() || 'Nos';
         const aliasName = String(getFieldValue(row, ['Alias Name', 'Alias', 'Brand Alias'], '')).trim();
-        const manufacturer = String(getFieldValue(row, ['Manufacturer', 'Brand', 'Company'], '')).trim();
-        const minimumStock = Number(getFieldValue(row, ['Minimum Stock', 'Min Stock', 'MinStock'], 0)) || 0;
-        const reorderLevel = Number(getFieldValue(row, ['Reorder Level', 'Reorder', 'ReorderLevel'], 0)) || 0;
+
+        // Stock available, batch number, expiry date (for unified template compatibility)
+        const stockAvailable = Number(getFieldValue(row, ['Stock Available', 'Stock', 'Available Stock', 'Qty', 'Quantity'], 0)) || 0;
+        const batchNo = String(getFieldValue(row, ['Batch No', 'Batch', 'Batch Number', 'BatchNo'], '')).trim();
+
+        const expiryRaw = getFieldValue(row, ['Expiry', 'Expiry Date', 'Exp Date', 'Exp'], '');
+        let expiry = '';
+        if (typeof expiryRaw === 'number') {
+          try {
+            const dateObj = XLSX.SSF.parse_date_code(expiryRaw);
+            if (dateObj) {
+              const y = String(dateObj.y).padStart(4, '0');
+              const m = String(dateObj.m).padStart(2, '0');
+              const d = String(dateObj.d).padStart(2, '0');
+              expiry = `${y}-${m}-${d}`;
+            }
+          } catch {
+            expiry = String(expiryRaw);
+          }
+        } else if (expiryRaw instanceof Date) {
+          expiry = expiryRaw.toISOString().split('T')[0];
+        } else {
+          expiry = String(expiryRaw || '').trim();
+        }
 
         let status = 'VALID'; // 'VALID' | 'DUPLICATE' | 'INVALID'
         let reason = 'Ready to add';
@@ -167,9 +188,9 @@ export default function MedicineExcelImportModal({
           packSize,
           unit,
           aliasName,
-          manufacturer,
-          minimumStock,
-          reorderLevel,
+          stockAvailable,
+          batchNo,
+          expiry,
           status,
           reason,
         };
@@ -201,6 +222,7 @@ export default function MedicineExcelImportModal({
     try {
       setLoading(true);
       setError('');
+      // Only register master catalog fields (Stock is farm-specific and applied on Stock tab)
       const payload = validRows.map((r) => ({
         name: r.name,
         category: r.category,
@@ -208,9 +230,6 @@ export default function MedicineExcelImportModal({
         packSize: r.packSize,
         unit: r.unit,
         aliasName: r.aliasName,
-        manufacturer: r.manufacturer,
-        minimumStock: r.minimumStock,
-        reorderLevel: r.reorderLevel,
       }));
 
       const res = await bulkImportMedicinesApi(payload);
@@ -335,6 +354,13 @@ export default function MedicineExcelImportModal({
                 📄 {fileName}
               </div>
             )}
+
+            <div className="text-[11px] text-slate-500 bg-amber-50/70 border border-amber-200/60 rounded-lg p-2 flex items-start gap-1.5">
+              <span className="shrink-0 text-amber-600 text-xs">💡</span>
+              <span className="leading-tight">
+                <strong>Master Catalog:</strong> Registers medicine definitions. Stock, Batch No & Expiry will apply to farm on the Stock tab.
+              </span>
+            </div>
           </div>
 
           {/* Error Notice */}
@@ -428,16 +454,19 @@ export default function MedicineExcelImportModal({
 
               {/* Table */}
               <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-64 overflow-y-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[500px]">
+                <table className="w-full text-left text-xs border-collapse min-w-[620px]">
                   <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0 border-b border-slate-200">
                     <tr>
-                      <th className="py-2 px-2.5 text-center w-12">#</th>
-                      <th className="py-2 px-2.5">Medicine Name</th>
-                      <th className="py-2 px-2.5">Category</th>
-                      <th className="py-2 px-2.5">Packaging</th>
-                      <th className="py-2 px-2.5">Pack Size</th>
-                      <th className="py-2 px-2.5">Unit</th>
-                      <th className="py-2 px-2.5 text-center">Status</th>
+                      <th className="py-2 px-2 text-center w-10">#</th>
+                      <th className="py-2 px-2">Medicine Name</th>
+                      <th className="py-2 px-2">Category</th>
+                      <th className="py-2 px-2">Packaging</th>
+                      <th className="py-2 px-2">Pack Size</th>
+                      <th className="py-2 px-2">Unit</th>
+                      <th className="py-2 px-2 text-right">Stock</th>
+                      <th className="py-2 px-2">Batch No</th>
+                      <th className="py-2 px-2">Expiry</th>
+                      <th className="py-2 px-2 text-center">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -451,10 +480,10 @@ export default function MedicineExcelImportModal({
                             isDup ? 'bg-amber-50/40 text-slate-600' : isInv ? 'bg-rose-50/40' : ''
                           }`}
                         >
-                          <td className="py-1.5 px-2.5 text-center font-mono text-[11px] text-slate-400">
+                          <td className="py-1.5 px-2 text-center font-mono text-[11px] text-slate-400">
                             {r.rowNumber}
                           </td>
-                          <td className="py-1.5 px-2.5 font-bold text-slate-900">
+                          <td className="py-1.5 px-2 font-bold text-slate-900">
                             {r.name || <span className="text-rose-500 italic">Empty</span>}
                             {r.aliasName && (
                               <span className="text-[10px] text-slate-500 font-normal ml-1">
@@ -462,15 +491,24 @@ export default function MedicineExcelImportModal({
                               </span>
                             )}
                           </td>
-                          <td className="py-1.5 px-2.5">
+                          <td className="py-1.5 px-2">
                             <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-semibold">
                               {r.category}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2.5 text-slate-600">{r.packagingType}</td>
-                          <td className="py-1.5 px-2.5 font-mono text-slate-700">{r.packSize}</td>
-                          <td className="py-1.5 px-2.5 text-slate-700 font-medium">{r.unit}</td>
-                          <td className="py-1.5 px-2.5 text-center">
+                          <td className="py-1.5 px-2 text-slate-600">{r.packagingType}</td>
+                          <td className="py-1.5 px-2 font-mono text-slate-700">{r.packSize}</td>
+                          <td className="py-1.5 px-2 text-slate-700 font-medium">{r.unit}</td>
+                          <td className="py-1.5 px-2 text-right font-mono text-slate-700">
+                            {r.stockAvailable || 0}
+                          </td>
+                          <td className="py-1.5 px-2 font-mono text-[11px] text-slate-600">
+                            {r.batchNo || '-'}
+                          </td>
+                          <td className="py-1.5 px-2 font-mono text-[11px] text-slate-600">
+                            {r.expiry || '-'}
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
                             {r.status === 'VALID' ? (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
                                 ✓ Ready
