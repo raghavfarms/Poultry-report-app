@@ -4,6 +4,7 @@ import MedicineBatch from '../models/MedicineBatch.js';
 import MedicineTransaction from '../models/MedicineTransaction.js';
 import MedicineIssue from '../models/MedicineIssue.js';
 import MedicineReceipt from '../models/MedicineReceipt.js';
+import MedicineTransfer from '../models/MedicineTransfer.js';
 
 import Firm from '../../models/Firm.js';
 import { getPermittedFirmsForModule } from '../../utils/userFirms.js';
@@ -557,12 +558,85 @@ export async function getBatchTraceability(req, res) {
     .sort({ issueDate: -1, createdAt: -1 })
     .lean();
 
-  // 6. Fetch all ledger transactions for this batch (immutable timeline)
+  // 6. Fetch all inter-farm transfers linked to this batch (outward & inward)
+  const batchFarmId = (batch.farm?._id || batch.farm)?.toString();
+  const medId = (batch.medicine?._id || batch.medicine)?.toString();
+
+  let transfers = [];
+  try {
+    transfers = await MedicineTransfer.find({
+      $or: [
+        { sourceBatch: batch._id },
+        { destinationBatch: batch._id },
+        {
+          batchNumber: batch.batchNumber,
+          medicine: medId,
+          $or: [
+            { fromFarm: batchFarmId },
+            { toFarm: batchFarmId },
+          ],
+        },
+      ],
+    })
+      .populate('fromFarm', 'name code')
+      .populate('toFarm', 'name code')
+      .populate('requestedBy', 'name username')
+      .populate('actionedBy', 'name username')
+      .sort({ createdAt: -1 })
+      .lean();
+  } catch (err) {
+    console.error('Error fetching transfers for batch trace:', err);
+    transfers = [];
+  }
+
+  // Calculate transfer breakdowns for this specific farm's batch
+  let totalTransferredOut = 0;
+  let totalTransferredIn = 0;
+  let totalPendingHold = 0;
+  const transferDestinations = [];
+  const transferSources = [];
+
+  for (const tr of transfers) {
+    const fId = (tr.fromFarm?._id || tr.fromFarm)?.toString();
+    const tId = (tr.toFarm?._id || tr.toFarm)?.toString();
+    const qty = Number(tr.quantity) || 0;
+
+    if (fId === batchFarmId) {
+      if (tr.status === 'ACCEPTED') {
+        totalTransferredOut += qty;
+        transferDestinations.push({
+          farm: tr.toFarm?.name || 'Other Farm',
+          farmId: tId,
+          quantity: qty,
+          transferNumber: tr.transferNumber,
+          date: tr.actionedAt || tr.createdAt,
+          actionedByName: tr.actionedByName || tr.actionedBy?.name || 'Authorized Staff',
+        });
+      } else if (tr.status === 'PENDING') {
+        totalPendingHold += qty;
+      }
+    } else if (tId === batchFarmId) {
+      if (tr.status === 'ACCEPTED') {
+        totalTransferredIn += qty;
+        transferSources.push({
+          farm: tr.fromFarm?.name || 'Other Farm',
+          farmId: fId,
+          quantity: qty,
+          transferNumber: tr.transferNumber,
+          date: tr.actionedAt || tr.createdAt,
+          actionedByName: tr.actionedByName || tr.actionedBy?.name || 'Authorized Staff',
+        });
+      }
+    }
+  }
+
+  // 7. Fetch all ledger transactions for this batch (immutable timeline)
   const transactions = await MedicineTransaction.find({ batch: batch._id })
     .populate('performedBy', 'name role')
     .sort({ createdAt: 1 })
     .lean();
-  // 7. Summarize consumption by Shed
+
+  // 8. Summarize consumption by Shed
   const shedBreakdown = {};
   let totalIssuedQty = 0;
   for (const iss of issues) {
@@ -572,15 +646,19 @@ export async function getBatchTraceability(req, res) {
     shedBreakdown[shedKey] = (shedBreakdown[shedKey] || 0) + qty;
   }
 
+  const finalTransferredOut = Math.max(batch.transferredOutQuantity || 0, totalTransferredOut);
+  const finalOnHold = Math.max(batch.quantityOnHold || 0, totalPendingHold);
+  const finalDisposed = batch.disposedQuantity || 0;
+
   // Self-heal: ensure batch.quantityAvailable matches initialQuantity - totalIssuedQty - disposed - transferred - onHold
-  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty - (batch.disposedQuantity || 0) - (batch.transferredOutQuantity || 0) - (batch.quantityOnHold || 0));
+  const correctAvailable = Math.max(0, (batch.initialQuantity || 0) - totalIssuedQty - finalDisposed - finalTransferredOut - finalOnHold);
   if (batch.quantityAvailable !== correctAvailable) {
     await MedicineBatch.updateOne(
       { _id: batch._id },
-      { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 && (batch.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE' } }
+      { $set: { quantityAvailable: correctAvailable, status: correctAvailable === 0 && finalOnHold === 0 ? 'DEPLETED' : 'AVAILABLE' } }
     );
     batch.quantityAvailable = correctAvailable;
-    batch.status = correctAvailable === 0 && (batch.quantityOnHold || 0) === 0 ? 'DEPLETED' : 'AVAILABLE';
+    batch.status = correctAvailable === 0 && finalOnHold === 0 ? 'DEPLETED' : 'AVAILABLE';
   }
 
   res.json({
@@ -589,17 +667,25 @@ export async function getBatchTraceability(req, res) {
       ...batch,
       quantityAvailable: correctAvailable,
       totalIssued: totalIssuedQty,
+      transferredOutQuantity: finalTransferredOut,
+      transferredInQuantity: totalTransferredIn,
+      quantityOnHold: finalOnHold,
+      disposedQuantity: finalDisposed,
       shedBreakdown,
       issuesCount: issues.length,
-      transactionsCount: transactions.length
+      transactionsCount: transactions.length,
+      transfersCount: transfers.length,
+      transferDestinations,
+      transferSources,
     },
     relatedBatches,
     timeline: {
       receipt: batch.firstReceipt,
       receipts,
+      transfers,
       issues,
-      transactions
-    }
+      transactions,
+    },
   });
 }
 

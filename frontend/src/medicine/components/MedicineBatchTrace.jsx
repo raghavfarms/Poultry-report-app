@@ -378,7 +378,11 @@ export default function MedicineBatchTrace({
         const batch = traceData.batch || {};
         const availableQty = batch.quantityAvailable ?? 0;
         const issuedQty = batch.totalIssued ?? 0;
-        const initialQty = batch.initialQuantity || (availableQty + issuedQty) || 0;
+        const transferredOutQty = batch.transferredOutQuantity || 0;
+        const transferredInQty = batch.transferredInQuantity || 0;
+        const holdQty = batch.quantityOnHold || 0;
+        const disposedQty = batch.disposedQuantity || 0;
+        const initialQty = batch.initialQuantity || (availableQty + issuedQty + transferredOutQty + disposedQty + holdQty) || 0;
         const unit = formatUnit(batch.medicine?.unit || 'Units');
 
         const expiryDate = batch.expiryDate;
@@ -389,6 +393,120 @@ export default function MedicineBatchTrace({
         }
 
         const sheds = Object.entries(batch.shedBreakdown || {});
+
+        const destNames = (batch.transferDestinations || [])
+          .map((d) => d.farm)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .join(', ');
+
+        const srcNames = (batch.transferSources || [])
+          .map((s) => s.farm)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .join(', ');
+
+        // Build unified chronological movement history
+        const currentFarmId = (batch.farm?._id || batch.farm)?.toString();
+        const timelineItems = [];
+
+        // 1. Receipts (IN)
+        if (traceData.timeline?.receipts?.length) {
+          traceData.timeline.receipts.forEach((r) => {
+            timelineItems.push({
+              id: r._id || `receipt-${r.createdAt}`,
+              type: 'RECEIPT',
+              qty: r.storeAcceptedQuantity || r.receivedQuantity || initialQty,
+              date: new Date(r.createdAt || batch.createdAt || 0),
+              supplierName: r.supplier?.name || batch.supplier?.name || 'Direct Farm Purchase',
+              receivedBy: r.receiverName || r.receivedBy?.name || r.receivedBy?.username || 'Not recorded',
+            });
+          });
+        } else if (transferredInQty === 0) {
+          timelineItems.push({
+            id: 'legacy-receipt',
+            type: 'RECEIPT',
+            qty: initialQty,
+            date: new Date(batch.createdAt || 0),
+            supplierName: batch.supplier?.name || 'Direct Farm Purchase',
+            receivedBy: 'Not recorded',
+          });
+        }
+
+        // 2. Inter-Farm Transfers (OUTWARD or INWARD)
+        (traceData.timeline?.transfers || []).forEach((t) => {
+          const fromId = (t.fromFarm?._id || t.fromFarm)?.toString();
+          const toId = (t.toFarm?._id || t.toFarm)?.toString();
+          const isOutward = fromId === currentFarmId;
+          const isInward = toId === currentFarmId;
+
+          if (isOutward) {
+            timelineItems.push({
+              id: t._id || `trf-${t.transferNumber}`,
+              type: 'TRANSFER_OUT',
+              qty: t.quantity,
+              date: new Date(t.actionedAt || t.createdAt || 0),
+              status: t.status,
+              transferNumber: t.transferNumber,
+              targetFarm: t.toFarm?.name || 'Other Farm',
+              requestedByName: t.requestedByName || t.requestedBy?.name || 'Authorized Staff',
+              actionedByName: t.actionedByName || t.actionedBy?.name || '',
+              vehicleNo: t.transportDetails?.vehicleNo,
+              driverName: t.transportDetails?.personName,
+            });
+          } else if (isInward) {
+            timelineItems.push({
+              id: t._id || `trf-${t.transferNumber}`,
+              type: 'TRANSFER_IN',
+              qty: t.quantity,
+              date: new Date(t.actionedAt || t.createdAt || 0),
+              status: t.status,
+              transferNumber: t.transferNumber,
+              sourceFarm: t.fromFarm?.name || 'Other Farm',
+              requestedByName: t.requestedByName || t.requestedBy?.name || 'Authorized Staff',
+              actionedByName: t.actionedByName || t.actionedBy?.name || '',
+            });
+          }
+        });
+
+        // 3. Disposals
+        (batch.disposals || []).forEach((d, idx) => {
+          timelineItems.push({
+            id: d._id || `disp-${idx}`,
+            type: 'DISPOSED',
+            qty: d.quantity,
+            date: new Date(d.createdAt || 0),
+            performedBy: d.performedByName || 'Admin',
+          });
+        });
+
+        // 4. Shed Issues (OUT to birds)
+        (traceData.timeline?.issues || []).forEach((iss) => {
+          timelineItems.push({
+            id: iss._id || `iss-${iss.createdAt}`,
+            type: 'ISSUE',
+            qty: iss.issuedQuantity,
+            date: new Date(iss.issueDate || iss.createdAt || 0),
+            shed: iss.shed || iss.destinationName || 'Shed',
+            issuedTo: iss.issuedTo || 'Not recorded',
+            issuedBy: iss.issuedByName || iss.issuedBy?.name || 'Not recorded',
+          });
+        });
+
+        // 5. Additional Transactions (Returns, Physical Adjustments)
+        (traceData.timeline?.transactions || []).forEach((tx) => {
+          if (['RETURN_INWARD', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT'].includes(tx.transactionType)) {
+            timelineItems.push({
+              id: tx._id || `tx-${tx.createdAt}`,
+              type: tx.transactionType,
+              qty: tx.quantity,
+              date: new Date(tx.createdAt || 0),
+              remarks: tx.remarks || '',
+              performedBy: tx.performedBy?.name || 'Staff',
+            });
+          }
+        });
+
+        // Sort newest first
+        timelineItems.sort((a, b) => b.date - a.date);
 
         return (
           <div className="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs overflow-hidden divide-y divide-slate-100 text-xs">
@@ -548,12 +666,20 @@ export default function MedicineBatchTrace({
               </div>
             </div>
 
-            {/* 4-Column Stats Grid */}
-            <div className="px-3 sm:px-4 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            {/* 4 or 5 Column Stats Grid */}
+            <div className={`px-3 sm:px-4 py-2.5 grid grid-cols-2 gap-2 text-xs ${
+              (transferredOutQty > 0 || holdQty > 0 || disposedQty > 0)
+                ? 'sm:grid-cols-3 lg:grid-cols-5'
+                : 'sm:grid-cols-4'
+            }`}>
               <div>
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Supplier</span>
-                <strong className="text-slate-900 text-xs block truncate leading-tight mt-0.5">{batch.supplier?.name || 'Direct Delivery'}</strong>
-                <span className="text-[10px] text-slate-400 block truncate">{batch.supplier?.mobile || 'Farm Store'}</span>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Supplier / Source</span>
+                <strong className="text-slate-900 text-xs block truncate leading-tight mt-0.5">
+                  {batch.supplier?.name || (transferredInQty > 0 ? (srcNames ? `Transferred from ${srcNames}` : 'Inter-Farm Transfer') : 'Direct Delivery')}
+                </strong>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  {batch.supplier?.mobile || (transferredInQty > 0 ? 'Inter-Firm Inward' : 'Farm Store')}
+                </span>
               </div>
 
               <div>
@@ -567,16 +693,46 @@ export default function MedicineBatchTrace({
               <div>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Given to Birds</span>
                 <strong className="text-blue-700 text-xs sm:text-sm block leading-tight mt-0.5">{issuedQty} {unit}</strong>
-                <span className="text-[10px] text-blue-600 font-semibold block truncate">
-                  {sheds.length > 0 ? sheds.map(([s, q]) => `${s}: ${q}`).join(', ') : 'Issued Out'}
+                <span className="text-[10px] text-blue-600 font-semibold block truncate" title={sheds.map(([s, q]) => `${s}: ${q}`).join(', ')}>
+                  {sheds.length > 0 ? sheds.map(([s, q]) => `${s}: ${q}`).join(', ') : (issuedQty > 0 ? 'Issued to sheds' : '0 issued to birds')}
                 </span>
               </div>
 
+              {/* Show Transferred Out / Hold column if there are transfers or holds */}
+              {(transferredOutQty > 0 || holdQty > 0) && (
+                <div>
+                  <span className="text-[9px] font-bold text-purple-600 uppercase tracking-wider block">
+                    {holdQty > 0 && transferredOutQty === 0 ? 'Pending Transfer' : 'Transferred Out'}
+                  </span>
+                  <strong className="text-purple-700 text-xs sm:text-sm block leading-tight mt-0.5">
+                    {transferredOutQty + holdQty} {unit}
+                  </strong>
+                  <span className="text-[10px] text-purple-600 font-semibold block truncate" title={destNames}>
+                    {destNames ? `To ${destNames}` : (holdQty > 0 ? `${holdQty} on hold` : 'Transferred')}
+                  </span>
+                </div>
+              )}
+
+              {/* Show Disposed column if there were disposals */}
+              {disposedQty > 0 && (
+                <div>
+                  <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider block">Disposed / Expired</span>
+                  <strong className="text-rose-700 text-xs sm:text-sm block leading-tight mt-0.5">
+                    {disposedQty} {unit}
+                  </strong>
+                  <span className="text-[10px] text-rose-500 font-semibold block truncate">
+                    Discarded
+                  </span>
+                </div>
+              )}
+
               <div>
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Available Stock</span>
-                <strong className="text-emerald-700 text-xs sm:text-sm block leading-tight mt-0.5">{availableQty} {unit}</strong>
-                <span className="text-[10px] text-emerald-600 font-semibold block">
-                  {batch.farm?.name ? `In ${batch.farm.name} Store` : 'In Store'}
+                <strong className={`text-xs sm:text-sm block leading-tight mt-0.5 ${availableQty > 0 ? 'text-emerald-700 font-black' : 'text-slate-400 font-bold'}`}>
+                  {availableQty} {unit}
+                </strong>
+                <span className={`text-[10px] font-semibold block ${availableQty > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {availableQty > 0 ? (batch.farm?.name ? `In ${batch.farm.name} Store` : 'In Store') : 'Out of Stock (0)'}
                 </span>
               </div>
             </div>
@@ -585,59 +741,161 @@ export default function MedicineBatchTrace({
             <div className="px-3 sm:px-4 py-2.5 space-y-1.5">
               <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider">
                 <span>Movement History</span>
-                <span>{(traceData.timeline?.receipts?.length || 1) + (traceData.timeline?.issues?.length || 0) + (batch.disposals?.length || 0)} entries</span>
+                <span>{timelineItems.length} entries</span>
               </div>
-              <div className="space-y-1 text-xs">
-                {/* IN entries */}
-                {(traceData.timeline?.receipts?.length ? traceData.timeline.receipts : [{ _id: 'legacy', receivedQuantity: initialQty, createdAt: batch.createdAt }]).map((receipt) => (
-                  <div key={receipt._id} className="flex justify-between gap-2 py-1 text-[11px] border-b border-slate-50 last:border-none">
-                    <div className="min-w-0">
-                      <span className="px-1 py-0.2 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 mr-1.5">
-                        IN
-                      </span>
-                      <span className="font-bold text-slate-800">+{receipt.storeAcceptedQuantity || receipt.receivedQuantity} {unit}</span> Received from {receipt.supplier?.name || batch.supplier?.name || 'Direct Farm Purchase'}
-                      <div className="text-slate-600 text-[10px] mt-0.5">
-                        Received by: <strong>{receipt.receiverName || receipt.receivedBy?.name || receipt.receivedBy?.username || 'Not recorded'}</strong>
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-slate-400 text-[10px] font-mono">
-                      {receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
-                    </span>
-                  </div>
-                ))}
-
-                {/* DISPOSED entries */}
-                {(batch.disposals || []).map((entry, index) => (
-                  <div key={entry._id || index} className="py-1 text-xs text-rose-700 border-b border-slate-50 last:border-none">
-                    <span className="px-1 py-0.2 rounded text-[9px] font-black bg-rose-100 text-rose-800 mr-1.5">
-                      DISPOSED
-                    </span>
-                    <strong>-{entry.quantity} {unit}</strong> ? By {entry.performedByName || 'Admin'} ? {new Date(entry.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </div>
-                ))}
-
-                {/* OUT entries */}
-                {(traceData.timeline?.issues || []).map((iss) => (
-                  <div key={iss._id} className="flex items-center justify-between py-1 text-[11px] border-b border-slate-50 last:border-none">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="px-1 py-0.2 rounded text-[9px] font-black bg-blue-100 text-blue-800 shrink-0">
-                        OUT
-                      </span>
-                      <div className="min-w-0 break-words">
-                        <div className="font-semibold text-slate-800">-{iss.issuedQuantity} {unit} to {iss.shed || 'Shed'}</div>
-                        <div className="text-[10.5px] text-slate-600">
-                          Received by: <strong>{iss.issuedTo || 'Not recorded'}</strong>
+              <div className="space-y-1.5 text-xs">
+                {timelineItems.map((item) => {
+                  if (item.type === 'RECEIPT') {
+                    return (
+                      <div key={item.id} className="flex justify-between items-start gap-2 py-1.5 text-[11px] border-b border-slate-100 last:border-none">
+                        <div className="min-w-0">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 mr-1.5 border border-emerald-200">
+                            IN
+                          </span>
+                          <span className="font-bold text-slate-800">+{item.qty} {unit}</span> Received from {item.supplierName}
+                          <div className="text-slate-500 text-[10px] mt-0.5">
+                            Received by: <strong>{item.receivedBy}</strong>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-500">
-                          Issued by: {iss.issuedByName || iss.issuedBy?.name || 'Not recorded'}
+                        <span className="shrink-0 text-slate-400 text-[10px] font-mono">
+                          {item.date && item.date.getTime() > 0 ? item.date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (item.type === 'TRANSFER_OUT') {
+                    const isAccepted = item.status === 'ACCEPTED';
+                    const isPending = item.status === 'PENDING';
+                    const isRejected = item.status === 'REJECTED';
+                    return (
+                      <div key={item.id} className="flex justify-between items-start gap-2 py-1.5 text-[11px] border-b border-slate-100 last:border-none bg-purple-50/40 px-2 rounded-lg">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                              TRANSFER OUT
+                            </span>
+                            <span className="font-bold text-slate-900">
+                              -{item.qty} {unit} Transferred to {item.targetFarm}
+                            </span>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold ${
+                              isAccepted
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : isPending
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : isRejected
+                                ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}>
+                              {isAccepted ? '✓ ACCEPTED' : isPending ? '⏳ PENDING HOLD' : item.status}
+                            </span>
+                          </div>
+                          <div className="text-slate-600 text-[10px] mt-0.5 flex items-center gap-2 flex-wrap">
+                            <span>Ref: <strong className="font-mono text-slate-800">{item.transferNumber}</strong></span>
+                            {item.requestedByName && <span>• Requested by: <strong>{item.requestedByName}</strong></span>}
+                            {item.actionedByName && <span>• Actioned by: <strong>{item.actionedByName}</strong></span>}
+                            {item.vehicleNo && <span>• Vehicle: {item.vehicleNo}</span>}
+                            {item.driverName && <span>• Driver: {item.driverName}</span>}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-slate-400 text-[10px] font-mono">
+                          {item.date && item.date.getTime() > 0 ? item.date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (item.type === 'TRANSFER_IN') {
+                    return (
+                      <div key={item.id} className="flex justify-between items-start gap-2 py-1.5 text-[11px] border-b border-slate-100 last:border-none bg-teal-50/40 px-2 rounded-lg">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-teal-100 text-teal-800 border border-teal-200">
+                              TRANSFER IN
+                            </span>
+                            <span className="font-bold text-slate-900">
+                              +{item.qty} {unit} Transferred from {item.sourceFarm}
+                            </span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              ✓ ACCEPTED
+                            </span>
+                          </div>
+                          <div className="text-slate-600 text-[10px] mt-0.5 flex items-center gap-2 flex-wrap">
+                            <span>Ref: <strong className="font-mono text-slate-800">{item.transferNumber}</strong></span>
+                            {item.requestedByName && <span>• Sent by: <strong>{item.requestedByName}</strong></span>}
+                            {item.actionedByName && <span>• Accepted by: <strong>{item.actionedByName}</strong></span>}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-slate-400 text-[10px] font-mono">
+                          {item.date && item.date.getTime() > 0 ? item.date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (item.type === 'DISPOSED') {
+                    return (
+                      <div key={item.id} className="flex justify-between items-start gap-2 py-1.5 text-[11px] border-b border-slate-100 last:border-none">
+                        <div className="min-w-0">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-100 text-rose-800 mr-1.5 border border-rose-200">
+                            DISPOSED
+                          </span>
+                          <strong className="text-rose-700">-{item.qty} {unit}</strong> Disposed / Expired
+                          <div className="text-slate-500 text-[10px] mt-0.5">
+                            By: <strong>{item.performedBy}</strong>
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-slate-400 text-[10px] font-mono">
+                          {item.date && item.date.getTime() > 0 ? item.date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (item.type === 'ISSUE') {
+                    return (
+                      <div key={item.id} className="flex items-start justify-between py-1.5 text-[11px] border-b border-slate-100 last:border-none">
+                        <div className="flex items-start gap-1.5 min-w-0">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-800 shrink-0 border border-blue-200">
+                            OUT
+                          </span>
+                          <div className="min-w-0 break-words">
+                            <div className="font-semibold text-slate-800">
+                              -{item.qty} {unit} to {item.shed}
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              Received by: <strong>{item.issuedTo}</strong> • Issued by: {item.issuedBy}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
+                          {item.date && item.date.getTime() > 0 ? item.date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  // Default for Return or Adjustments
+                  return (
+                    <div key={item.id} className="flex items-start justify-between py-1.5 text-[11px] border-b border-slate-100 last:border-none">
+                      <div className="min-w-0">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-800 mr-1.5 border border-amber-200">
+                          {item.type.replace('_', ' ')}
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {item.type.endsWith('_OUT') ? `-${item.qty}` : `+${item.qty}`} {unit}
+                        </span>{' '}
+                        {item.remarks && <span className="text-slate-600">({item.remarks})</span>}
+                        <div className="text-slate-500 text-[10px] mt-0.5">
+                          By: <strong>{item.performedBy}</strong>
                         </div>
                       </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
+                        {item.date && item.date.getTime() > 0 ? item.date.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono shrink-0 ml-2">
-                      {iss.issueDate ? new Date(iss.issueDate).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : (iss.createdAt ? new Date(iss.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) : '')}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
