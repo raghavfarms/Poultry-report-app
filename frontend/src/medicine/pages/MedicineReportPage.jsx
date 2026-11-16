@@ -1160,114 +1160,94 @@ export default function MedicineReportPage() {
 
           {/* Quick Filter Strip */}
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-2.5 items-stretch sm:items-center">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <input
-                type="text"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-                value={stockSearch}
-                onChange={(e) => setStockSearch(e.target.value)}
-                placeholder="Search medicine name, code, or batch..."
-                className="w-full h-9 pl-8 pr-8 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-slate-50/50"
-              />
-              <span className="absolute left-2.5 top-2.5 text-xs text-slate-400">🔍</span>
-              {stockSearch && (
-                <button
-                  type="button"
-                  onClick={() => setStockSearch('')}
-                  className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Filter Pills & Expand Toggle */}
-            <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-              <div className="flex gap-1 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5 items-center">
-                {/* Category Dropdown Pill (Replaces / Enhances "All" button) */}
-                <div className="relative shrink-0">
+            {/* Search Input (reduced width) + Category Selector Button */}
+            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+              <div className="relative w-full sm:w-52 md:w-60">
+                <input
+                  type="text"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                  value={stockSearch}
+                  onChange={(e) => setStockSearch(e.target.value)}
+                  placeholder="Search medicine, code, batch..."
+                  className="w-full h-9 pl-8 pr-8 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-slate-50/50"
+                />
+                <span className="absolute left-2.5 top-2.5 text-xs text-slate-400">🔍</span>
+                {stockSearch && (
                   <button
                     type="button"
-                    onClick={() => setIsCategoryMenuOpen((prev) => !prev)}
-                    className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
-                      stockCategory !== 'ALL'
-                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                        : stockFilter === 'ALL'
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                        : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                    }`}
-                    title="Click to filter by category (All, General, Vaccination, Spray, Injection, etc.)"
+                    onClick={() => setStockSearch('')}
+                    className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
-                    <span>
-                      {stockCategory === 'ALL'
-                        ? `All (${categoryCounts.ALL ?? groupedMedicines.filter((m) => m.urgency !== 'DEPLETED').length})`
-                        : `${stockCategory} (${categoryCounts[stockCategory] || 0})`}
-                    </span>
-                    <span className="text-[9px] opacity-75">▼</span>
+                    ✕
                   </button>
+                )}
+              </div>
 
-                  {isCategoryMenuOpen && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-30 cursor-default"
-                        onClick={() => setIsCategoryMenuOpen(false)}
-                      />
-                      <div className="absolute left-0 top-full mt-1.5 w-44 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-40 text-left animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100">
-                        <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          Filter Category
-                        </div>
-                        <div className="py-0.5 max-h-56 overflow-y-auto">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStockCategory('ALL');
-                              setStockFilter('ALL');
-                              setIsCategoryMenuOpen(false);
-                            }}
-                            className={`w-full px-3 py-1.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                              stockCategory === 'ALL'
-                                ? 'bg-emerald-50 text-emerald-800 font-bold'
-                                : 'text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <span>All</span>
-                            <span className="text-[11px] font-mono text-slate-400">
-                              ({categoryCounts.ALL ?? 0})
-                            </span>
-                          </button>
-                          {availableCategories.map((cat) => (
-                            <button
-                              key={cat}
-                              type="button"
-                              onClick={() => {
-                                setStockCategory(cat);
-                                setIsCategoryMenuOpen(false);
-                              }}
-                              className={`w-full px-3 py-1.5 text-xs font-semibold flex items-center justify-between transition cursor-pointer ${
-                                stockCategory.toLowerCase() === cat.toLowerCase()
-                                  ? 'bg-emerald-50 text-emerald-800 font-bold'
-                                  : 'text-slate-700 hover:bg-slate-50'
-                              }`}
-                            >
-                              <span>{cat}</span>
-                              <span className="text-[11px] font-mono text-slate-400">
-                                ({categoryCounts[cat] || 0})
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+              {/* Category Filter Button Dropdown */}
+              <div className="relative shrink-0">
+                <select
+                  value={stockCategory}
+                  onChange={(e) => setStockCategory(e.target.value)}
+                  className={`h-9 pl-2.5 pr-7 rounded-lg text-xs font-bold transition cursor-pointer border appearance-none outline-none ${
+                    stockCategory !== 'ALL'
+                      ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400 shadow-2xs'
+                  }`}
+                  title="Filter by Category"
+                >
+                  <option value="ALL" className="bg-white text-slate-900 font-semibold py-1">
+                    Category: All
+                  </option>
+                  <option value="General" className="bg-white text-slate-900 font-semibold py-1">
+                    General ({categoryCounts['General'] || 0})
+                  </option>
+                  <option value="Vaccination" className="bg-white text-slate-900 font-semibold py-1">
+                    Vaccination ({categoryCounts['Vaccination'] || 0})
+                  </option>
+                  <option value="Spray" className="bg-white text-slate-900 font-semibold py-1">
+                    Spray ({categoryCounts['Spray'] || 0})
+                  </option>
+                  <option value="Injection" className="bg-white text-slate-900 font-semibold py-1">
+                    Injection ({categoryCounts['Injection'] || 0})
+                  </option>
+                  {availableCategories
+                    .filter((c) => !['General', 'Vaccination', 'Spray', 'Injection'].includes(c))
+                    .map((cat) => (
+                      <option key={cat} value={cat} className="bg-white text-slate-900 font-semibold py-1">
+                        {cat} ({categoryCounts[cat] || 0})
+                      </option>
+                    ))}
+                </select>
+                <span
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[8px] font-black ${
+                    stockCategory !== 'ALL' ? 'text-white' : 'text-slate-500'
+                  }`}
+                >
+                  ▼
+                </span>
+              </div>
+            </div>
 
+            {/* Shelf Status Filter Pills & Expand Toggle */}
+            <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+              <div className="flex gap-1 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5 items-center">
                 <button
                   type="button"
-                  onClick={() => setStockFilter('SAFE')}
+                  onClick={() => setStockFilter('ALL')}
+                  className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer shrink-0 border ${
+                    stockFilter === 'ALL'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  All ({filteredMedicinesByCategory.filter((m) => m.urgency !== 'DEPLETED').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockFilter((prev) => (prev === 'SAFE' ? 'ALL' : 'SAFE'))}
                   className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'SAFE'
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
@@ -1278,7 +1258,7 @@ export default function MedicineReportPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStockFilter('SOON')}
+                  onClick={() => setStockFilter((prev) => (prev === 'SOON' ? 'ALL' : 'SOON'))}
                   className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'SOON'
                       ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
@@ -1289,7 +1269,7 @@ export default function MedicineReportPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStockFilter('EXPIRED')}
+                  onClick={() => setStockFilter((prev) => (prev === 'EXPIRED' ? 'ALL' : 'EXPIRED'))}
                   className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'EXPIRED'
                       ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
@@ -1300,7 +1280,7 @@ export default function MedicineReportPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStockFilter('DEPLETED')}
+                  onClick={() => setStockFilter((prev) => (prev === 'DEPLETED' ? 'ALL' : 'DEPLETED'))}
                   className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                     stockFilter === 'DEPLETED'
                       ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
@@ -1312,7 +1292,7 @@ export default function MedicineReportPage() {
                 {lowStock.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setStockFilter('LOW')}
+                    onClick={() => setStockFilter((prev) => (prev === 'LOW' ? 'ALL' : 'LOW'))}
                     className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0 border ${
                       stockFilter === 'LOW'
                         ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
