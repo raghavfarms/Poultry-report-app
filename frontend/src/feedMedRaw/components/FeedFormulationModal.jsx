@@ -33,6 +33,11 @@ export default function FeedFormulationModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Bulk Multi-Select state
+  const [bulkPickerType, setBulkPickerType] = useState(null); // 'Raw Material' | 'Feed Medicine' | null
+  const [bulkSearch, setBulkSearch] = useState('');
+  const [bulkSelectedIds, setBulkSelectedIds] = useState([]);
+
   // Group master items for quick selection
   const rawMaterials = useMemo(
     () => masterItems.filter((i) => i.itemType === 'Raw Material' && i.isActive !== false),
@@ -60,14 +65,11 @@ export default function FeedFormulationModal({
               itemId: it.itemId?._id || it.itemId || '',
               itemType: it.itemType || 'Raw Material',
               itemName: it.itemName || '',
-              quantity: it.quantity || '',
+              quantity: it.quantity ?? '',
               percentage: it.percentage || 0,
               uom: it.uom || 'kg',
             }))
-          : [
-              { itemId: '', itemType: 'Raw Material', itemName: '', quantity: '', percentage: 0, uom: 'kg' },
-              { itemId: '', itemType: 'Feed Medicine', itemName: '', quantity: '', percentage: 0, uom: 'kg' },
-            ]
+          : []
       );
     } else {
       setFeedName('');
@@ -78,13 +80,10 @@ export default function FeedFormulationModal({
       setStartDate('');
       setEndDate('');
       setNotes('');
-      // Default with 2 empty rows ready for input
-      setItems([
-        { itemId: '', itemType: 'Raw Material', itemName: '', quantity: '', percentage: 0, uom: 'kg' },
-        { itemId: '', itemType: 'Feed Medicine', itemName: '', quantity: '', percentage: 0, uom: 'kg' },
-      ]);
+      setItems([]);
     }
     setError('');
+    setBulkPickerType(null);
   }, [editingFormulation, isOpen]);
 
   // Calculate live total weight and remaining kg
@@ -116,6 +115,13 @@ export default function FeedFormulationModal({
   // Remove an ingredient row
   const handleRemoveRow = (index) => {
     setItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  // Clear all items
+  const handleClearAll = () => {
+    if (items.length > 0 && window.confirm('Are you sure you want to clear all ingredients?')) {
+      setItems([]);
+    }
   };
 
   // Change row's item type (Raw Material vs Feed Medicine)
@@ -169,6 +175,83 @@ export default function FeedFormulationModal({
     });
   };
 
+  // ========================================================
+  // BULK MULTI-SELECT HANDLERS
+  // ========================================================
+  const handleOpenBulkPicker = (type) => {
+    setBulkPickerType(type);
+    setBulkSearch('');
+    // Pre-select items of this type that are already in the formula
+    const alreadySelected = items
+      .filter((it) => it.itemType === type && it.itemId)
+      .map((it) => it.itemId.toString());
+    setBulkSelectedIds(alreadySelected);
+  };
+
+  const handleToggleBulkItem = (id) => {
+    setBulkSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllBulk = (candidateList) => {
+    const candidateIds = candidateList.map((c) => c._id.toString());
+    const allSelected = candidateIds.every((id) => bulkSelectedIds.includes(id));
+    if (allSelected) {
+      // Deselect these candidates
+      setBulkSelectedIds((prev) => prev.filter((id) => !candidateIds.includes(id)));
+    } else {
+      // Add all candidateIds
+      setBulkSelectedIds((prev) => Array.from(new Set([...prev, ...candidateIds])));
+    }
+  };
+
+  const handleApplyBulkSelection = () => {
+    // Preserve existing quantities that were already typed
+    const existingQtyMap = new Map();
+    items.forEach((it) => {
+      if (it.itemId) {
+        existingQtyMap.set(it.itemId.toString(), it.quantity);
+      }
+    });
+
+    // Keep items of the other type
+    const otherTypeItems = items.filter(
+      (it) => it.itemType !== bulkPickerType && it.itemId
+    );
+
+    // Build the updated list for the chosen type
+    const candidateMaster = bulkPickerType === 'Raw Material' ? rawMaterials : feedMedicines;
+    const selectedMasterItems = bulkSelectedIds
+      .map((id) => candidateMaster.find((m) => m._id.toString() === id))
+      .filter(Boolean);
+
+    const updatedCurrentItems = selectedMasterItems.map((m) => {
+      const preservedQty = existingQtyMap.get(m._id.toString()) ?? '';
+      const numQty = Number(preservedQty) || 0;
+      const pct = targetBatchSize > 0 ? Number(((numQty / targetBatchSize) * 100).toFixed(2)) : 0;
+      return {
+        itemId: m._id,
+        itemType: m.itemType,
+        itemName: m.name,
+        quantity: preservedQty,
+        percentage: pct,
+        uom: 'kg',
+      };
+    });
+
+    // Combine: Raw Materials first, then Feed Medicines
+    let combined;
+    if (bulkPickerType === 'Raw Material') {
+      combined = [...updatedCurrentItems, ...otherTypeItems];
+    } else {
+      combined = [...otherTypeItems, ...updatedCurrentItems];
+    }
+
+    setItems(combined);
+    setBulkPickerType(null);
+  };
+
   // Submit Formulation
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -215,13 +298,31 @@ export default function FeedFormulationModal({
 
   if (!isOpen) return null;
 
+  // Items for bulk picker dialog
+  const currentBulkCandidates = bulkPickerType === 'Raw Material' ? rawMaterials : feedMedicines;
+  const filteredBulkCandidates = currentBulkCandidates.filter((c) => {
+    if (!bulkSearch.trim()) return true;
+    const q = bulkSearch.trim().toLowerCase();
+    return (
+      c.name?.toLowerCase().includes(q) ||
+      c.code?.toLowerCase().includes(q) ||
+      c.aliasName?.toLowerCase().includes(q)
+    );
+  });
+  const allFilteredSelected =
+    filteredBulkCandidates.length > 0 &&
+    filteredBulkCandidates.every((c) => bulkSelectedIds.includes(c._id.toString()));
+
+  const rawMaterialsInFormulaCount = items.filter((i) => i.itemType === 'Raw Material' && i.itemId).length;
+  const feedMedicinesInFormulaCount = items.filter((i) => i.itemType === 'Feed Medicine' && i.itemId).length;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto cursor-pointer"
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-150 my-auto cursor-default max-h-[92vh] flex flex-col overflow-hidden border border-slate-200"
+        className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-150 my-auto cursor-default max-h-[92vh] flex flex-col overflow-hidden border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -337,9 +438,9 @@ export default function FeedFormulationModal({
             </div>
           </div>
 
-          {/* Section 2: Dynamic Ingredients Table */}
+          {/* Section 2: Dynamic Ingredients Table with Multi-Select Pickers */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div>
                 <h4 className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
                   <span>📋</span>
@@ -350,46 +451,99 @@ export default function FeedFormulationModal({
                 </h4>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              {/* Action Buttons: Multi-Select Pickers */}
+              <div className="flex items-center flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleOpenBulkPicker('Raw Material')}
+                  className="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Select multiple Raw Materials from catalog"
+                >
+                  <span>🌾</span>
+                  <span>Select Raw Materials</span>
+                  {rawMaterialsInFormulaCount > 0 && (
+                    <span className="bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                      {rawMaterialsInFormulaCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenBulkPicker('Feed Medicine')}
+                  className="px-2.5 py-1 bg-purple-50 text-purple-900 border border-purple-300 hover:bg-purple-100 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Select multiple Feed Medicines / Premixes from catalog"
+                >
+                  <span>💊</span>
+                  <span>Select Feed Medicine</span>
+                  {feedMedicinesInFormulaCount > 0 && (
+                    <span className="bg-purple-200 text-purple-900 text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                      {feedMedicinesInFormulaCount}
+                    </span>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => handleAddRow('Raw Material')}
-                  className="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  title="Add single custom row"
                 >
-                  <span>+</span> <span>🌾 Raw Material</span>
+                  + 1 Row
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddRow('Feed Medicine')}
-                  className="px-2.5 py-1 bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                >
-                  <span>+</span> <span>💊 Feed Medicine</span>
-                </button>
+
+                {items.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 font-semibold px-1.5 py-1 hover:bg-rose-50 rounded transition cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Ingredients Table */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-100 border-b border-slate-200 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                  <tr>
-                    <th className="py-2 px-2.5 w-10 text-center">#</th>
-                    <th className="py-2 px-2.5 w-28 sm:w-32">Type</th>
-                    <th className="py-2 px-2.5">Ingredient Name (from Master)</th>
-                    <th className="py-2 px-2.5 w-24 sm:w-28 text-right">Qty (kg)</th>
-                    <th className="py-2 px-2.5 w-16 sm:w-20 text-center hidden sm:table-cell">% Ratio</th>
-                    <th className="py-2 px-2 text-center w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {items.length === 0 ? (
+            {items.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl">
+                <div className="text-3xl mb-2">🥣</div>
+                <p className="text-xs font-bold text-slate-700">No ingredients in this formulation yet</p>
+                <p className="text-[11px] text-slate-500 mt-1 mb-4">
+                  Select multiple items at once from your catalog to instantly build your recipe:
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenBulkPicker('Raw Material')}
+                    className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <span>🌾</span> <span>+ Select Raw Materials</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenBulkPicker('Feed Medicine')}
+                    className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <span>💊</span> <span>+ Select Feed Medicines</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-100 border-b border-slate-200 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-slate-400 italic">
-                        No ingredients added yet. Click &quot;+ Raw Material&quot; or &quot;+ Feed Medicine&quot; above.
-                      </td>
+                      <th className="py-2 px-2.5 w-10 text-center">#</th>
+                      <th className="py-2 px-2.5 w-28 sm:w-32">Type</th>
+                      <th className="py-2 px-2.5 min-w-[200px]">Ingredient Name (from Master)</th>
+                      <th className="py-2 px-2.5 w-28 sm:w-32 text-right">Qty (kg)</th>
+                      <th className="py-2 px-2.5 w-20 text-center hidden sm:table-cell">% Ratio</th>
+                      <th className="py-2 px-2 text-center w-10"></th>
                     </tr>
-                  ) : (
-                    items.map((row, idx) => {
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {items.map((row, idx) => {
                       const availableList = row.itemType === 'Raw Material' ? rawMaterials : feedMedicines;
                       return (
                         <tr key={idx} className="hover:bg-slate-50/80 transition">
@@ -398,20 +552,18 @@ export default function FeedFormulationModal({
                             {idx + 1}
                           </td>
 
-                          {/* Item Type Switcher */}
+                          {/* Item Type Badge / Switcher */}
                           <td className="py-2 px-2.5">
-                            <select
-                              value={row.itemType}
-                              onChange={(e) => handleItemTypeChange(idx, e.target.value)}
-                              className={`w-full h-7 px-1.5 rounded-md text-[11px] font-bold border transition cursor-pointer ${
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
                                 row.itemType === 'Raw Material'
                                   ? 'bg-amber-50 text-amber-900 border-amber-200'
                                   : 'bg-purple-50 text-purple-900 border-purple-200'
                               }`}
                             >
-                              <option value="Raw Material">🌾 Raw Material</option>
-                              <option value="Feed Medicine">💊 Feed Med</option>
-                            </select>
+                              <span>{row.itemType === 'Raw Material' ? '🌾' : '💊'}</span>
+                              <span>{row.itemType === 'Raw Material' ? 'Raw Mat' : 'Feed Med'}</span>
+                            </span>
                           </td>
 
                           {/* Ingredient Picker from Master */}
@@ -467,11 +619,11 @@ export default function FeedFormulationModal({
                           </td>
                         </tr>
                       );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* LIVE BATCH VALIDATOR BANNER */}
             <div
@@ -566,6 +718,173 @@ export default function FeedFormulationModal({
           </div>
         </form>
       </div>
+
+      {/* ======================================================== */}
+      {/* BULK MULTI-SELECT PICKER MODAL (OVERLAY)                 */}
+      {/* ======================================================== */}
+      {bulkPickerType && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-3 animate-in fade-in duration-100"
+          onClick={() => setBulkPickerType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className={`px-4 py-3 border-b border-slate-200 flex items-center justify-between ${
+                bulkPickerType === 'Raw Material'
+                  ? 'bg-gradient-to-r from-amber-50 to-orange-50'
+                  : 'bg-gradient-to-r from-purple-50 to-indigo-50'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xl">
+                  {bulkPickerType === 'Raw Material' ? '🌾' : '💊'}
+                </span>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">
+                    Select {bulkPickerType === 'Raw Material' ? 'Raw Materials' : 'Feed Medicines'}
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Check any items to add them in bulk to your formulation.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBulkPickerType(null)}
+                className="text-slate-400 hover:text-slate-700 font-bold text-lg p-1 rounded-lg hover:bg-white/80 transition cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Search & Quick Controls */}
+            <div className="p-3 border-b border-slate-200 bg-slate-50 space-y-2">
+              <div className="relative">
+                <span className="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder={`Search ${bulkPickerType.toLowerCase()}s by name or code...`}
+                  value={bulkSearch}
+                  onChange={(e) => setBulkSearch(e.target.value)}
+                  className="w-full h-8 pl-8 pr-7 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                {bulkSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setBulkSearch('')}
+                    className="absolute right-2 top-2 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleSelectAllBulk(filteredBulkCandidates)}
+                  className="text-xs font-bold text-emerald-700 hover:text-emerald-900 transition cursor-pointer"
+                >
+                  {allFilteredSelected ? 'Deselect All' : `Select All (${filteredBulkCandidates.length})`}
+                </button>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  {bulkSelectedIds.length} item{bulkSelectedIds.length === 1 ? '' : 's'} selected
+                </span>
+              </div>
+            </div>
+
+            {/* Items Checklist List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5 divide-y divide-slate-100">
+              {filteredBulkCandidates.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs italic">
+                  No {bulkPickerType.toLowerCase()}s match &quot;{bulkSearch}&quot;
+                </div>
+              ) : (
+                filteredBulkCandidates.map((c) => {
+                  const isChecked = bulkSelectedIds.includes(c._id.toString());
+                  const alreadyInFormula = items.some(
+                    (it) => it.itemId && it.itemId.toString() === c._id.toString()
+                  );
+
+                  return (
+                    <label
+                      key={c._id}
+                      className={`flex items-center justify-between p-2 rounded-xl transition cursor-pointer border ${
+                        isChecked
+                          ? bulkPickerType === 'Raw Material'
+                            ? 'bg-amber-50/80 border-amber-300'
+                            : 'bg-purple-50/80 border-purple-300'
+                          : 'bg-white hover:bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleBulkItem(c._id.toString())}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                              {c.code || '---'}
+                            </span>
+                            <span className="font-bold text-xs text-slate-800 truncate">
+                              {c.name}
+                            </span>
+                          </div>
+                          {c.aliasName && (
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                              Alias: {c.aliasName}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {alreadyInFormula && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                            In Recipe
+                          </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {c.uom || 'kg'}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bulk Picker Footer */}
+            <div className="p-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+              <button
+                type="button"
+                onClick={() => setBulkPickerType(null)}
+                className="px-3.5 py-1.5 border border-slate-300 text-slate-600 rounded-lg text-xs font-semibold hover:bg-white transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyBulkSelection}
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1"
+              >
+                <span>+</span>
+                <span>
+                  Add Selected ({bulkSelectedIds.length} {bulkPickerType === 'Raw Material' ? 'Raw Mat' : 'Medicine'})
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import {
   fetchFeedItems,
@@ -592,19 +592,19 @@ export default function FeedMedRawMasterPage() {
             /* ==================================== */
             /* 1. FEED FORMULATION DESKTOP TABLE    */
             /* ==================================== */
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse table-auto">
               <thead className="sticky top-0 bg-slate-50 z-10 shadow-2xs">
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3 px-4">BOM Code</th>
-                  <th className="py-3 px-4">Recipe / Feed Name</th>
-                  <th className="py-3 px-4">Stage / Type</th>
-                  <th className="py-3 px-4">Consumed By</th>
-                  <th className="py-3 px-4">Target Flock</th>
-                  <th className="py-3 px-4 text-center">Batch Items</th>
-                  <th className="py-3 px-4 text-center">1 Ton Batch Status</th>
-                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 whitespace-nowrap w-28">BOM Code</th>
+                  <th className="py-3 px-4 min-w-[200px]">Recipe / Feed Name</th>
+                  <th className="py-3 px-4 whitespace-nowrap w-28">Stage / Type</th>
+                  <th className="py-3 px-4 whitespace-nowrap w-36">Consumed By</th>
+                  <th className="py-3 px-4 whitespace-nowrap w-32">Target Flock</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap w-28">Batch Items</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap w-36">1 Ton Batch Status</th>
+                  <th className="py-3 px-4 text-center whitespace-nowrap w-24">Status</th>
                   {canManage && (
-                    <th className="py-3 px-4 pr-6 text-right w-24">Actions</th>
+                    <th className="py-3 px-4 pr-6 text-right whitespace-nowrap w-20">Actions</th>
                   )}
                 </tr>
               </thead>
@@ -629,14 +629,14 @@ export default function FeedMedRawMasterPage() {
                     const isExpanded = expandedRecipeId === item._id;
 
                     return (
-                      <tbody key={item._id} className="divide-y divide-slate-100">
+                      <Fragment key={item._id}>
                         <tr
-                          className={`hover:bg-slate-50 transition cursor-pointer ${
+                          className={`hover:bg-slate-50 transition cursor-pointer border-b border-slate-100 ${
                             isExpanded ? 'bg-teal-50/40' : ''
                           }`}
                           onClick={() => setExpandedRecipeId(isExpanded ? null : item._id)}
                         >
-                          <td className="py-3 px-4 font-mono font-bold text-teal-800">
+                          <td className="py-3 px-4 font-mono font-bold text-teal-800 whitespace-nowrap">
                             {item.bomNumber}
                           </td>
                           <td className="py-3 px-4">
@@ -647,22 +647,22 @@ export default function FeedMedRawMasterPage() {
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 whitespace-nowrap">
                             <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200">
                               {item.feedType}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-xs font-medium text-slate-700">
+                          <td className="py-3 px-4 text-xs font-medium text-slate-700 whitespace-nowrap">
                             {item.consumedBy === 'FEMALE'
                               ? 'FEMALE (मुर्गी)'
                               : item.consumedBy === 'MALE'
                                 ? 'MALE (मुर्गा)'
                                 : 'ALL BIRDS'}
                           </td>
-                          <td className="py-3 px-4 text-xs text-slate-600">
+                          <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
                             {item.flockName || 'All Flocks'}
                           </td>
-                          <td className="py-3 px-4 text-center font-medium">
+                          <td className="py-3 px-4 text-center font-medium whitespace-nowrap">
                             <span className="text-xs text-slate-800 font-bold">
                               {item.items?.length || 0} items
                             </span>
@@ -670,7 +670,7 @@ export default function FeedMedRawMasterPage() {
                               {isExpanded ? '▲ Hide recipe' : '▼ View recipe'}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 isBalanced
@@ -682,7 +682,7 @@ export default function FeedMedRawMasterPage() {
                               <span>{item.totalWeight || 0} kg</span>
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
                             <span
                               className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
                                 item.isActive
@@ -694,7 +694,7 @@ export default function FeedMedRawMasterPage() {
                             </span>
                           </td>
                           {canManage && (
-                            <td className="py-3 px-4 pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                            <td className="py-3 px-4 pr-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <div className="relative inline-block text-left">
                                 <button
                                   type="button"
@@ -821,7 +821,7 @@ export default function FeedMedRawMasterPage() {
                             </td>
                           </tr>
                         )}
-                      </tbody>
+                      </Fragment>
                     );
                   })
                 )}

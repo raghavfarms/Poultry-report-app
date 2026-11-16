@@ -35,7 +35,7 @@ export default function ComingSoonPage() {
         This module is already included in navigation and can be implemented
         next without changing the diesel module or user permissions.
       </p>
-      <Link to="/" className={`${primaryButton} mt-6`}>
+      <Link to="/" className={`${primaryButton} mt-6`}>  
         Back to all reports
       </Link>
     </section>
