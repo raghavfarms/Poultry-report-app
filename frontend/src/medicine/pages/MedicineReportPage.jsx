@@ -1160,9 +1160,9 @@ export default function MedicineReportPage() {
 
           {/* Quick Filter Strip */}
           <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row justify-between gap-2.5 items-stretch sm:items-center">
-            {/* Search Input (reduced width) + Category Selector Button */}
-            <div className="flex items-center gap-2 flex-1 sm:flex-initial">
-              <div className="relative w-full sm:w-52 md:w-60">
+            {/* Search Input (expanded width to fill blank space) + Category Selector Button */}
+            <div className="flex items-center gap-2 flex-1 min-w-0 sm:max-w-xl md:max-w-2xl">
+              <div className="relative flex-1 min-w-[200px]">
                 <input
                   type="text"
                   autoComplete="off"
@@ -1171,7 +1171,7 @@ export default function MedicineReportPage() {
                   spellCheck="false"
                   value={stockSearch}
                   onChange={(e) => setStockSearch(e.target.value)}
-                  placeholder="Search medicine, code, batch..."
+                  placeholder="Search medicine, code, or batch..."
                   className="w-full h-9 pl-8 pr-8 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-slate-50/50"
                 />
                 <span className="absolute left-2.5 top-2.5 text-xs text-slate-400">🔍</span>
@@ -1232,7 +1232,7 @@ export default function MedicineReportPage() {
             </div>
 
             {/* Shelf Status Filter Pills & Expand Toggle */}
-            <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <div className="flex items-center justify-between gap-1.5 overflow-x-auto no-scrollbar py-0.5 shrink-0">
               <div className="flex gap-1 overflow-x-auto no-scrollbar whitespace-nowrap py-0.5 items-center">
                 <button
                   type="button"
