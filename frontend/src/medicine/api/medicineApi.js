@@ -39,6 +39,17 @@ export async function createMedicineApi(medicineData) {
 }
 
 /*
+ * 3b. Bulk import medicines from parsed Excel data
+ * @param {Array} medicines - Array of medicine objects
+ */
+export async function bulkImportMedicinesApi(medicines) {
+  return await api('/medicine/masters/bulk-import', {
+    method: 'POST',
+    body: { medicines },
+  });
+}
+
+/*
  * 4. Update an existing medicine
  * @param {string} id - Medicine _id
  * @param {Object} updateData - { name, category, unit, ... }

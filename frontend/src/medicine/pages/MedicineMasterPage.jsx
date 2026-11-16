@@ -24,6 +24,7 @@ import { DEFAULT_PACKAGING_TYPES, DEFAULT_MEASUREMENT_UNITS, formatStockDisplay 
 import { exportReportToPdf } from '../../utils/exportPdf.js';
 import * as XLSX from 'xlsx';
 import { bulkImportSuppliersApi } from '../api/supplierApi.js';
+import MedicineExcelImportModal from '../components/MedicineExcelImportModal.jsx';
 
 
 
@@ -175,6 +176,7 @@ export default function MedicineMasterPage() {
 
   // Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMedicineImportOpen, setIsMedicineImportOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -821,12 +823,24 @@ export default function MedicineMasterPage() {
           </button>
 
           {canManage && (
-            <button
-              onClick={handleOpenAddModal}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
-            >
-              <span className="text-base leading-none font-bold">+</span> Add Medicine
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsMedicineImportOpen(true)}
+                className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-800 font-bold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-2xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+                title="Bulk import medicines from Excel spreadsheet (.xlsx, .xls, .csv)"
+              >
+                <span>📊</span>
+                <span>Upload Excel</span>
+              </button>
+
+              <button
+                onClick={handleOpenAddModal}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs sm:text-sm shrink-0"
+              >
+                <span className="text-base leading-none font-bold">+</span> Add Medicine
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -2198,6 +2212,20 @@ export default function MedicineMasterPage() {
         firms={firms}
         onSuccess={() => setAuditRefreshKey((k) => k + 1)}
       />
+
+      {/* Bulk Medicine Excel Import Modal */}
+      {isMedicineImportOpen && (
+        <MedicineExcelImportModal
+          isOpen={isMedicineImportOpen}
+          onClose={() => setIsMedicineImportOpen(false)}
+          existingMedicines={medicines}
+          onSuccess={(res) => {
+            loadMedicines();
+            setSuccessMsg(res.message || 'Medicines imported successfully!');
+            setTimeout(() => setSuccessMsg(''), 4000);
+          }}
+        />
+      )}
 
       {/* Excel Import Preview Modal */}
       {isBulkImportOpen && (

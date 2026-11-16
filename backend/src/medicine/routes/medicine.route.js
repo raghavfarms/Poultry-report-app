@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   createMedicine,
+  bulkImportMedicines,
   getMedicines,
   getMedicineById,
   updateMedicine,
@@ -14,6 +15,9 @@ import { protect } from '../../middleware/auth.js';
 const router = express.Router();
 
 router.use(protect);
+
+// Bulk Import from Excel (must be declared before /:id)
+router.post('/bulk-import', bulkImportMedicines);
 
 // Category and Unit deletion (must be declared before /:id)
 router.delete('/categories', deleteCategory);

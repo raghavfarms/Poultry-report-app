@@ -526,3 +526,135 @@ export async function deleteMedicine(req, res) {
   }
 }
 
+// 9. Bulk Import Medicines from Excel / Spreadsheet
+export async function bulkImportMedicines(req, res) {
+  try {
+    const isAdminOrDev = ['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.medicine_master === true;
+    if (!isAdminOrDev) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Admin and Developer accounts can import medicines',
+      });
+    }
+
+    const { medicines } = req.body;
+    if (!Array.isArray(medicines) || medicines.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No medicines provided for import',
+      });
+    }
+
+    // Fetch existing catalog names to prevent duplicates
+    const existingList = await MedicineMaster.find({}).select('name code').lean();
+    const existingNamesSet = new Set(
+      existingList.map((m) => (m.name || '').trim().toLowerCase()).filter(Boolean)
+    );
+
+    const created = [];
+    const skipped = [];
+    const errors = [];
+    const inBatchSeen = new Set();
+    const userId = req.user?._id || req.user?.id;
+
+    for (let i = 0; i < medicines.length; i++) {
+      const item = medicines[i] || {};
+      const rawName = String(
+        item.name || item['Medicine Name'] || item['medicine name'] || item.MedicineName || ''
+      ).trim();
+      const normName = rawName.toLowerCase();
+
+      if (!rawName) {
+        errors.push({ row: i + 1, name: '(Empty)', reason: 'Medicine Name is required' });
+        continue;
+      }
+
+      // Check if already in DB
+      if (existingNamesSet.has(normName)) {
+        skipped.push({ row: i + 1, name: rawName, reason: 'Already exists in catalog' });
+        continue;
+      }
+
+      // Check if duplicate within this batch
+      if (inBatchSeen.has(normName)) {
+        skipped.push({ row: i + 1, name: rawName, reason: 'Duplicate in current file' });
+        continue;
+      }
+
+      const rawCategory = String(
+        item.category || item.Category || 'General'
+      ).trim() || 'General';
+
+      const rawUnit = String(
+        item.unit || item.Unit || item['Unit of Measurement'] || item.measure || 'Nos'
+      ).trim() || 'Nos';
+
+      const rawPackaging = String(
+        item.packagingType || item.packaging || item.Packaging || item['Packaging Type'] || 'Bottle'
+      ).trim() || 'Bottle';
+
+      const parsedPackSize = Number(item.packSize || item['Pack Size'] || item.packsize || 1);
+      const finalPackSize = Number.isFinite(parsedPackSize) && parsedPackSize > 0 ? parsedPackSize : 1;
+
+      const rawAlias = String(
+        item.aliasName || item.alias || item['Alias Name'] || ''
+      ).trim();
+
+      const rawManufacturer = String(
+        item.manufacturer || item.Manufacturer || item.brand || ''
+      ).trim();
+
+      const parsedShelfLife = item.shelfLifeMonths !== undefined && item.shelfLifeMonths !== '' && !isNaN(item.shelfLifeMonths)
+        ? Number(item.shelfLifeMonths)
+        : null;
+
+      const parsedMinStock = item.minimumStock !== undefined && item.minimumStock !== '' && !isNaN(item.minimumStock)
+        ? Number(item.minimumStock)
+        : 0;
+
+      const parsedReorder = item.reorderLevel !== undefined && item.reorderLevel !== '' && !isNaN(item.reorderLevel)
+        ? Number(item.reorderLevel)
+        : 0;
+
+      try {
+        const doc = await MedicineMaster.create({
+          name: rawName,
+          aliasName: rawAlias,
+          category: rawCategory,
+          unit: rawUnit,
+          packagingType: rawPackaging,
+          packSize: finalPackSize,
+          manufacturer: rawManufacturer,
+          shelfLifeMonths: parsedShelfLife,
+          minimumStock: parsedMinStock,
+          reorderLevel: parsedReorder,
+          createdBy: userId,
+        });
+
+        created.push({ _id: doc._id, code: doc.code, name: doc.name });
+        existingNamesSet.add(normName);
+        inBatchSeen.add(normName);
+      } catch (err) {
+        errors.push({ row: i + 1, name: rawName, reason: err.message });
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Successfully imported ${created.length} medicine(s).${skipped.length > 0 ? ` (${skipped.length} skipped as duplicates)` : ''}`,
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      errorCount: errors.length,
+      created,
+      skipped,
+      errors,
+    });
+  } catch (error) {
+    console.error('bulkImportMedicines error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to bulk import medicines',
+    });
+  }
+}
+
