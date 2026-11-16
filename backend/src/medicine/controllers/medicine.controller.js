@@ -40,6 +40,26 @@ export async function createMedicine(req, res) {
       });
     }
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Medicine name cannot be empty',
+      });
+    }
+
+    // Strict case-insensitive uniqueness check for medicine name
+    const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existingName = await MedicineMaster.findOne({
+      name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+    });
+    if (existingName) {
+      return res.status(409).json({
+        success: false,
+        message: `A medicine with the name '${existingName.name}' already exists in the catalog (Code: ${existingName.code || 'N/A'}). Please check the catalog or use a distinct variation (e.g. '${existingName.name} 5ml').`,
+      });
+    }
+
     let finalCode = code ? code.trim().toUpperCase() : '';
     if (finalCode) {
       const existing = await MedicineMaster.findOne({ code: finalCode });
@@ -53,7 +73,7 @@ export async function createMedicine(req, res) {
 
     const medicine = await MedicineMaster.create({
       code: finalCode,
-      name: name.trim(),
+      name: trimmedName,
       aliasName: aliasName ? aliasName.trim() : '',
       category: category.trim(),
       unit: unit.trim(),
@@ -265,7 +285,27 @@ export async function updateMedicine(req, res) {
     }
 
     // Update fields safely without corrupting types
-    if (name) medicine.name = name.trim();
+    if (name) {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Medicine name cannot be empty',
+        });
+      }
+      const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const existingName = await MedicineMaster.findOne({
+        _id: { $ne: medicine._id },
+        name: { $regex: new RegExp(`^${escapedName}$`, 'i') },
+      });
+      if (existingName) {
+        return res.status(409).json({
+          success: false,
+          message: `Another medicine with the name '${existingName.name}' already exists in the catalog (Code: ${existingName.code || 'N/A'}). Please use a distinct variation (e.g. '${existingName.name} 5ml').`,
+        });
+      }
+      medicine.name = trimmedName;
+    }
     if (aliasName !== undefined) medicine.aliasName = aliasName ? aliasName.trim() : '';
     if (category) medicine.category = category.trim();
     if (unit) medicine.unit = unit.trim();

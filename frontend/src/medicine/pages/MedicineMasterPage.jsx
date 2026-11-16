@@ -564,12 +564,45 @@ export default function MedicineMasterPage() {
     return list;
   }, [allSuppliers, supplierStatusFilter, supplierSearch]);
 
+  // Real-time duplicate name detection across catalog
+  const duplicateNameWarning = useMemo(() => {
+    const raw = (formData.name || '').trim().toLowerCase();
+    if (!raw) return null;
+    const existing = medicines.find(
+      (m) =>
+        (m.name || '').trim().toLowerCase() === raw &&
+        (!editingId || String(m._id) !== String(editingId))
+    );
+    if (existing) {
+      return `"${existing.name}" already exists (${existing.code || 'Registered'}). Please use a distinct variation (e.g. "${existing.name} 5ml").`;
+    }
+    return null;
+  }, [formData.name, medicines, editingId]);
+
   // SUBMIT FORM (CREATE OR UPDATE)
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setSubmitting(true);
       setError('');
+
+      const trimmedName = formData.name?.trim();
+      if (!trimmedName) {
+        throw new Error('Medicine Name is required');
+      }
+
+      // Guard against duplicate medicine name
+      const normName = trimmedName.toLowerCase();
+      const existingMed = medicines.find(
+        (m) =>
+          (m.name || '').trim().toLowerCase() === normName &&
+          (!editingId || String(m._id) !== String(editingId))
+      );
+      if (existingMed) {
+        throw new Error(
+          `A medicine named "${existingMed.name}" already exists in the catalog (${existingMed.code || 'Registered'}). Please use a distinct variation (e.g. "${existingMed.name} 5ml").`
+        );
+      }
 
       const trimmedCategory = formData.category?.trim();
       const trimmedUnit = formData.unit?.trim();
@@ -1749,8 +1782,18 @@ export default function MedicineMasterPage() {
                     placeholder="e.g. Paracetamol"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full h-8 px-2.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                    className={`w-full h-8 px-2.5 border rounded-lg text-xs focus:outline-none transition ${
+                      duplicateNameWarning
+                        ? 'border-rose-400 bg-rose-50/50 text-rose-900 focus:ring-2 focus:ring-rose-400'
+                        : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 bg-white'
+                    }`}
                   />
+                  {duplicateNameWarning && (
+                    <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1">
+                      <span>⚠️</span>
+                      <span>{duplicateNameWarning}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -2000,7 +2043,7 @@ export default function MedicineMasterPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || Boolean(duplicateNameWarning)}
                   className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:opacity-50 cursor-pointer"
                 >
                   {submitting ? 'Saving...' : editingId ? 'Update' : 'Save'}

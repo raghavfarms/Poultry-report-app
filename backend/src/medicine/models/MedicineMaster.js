@@ -24,6 +24,7 @@ const medicineSchema=new mongoose.Schema({
         type : String ,
         required: [true,'Medicine name is Required'],
         trim: true,
+        index: true,
         maxlength:120,
       },
 
