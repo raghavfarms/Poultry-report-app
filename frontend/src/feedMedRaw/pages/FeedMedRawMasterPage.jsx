@@ -594,21 +594,21 @@ export default function FeedMedRawMasterPage() {
             /* ==================================== */
             <table className="w-full text-left border-collapse table-auto">
               <thead className="sticky top-0 bg-slate-50 z-10 shadow-2xs">
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  <th className="py-3 px-4 whitespace-nowrap w-28">BOM Code</th>
-                  <th className="py-3 px-4 min-w-[200px]">Recipe / Feed Name</th>
-                  <th className="py-3 px-4 whitespace-nowrap w-28">Stage / Type</th>
-                  <th className="py-3 px-4 whitespace-nowrap w-36">Consumed By</th>
-                  <th className="py-3 px-4 whitespace-nowrap w-32">Target Flock</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap w-28">Batch Items</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap w-36">1 Ton Batch Status</th>
-                  <th className="py-3 px-4 text-center whitespace-nowrap w-24">Status</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                  <th className="py-2.5 px-3 whitespace-nowrap w-24">BOM Code</th>
+                  <th className="py-2.5 px-3 min-w-[140px]">Recipe / Feed Name</th>
+                  <th className="py-2.5 px-2.5 whitespace-nowrap w-24">Stage / Type</th>
+                  <th className="py-2.5 px-2.5 whitespace-nowrap w-24">Consumed By</th>
+                  <th className="py-2.5 px-2.5 whitespace-nowrap w-24">Target Flock</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap w-24">Batch Items</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap w-28">1 Ton Batch</th>
+                  <th className="py-2.5 px-2 text-center whitespace-nowrap w-20">Status</th>
                   {canManage && (
-                    <th className="py-3 px-4 pr-6 text-right whitespace-nowrap w-20">Actions</th>
+                    <th className="py-2.5 px-2 pr-4 text-right whitespace-nowrap w-12">Actions</th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-slate-100 text-xs">
                 {loadingFormulations ? (
                   <tr>
                     <td colSpan={canManage ? 9 : 8} className="p-8 sm:p-12 text-center text-slate-500 font-medium">
@@ -636,43 +636,43 @@ export default function FeedMedRawMasterPage() {
                           }`}
                           onClick={() => setExpandedRecipeId(isExpanded ? null : item._id)}
                         >
-                          <td className="py-3 px-4 font-mono font-bold text-teal-800 whitespace-nowrap">
+                          <td className="py-2.5 px-3 font-mono font-bold text-teal-800 whitespace-nowrap">
                             {item.bomNumber}
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="font-bold text-slate-900">{item.feedName}</div>
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900 text-xs">{item.feedName}</div>
                             {item.notes && (
-                              <div className="text-[11px] text-slate-400 italic truncate max-w-xs">
+                              <div className="text-[10px] text-slate-400 italic truncate max-w-xs">
                                 {item.notes}
                               </div>
                             )}
                           </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-800 border border-teal-200">
+                          <td className="py-2.5 px-2.5 whitespace-nowrap">
+                            <span className="inline-block px-2 py-0.2 rounded-full text-[11px] font-semibold bg-teal-50 text-teal-800 border border-teal-200">
                               {item.feedType}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-xs font-medium text-slate-700 whitespace-nowrap">
+                          <td className="py-2.5 px-2.5 text-xs text-slate-700 whitespace-nowrap">
                             {item.consumedBy === 'FEMALE'
-                              ? 'FEMALE (मुर्गी)'
+                              ? 'Female'
                               : item.consumedBy === 'MALE'
-                                ? 'MALE (मुर्गा)'
-                                : 'ALL BIRDS'}
+                                ? 'Male'
+                                : 'All Birds'}
                           </td>
-                          <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                          <td className="py-2.5 px-2.5 text-xs text-slate-500 whitespace-nowrap">
                             {item.flockName || 'All Flocks'}
                           </td>
-                          <td className="py-3 px-4 text-center font-medium whitespace-nowrap">
+                          <td className="py-2.5 px-2 text-center font-medium whitespace-nowrap">
                             <span className="text-xs text-slate-800 font-bold">
                               {item.items?.length || 0} items
                             </span>
                             <div className="text-[10px] text-teal-700 font-semibold">
-                              {isExpanded ? '▲ Hide recipe' : '▼ View recipe'}
+                              {isExpanded ? '▲ Hide' : '▼ View'}
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <td className="py-2.5 px-2 text-center whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${
                                 isBalanced
                                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                   : 'bg-amber-50 text-amber-800 border-amber-300'
@@ -682,9 +682,9 @@ export default function FeedMedRawMasterPage() {
                               <span>{item.totalWeight || 0} kg</span>
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <td className="py-2.5 px-2 text-center whitespace-nowrap">
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              className={`inline-block px-2 py-0.2 rounded-full text-[10px] font-semibold ${
                                 item.isActive
                                   ? 'bg-emerald-100 text-emerald-800'
                                   : 'bg-rose-100 text-rose-800'
@@ -694,17 +694,17 @@ export default function FeedMedRawMasterPage() {
                             </span>
                           </td>
                           {canManage && (
-                            <td className="py-3 px-4 pr-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="py-2.5 px-2 pr-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <div className="relative inline-block text-left">
                                 <button
                                   type="button"
                                   onClick={() =>
                                     setOpenActionId(openActionId === `f-${item._id}` ? null : `f-${item._id}`)
                                   }
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition focus:outline-none cursor-pointer"
+                                  className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition focus:outline-none cursor-pointer"
                                   title="Actions"
                                 >
-                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                     <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                   </svg>
                                 </button>
@@ -771,48 +771,44 @@ export default function FeedMedRawMasterPage() {
                           )}
                         </tr>
 
-                        {/* Inline Expandable Recipe Ingredients */}
+                        {/* Inline Expandable Recipe Ingredients (Compact Chips Layout) */}
                         {isExpanded && (
-                          <tr className="bg-slate-50/90 border-b border-slate-200">
-                            <td colSpan={canManage ? 9 : 8} className="p-3 sm:p-4">
-                              <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h5 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                                    <span>🥣</span>
-                                    <span>BOM Recipe Ingredients for 1 Ton (1,000 kg):</span>
-                                  </h5>
-                                  <span className="text-[11px] font-bold text-teal-800">
+                          <tr className="bg-slate-50/70 border-b border-slate-200">
+                            <td colSpan={canManage ? 9 : 8} className="p-2 sm:p-2.5">
+                              <div className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-2xs">
+                                <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-sm">🥣</span>
+                                    <span className="text-xs font-bold text-slate-800">
+                                      Recipe Breakdown: {item.feedName}
+                                    </span>
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      ({item.items?.length || 0} ingredients)
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] font-bold text-teal-800 font-mono">
                                     Total: {item.totalWeight} kg ({((item.totalWeight / (item.targetBatchSize || 1000)) * 100).toFixed(1)}%)
                                   </span>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                {/* Compact 3 to 4 Column Grid */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 max-h-52 overflow-y-auto pr-1">
                                   {item.items?.map((it, iIdx) => (
                                     <div
                                       key={iIdx}
-                                      className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between text-xs"
+                                      className="px-2 py-1 rounded-md bg-slate-50/90 border border-slate-200/90 flex items-center justify-between text-xs hover:bg-slate-100 transition"
                                     >
-                                      <div className="min-w-0 flex-1 pr-2">
-                                        <div className="font-semibold text-slate-900 truncate">
+                                      <div className="flex items-center gap-1 min-w-0 pr-1">
+                                        <span className="text-[10px] shrink-0">
+                                          {it.itemType === 'Raw Material' ? '🌾' : '💊'}
+                                        </span>
+                                        <span className="font-medium text-slate-800 text-[11px] truncate" title={it.itemName}>
                                           {it.itemName}
-                                        </div>
-                                        <span
-                                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                                            it.itemType === 'Raw Material'
-                                              ? 'bg-amber-100 text-amber-800'
-                                              : 'bg-purple-100 text-purple-800'
-                                          }`}
-                                        >
-                                          {it.itemType}
                                         </span>
                                       </div>
-                                      <div className="text-right shrink-0">
-                                        <div className="font-mono font-bold text-slate-900">
-                                          {it.quantity} kg
-                                        </div>
-                                        <div className="text-[10px] text-slate-500 font-mono">
-                                          {it.percentage}%
-                                        </div>
+                                      <div className="text-right shrink-0 font-mono text-[11px]">
+                                        <span className="font-bold text-slate-900">{it.quantity} kg</span>
+                                        <span className="text-[9px] text-slate-400 ml-1">({it.percentage}%)</span>
                                       </div>
                                     </div>
                                   ))}
