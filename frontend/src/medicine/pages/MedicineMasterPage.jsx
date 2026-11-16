@@ -923,7 +923,7 @@ export default function MedicineMasterPage() {
                     <th className="py-3 px-4">Alias Name</th>
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">Unit</th>
-                    <th className="py-3 px-4 text-center">Stock & Alert</th>
+                    <th className="py-3 px-4 text-center">Alert Limit</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 pr-6 text-right w-24">Actions</th>
                   </tr>
@@ -931,6 +931,7 @@ export default function MedicineMasterPage() {
                 <tbody className="divide-y divide-slate-100 text-sm">
                   {paginatedMedicines.map((med, idx) => {
                     const isDropup = idx >= paginatedMedicines.length - 2 && idx > 0;
+                    const threshold = med.reorderLevel || med.minimumStock || 0;
                     return (
                       <tr key={med._id} className="hover:bg-slate-50 transition">
                         <td className="py-3 px-4 font-mono font-bold text-slate-800">{med.code}</td>
@@ -953,28 +954,17 @@ export default function MedicineMasterPage() {
                         </td>
                         <td className="py-3 px-4"><div className="font-semibold text-slate-800">{med.unit}</div><div className="text-[11px] text-emerald-700 font-medium">1 {med.packagingType || 'Bottle'} = {med.packSize || 1} {med.unit}</div></td>
                         <td className="py-3 px-4 text-center">
-                          <div className="flex flex-col items-center gap-0.5">
-                            {med.currentStock !== undefined && (
-                              med.isLowStock ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-                                  <span>⚠️</span> {formatStockDisplay(med.currentStock, med.packSize, med.packagingType, med.unit)} (Low)
-                                </span>
-                              ) : med.currentStock === 0 ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                                  <span>🔴</span> 0 {med.unit} (Out)
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <span>🟢</span> {formatStockDisplay(med.currentStock, med.packSize, med.packagingType, med.unit)}
-                                </span>
-                              )
-                            )}
-                            {med.reorderLevel ? (
-                              <span className="text-[10px] text-amber-700 font-medium">
-                                Alert &lt; {med.reorderLevel} {med.unit}
+                          <div className="flex flex-col items-center justify-center">
+                            {threshold > 0 && med.isLowStock ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                <span>🚨</span> Reorder Alert (&lt; {threshold} {med.unit})
+                              </span>
+                            ) : threshold > 0 ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                &lt; {threshold} {med.unit}
                               </span>
                             ) : (
-                              <span className="text-slate-400 text-[10px]">—</span>
+                              <span className="text-slate-300 text-xs italic">—</span>
                             )}
                           </div>
                         </td>
@@ -1061,6 +1051,7 @@ export default function MedicineMasterPage() {
             <div className="md:hidden divide-y divide-slate-100">
               {paginatedMedicines.map((med, idx) => {
                 const isDropup = idx >= paginatedMedicines.length - 2 && idx > 0;
+                const threshold = med.reorderLevel || med.minimumStock || 0;
                 return (
                   <div
                     key={med._id}
@@ -1117,7 +1108,7 @@ export default function MedicineMasterPage() {
                               />
                               <div
                                 className={`absolute right-0 ${
-                                  isDropup ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'
+                                   isDropup ? 'bottom-full mb-1 origin-bottom-right' : 'top-full mt-1 origin-top-right'
                                 } w-40 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-30 text-left animate-in fade-in zoom-in-95 duration-100`}
                               >
                                 <button
@@ -1161,7 +1152,7 @@ export default function MedicineMasterPage() {
                       </div>
                     </div>
 
-                    {/* Bottom Row: Category/Unit on Left, Live Stock & Alert Pill on Right */}
+                    {/* Bottom Row: Category/Unit on Left, Alert Limit on Right */}
                     <div
                       className="flex items-center justify-between gap-2 text-[10px] cursor-pointer"
                       onClick={() => handleOpenEditModal(med)}
@@ -1174,28 +1165,20 @@ export default function MedicineMasterPage() {
                         <span className="font-medium text-slate-600">{med.unit}</span>
                       </div>
 
-                      {/* Right: Low Stock Alert or Live Stock Pill */}
+                      {/* Right: Reorder Alert (when limit hit) or Limit */}
                       <div className="shrink-0">
-                        {med.isLowStock ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            <span>⚠️</span>
-                            <span>Stock: <strong>{med.currentStock} {med.unit}</strong></span>
-                            <span className="text-rose-500 font-normal">(&lt;{med.reorderLevel})</span>
+                        {threshold > 0 && med.isLowStock ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                            <span>🚨</span>
+                            <span>Reorder Alert (&lt;{threshold} {med.unit})</span>
                           </span>
-                        ) : med.currentStock === 0 ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            <span>🔴</span> Out of Stock
+                        ) : threshold > 0 ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                            <span>&lt;{threshold} {med.unit}</span>
                           </span>
-                        ) : med.currentStock !== undefined ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
-                            <span>Stock:</span>
-                            <strong className="text-slate-900">{med.currentStock} {med.unit}</strong>
-                          </span>
-                        ) : med.reorderLevel ? (
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            Alert &lt; {med.reorderLevel}
-                          </span>
-                        ) : null}
+                        ) : (
+                          <span className="text-slate-300 text-[10px] italic">—</span>
+                        )}
                       </div>
                     </div>
                   </div>
