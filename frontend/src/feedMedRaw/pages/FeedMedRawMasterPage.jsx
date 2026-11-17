@@ -44,6 +44,9 @@ const INITIAL_FORM = {
   packSize: '',
   uom: 'kg',
   reorderLevel: '',
+  currentStock: '',
+  batchNumber: '',
+  expiryDate: '',
 };
 
 // Compact scrollable dropdown that shows exactly 5 items, matching General Medicine master
@@ -196,6 +199,9 @@ export default function FeedMedRawMasterPage() {
             'Packaging Type': 'Bag',
             'Pack Size': 25,
             'Unit': 'kg',
+            'Stock': 50,
+            'Batch No': 'LYS-2026-A1',
+            'Expiry Date': '2026-12-31',
           },
           {
             'Medicine Name': 'Amlycure (Liver Tonic)',
@@ -205,6 +211,9 @@ export default function FeedMedRawMasterPage() {
             'Packaging Type': 'Bottle',
             'Pack Size': 5,
             'Unit': 'ltr',
+            'Stock': 20,
+            'Batch No': 'AML-9821',
+            'Expiry Date': '2027-06-30',
           },
           {
             'Medicine Name': 'Toxisorb',
@@ -214,6 +223,9 @@ export default function FeedMedRawMasterPage() {
             'Packaging Type': 'Bag',
             'Pack Size': 25,
             'Unit': 'kg',
+            'Stock': 35,
+            'Batch No': 'TX-5510',
+            'Expiry Date': '2027-01-15',
           },
         ]
       : [
@@ -332,6 +344,41 @@ export default function FeedMedRawMasterPage() {
               uom = 'kg';
             }
 
+            // Only Feed Medicine has Stock, Batch No, and Expiry Date
+            const currentStock =
+              targetItemType === 'Feed Medicine'
+                ? Number(
+                    row['Stock'] ||
+                    row['Current Stock'] ||
+                    row['Opening Stock'] ||
+                    row['currentStock'] ||
+                    0
+                  ) || 0
+                : 0;
+
+            const batchNumber =
+              targetItemType === 'Feed Medicine'
+                ? String(
+                    row['Batch No'] ||
+                    row['Batch Number'] ||
+                    row['Batch'] ||
+                    row['batchNumber'] ||
+                    ''
+                  ).trim()
+                : '';
+
+            const expiryDate =
+              targetItemType === 'Feed Medicine'
+                ? String(
+                    row['Expiry Date'] ||
+                    row['Expiry'] ||
+                    row['Exp Date'] ||
+                    row['Exp'] ||
+                    row['expiryDate'] ||
+                    ''
+                  ).trim()
+                : '';
+
             return {
               itemType: targetItemType,
               name,
@@ -341,6 +388,9 @@ export default function FeedMedRawMasterPage() {
               packagingType,
               packSize,
               uom,
+              currentStock,
+              batchNumber,
+              expiryDate,
             };
           })
           .filter((item) => item.name.length > 0);
@@ -496,6 +546,10 @@ export default function FeedMedRawMasterPage() {
       uom: 'kg',
       aliasName: '',
       companyName: '',
+      currentStock: '',
+      batchNumber: '',
+      expiryDate: '',
+      reorderLevel: '',
     });
     setIsCustomCategory(false);
     setIsCustomPackaging(false);
@@ -519,6 +573,9 @@ export default function FeedMedRawMasterPage() {
       packSize: item.packSize || (item.itemType === 'Raw Material' ? 1000 : 1),
       uom: item.uom || 'kg',
       reorderLevel: item.reorderLevel || '',
+      currentStock: item.itemType === 'Feed Medicine' ? (item.currentStock ?? '') : '',
+      batchNumber: item.itemType === 'Feed Medicine' ? (item.batchNumber || '') : '',
+      expiryDate: item.itemType === 'Feed Medicine' ? (item.expiryDate || '') : '',
     });
     setIsCustomCategory(false);
     setIsCustomPackaging(false);
@@ -555,15 +612,20 @@ export default function FeedMedRawMasterPage() {
         throw new Error('Please select or enter a Unit (Measure)');
       }
 
+      const isFeedMed = formData.itemType === 'Feed Medicine';
       const payload = {
         ...formData,
         name: formData.name.trim(),
-        aliasName: formData.itemType === 'Raw Material' ? '' : (formData.aliasName?.trim() || ''),
-        companyName: formData.itemType === 'Raw Material' ? '' : (formData.companyName?.trim() || ''),
-        category: formData.itemType === 'Raw Material' ? null : (formData.category || 'Regular'),
-        packagingType: formData.packagingType?.trim() || (formData.itemType === 'Raw Material' ? 'Ton' : 'Bag'),
-        packSize: Number(formData.packSize) || (formData.itemType === 'Raw Material' ? 1000 : 1),
+        aliasName: !isFeedMed ? '' : (formData.aliasName?.trim() || ''),
+        companyName: !isFeedMed ? '' : (formData.companyName?.trim() || ''),
+        category: !isFeedMed ? null : (formData.category || 'Regular'),
+        packagingType: formData.packagingType?.trim() || (!isFeedMed ? 'Ton' : 'Bag'),
+        packSize: Number(formData.packSize) || (!isFeedMed ? 1000 : 1),
         uom: formData.uom?.trim() || 'kg',
+        currentStock: isFeedMed ? (Number(formData.currentStock) || 0) : 0,
+        batchNumber: isFeedMed ? (formData.batchNumber?.trim() || '') : '',
+        expiryDate: isFeedMed ? (formData.expiryDate?.trim() || '') : '',
+        reorderLevel: Number(formData.reorderLevel) || 0,
       };
 
       if (editingId) {
