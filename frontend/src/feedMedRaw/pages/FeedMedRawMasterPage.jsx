@@ -382,7 +382,6 @@ export default function FeedMedRawMasterPage() {
                 row['expiryDate'] ||
                 ''
               ).trim();
-                : '';
 
             return {
               itemType: targetItemType,
