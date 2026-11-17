@@ -233,7 +233,7 @@ export async function updateFormulation(req, res) {
   } catch (err) {
     console.error('Error updating formulation:', err);
     return res.status(500).json({ success: false, error: 'Internal server error' });
-  }
+  } 
 }
 
 /**
@@ -262,3 +262,6 @@ export async function toggleFormulationStatus(req, res) {
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }  
 }         
+
+
+

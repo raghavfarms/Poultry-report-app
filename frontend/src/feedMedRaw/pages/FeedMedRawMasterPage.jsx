@@ -236,6 +236,8 @@ export default function FeedMedRawMasterPage() {
             'Packaging Type': 'Bag',
             'Pack Size': 50,
             'Unit': 'kg',
+            'Stock': 500,
+            'Expiry Date': '2026-12-31',
           },
           {
             'Raw Material Name': 'Soya De-Oiled Cake (DOC 46%)',
@@ -244,6 +246,8 @@ export default function FeedMedRawMasterPage() {
             'Packaging Type': 'Bag',
             'Pack Size': 50,
             'Unit': 'kg',
+            'Stock': 300,
+            'Expiry Date': '2026-11-30',
           },
           {
             'Raw Material Name': 'DORB (De-Oiled Rice Bran)',
@@ -252,6 +256,8 @@ export default function FeedMedRawMasterPage() {
             'Packaging Type': 'Bag',
             'Pack Size': 50,
             'Unit': 'kg',
+            'Stock': 250,
+            'Expiry Date': '2027-01-31',
           },
         ];
 
@@ -344,17 +350,17 @@ export default function FeedMedRawMasterPage() {
               uom = 'kg';
             }
 
-            // Only Feed Medicine has Stock, Batch No, and Expiry Date
+            // Stock and Expiry for both, Batch No for Feed Medicine
             const currentStock =
-              targetItemType === 'Feed Medicine'
-                ? Number(
-                    row['Stock'] ||
-                    row['Current Stock'] ||
-                    row['Opening Stock'] ||
-                    row['currentStock'] ||
-                    0
-                  ) || 0
-                : 0;
+              Number(
+                row['Stock'] ||
+                row['Current Stock'] ||
+                row['Opening Stock'] ||
+                row['currentStock'] ||
+                row['Qty'] ||
+                row['Quantity'] ||
+                0
+              ) || 0;
 
             const batchNumber =
               targetItemType === 'Feed Medicine'
@@ -368,15 +374,14 @@ export default function FeedMedRawMasterPage() {
                 : '';
 
             const expiryDate =
-              targetItemType === 'Feed Medicine'
-                ? String(
-                    row['Expiry Date'] ||
-                    row['Expiry'] ||
-                    row['Exp Date'] ||
-                    row['Exp'] ||
-                    row['expiryDate'] ||
-                    ''
-                  ).trim()
+              String(
+                row['Expiry Date'] ||
+                row['Expiry'] ||
+                row['Exp Date'] ||
+                row['Exp'] ||
+                row['expiryDate'] ||
+                ''
+              ).trim();
                 : '';
 
             return {
@@ -1149,8 +1154,11 @@ export default function FeedMedRawMasterPage() {
                   {activeTab === 'feed-medicine' && <th className="py-3 px-4">Alias Name</th>}
                   {activeTab === 'feed-medicine' && <th className="py-3 px-4">Company Name</th>}
                   {activeTab === 'feed-medicine' && <th className="py-3 px-4">Category</th>}
-                  <th className="py-3 px-4">Unit</th>
+                  <th className="py-3 px-4">Packaging & Unit</th>
                   <th className="py-3 px-4 text-center">Stock & Alert</th>
+                  <th className="py-3 px-4 text-center">
+                    {activeTab === 'feed-medicine' ? 'Batch & Expiry' : 'Expiry'}
+                  </th>
                   <th className="py-3 px-4 text-center">Status</th>
                   {canManage && (
                     <th className="py-3 px-4 pr-6 text-right w-24">Actions</th>
@@ -1161,7 +1169,7 @@ export default function FeedMedRawMasterPage() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 9 : 6) : activeTab === 'feed-medicine' ? 8 : 5}
+                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 10 : 7) : activeTab === 'feed-medicine' ? 9 : 6}
                       className="p-8 sm:p-12 text-center text-slate-500 font-medium"
                     >
                       Loading items...
@@ -1170,7 +1178,7 @@ export default function FeedMedRawMasterPage() {
                 ) : filteredItems.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 9 : 6) : activeTab === 'feed-medicine' ? 8 : 5}
+                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 10 : 7) : activeTab === 'feed-medicine' ? 9 : 6}
                       className="p-8 sm:p-12 text-center text-slate-500"
                     >
                       <p className="text-base font-semibold">
@@ -1233,6 +1241,22 @@ export default function FeedMedRawMasterPage() {
                             <span className="text-[10px] text-amber-700 font-medium">
                               Alert &lt; {item.reorderLevel || 20} {item.packagingType}
                             </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            {activeTab === 'feed-medicine' && item.batchNumber && (
+                              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                                B: {item.batchNumber}
+                              </span>
+                            )}
+                            {item.expiryDate ? (
+                              <span className="text-[11px] font-medium text-slate-600">
+                                Exp: {item.expiryDate}
+                              </span>
+                            ) : (
+                              !item.batchNumber && <span className="text-slate-300 italic text-xs">—</span>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -2125,6 +2149,89 @@ export default function FeedMedRawMasterPage() {
                   />
                 </div>
 
+                {/* Stock, Batch & Expiry (Stock for both, Batch No for Feed Medicine only) */}
+                <div
+                  className={`p-2.5 rounded-lg border space-y-2 ${
+                    formData.itemType === 'Feed Medicine'
+                      ? 'bg-purple-50/60 border-purple-200/80'
+                      : 'bg-amber-50/60 border-amber-200/80'
+                  }`}
+                >
+                  <div
+                    className={`text-[10px] font-bold uppercase tracking-wide flex items-center gap-1 ${
+                      formData.itemType === 'Feed Medicine'
+                        ? 'text-purple-900'
+                        : 'text-amber-900'
+                    }`}
+                  >
+                    <span>{formData.itemType === 'Feed Medicine' ? '💊' : '🌾'}</span>
+                    <span>Stock & Expiry Details</span>
+                  </div>
+
+                  <div
+                    className={`grid ${
+                      formData.itemType === 'Feed Medicine' ? 'grid-cols-3' : 'grid-cols-2'
+                    } gap-2`}
+                  >
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
+                        Current Stock
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 50"
+                        value={formData.currentStock}
+                        onChange={(e) =>
+                          setFormData({ ...formData, currentStock: e.target.value })
+                        }
+                        className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
+                      />
+                    </div>
+
+                    {formData.itemType === 'Feed Medicine' && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
+                          Batch No
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. B-9021"
+                          value={formData.batchNumber}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              batchNumber: e.target.value.toUpperCase(),
+                            })
+                          }
+                          className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white uppercase"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
+                        Expiry Date
+                      </label>
+                      <input
+                        type="date"
+                        onClick={(e) => {
+                          if (typeof e.target.showPicker === 'function') {
+                            try {
+                              e.target.showPicker();
+                            } catch {}
+                          }
+                        }}
+                        value={formData.expiryDate}
+                        onChange={(e) =>
+                          setFormData({ ...formData, expiryDate: e.target.value })
+                        }
+                        className="w-full h-8 px-2 border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Packaging Rule Formula Banner */}
                 <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-xs text-emerald-950 font-medium shadow-2xs">
                   <span className="flex items-center gap-1.5 truncate">
@@ -2257,6 +2364,9 @@ export default function FeedMedRawMasterPage() {
                     <th className="p-2 border">Packaging</th>
                     <th className="p-2 border">Pack Size</th>
                     <th className="p-2 border">Unit</th>
+                    <th className="p-2 border text-center">Stock</th>
+                    {activeTab === 'feed-medicine' && <th className="p-2 border text-center">Batch No</th>}
+                    <th className="p-2 border text-center">Expiry</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2282,6 +2392,17 @@ export default function FeedMedRawMasterPage() {
                       <td className="p-2 border text-slate-600">{item.packagingType}</td>
                       <td className="p-2 border text-slate-600">{item.packSize}</td>
                       <td className="p-2 border font-mono text-slate-600">{item.uom}</td>
+                      <td className="p-2 border font-bold text-center text-slate-800">
+                        {item.currentStock || 0}
+                      </td>
+                      {activeTab === 'feed-medicine' && (
+                        <td className="p-2 border font-mono text-center text-slate-700">
+                          {item.batchNumber || '—'}
+                        </td>
+                      )}
+                      <td className="p-2 border text-center text-slate-700">
+                        {item.expiryDate || '—'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

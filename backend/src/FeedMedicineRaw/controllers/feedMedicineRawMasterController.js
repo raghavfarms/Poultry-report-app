@@ -16,6 +16,10 @@ export async function createFeedItem(req, res) {
       packagingType,
       packSize,
       category,
+      currentStock,
+      batchNumber,
+      expiryDate,
+      reorderLevel,
     } = req.body;
 
     // Validation
@@ -62,6 +66,10 @@ export async function createFeedItem(req, res) {
       packagingType: packagingType || 'Bag',
       packSize: Number(packSize) || 1,
       category: finalCategory,
+      currentStock: Number(currentStock) || 0,
+      batchNumber: itemType === 'Feed Medicine' ? (batchNumber?.trim() || '') : '',
+      expiryDate: expiryDate?.trim() || '',
+      reorderLevel: Number(reorderLevel) || 0,
     });
 
     return res.status(201).json({
@@ -154,6 +162,10 @@ export async function updateFeedItem(req, res) {
       packagingType,
       packSize,
       category,
+      currentStock,
+      batchNumber,
+      expiryDate,
+      reorderLevel,
     } = req.body;
 
     const item = await FeedMedRawMaster.findById(req.params.id);
@@ -186,6 +198,11 @@ export async function updateFeedItem(req, res) {
     if (item.itemType === 'Feed Medicine' && category) {
       item.category = category;
     }
+
+    if (currentStock !== undefined) item.currentStock = Number(currentStock) || 0;
+    if (batchNumber !== undefined) item.batchNumber = item.itemType === 'Feed Medicine' ? batchNumber.trim() : '';
+    if (expiryDate !== undefined) item.expiryDate = expiryDate.trim();
+    if (reorderLevel !== undefined) item.reorderLevel = Number(reorderLevel) || 0;
 
     await item.save();
 
@@ -299,6 +316,10 @@ export async function bulkImportFeedItems(req, res) {
 
       const companyName = raw.companyName ? String(raw.companyName).trim() : '';
       const aliasName = raw.aliasName ? String(raw.aliasName).trim() : '';
+      const currentStock = Number(raw.currentStock || raw.stock || 0) || 0;
+      const batchNumber = itemType === 'Feed Medicine' ? String(raw.batchNumber || '').trim() : '';
+      const expiryDate = String(raw.expiryDate || '').trim();
+      const reorderLevel = Number(raw.reorderLevel) || 0;
 
       // Check if item with same name exists under this itemType (case-insensitive)
       const existing = await FeedMedRawMaster.findOne({
@@ -314,6 +335,12 @@ export async function bulkImportFeedItems(req, res) {
         if (packagingType) existing.packagingType = packagingType;
         if (packSize) existing.packSize = packSize;
         if (category) existing.category = category;
+        if (raw.currentStock !== undefined || raw.stock !== undefined) {
+          existing.currentStock = currentStock;
+        }
+        if (batchNumber) existing.batchNumber = batchNumber;
+        if (expiryDate) existing.expiryDate = expiryDate;
+        if (raw.reorderLevel !== undefined) existing.reorderLevel = reorderLevel;
         existing.isActive = true; // reactivate if was inactive
         await existing.save();
         updatedCount++;
@@ -331,6 +358,10 @@ export async function bulkImportFeedItems(req, res) {
           packagingType,
           packSize,
           category,
+          currentStock,
+          batchNumber,
+          expiryDate,
+          reorderLevel,
           isActive: true,
         });
         addedCount++;
