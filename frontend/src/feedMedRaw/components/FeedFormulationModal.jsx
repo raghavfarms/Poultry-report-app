@@ -14,6 +14,69 @@ const FEED_TYPES = [
 
 const CONSUMED_BY_OPTIONS = ['ALL BIRDS', 'FEMALE', 'MALE'];
 
+// Standard ingredients list from client formulation sheet in exact prescribed order
+const DEFAULT_STANDARD_INGREDIENT_NAMES = [
+  'Maize',
+  'soya',
+  'DORB',
+  'Marble Powder',
+  'Marble Chips',
+  'Fish Oil',
+  'DCP',
+  'Phytase',
+  'Salt',
+  'Soda',
+  'DL - Methionine (DLM)',
+  'Lysine',
+  'Choline Chloride',
+  'Vit. Premix',
+  'TM - Altech',
+  'Toxisorb',
+  'Biofix',
+  'Amlycure',
+  'Biortronic',
+  'HYD',
+  'Gallipro',
+  'Nargomune',
+  'Nausadar',
+  'Nspzyme (Kenzyme)',
+];
+
+function buildDefaultIngredients(catalog) {
+  if (!catalog || catalog.length === 0) return [];
+  const matched = [];
+  const usedIds = new Set();
+
+  for (const name of DEFAULT_STANDARD_INGREDIENT_NAMES) {
+    const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const item = catalog.find((m) => {
+      if (usedIds.has(m._id.toString())) return false;
+      const mClean = (m.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const aClean = (m.aliasName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      return (
+        mClean === clean ||
+        mClean.includes(clean) ||
+        clean.includes(mClean) ||
+        (aClean && (aClean === clean || aClean.includes(clean)))
+      );
+    });
+
+    if (item) {
+      usedIds.add(item._id.toString());
+      matched.push({
+        itemId: item._id,
+        itemType: item.itemType || 'Raw Material',
+        itemName: item.name,
+        quantity: '',
+        percentage: 0,
+        uom: item.uom || 'kg',
+      });
+    }
+  }
+
+  return matched;
+}
+
 export default function FeedFormulationModal({
   isOpen,
   onClose,
@@ -80,7 +143,7 @@ export default function FeedFormulationModal({
       setStartDate('');
       setEndDate('');
       setNotes('');
-      setItems([]);
+      setItems(buildDefaultIngredients(masterItems));
     }
     setError('');
     setBulkPickerType(null);
@@ -322,7 +385,7 @@ export default function FeedFormulationModal({
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-2xl lg:max-w-3xl rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto cursor-default max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden border border-slate-200"
+        className="bg-white w-full max-w-xl sm:max-w-[620px] rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-150 my-auto cursor-default max-h-[92vh] sm:max-h-[88vh] flex flex-col overflow-hidden border border-slate-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -491,6 +554,15 @@ export default function FeedFormulationModal({
                     + 1 Row
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => setItems(buildDefaultIngredients(masterItems))}
+                    className="px-1.5 py-0.5 bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200 rounded-md text-[11px] font-semibold transition cursor-pointer"
+                    title="Restore all 24 standard recipe ingredients"
+                  >
+                    Standard (24)
+                  </button>
+
                   {items.length > 0 && (
                     <button
                       type="button"
@@ -508,9 +580,16 @@ export default function FeedFormulationModal({
                 <div className="py-4 px-3 text-center bg-slate-50 border border-dashed border-slate-200 rounded-lg">
                   <span className="text-xl inline-block mb-1">🥣</span>
                   <p className="text-xs font-semibold text-slate-700">No ingredients in this formulation yet</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Click <strong className="text-amber-800">Select Raw Materials</strong> or <strong className="text-purple-800">Select Feed Medicine</strong> above to add items.
+                  <p className="text-[11px] text-slate-400 mt-0.5 mb-2.5">
+                    Click below to load the 24 standard recipe ingredients or use the selectors above.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => setItems(buildDefaultIngredients(masterItems))}
+                    className="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-bold transition shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <span>📋</span> <span>Load 24 Standard Ingredients</span>
+                  </button>
                 </div>
               ) : (
                 <div className="border border-slate-200 rounded-lg overflow-hidden shadow-2xs max-h-56 sm:max-h-64 overflow-y-auto">
@@ -559,7 +638,7 @@ export default function FeedFormulationModal({
                                 <option value="">-- Choose {row.itemType} --</option>
                                 {availableList.map((m) => (
                                   <option key={m._id} value={m._id}>
-                                    {m.code ? `[${m.code}] ` : ''}{m.name}
+                                    {m.name}
                                   </option>
                                 ))}
                               </select>
@@ -572,7 +651,6 @@ export default function FeedFormulationModal({
                                   type="number"
                                   min="0"
                                   step="any"
-                                  required
                                   placeholder="0.0"
                                   value={row.quantity}
                                   onChange={(e) => handleQuantityChange(idx, e.target.value)}
@@ -824,10 +902,7 @@ export default function FeedFormulationModal({
                           className="w-3.5 h-3.5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
                         />
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1">
-                            <span className="font-mono text-[9px] font-bold text-slate-600 bg-slate-100 px-1 py-0.2 rounded border border-slate-200">
-                              {c.code || '---'}
-                            </span>
+                          <div className="flex items-center gap-1.5">
                             <span className="font-bold text-xs text-slate-800 truncate">
                               {c.name}
                             </span>

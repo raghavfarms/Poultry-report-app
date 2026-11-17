@@ -49,3 +49,16 @@ export async function toggleFeedItemStatusApi(id) {
     method: 'PATCH',
   });
 }
+
+/**
+ * 6. Bulk import Feed Medicine / Raw Material items from Excel
+ * @param {Array} items - Array of parsed item objects
+ * @param {string} defaultItemType - 'Feed Medicine' | 'Raw Material'
+ */
+export async function bulkImportFeedItemsApi(items, defaultItemType) {
+  return await api('/feed-med-raw/master/bulk-import', {
+    method: 'POST',
+    body: { items, defaultItemType },
+  });
+}
+

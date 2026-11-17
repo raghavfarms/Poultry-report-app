@@ -5,6 +5,7 @@ import {
   getFeedItemById,
   updateFeedItem,
   toggleFeedItemStatus,
+  bulkImportFeedItems,
 } from '../controllers/feedMedicineRawMasterController.js';
 import { protect } from '../../middleware/auth.js';
 
@@ -18,13 +19,15 @@ router.route('/')
   .get(getFeedItems)
   .post(createFeedItem);  
 
+// 2. POST /bulk-import - Bulk import items from Excel
+router.post('/bulk-import', bulkImportFeedItems);
 
-// 2. GET single feed item by ID & PUT update feed item
+// 3. GET single feed item by ID & PUT update feed item
 router.route('/:id')
   .get(getFeedItemById)
   .put(updateFeedItem);
 
-// 3. PATCH /:id/toggle - Toggle active/inactive status
+// 4. PATCH /:id/toggle - Toggle active/inactive status
 router.patch('/:id/toggle', toggleFeedItemStatus);
  
 export default router;

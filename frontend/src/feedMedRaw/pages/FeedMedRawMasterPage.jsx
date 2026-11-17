@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 import {
   fetchFeedItems,
   createFeedItemApi,
   updateFeedItemApi,
   toggleFeedItemStatusApi,
+  bulkImportFeedItemsApi,
 } from '../api/feedMedRawMasterApi.js';
 import {
   fetchFormulations,
@@ -174,6 +176,215 @@ export default function FeedMedRawMasterPage() {
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [openActionId]);
+
+  // Bulk Excel Import States
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // 📥 Download Sample Excel Template
+  const handleDownloadSampleExcel = () => {
+    const isMed = activeTab === 'feed-medicine';
+    const sampleData = isMed
+      ? [
+          {
+            'Medicine Name': 'Lysine',
+            'Alias Name': 'L-Lysine HCL',
+            'Company Name': 'Evonik',
+            'Category': 'Regular',
+            'Packaging Type': 'Bag',
+            'Pack Size': 25,
+            'Unit': 'kg',
+          },
+          {
+            'Medicine Name': 'Amlycure (Liver Tonic)',
+            'Alias Name': 'Aimil Amlycure',
+            'Company Name': 'Aimil Pharma',
+            'Category': 'Treatment',
+            'Packaging Type': 'Bottle',
+            'Pack Size': 5,
+            'Unit': 'ltr',
+          },
+          {
+            'Medicine Name': 'Toxisorb',
+            'Alias Name': 'Toxin Binder',
+            'Company Name': 'Trouw Nutrition',
+            'Category': 'Regular',
+            'Packaging Type': 'Bag',
+            'Pack Size': 25,
+            'Unit': 'kg',
+          },
+        ]
+      : [
+          {
+            'Raw Material Name': 'Maize (Yellow Corn)',
+            'Alias Name': 'Makka',
+            'Company Name': 'Local Mandi',
+            'Packaging Type': 'Bag',
+            'Pack Size': 50,
+            'Unit': 'kg',
+          },
+          {
+            'Raw Material Name': 'Soya De-Oiled Cake (DOC 46%)',
+            'Alias Name': 'Soya Meal',
+            'Company Name': 'Ruchi Soya',
+            'Packaging Type': 'Bag',
+            'Pack Size': 50,
+            'Unit': 'kg',
+          },
+          {
+            'Raw Material Name': 'DORB (De-Oiled Rice Bran)',
+            'Alias Name': 'Rice Bran DOC',
+            'Company Name': 'National Agro',
+            'Packaging Type': 'Bag',
+            'Pack Size': 50,
+            'Unit': 'kg',
+          },
+        ];
+
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    const wb = XLSX.utils.book_new();
+    const sheetName = isMed ? 'Feed_Medicines' : 'Raw_Materials';
+    const fileName = isMed
+      ? 'Feed_Medicines_Sample_Template.xlsx'
+      : 'Raw_Materials_Sample_Template.xlsx';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, fileName);
+  };
+
+  // 📂 Upload & Read Excel
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const targetItemType = activeTab === 'feed-medicine' ? 'Feed Medicine' : 'Raw Material';
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawData = XLSX.utils.sheet_to_json(ws);
+
+        const parsed = rawData
+          .map((row) => {
+            const name = String(
+              row['Medicine Name'] ||
+              row['Raw Material Name'] ||
+              row['Item Name'] ||
+              row['Name'] ||
+              row['name'] ||
+              ''
+            ).trim();
+
+            const aliasName = String(
+              row['Alias Name'] ||
+              row['Alias'] ||
+              row['aliasName'] ||
+              row['Hindi Name'] ||
+              ''
+            ).trim();
+
+            const companyName = String(
+              row['Company Name'] ||
+              row['Company'] ||
+              row['companyName'] ||
+              row['Manufacturer'] ||
+              row['Supplier'] ||
+              ''
+            ).trim();
+
+            const category =
+              targetItemType === 'Feed Medicine'
+                ? String(row['Category'] || row['category'] || 'Regular')
+                    .trim()
+                    .toLowerCase()
+                    .includes('treat')
+                  ? 'Treatment'
+                  : 'Regular'
+                : null;
+
+            const packagingType = String(
+              row['Packaging Type'] ||
+              row['Packaging'] ||
+              row['packagingType'] ||
+              row['Packing'] ||
+              'Bag'
+            ).trim();
+
+            const packSize =
+              Number(
+                row['Pack Size'] ||
+                row['packSize'] ||
+                row['Size'] ||
+                (targetItemType === 'Raw Material' ? 50 : 1)
+              ) || 1;
+
+            let uom = String(
+              row['Unit'] || row['uom'] || row['UOM'] || 'kg'
+            )
+              .toLowerCase()
+              .trim();
+            if (!['kg', 'gm', 'ltr', 'ml', 'ton'].includes(uom)) {
+              uom = 'kg';
+            }
+
+            return {
+              itemType: targetItemType,
+              name,
+              aliasName,
+              companyName,
+              category,
+              packagingType,
+              packSize,
+              uom,
+            };
+          })
+          .filter((item) => item.name.length > 0);
+
+        if (parsed.length === 0) {
+          alert(
+            `No valid ${targetItemType} rows found! Please ensure column "${
+              targetItemType === 'Feed Medicine' ? 'Medicine Name' : 'Raw Material Name'
+            }" is present.`
+          );
+          return;
+        }
+
+        setImportPreview(parsed);
+        setIsBulkImportOpen(true);
+      } catch (err) {
+        console.error('Error reading Excel:', err);
+        alert('Failed to parse Excel file. Please upload a valid .xlsx or .xls file.');
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // 💾 Confirm & Save to Database
+  const handleConfirmImport = async () => {
+    if (importPreview.length === 0) return;
+    try {
+      setIsImporting(true);
+      const targetItemType = activeTab === 'feed-medicine' ? 'Feed Medicine' : 'Raw Material';
+      const res = await bulkImportFeedItemsApi(importPreview, targetItemType);
+      setSuccessMsg(res.message || `${targetItemType}s imported successfully!`);
+      setIsBulkImportOpen(false);
+      setImportPreview([]);
+      loadItems();
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err) {
+      alert(err.message || 'Failed to import items');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
 
   // Load items from API (loads all items once, then filters client-side)
   const loadItems = async () => {
@@ -482,7 +693,46 @@ export default function FeedMedRawMasterPage() {
           </p>
         </div>
 
-        <div className="shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Hidden file input for Excel upload */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".xlsx, .xls"
+            className="hidden"
+          />
+
+          {/* Excel Template & Upload buttons (only for Feed Medicine & Raw Material tabs) */}
+          {(activeTab === 'feed-medicine' || activeTab === 'raw-material') && (
+            <>
+              {/* 1. Download Sample Button */}
+              <button
+                type="button"
+                onClick={handleDownloadSampleExcel}
+                className="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 font-semibold px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg shadow-2xs transition flex items-center gap-1.5 cursor-pointer text-xs shrink-0"
+                title={`Download sample ${activeTab === 'feed-medicine' ? 'Feed Medicine' : 'Raw Material'} Excel template`}
+              >
+                <span>📥</span>
+                <span className="hidden sm:inline">Sample Excel</span>
+              </button>
+
+              {/* 2. Upload Excel Button */}
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-lg shadow-xs transition flex items-center gap-1.5 cursor-pointer text-xs shrink-0"
+                  title={`Upload ${activeTab === 'feed-medicine' ? 'Feed Medicine' : 'Raw Material'} Excel sheet`}
+                >
+                  <span>📊</span>
+                  <span>Upload Excel</span>
+                </button>
+              )}
+            </>
+          )}
+
+          {/* 3. Regular Add Button */}
           {canManage && (
             <button
               onClick={() => {
@@ -495,7 +745,7 @@ export default function FeedMedRawMasterPage() {
                   );
                 }
               }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 sm:px-4 py-1.5 sm:py-2.5 rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer text-xs sm:text-sm whitespace-nowrap"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg shadow-xs transition flex items-center gap-1 cursor-pointer text-xs sm:text-sm whitespace-nowrap"
             >
               <span className="text-base leading-none font-bold">+</span>
               <span>
@@ -1910,6 +2160,97 @@ export default function FeedMedRawMasterPage() {
         editingFormulation={editingFormulation}
         masterItems={allItems}
       />
+
+      {/* 6. EXCEL BULK IMPORT PREVIEW MODAL */}
+      {isBulkImportOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-5 py-3.5 bg-slate-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="font-bold text-sm">
+                  📊 Import {activeTab === 'feed-medicine' ? 'Feed Medicines' : 'Raw Materials'} Preview
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Found {importPreview.length} item(s) ready to import into Master
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkImportOpen(false)}
+                className="text-slate-400 hover:text-white text-lg p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-700 font-bold">
+                    <th className="p-2 border">#</th>
+                    <th className="p-2 border">Item Name</th>
+                    <th className="p-2 border">Alias</th>
+                    <th className="p-2 border">Company</th>
+                    {activeTab === 'feed-medicine' && <th className="p-2 border">Category</th>}
+                    <th className="p-2 border">Packaging</th>
+                    <th className="p-2 border">Pack Size</th>
+                    <th className="p-2 border">Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.slice(0, 50).map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="p-2 border text-slate-400">{idx + 1}</td>
+                      <td className="p-2 border font-bold text-slate-800">{item.name}</td>
+                      <td className="p-2 border text-slate-600">{item.aliasName || '—'}</td>
+                      <td className="p-2 border text-slate-600">{item.companyName || '—'}</td>
+                      {activeTab === 'feed-medicine' && (
+                        <td className="p-2 border">
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              item.category === 'Treatment'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}
+                          >
+                            {item.category || 'Regular'}
+                          </span>
+                        </td>
+                      )}
+                      <td className="p-2 border text-slate-600">{item.packagingType}</td>
+                      <td className="p-2 border text-slate-600">{item.packSize}</td>
+                      <td className="p-2 border font-mono text-slate-600">{item.uom}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {importPreview.length > 50 && (
+                <p className="text-center text-xs text-slate-400 mt-2">
+                  ...and {importPreview.length - 50} more items
+                </p>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkImportOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isImporting}
+                onClick={handleConfirmImport}
+                className="px-5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isImporting ? 'Saving to Database...' : `Confirm & Save (${importPreview.length})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

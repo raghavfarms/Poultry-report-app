@@ -224,3 +224,136 @@ export async function toggleFeedItemStatus(req, res) {
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
+
+/**
+ * 6. BULK IMPORT FEED ITEMS (from Excel)
+ * POST /api/feed-med-raw/master/bulk-import
+ */
+export async function bulkImportFeedItems(req, res) {
+  try {
+    const { items, defaultItemType } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No items data provided for bulk import.',
+      });
+    }
+
+    // Find current maximum numeric code among existing FMR- items
+    const allExisting = await FeedMedRawMaster.find({ code: /^FMR-\d+$/ })
+      .select('code')
+      .lean();
+
+    let counter = 0;
+    for (const doc of allExisting) {
+      const match = (doc.code || '').match(/^FMR-(\d+)$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > counter) {
+          counter = num;
+        }
+      }
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    const validUoms = ['kg', 'gm', 'ltr', 'ml', 'ton'];
+
+    for (const raw of items) {
+      const name = raw.name ? String(raw.name).trim() : '';
+      if (!name) {
+        skippedCount++;
+        continue;
+      }
+
+      const itemType =
+        raw.itemType === 'Raw Material' || defaultItemType === 'Raw Material'
+          ? 'Raw Material'
+          : 'Feed Medicine';
+
+      // Normalize UOM
+      let uom = String(raw.uom || 'kg').toLowerCase().trim();
+      if (!validUoms.includes(uom)) {
+        uom = 'kg';
+      }
+
+      // Packaging Type & Pack Size
+      const packagingType = raw.packagingType
+        ? String(raw.packagingType).trim()
+        : 'Bag';
+      const packSize =
+        Number(raw.packSize) > 0
+          ? Number(raw.packSize)
+          : itemType === 'Raw Material'
+            ? 50
+            : 1;
+
+      // Category for Feed Medicine: Regular or Treatment
+      let category = null;
+      if (itemType === 'Feed Medicine') {
+        const cat = raw.category ? String(raw.category).trim() : 'Regular';
+        category = /treatment/i.test(cat) ? 'Treatment' : 'Regular';
+      }
+
+      const companyName = raw.companyName ? String(raw.companyName).trim() : '';
+      const aliasName = raw.aliasName ? String(raw.aliasName).trim() : '';
+
+      // Check if item with same name exists under this itemType (case-insensitive)
+      const existing = await FeedMedRawMaster.findOne({
+        itemType,
+        name: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      });
+
+      if (existing) {
+        // Update existing item
+        if (companyName) existing.companyName = companyName;
+        if (aliasName) existing.aliasName = aliasName;
+        if (uom) existing.uom = uom;
+        if (packagingType) existing.packagingType = packagingType;
+        if (packSize) existing.packSize = packSize;
+        if (category) existing.category = category;
+        existing.isActive = true; // reactivate if was inactive
+        await existing.save();
+        updatedCount++;
+      } else {
+        // Create new item with next sequential code
+        counter++;
+        const code = `FMR-${String(counter).padStart(3, '0')}`;
+        await FeedMedRawMaster.create({
+          code,
+          itemType,
+          name,
+          companyName,
+          aliasName,
+          uom,
+          packagingType,
+          packSize,
+          category,
+          isActive: true,
+        });
+        addedCount++;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Imported successfully! (${addedCount} added, ${updatedCount} updated${
+        skippedCount > 0 ? `, ${skippedCount} skipped` : ''
+      })`,
+      summary: {
+        addedCount,
+        updatedCount,
+        skippedCount,
+        totalProcessed: items.length,
+      },
+    });
+  } catch (err) {
+    console.error('Error during bulk import of feed items:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Internal server error',
+    });
+  }
+}

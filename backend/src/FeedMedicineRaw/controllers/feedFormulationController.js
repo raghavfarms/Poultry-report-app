@@ -170,7 +170,7 @@ export async function updateFormulation(req, res) {
       consumedBy,
       flockName,
       targetBatchSize = 1000,
-      startDate,
+      startDate,  
       endDate,
       items = [],
       notes,
@@ -261,4 +261,4 @@ export async function toggleFormulationStatus(req, res) {
     console.error('Error toggling status:', err);
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }
-}
+}      
