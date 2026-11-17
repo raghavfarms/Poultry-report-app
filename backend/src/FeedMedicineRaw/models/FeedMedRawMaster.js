@@ -56,6 +56,29 @@ const feedMedRawMasterSchema = new mongoose.Schema({
         enum:['Regular','Treatment',null]
     },
 
+    // Feed Medicine only: Stock, Batch & Expiry
+    currentStock: {
+       type: Number,
+       default: 0,
+       min: 0,
+    },
+    batchNumber: {
+       type: String,
+       trim: true,
+       default: '',
+       maxlength: 50,
+    },
+    expiryDate: {
+       type: String,
+       trim: true,
+       default: '',
+    },
+    reorderLevel: {
+       type: Number,
+       default: 0,
+       min: 0,
+    },
+
     isActive:{
         type: Boolean,
         default: true,

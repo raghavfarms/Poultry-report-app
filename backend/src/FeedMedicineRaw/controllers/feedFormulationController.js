@@ -260,5 +260,5 @@ export async function toggleFormulationStatus(req, res) {
   } catch (err) {
     console.error('Error toggling status:', err);
     return res.status(500).json({ success: false, error: 'Internal server error' });
-  }
-}      
+  }  
+}         
