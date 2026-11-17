@@ -283,7 +283,7 @@ export async function bulkImportFeedItems(req, res) {
       if (!name) {
         skippedCount++;
         continue;
-      }
+      } 
 
       const itemType =
         raw.itemType === 'Raw Material' || defaultItemType === 'Raw Material'
@@ -384,7 +384,7 @@ export async function bulkImportFeedItems(req, res) {
     console.error('Error during bulk import of feed items:', err);
     return res.status(500).json({
       success: false,
-      error: err.message || 'Internal server error',
+      error: err.message || 'Internal  Sever Error ',
     });
   }
 }

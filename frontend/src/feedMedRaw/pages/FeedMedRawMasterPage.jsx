@@ -237,7 +237,6 @@ export default function FeedMedRawMasterPage() {
             'Pack Size': 50,
             'Unit': 'kg',
             'Stock': 500,
-            'Expiry Date': '2026-12-31',
           },
           {
             'Raw Material Name': 'Soya De-Oiled Cake (DOC 46%)',
@@ -247,7 +246,6 @@ export default function FeedMedRawMasterPage() {
             'Pack Size': 50,
             'Unit': 'kg',
             'Stock': 300,
-            'Expiry Date': '2026-11-30',
           },
           {
             'Raw Material Name': 'DORB (De-Oiled Rice Bran)',
@@ -257,7 +255,6 @@ export default function FeedMedRawMasterPage() {
             'Pack Size': 50,
             'Unit': 'kg',
             'Stock': 250,
-            'Expiry Date': '2027-01-31',
           },
         ];
 
@@ -374,14 +371,16 @@ export default function FeedMedRawMasterPage() {
                 : '';
 
             const expiryDate =
-              String(
-                row['Expiry Date'] ||
-                row['Expiry'] ||
-                row['Exp Date'] ||
-                row['Exp'] ||
-                row['expiryDate'] ||
-                ''
-              ).trim();
+              targetItemType === 'Feed Medicine'
+                ? String(
+                    row['Expiry Date'] ||
+                    row['Expiry'] ||
+                    row['Exp Date'] ||
+                    row['Exp'] ||
+                    row['expiryDate'] ||
+                    ''
+                  ).trim()
+                : '';
 
             return {
               itemType: targetItemType,
@@ -1155,9 +1154,9 @@ export default function FeedMedRawMasterPage() {
                   {activeTab === 'feed-medicine' && <th className="py-3 px-4">Category</th>}
                   <th className="py-3 px-4">Packaging & Unit</th>
                   <th className="py-3 px-4 text-center">Stock & Alert</th>
-                  <th className="py-3 px-4 text-center">
-                    {activeTab === 'feed-medicine' ? 'Batch & Expiry' : 'Expiry'}
-                  </th>
+                  {activeTab === 'feed-medicine' && (
+                    <th className="py-3 px-4 text-center">Batch & Expiry</th>
+                  )}
                   <th className="py-3 px-4 text-center">Status</th>
                   {canManage && (
                     <th className="py-3 px-4 pr-6 text-right w-24">Actions</th>
@@ -1168,7 +1167,7 @@ export default function FeedMedRawMasterPage() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 10 : 7) : activeTab === 'feed-medicine' ? 9 : 6}
+                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 10 : 6) : activeTab === 'feed-medicine' ? 9 : 5}
                       className="p-8 sm:p-12 text-center text-slate-500 font-medium"
                     >
                       Loading items...
@@ -1177,7 +1176,7 @@ export default function FeedMedRawMasterPage() {
                 ) : filteredItems.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 10 : 7) : activeTab === 'feed-medicine' ? 9 : 6}
+                      colSpan={canManage ? (activeTab === 'feed-medicine' ? 10 : 6) : activeTab === 'feed-medicine' ? 9 : 5}
                       className="p-8 sm:p-12 text-center text-slate-500"
                     >
                       <p className="text-base font-semibold">
@@ -1242,22 +1241,25 @@ export default function FeedMedRawMasterPage() {
                             </span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex flex-col items-center gap-0.5">
-                            {activeTab === 'feed-medicine' && item.batchNumber && (
-                              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
-                                B: {item.batchNumber}
-                              </span>
-                            )}
-                            {item.expiryDate ? (
-                              <span className="text-[11px] font-medium text-slate-600">
-                                Exp: {item.expiryDate}
-                              </span>
-                            ) : (
-                              !item.batchNumber && <span className="text-slate-300 italic text-xs">—</span>
-                            )}
-                          </div>
-                        </td>
+                        {activeTab === 'feed-medicine' && (
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex flex-col items-center gap-0.5">
+                              {item.batchNumber ? (
+                                <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                                  B: {item.batchNumber}
+                                </span>
+                              ) : null}
+                              {item.expiryDate ? (
+                                <span className="text-[11px] font-medium text-slate-600">
+                                  Exp: {item.expiryDate}
+                                </span>
+                              ) : null}
+                              {!item.batchNumber && !item.expiryDate && (
+                                <span className="text-slate-300 italic text-xs">—</span>
+                              )}
+                            </div>
+                          </td>
+                        )}
                         <td className="py-3 px-4 text-center">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
@@ -2365,7 +2367,7 @@ export default function FeedMedRawMasterPage() {
                     <th className="p-2 border">Unit</th>
                     <th className="p-2 border text-center">Stock</th>
                     {activeTab === 'feed-medicine' && <th className="p-2 border text-center">Batch No</th>}
-                    <th className="p-2 border text-center">Expiry</th>
+                    {activeTab === 'feed-medicine' && <th className="p-2 border text-center">Expiry</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -2399,9 +2401,11 @@ export default function FeedMedRawMasterPage() {
                           {item.batchNumber || '—'}
                         </td>
                       )}
-                      <td className="p-2 border text-center text-slate-700">
-                        {item.expiryDate || '—'}
-                      </td>
+                      {activeTab === 'feed-medicine' && (
+                        <td className="p-2 border text-center text-slate-700">
+                          {item.expiryDate || '—'}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
