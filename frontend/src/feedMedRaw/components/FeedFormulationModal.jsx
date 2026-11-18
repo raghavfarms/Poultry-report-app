@@ -83,8 +83,10 @@ export default function FeedFormulationModal({
   onSaved,
   editingFormulation = null,
   masterItems = [], // All Raw Materials and Feed Medicines from catalog
+  defaultFarm = 'Raghav',
 }) {
   const [feedName, setFeedName] = useState('');
+  const [farm, setFarm] = useState(defaultFarm || 'Raghav');
   const [feedType, setFeedType] = useState('PHASE-2');
   const [consumedBy, setConsumedBy] = useState('ALL BIRDS');
   const [flockName, setFlockName] = useState('All Flocks');
@@ -115,6 +117,7 @@ export default function FeedFormulationModal({
   useEffect(() => {
     if (editingFormulation) {
       setFeedName(editingFormulation.feedName || '');
+      setFarm(editingFormulation.farm || defaultFarm || 'Raghav');
       setFeedType(editingFormulation.feedType || 'PHASE-2');
       setConsumedBy(editingFormulation.consumedBy || 'ALL BIRDS');
       setFlockName(editingFormulation.flockName || 'All Flocks');
@@ -136,6 +139,7 @@ export default function FeedFormulationModal({
       );
     } else {
       setFeedName('');
+      setFarm(defaultFarm || 'Raghav');
       setFeedType('PHASE-2');
       setConsumedBy('ALL BIRDS');
       setFlockName('All Flocks');
@@ -147,7 +151,7 @@ export default function FeedFormulationModal({
     }
     setError('');
     setBulkPickerType(null);
-  }, [editingFormulation, isOpen]);
+  }, [editingFormulation, isOpen, defaultFarm]);
 
   // Calculate live total weight and remaining kg
   const totalWeight = useMemo(() => {
@@ -334,6 +338,7 @@ export default function FeedFormulationModal({
 
       const payload = {
         feedName: feedName.trim(),
+        farm: farm || 'All Farms',
         feedType,
         consumedBy,
         flockName: flockName.trim() || 'All Flocks',
@@ -424,9 +429,9 @@ export default function FeedFormulationModal({
             )}
 
             {/* Section 1: Recipe Meta Information (Compact 2-Row Grid) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200/80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-200/80">
               {/* Feed Name */}
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 md:col-span-4">
                 <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
                   Feed / Formulation Name <span className="text-rose-500">*</span>
                 </label>
@@ -441,8 +446,23 @@ export default function FeedFormulationModal({
                 />
               </div>
 
+              {/* Farm / Location */}
+              <div className="sm:col-span-2 md:col-span-2">
+                <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
+                  Farm <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={farm}
+                  onChange={(e) => setFarm(e.target.value)}
+                  className="w-full h-7.5 px-2 border border-slate-300 rounded-md text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-emerald-500 focus:outline-none bg-white cursor-pointer"
+                >
+                  <option value="Raghav">Raghav Farm</option>
+                  <option value="Sanjana">Sanjana Farm</option>
+                </select>
+              </div>
+
               {/* Feed Stage / Type */}
-              <div>
+              <div className="sm:col-span-1 md:col-span-2">
                 <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
                   Feed Stage / Type <span className="text-rose-500">*</span>
                 </label>
@@ -460,7 +480,7 @@ export default function FeedFormulationModal({
               </div>
 
               {/* Consumed By */}
-              <div>
+              <div className="sm:col-span-1 md:col-span-1">
                 <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
                   Consumed By
                 </label>
@@ -478,7 +498,7 @@ export default function FeedFormulationModal({
               </div>
 
               {/* Flock Assigned */}
-              <div>
+              <div className="sm:col-span-1 md:col-span-2">
                 <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
                   Flock Assigned
                 </label>
@@ -492,13 +512,13 @@ export default function FeedFormulationModal({
               </div>
 
               {/* Target Batch Size */}
-              <div>
+              <div className="sm:col-span-1 md:col-span-1">
                 <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wide mb-0.5">
-                  Standard Batch Size
+                  Batch Size
                 </label>
-                <div className="flex items-center h-7.5 px-2.5 border border-slate-200 rounded-md bg-slate-100 text-xs font-mono font-bold text-slate-700 justify-between">
+                <div className="flex items-center h-7.5 px-2 border border-slate-200 rounded-md bg-slate-100 text-xs font-mono font-bold text-slate-700 justify-between">
                   <span>{targetBatchSize}</span>
-                  <span className="text-emerald-700 font-sans text-[10px]">kg (1 Ton)</span>
+                  <span className="text-emerald-700 font-sans text-[10px]">kg</span>
                 </div>
               </div>
             </div>

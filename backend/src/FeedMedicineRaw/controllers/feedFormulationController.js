@@ -9,6 +9,7 @@ export async function createFormulation(req, res) {
   try {
     const {
       feedName,
+      farm = 'All Farms',
       feedType,
       consumedBy,
       flockName,
@@ -70,6 +71,7 @@ export async function createFormulation(req, res) {
     const newFormulation = await FeedFormulation.create({
       bomNumber: nextBom,
       feedName: feedName.trim(),
+      farm: farm || 'All Farms',
       feedType: feedType || 'PHASE-2',
       consumedBy: consumedBy || 'ALL BIRDS',
       flockName: flockName?.trim() || 'All Flocks',
@@ -99,12 +101,16 @@ export async function createFormulation(req, res) {
  */
 export async function getFormulations(req, res) {
   try {
-    const { search, feedType, status } = req.query;
+    const { search, feedType, status, farm } = req.query;
 
     const query = {};
 
     if (feedType && feedType !== 'All') {
       query.feedType = feedType;
+    }
+
+    if (farm && farm !== 'All' && farm !== 'All Farms') {
+      query.$or = [{ farm }, { farm: 'All Farms' }, { farm: null }, { farm: { $exists: false } }];
     }
 
     if (status === 'active') {
@@ -115,11 +121,17 @@ export async function getFormulations(req, res) {
 
     if (search && search.trim()) {
       const regex = new RegExp(search.trim(), 'i');
-      query.$or = [
+      const searchConditions = [
         { feedName: regex },
         { bomNumber: regex },
         { flockName: regex },
       ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
 
     const formulations = await FeedFormulation.find(query)
@@ -166,6 +178,7 @@ export async function updateFormulation(req, res) {
     const { id } = req.params;
     const {
       feedName,
+      farm,
       feedType,
       consumedBy,
       flockName,
@@ -213,6 +226,7 @@ export async function updateFormulation(req, res) {
     });
 
     formulation.feedName = feedName?.trim() || formulation.feedName;
+    if (farm) formulation.farm = farm;
     formulation.feedType = feedType || formulation.feedType;
     formulation.consumedBy = consumedBy || formulation.consumedBy;
     formulation.flockName = flockName?.trim() || formulation.flockName;

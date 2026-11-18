@@ -48,6 +48,12 @@ const feedFormulationSchema = new mongoose.Schema(
       trim: true,
       maxlength: 120, // e.g. SANJANA BP-10
     },
+    farm: {
+      type: String,
+      enum: ['Raghav', 'Sanjana', 'All Farms'],
+      default: 'Raghav',
+      index: true,
+    },
     feedType: {
       type: String,
       required: true,

@@ -152,7 +152,7 @@ export async function getFeedItemById(req, res) {
  * 4. UPDATE FEED ITEM
  * PUT /api/feed-med-raw/master/:id
  */
-export async function updateFeedItem(req, res) {
+export async function updateFeedItem(req, res) {  
   try {
     const {
       name,
@@ -384,7 +384,7 @@ export async function bulkImportFeedItems(req, res) {
     console.error('Error during bulk import of feed items:', err);
     return res.status(500).json({
       success: false,
-      error: err.message || 'Internal  Sever Error ',
+      error: err.message || 'Internal  Sever Error',
     });
   }
 }

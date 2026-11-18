@@ -152,6 +152,7 @@ export default function FeedMedRawMasterPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
   const [feedTypeFilter, setFeedTypeFilter] = useState('All');
+  const [formulationFarmFilter, setFormulationFarmFilter] = useState('Raghav');
 
   // Formulation states
   const [allFormulations, setAllFormulations] = useState([]);
@@ -523,6 +524,19 @@ export default function FeedMedRawMasterPage() {
       list = list.filter((f) => f.feedType === feedTypeFilter);
     }
 
+    if (formulationFarmFilter) {
+      list = list.filter((f) => {
+        const farmVal =
+          f.farm ||
+          (f.feedName?.toLowerCase().includes('sanjana')
+            ? 'Sanjana'
+            : f.feedName?.toLowerCase().includes('raghav')
+              ? 'Raghav'
+              : 'All Farms');
+        return farmVal === formulationFarmFilter || farmVal === 'All Farms';
+      });
+    }
+
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -535,7 +549,7 @@ export default function FeedMedRawMasterPage() {
     }
 
     return { filteredFormulations: list, formulationCount: count };
-  }, [allFormulations, statusFilter, feedTypeFilter, search]);
+  }, [allFormulations, statusFilter, feedTypeFilter, formulationFarmFilter, search]);
 
   // Open modal for Adding
   const handleOpenAddModal = (defaultType = 'Feed Medicine') => {
@@ -797,6 +811,38 @@ export default function FeedMedRawMasterPage() {
             </>
           )}
 
+          {/* Farm Switcher Toggle (Only Raghav & Sanjana on side of Add button) */}
+          {activeTab === 'feed-formulation' && (
+            <div className="inline-flex p-0.5 sm:p-1 bg-slate-100 rounded-lg border border-slate-300 text-xs font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setFormulationFarmFilter('Raghav')}
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md transition cursor-pointer flex items-center gap-1 sm:gap-1.5 text-xs font-bold ${
+                  formulationFarmFilter === 'Raghav'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+                title="View Raghav Farm Formulations"
+              >
+                <span>🏡</span>
+                <span>Raghav</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormulationFarmFilter('Sanjana')}
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-md transition cursor-pointer flex items-center gap-1 sm:gap-1.5 text-xs font-bold ${
+                  formulationFarmFilter === 'Sanjana'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+                title="View Sanjana Farm Formulations"
+              >
+                <span>🏡</span>
+                <span>Sanjana</span>
+              </button>
+            </div>
+          )}
+
           {/* 3. Regular Add Button */}
           {canManage && (
             <button
@@ -955,7 +1001,22 @@ export default function FeedMedRawMasterPage() {
                             {item.bomNumber}
                           </td>
                           <td className="py-2.5 px-3">
-                            <div className="font-bold text-slate-900 text-xs">{item.feedName}</div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-slate-900 text-xs">{item.feedName}</span>
+                              {item.farm === 'Raghav' ? (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                  Raghav
+                                </span>
+                              ) : item.farm === 'Sanjana' ? (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                  Sanjana
+                                </span>
+                              ) : (
+                                <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                  All Farms
+                                </span>
+                              )}
+                            </div>
                             {item.notes && (
                               <div className="text-[10px] text-slate-400 italic truncate max-w-xs">
                                 {item.notes}
@@ -1371,6 +1432,15 @@ export default function FeedMedRawMasterPage() {
                         <span className="font-bold text-xs text-slate-900 truncate">
                           {item.feedName}
                         </span>
+                        {item.farm === 'Raghav' ? (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-100 text-blue-800 shrink-0">
+                            Raghav
+                          </span>
+                        ) : item.farm === 'Sanjana' ? (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-800 shrink-0">
+                            Sanjana
+                          </span>
+                        ) : null}
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -2329,6 +2399,7 @@ export default function FeedMedRawMasterPage() {
         onSaved={loadFormulations}
         editingFormulation={editingFormulation}
         masterItems={allItems}
+        defaultFarm={formulationFarmFilter}
       />
 
       {/* 6. EXCEL BULK IMPORT PREVIEW MODAL */}
