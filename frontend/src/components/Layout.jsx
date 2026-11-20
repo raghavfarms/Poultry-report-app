@@ -1,5 +1,6 @@
 import usersRolesIcon from "../assets/icon-users-roles.png";
 import attendanceAdminIcon from "../assets/icon-attendance-admin.png";
+import PerformanceIcon from "./PerformanceIcon.jsx";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -9,6 +10,7 @@ export const modules = [
   ["diesel", "Diesel Consumption", "⛽"],
   ["transport", "Transport Report", "🚚"],
   ["attendance", "Attendance", "👤"],
+  ["performance", "Workers' Performance", <PerformanceIcon key="perf-icon" className="h-4 w-4 drop-shadow-xs" />],
   ["medicine", "General Med Movement", "💊"],
   ["temperature", "Temperature Monitoring", "🌡️"],
 ];
@@ -25,6 +27,7 @@ export const moduleIconStyles = {
   packing: "bg-violet-100 text-violet-700",
   vermicompost: "bg-lime-100 text-lime-700",
   attendance: "bg-cyan-100 text-cyan-700",
+  performance: "bg-indigo-100 text-indigo-700",
   solar: "bg-yellow-100 text-yellow-700",
   vaccination: "bg-emerald-100 text-emerald-700",
 };
