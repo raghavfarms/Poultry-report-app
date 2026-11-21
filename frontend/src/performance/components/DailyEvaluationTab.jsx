@@ -274,15 +274,37 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
 
         {/* Submit Button */}
         <div>
-          <button
-            onClick={() => setShowConfirmModal(true)}
-            disabled={loading || submitting || evaluableWorkersCount === 0}
-            className="inline-flex h-7 sm:h-8 items-center justify-center rounded-md sm:rounded-lg bg-emerald-600 px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? 'Saving…' : `Submit (${evaluableWorkersCount})`}
-          </button>
+          {!isAdmin && data?.isAlreadySubmitted ? (
+            <span
+              className="inline-flex h-7 sm:h-8 items-center rounded-md sm:rounded-lg bg-slate-100 border border-slate-300 px-2.5 sm:px-3 text-[11px] sm:text-xs font-bold text-slate-600 shadow-2xs"
+              title="Ratings have already been submitted. Only Admin can edit."
+            >
+              🔒 Submitted (Locked)
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowConfirmModal(true)}
+              disabled={loading || submitting || evaluableWorkersCount === 0}
+              className="inline-flex h-7 sm:h-8 items-center justify-center rounded-md sm:rounded-lg bg-emerald-600 px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting
+                ? 'Saving…'
+                : isAdmin && data?.isAlreadySubmitted
+                ? `Update Ratings (${evaluableWorkersCount})`
+                : `Submit (${evaluableWorkersCount})`}
+            </button>
+          )}
         </div>
       </div>
+
+      {!isAdmin && data?.isAlreadySubmitted && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 flex items-center gap-2">
+          <span>🔒</span>
+          <span>
+            <strong>Ratings Already Submitted:</strong> Daily ratings for this date have already been submitted. Standard evaluators cannot change or re-submit ratings. Only an <strong>Administrator</strong> can edit submitted ratings.
+          </span>
+        </div>
+      )}
 
     
 
@@ -390,13 +412,19 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                           </span>
                         )}
                         {group.key !== 'absent' && (
-                          <button
-                            type="button"
-                            onClick={() => handleSetAllYes(w.workerId)}
-                            className="block mx-auto mt-0.5 sm:mt-1 text-[8px] sm:text-[9px] font-semibold text-emerald-700 hover:underline"
-                          >
-                            All Yes
-                          </button>
+                          !isAdmin && (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                            <span className="block mx-auto mt-0.5 sm:mt-1 text-[8px] sm:text-[9px] font-semibold text-slate-400">
+                              Locked
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSetAllYes(w.workerId)}
+                              className="block mx-auto mt-0.5 sm:mt-1 text-[8px] sm:text-[9px] font-semibold text-emerald-700 hover:underline"
+                            >
+                              All Yes
+                            </button>
+                          )
                         )}
                       </td>
                     ))
@@ -471,6 +499,19 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                   }`}
                                 >
                                   {currentAnswer === 'YES' ? 'हाँ (Auto)' : 'ना (Auto)'}
+                                </span>
+                              </div>
+                            ) : !isAdmin && (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                              <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-slate-100 opacity-75">
+                                <span
+                                  className={`rounded px-1.5 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold ${
+                                    currentAnswer === 'YES'
+                                      ? 'bg-emerald-600 text-white shadow-xs'
+                                      : 'bg-red-600 text-white shadow-xs'
+                                  }`}
+                                  title="Submitted rating (Locked - Only Admin can edit)"
+                                >
+                                  {currentAnswer === 'YES' ? 'हाँ' : 'ना'}
                                 </span>
                               </div>
                             ) : (

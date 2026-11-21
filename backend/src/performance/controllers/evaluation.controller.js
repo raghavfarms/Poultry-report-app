@@ -5,7 +5,7 @@ import GradeSalaryConfig from '../models/GradeSalaryConfig.js';
 import Worker from '../../attendance/models/Worker.js';
 import AttendanceSession from '../../attendance/models/AttendanceSession.js';
 import Firm from '../../models/Firm.js';
-import { badRequest, notFoundError } from '../../utils/http.js';
+import { badRequest, notFoundError, forbiddenError } from '../../utils/http.js';
 import { evaluateDutyInPunctuality, evaluateLunchInPunctuality } from '../utils/attendancePunctuality.js';
 
 // Helper: Calculate daily score and grade based on variable points scale
@@ -212,10 +212,15 @@ export async function getDailyEvaluationMatrix(req, res) {
     };
   });
 
+  const evaluatedCount = existingEvaluations.length;
+  const isAlreadySubmitted = evaluatedCount > 0;
+
   res.json({
     success: true,
     date,
     firm,
+    isAlreadySubmitted,
+    evaluatedCount,
     summary: {
       total: workers.length,
       present: presentWorkers.length,
@@ -241,6 +246,22 @@ export async function submitDailyEvaluation(req, res) {
     throw badRequest('Evaluations list cannot be empty.');
   }
 
+  const isAdmin = ['admin', 'developer'].includes(req.user?.role);
+
+  // One-time submission rule: Non-admin users cannot re-submit if ratings already exist for this date
+  if (!isAdmin) {
+    const existingCount = await DailyEvaluation.countDocuments({
+      firm: firmId,
+      evaluationDate: date,
+      submittedBy: req.user._id,
+    });
+    if (existingCount > 0) {
+      throw forbiddenError(
+        'Ratings for this date have already been submitted. Only an Administrator can modify or re-submit ratings.'
+      );
+    }
+  }
+
   const [firm, config, activeQuestions] = await Promise.all([
     Firm.findById(firmId).select('name code').lean(),
     GradeSalaryConfig.findOne({ $or: [{ firm: firmId }, { firm: null }], active: true })
@@ -251,8 +272,6 @@ export async function submitDailyEvaluation(req, res) {
 
   if (!firm) throw notFoundError('Firm not found.');
   const questionMap = new Map(activeQuestions.map((q) => [String(q._id), q]));
-
-  const isAdmin = ['admin', 'developer'].includes(req.user?.role);
 
   // If non-admin, fetch read-only attendance sessions to enforce automatic punctuality for Q1 and Q3
   let workerSessionMap = null;
