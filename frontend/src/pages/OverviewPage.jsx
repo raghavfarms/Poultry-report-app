@@ -5,6 +5,7 @@ import AttendanceReportPage from "../attendance/pages/AttendanceReportPage.jsx";
 import WorkerAttendancePortal from "../attendance/pages/WorkerAttendancePortal.jsx";
 import MedicineReportPage from "../medicine/pages/MedicineReportPage.jsx";
 import TemperatureHubPage from "../temperature/pages/TemperatureHubPage.jsx";
+import PerformanceHubPage from "../performance/pages/PerformanceHubPage.jsx";
 import { moduleIconStyles, modules } from "../components/Layout.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { canAccessModule } from "../utils/moduleAccess.js";
@@ -55,6 +56,7 @@ export default function OverviewPage() {
   const hasAttendance = canAccessModule(user, "attendance");
   const hasMedicine = canAccessModule(user, "medicine");
   const hasTemperature = canAccessModule(user, "temperature");
+  const hasPerformance = canAccessModule(user, "performance");
 
   const isStaffOrAdmin =
     ["admin", "developer", "office", "supervisor", "security", "farm_incharge"].includes(user?.role) ||
@@ -114,7 +116,10 @@ export default function OverviewPage() {
         {(activeTab === "temperature" || activeTab === "all") && hasTemperature && (
           <TemperatureHubPage compact />
         )}
-        {!hasDiesel && !hasTransport && !hasAttendance && !hasMedicine && !hasTemperature && (
+        {(activeTab === "performance" || activeTab === "all") && hasPerformance && (
+          <PerformanceHubPage />
+        )}
+        {!hasDiesel && !hasTransport && !hasAttendance && !hasMedicine && !hasTemperature && !hasPerformance && (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
             No active report modules assigned to your account. Please contact your administrator.
           </div>
@@ -162,9 +167,9 @@ export default function OverviewPage() {
                     {label}
                   </span>
                   <span
-                    className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport", "attendance", "medicine", "temperature"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
+                    className={`block text-[10px] font-bold uppercase tracking-wider ${["diesel", "transport", "attendance", "medicine", "temperature", "performance"].includes(slug) ? "text-emerald-700" : "text-amber-600"}`}
                   >
-                    {["diesel", "transport", "attendance", "medicine", "temperature"].includes(slug) ? "Available" : "Ready for next phase"}
+                    {["diesel", "transport", "attendance", "medicine", "temperature", "performance"].includes(slug) ? "Available" : "Ready for next phase"}
                   </span>
                 </span>
                 <svg
@@ -201,6 +206,8 @@ export default function OverviewPage() {
                     <MedicineReportPage />
                   ) : slug === "temperature" ? (
                     <TemperatureHubPage compact />
+                  ) : slug === "performance" ? (
+                    <PerformanceHubPage />
                   ) : (
                     <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 p-5 text-center">
                       <h2 className="font-bold text-slate-800">{label}</h2>
