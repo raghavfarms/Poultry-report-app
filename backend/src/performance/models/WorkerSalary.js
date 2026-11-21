@@ -40,6 +40,13 @@ const schema = new mongoose.Schema({
     default: null 
   },
 
+  // Baseline / Initial grade set by Admin for first-time onboarding
+  baselineGrade: {
+    type: String,
+    enum: ['A', 'B', 'C', 'D', null],
+    default: null,
+  },
+
   // The actual official approved salary of the worker   
   currentSalary: { 
     type: Number, 

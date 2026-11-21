@@ -45,7 +45,7 @@ const schema = new mongoose.Schema({
   // Final monthly grade
   finalGrade: { 
     type: String, 
-    enum: ['A', 'B', 'C', 'INSUFFICIENT_DATA', 'NO_DATA'], 
+    enum: ['A', 'B', 'C', 'D', 'INSUFFICIENT_DATA', 'NO_DATA'], 
     required: true, 
     default: 'NO_DATA',
     index: true 
@@ -54,7 +54,7 @@ const schema = new mongoose.Schema({
   // Manual override fields by Admin
   overrideGrade: {
     type: String,
-    enum: ['A', 'B', 'C', null],
+    enum: ['A', 'B', 'C', 'D', null],
     default: null,
   },
   remarks: {
