@@ -167,19 +167,27 @@ export async function getRatingComparison(req, res) {
 
     const hasDiscrepancy = discrepancies.length > 0 || scoreDifference >= 2;
 
-    // Determine accurate attendance status from sessions or evaluation snapshot
-    let attendanceStatus = workerEvals[0]?.attendanceStatusSnapshot || 'ABSENT';
-    if (!workerEvals[0]?.attendanceStatusSnapshot) {
-      const workerSessions = sessionMap.get(wId) || [];
+    // Determine accurate attendance status from sessions (matching Tab 1 exact logic)
+    const workerSessions = sessionMap.get(wId) || [];
+    let attendanceStatus = 'ABSENT';
+
+    if (workerSessions.length > 0) {
       let totalMins = 0;
       let hasOpenSession = false;
       for (const s of workerSessions) {
         if (s.status === 'PRESENT') hasOpenSession = true;
         totalMins += s.workedMinutes || 0;
       }
-      if (totalMins >= 475 || (hasOpenSession && totalMins >= 180)) attendanceStatus = 'PRESENT';
-      else if (totalMins >= 235 || hasOpenSession) attendanceStatus = 'HALF_DAY';
-      else attendanceStatus = 'ABSENT';
+
+      if (hasOpenSession || totalMins >= 475) {
+        attendanceStatus = 'PRESENT';
+      } else if (totalMins >= 235) {
+        attendanceStatus = 'HALF_DAY';
+      } else {
+        attendanceStatus = 'ABSENT';
+      }
+    } else if (workerEvals[0]?.attendanceStatusSnapshot) {
+      attendanceStatus = workerEvals[0].attendanceStatusSnapshot;
     }
 
     comparisonRows.push({
