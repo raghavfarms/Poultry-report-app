@@ -25,18 +25,6 @@ export async function getQuestions(req, res) {
     filter.active = true;
   }
 
-  // Check if any question exists. If zero, auto-seed defaults for the system!
-  const count = await PerformanceQuestion.countDocuments();
-  if (count === 0) {
-    const seed = DEFAULT_QUESTIONS.map((q) => ({
-      ...q,
-      createdBy: req.user._id,
-      firmApplicability: 'ALL',
-      appliesToHalfDay: true,
-    }));
-    await PerformanceQuestion.insertMany(seed);
-  }
-
   let questions = await PerformanceQuestion.find(filter)
     .sort({ displayOrder: 1, createdAt: 1 })
     .lean();
@@ -52,17 +40,19 @@ export async function getQuestions(req, res) {
 }
 
 export async function createQuestion(req, res) {
-  const { questionText, displayOrder, firmApplicability, weight, isCriticalViolation, appliesToHalfDay } = req.body;
+  const { questionText, displayOrder, firmApplicability, weight, isCriticalViolation, appliesToHalfDay, autoTranslate } = req.body;
 
   if (!questionText || !questionText.trim()) {
     throw badRequest('Question text is required.');
   }
 
-  // Automatically convert Hinglish / English to Hindi Devanagari
-  const hindiQuestionText = await convertToHindi(questionText.trim());
+  let textToSave = questionText.trim();
+  if (autoTranslate === true) {
+    textToSave = await convertToHindi(textToSave);
+  }
 
   const question = await PerformanceQuestion.create({
-    questionText: hindiQuestionText,
+    questionText: textToSave,
     displayOrder: Number(displayOrder) || 0,
     firmApplicability: firmApplicability || 'ALL',
     weight: Number(weight) || 1,
@@ -80,8 +70,7 @@ export async function updateQuestion(req, res) {
   if (!existing) throw notFoundError('Question not found.');
 
   const updateFields = { ...req.body, updatedBy: req.user._id };
-  if (updateFields.questionText) {
-    // Automatically convert Hinglish / English to Hindi Devanagari
+  if (updateFields.questionText && req.body.autoTranslate === true) {
     updateFields.questionText = await convertToHindi(updateFields.questionText.trim());
   }
 
@@ -105,21 +94,11 @@ export async function translateQuestionText(req, res) {
 
 export async function deleteQuestion(req, res) {
   const { id } = req.params;
-  const { permanent } = req.query;
   const existing = await PerformanceQuestion.findById(id);
   if (!existing) throw notFoundError('Question not found.');
 
-  if (permanent === 'true') {
-    await PerformanceQuestion.findByIdAndDelete(id);
-    return res.json({ success: true, message: 'Question deleted permanently.' });
-  }
-
-  // Safe soft delete / deactivate
-  existing.active = false;
-  existing.updatedBy = req.user._id;
-  await existing.save();
-
-  res.json({ success: true, message: 'Question deactivated successfully.' });
+  await PerformanceQuestion.findByIdAndDelete(id);
+  res.json({ success: true, message: 'Question deleted permanently from database.' });
 }
 
 // ==========================================
@@ -138,8 +117,9 @@ export async function getGradeSalaryConfig(req, res) {
       firm: firmId && firmId !== 'all' ? firmId : null,
       gradeRules: {
         gradeA: { minPercentage: 80, minScore: 8, maxScore: 10, numericalPoints: 10 },
-        gradeB: { minPercentage: 50, minScore: 5, maxScore: 7, numericalPoints: 6 },
-        gradeC: { minPercentage: 0, minScore: 0, maxScore: 4, numericalPoints: 3 },
+        gradeB: { minPercentage: 65, minScore: 6, maxScore: 7, numericalPoints: 6 },
+        gradeC: { minPercentage: 50, minScore: 5, maxScore: 6, numericalPoints: 3 },
+        gradeD: { minPercentage: 0, minScore: 0, maxScore: 4, numericalPoints: 0 },
       },
       updatedBy: req.user._id,
     });
@@ -150,10 +130,21 @@ export async function getGradeSalaryConfig(req, res) {
   const totalQuestions = activeQuestions.length;
   const totalWeight = activeQuestions.reduce((acc, q) => acc + (q.weight || 1), 0) || 10;
   
-  const percentA = config.gradeRules?.gradeA?.minPercentage ?? 80;
-  const percentB = config.gradeRules?.gradeB?.minPercentage ?? 50;
+  const percentA = config.gradeRules?.gradeA?.minPercentage || 85;
+  const percentB = config.gradeRules?.gradeB?.minPercentage || 77;
+  const percentC = (config.gradeRules?.gradeC?.minPercentage > 0) ? config.gradeRules.gradeC.minPercentage : 50;
   const minScoreA = Math.round(totalWeight * (percentA / 100));
   const minScoreB = Math.round(totalWeight * (percentB / 100));
+  const minScoreC = Math.round(totalWeight * (percentC / 100));
+
+  // Ensure config object sent to client has sanitized positive values
+  if (config.gradeRules) {
+    if (!config.gradeRules.gradeA?.minPercentage) config.gradeRules.gradeA = { ...config.gradeRules.gradeA, minPercentage: percentA };
+    if (!config.gradeRules.gradeB?.minPercentage) config.gradeRules.gradeB = { ...config.gradeRules.gradeB, minPercentage: percentB };
+    if (!config.gradeRules.gradeC?.minPercentage || config.gradeRules.gradeC.minPercentage <= 0) {
+      config.gradeRules.gradeC = { ...config.gradeRules.gradeC, minPercentage: percentC };
+    }
+  }
 
   res.json({
     success: true,
@@ -163,7 +154,8 @@ export async function getGradeSalaryConfig(req, res) {
       totalWeight,
       gradeA: { minPercentage: percentA, minScore: minScoreA, maxScore: totalWeight },
       gradeB: { minPercentage: percentB, minScore: minScoreB, maxScore: Math.max(minScoreB, minScoreA - 1) },
-      gradeC: { minPercentage: 0, maxScore: Math.max(0, minScoreB - 1) },
+      gradeC: { minPercentage: percentC, minScore: minScoreC, maxScore: Math.max(minScoreC, minScoreB - 1) },
+      gradeD: { minPercentage: 0, minScore: 0, maxScore: Math.max(0, minScoreC - 1) },
     },
   });
 }

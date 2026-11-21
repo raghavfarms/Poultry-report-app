@@ -29,9 +29,8 @@ export async function updateQuestion(id, data) {
   });
 }
 
-export async function deleteQuestion(id, { permanent = false } = {}) {
-  const query = permanent ? '?permanent=true' : '';
-  return api(`/performance/questions/${id}${query}`, {
+export async function deleteQuestion(id) {
+  return api(`/performance/questions/${id}?permanent=true`, {
     method: 'DELETE',
   });
 }
@@ -68,11 +67,26 @@ export async function submitDailyEvaluation(data) {
 }
 
 // ==========================================
+// 4. RATING COMPARISON & BIAS AUDIT
+// ==========================================
+export async function getRatingComparison(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return api(`/performance/evaluations/comparison?${query}`);
+}
+
+// ==========================================
 // 4. WORKERS & SALARY
 // ==========================================
 export async function getMonthlySalarySummary(params = {}) {
   const query = new URLSearchParams(params).toString();
   return api(`/performance/salary/summary?${query}`);
+}
+
+export async function updateWorkerGrade(data) {
+  return api('/performance/grade/edit', {
+    method: 'POST',
+    body: data,
+  });
 }
 
 export async function updateSalaryRevision(data) {

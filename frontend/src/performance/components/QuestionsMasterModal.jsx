@@ -78,18 +78,19 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
     });
   };
 
-  // Convert Hinglish / English to Hindi Devanagari on input blur or save
+  // Convert Hinglish / English to Hindi Devanagari on button click (safely preserving terms like 'AI')
   const handleAutoTranslate = async () => {
     const text = formData.questionText.trim();
-    if (!text || !/[a-zA-Z]/.test(text)) return;
+    if (!text) return;
     setTranslating(true);
+    setError('');
     try {
       const res = await translateQuestion(text);
       if (res?.text) {
         setFormData((prev) => ({ ...prev, questionText: res.text }));
       }
     } catch (_) {
-      // Backend also auto-translates during save if network fails here
+      // Keep original text
     } finally {
       setTranslating(false);
     }
@@ -97,7 +98,8 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.questionText.trim()) {
+    const textToSave = formData.questionText.trim();
+    if (!textToSave) {
       setError('Question text is required.');
       return;
     }
@@ -106,17 +108,6 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
     setError('');
     setSuccess('');
     try {
-      let textToSave = formData.questionText.trim();
-      // If text contains English/Hinglish, convert to Hindi
-      if (/[a-zA-Z]/.test(textToSave)) {
-        try {
-          const transRes = await translateQuestion(textToSave);
-          if (transRes?.text) {
-            textToSave = transRes.text;
-          }
-        } catch (_) {}
-      }
-
       const payload = {
         ...formData,
         questionText: textToSave,
@@ -131,10 +122,10 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
 
       if (editingId) {
         await updateQuestion(editingId, payload);
-        setSuccess('Question updated in Hindi successfully.');
+        setSuccess('Question updated successfully.');
       } else {
         await createQuestion(payload);
-        setSuccess('Question converted to Hindi & added successfully.');
+        setSuccess('Question added successfully.');
       }
       resetForm();
       await fetchQuestionsList();
@@ -147,11 +138,7 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
 
   const handleToggleActive = async (q) => {
     try {
-      if (q.active) {
-        await deleteQuestion(q._id);
-      } else {
-        await updateQuestion(q._id, { active: true });
-      }
+      await updateQuestion(q._id, { active: !q.active });
       await fetchQuestionsList();
     } catch (err) {
       setError(err.message || 'Failed to change question status.');
@@ -166,8 +153,8 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
     setError('');
     setSuccess('');
     try {
-      await deleteQuestion(q._id, { permanent: true });
-      setSuccess('Question deleted permanently.');
+      await deleteQuestion(q._id);
+      setSuccess('Question permanently deleted from database.');
       await fetchQuestionsList();
     } catch (err) {
       setError(err.message || 'Failed to delete question.');
@@ -212,29 +199,35 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-0.5">
-                <label className="block text-[11px] font-semibold text-slate-600">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-slate-700">
                   Question Text <span className="text-red-500">*</span>
                 </label>
-                <span className="text-[10px] font-medium text-emerald-600">
-                  💡 Type in Hinglish (e.g. &quot;kya worker late aya&quot;) — auto-converts to Hindi on save
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">
+                    (You can type Hindi, English, or mix like &quot;AI time se shuru hui&quot;)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAutoTranslate}
+                    disabled={translating || !formData.questionText.trim()}
+                    className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-40 transition cursor-pointer"
+                    title="Click to convert Hinglish text to Hindi while keeping English terms like AI as-is"
+                  >
+                    <span>🇮🇳</span>
+                    <span>{translating ? 'Converting…' : 'Translate to Hindi'}</span>
+                  </button>
+                </div>
               </div>
               <div className="relative">
                 <input
                   type="text"
-                  className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2.5 pr-28 text-xs text-slate-800 outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200"
-                  placeholder="e.g. kya worker late aya"
+                  className="h-8.5 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200"
+                  placeholder="e.g. AI टाइम से शुरू हुई? / AI time se shuru hui?"
                   value={formData.questionText}
                   onChange={(e) => setFormData({ ...formData, questionText: e.target.value })}
-                  onBlur={handleAutoTranslate}
                   required
                 />
-                {translating && (
-                  <span className="absolute right-2.5 top-1.5 text-[10px] font-bold text-emerald-600 animate-pulse">
-                    Translating to Hindi…
-                  </span>
-                )}
               </div>
             </div>
 

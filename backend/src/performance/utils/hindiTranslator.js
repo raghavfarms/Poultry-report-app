@@ -1,7 +1,7 @@
 /**
  * Automatic Hindi Translator & Transliteration Helper
- * Converts any Hinglish / Romanized text (e.g. 'bataye chale gye', 'kya worker late aya')
- * into clean Hindi in Devanagari script using Google Input Tools transliteration.
+ * Converts Romanized / Hinglish text to clean Hindi in Devanagari script
+ * while safely preserving uppercase acronyms like 'AI', 'CCTV', 'SOP'.
  */
 
 export async function convertToHindi(text) {
@@ -14,37 +14,62 @@ export async function convertToHindi(text) {
     return trimmed.endsWith('?') ? trimmed : `${trimmed}?`;
   }
 
-  // 2. Transliterate Romanized / Hinglish text to Hindi Devanagari
-  try {
-    const rawText = trimmed.replace(/[\?؟!\.]/g, '').trim();
-    if (!rawText) return trimmed.endsWith('?') ? trimmed : `${trimmed}?`;
+  // 2. Normalize 'A I' or 'A.I.' to standard 'AI'
+  let normalized = trimmed
+    .replace(/\bA\s+I\b/gi, 'AI')
+    .replace(/\bA\.I\.\b/gi, 'AI');
 
-    const url = `https://inputtools.google.com/request?text=${encodeURIComponent(rawText)}&itc=hi-t-i0-und&num=1`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept': 'application/json',
-      },
-    });
+  // Identify acronyms or English words to preserve (e.g. AI, CCTV, SOP, etc.)
+  const acronymRegex = /\b(AI|CCTV|SOP|RO|GPS|KG|GM|PVC|AC|LED)\b/gi;
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data[0] === 'SUCCESS' && Array.isArray(data[1])) {
-        // Collect transliterated words or full phrase
-        let hindiResult = '';
-        if (data[1][0]?.[1]?.[0]) {
-          hindiResult = data[1][0][1][0].trim();
-        }
+  // Split into tokens of acronyms vs regular text
+  const tokens = [];
+  let lastIndex = 0;
+  let match;
 
-        if (hindiResult) {
-          return hindiResult.endsWith('?') ? hindiResult : `${hindiResult}?`;
-        }
-      }
+  while ((match = acronymRegex.exec(normalized)) !== null) {
+    if (match.index > lastIndex) {
+      tokens.push({ type: 'text', val: normalized.slice(lastIndex, match.index) });
     }
-  } catch (err) {
-    console.warn('Google InputTools transliteration error:', err.message);
+    tokens.push({ type: 'acronym', val: match[0].toUpperCase() });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < normalized.length) {
+    tokens.push({ type: 'text', val: normalized.slice(lastIndex) });
   }
 
-  // Fallback: return original text with question mark
-  return trimmed.endsWith('?') ? trimmed : `${trimmed}?`;
+  // Transliterate each regular text segment
+  const convertedTokens = await Promise.all(
+    tokens.map(async (tok) => {
+      if (tok.type === 'acronym') return tok.val;
+      const rawText = tok.val.replace(/[\?؟!\.]/g, '').trim();
+      if (!rawText) return tok.val;
+
+      try {
+        const url = `https://inputtools.google.com/request?text=${encodeURIComponent(rawText)}&itc=hi-t-i0-und&num=1`;
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            'Accept': 'application/json',
+          },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data[0] === 'SUCCESS' && data[1]?.[0]?.[1]?.[0]) {
+            return data[1][0][1][0].trim();
+          }
+        }
+      } catch (err) {
+        console.warn('Google InputTools transliteration warning:', err.message);
+      }
+      return tok.val;
+    })
+  );
+
+  let finalResult = convertedTokens.join(' ').replace(/\s+/g, ' ').trim();
+  if (finalResult && !finalResult.endsWith('?')) {
+    finalResult = `${finalResult}?`;
+  }
+  return finalResult || trimmed;
 }

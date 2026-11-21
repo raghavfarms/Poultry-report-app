@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { getMonthlySalarySummary, updateSalaryRevision } from '../services/performanceApi.js';
-import { Spinner, Alert, inputClass, primaryButton, secondaryButton } from '../../components/Ui.jsx';
+import { getMonthlySalarySummary, updateWorkerGrade } from '../services/performanceApi.js';
+import { Spinner, Alert, primaryButton, secondaryButton } from '../../components/Ui.jsx';
 
 function getCurrentMonthString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()).slice(0, 7);
@@ -16,11 +16,11 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Edit Salary Modal State
-  const [revisionModal, setRevisionModal] = useState({
+  // Edit Grade Modal State
+  const [gradeModal, setGradeModal] = useState({
     isOpen: false,
     worker: null,
-    approvedSalary: 0,
+    selectedGrade: 'A',
     remarks: '',
     saving: false,
   });
@@ -41,7 +41,7 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
         setTotalMaxPoints(res.totalMaxPoints);
       }
     } catch (err) {
-      setError(err.message || 'Failed to load workers and salary summary.');
+      setError(err.message || 'Failed to load workers summary.');
     } finally {
       setLoading(false);
     }
@@ -63,40 +63,41 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
     });
   }, [workers, search]);
 
-  // Open Edit Salary Modal
-  const openEditSalary = (w) => {
-    setRevisionModal({
+  // Open Edit Grade Modal
+  const openEditGrade = (w) => {
+    const validGrades = ['A', 'B', 'C', 'D'];
+    const initialGrade = validGrades.includes(w.finalGrade) ? w.finalGrade : 'A';
+    setGradeModal({
       isOpen: true,
       worker: w,
-      approvedSalary: w.proposedSalary || 0,
-      remarks: '',
+      selectedGrade: initialGrade,
+      remarks: w.gradeRemarks || '',
       saving: false,
     });
   };
 
-  const handleSaveSalary = async () => {
-    setRevisionModal((prev) => ({ ...prev, saving: true }));
+  const handleSaveGrade = async () => {
+    setGradeModal((prev) => ({ ...prev, saving: true }));
     setError('');
     setSuccess('');
     try {
-      await updateSalaryRevision({
-        workerId: revisionModal.worker.workerId,
+      await updateWorkerGrade({
+        workerId: gradeModal.worker.workerId,
         month,
-        action: 'APPROVE',
-        approvedSalary: Number(revisionModal.approvedSalary),
-        remarks: revisionModal.remarks,
+        grade: gradeModal.selectedGrade,
+        remarks: gradeModal.remarks,
       });
-      setSuccess(`Salary updated successfully for ${revisionModal.worker.workerName}!`);
-      setRevisionModal((prev) => ({ ...prev, isOpen: false }));
+      setSuccess(`Grade updated successfully to Grade ${gradeModal.selectedGrade} for ${gradeModal.worker.workerName}!`);
+      setGradeModal((prev) => ({ ...prev, isOpen: false }));
       await fetchSummary();
     } catch (err) {
-      setError(err.message || 'Failed to update salary.');
-      setRevisionModal((prev) => ({ ...prev, saving: false }));
+      setError(err.message || 'Failed to update grade.');
+      setGradeModal((prev) => ({ ...prev, saving: false }));
     }
   };
 
-  // Grade badge styling helper - Vibrant Traffic Signal Colors:
-  // A = Green (Pass / Top), B = Yellow (Warning / Mid), C = Red (Stop / Low)
+  // Grade badge styling helper - Vibrant Traffic Signal & Blacklist Colors:
+  // A = Green, B = Yellow/Amber, C = Red, D = BlackList
   const getGradeBadge = (grade) => {
     switch (grade) {
       case 'A':
@@ -117,34 +118,26 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
             C
           </span>
         );
+      case 'D':
+        return (
+          <span
+            className="inline-flex items-center justify-center rounded-full bg-slate-950 px-2 py-0.5 text-[10px] font-black text-rose-300 border border-slate-800 shadow"
+            title="Grade D (BlackList - Score below 50%)"
+          >
+            D (BlackList)
+          </span>
+        );
       default:
         return <span className="font-bold text-slate-400 text-sm">—</span>;
     }
   };
 
-  // Salary text color matches Grade traffic signal colors:
-  // Grade A -> Green (emerald-700)
-  // Grade B -> Yellow/Amber (amber-600)
-  // Grade C -> Red (red-600)
-  const getSalaryColorClass = (grade) => {
-    switch (grade) {
-      case 'A':
-        return 'text-emerald-700';
-      case 'B':
-        return 'text-amber-600';
-      case 'C':
-        return 'text-red-600';
-      default:
-        return 'text-slate-800';
-    }
-  };
-
   return (
     <div className="space-y-2.5 sm:space-y-4">
-      {/* Filters Bar - Search Bar FIRST on Left (+30% wider), Other controls on EXTREME RIGHT */}
+      {/* Filters Bar */}
       <div className="rounded-xl border border-slate-200 bg-white p-2 sm:px-4 sm:py-2.5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* 1. LEFT SIDE: Search Bar (Increased by 30% width: w-[340px] md:w-[380px] + Real-time Typing Word Filter) */}
+          {/* LEFT: Search Bar */}
           <div className="relative w-full sm:w-[320px] md:w-[370px]">
             <span className="pointer-events-none absolute left-3 top-2.5 text-xs text-slate-400">
               🔍
@@ -168,7 +161,7 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
             )}
           </div>
 
-          {/* 2. EXTREME RIGHT: All Other Fields (Firm, Month, Grade) */}
+          {/* RIGHT: Firm, Month, Grade */}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 ml-auto">
             {/* Firm Selector */}
             <div className="flex items-center gap-1.5">
@@ -215,6 +208,7 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
                 <option value="A">Grade A</option>
                 <option value="B">Grade B</option>
                 <option value="C">Grade C</option>
+                <option value="D">Grade D (BlackList)</option>
               </select>
             </div>
           </div>
@@ -224,9 +218,9 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
       {error && <Alert type="error">{error}</Alert>}
       {success && <Alert type="success">{success}</Alert>}
 
-      {/* DIRECT WORKERS & SALARY TABLE - Steady Worker Column */}
+      {/* DIRECT WORKERS TABLE (Salary column hidden) */}
       {loading ? (
-        <Spinner label="Calculating monthly grades and salary figures…" />
+        <Spinner label="Calculating monthly grades…" />
       ) : displayedWorkers.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
           {search ? `No workers found matching "${search}".` : 'No workers found for this firm and month.'}
@@ -247,7 +241,6 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
                   <th className="px-2 py-3 text-center text-red-600">A Days</th>
                   <th className="px-3 py-3 text-center">Monthly Avg</th>
                   <th className="px-3 py-3 text-center">Grade</th>
-                  <th className="px-4 py-3 text-right font-bold text-slate-700">Salary</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -267,27 +260,29 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
                     <td className="px-2 py-3 text-center font-bold text-sky-700">{w.halfDays}</td>
                     <td className="px-2 py-3 text-center font-bold text-red-600">{w.absentDays}</td>
 
-                    {/* Numerical Average Score (Dynamic Variable Points) */}
+                    {/* Numerical Average Score */}
                     <td className="px-3 py-3 text-center font-black text-slate-800 text-sm">
                       {w.evaluationDays > 0 ? `${w.averageScore} / ${totalMaxPoints}` : '—'}
                     </td>
 
                     {/* Final Monthly Grade */}
-                    <td className="px-3 py-3 text-center">{getGradeBadge(w.finalGrade)}</td>
-
-                    {/* Salary (Matches Grade Traffic Signal Color) */}
-                    <td className="px-4 py-3 text-right">
-                      <span className={`font-extrabold text-sm ${getSalaryColorClass(w.finalGrade)}`}>
-                        ₹{w.proposedSalary.toLocaleString('en-IN')}
-                      </span>
+                    <td className="px-3 py-3 text-center">
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        {getGradeBadge(w.finalGrade)}
+                        {w.isGradeOverridden && (
+                          <span className="text-[8px] font-bold text-amber-700 bg-amber-50 rounded px-1 border border-amber-200/60" title={w.gradeRemarks || 'Manual override'}>
+                            Edited
+                          </span>
+                        )}
+                      </div>
                     </td>
 
-                    {/* Actions */}
+                    {/* Actions: Edit Grade */}
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <button
                         type="button"
-                        onClick={() => openEditSalary(w)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+                        onClick={() => openEditGrade(w)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
                       >
                         <span>✏️</span>
                         <span>Edit</span>
@@ -301,65 +296,106 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
         </div>
       )}
 
-      {/* EDIT WORKER SALARY MODAL */}
-      {revisionModal.isOpen && (
+      {/* EDIT WORKER GRADE MODAL */}
+      {gradeModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Edit Worker Salary</h3>
+                <h3 className="text-base font-bold text-slate-900">Edit Worker Grade</h3>
                 <p className="text-xs text-slate-500">
-                  {revisionModal.worker?.workerName} ({revisionModal.worker?.workerCode})
+                  {gradeModal.worker?.workerName} ({gradeModal.worker?.workerCode})
                 </p>
               </div>
               <button
-                onClick={() => setRevisionModal({ ...revisionModal, isOpen: false })}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                type="button"
+                onClick={() => setGradeModal({ ...gradeModal, isOpen: false })}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs">
-              <span className="text-slate-500 font-medium">Grade:</span>
-              <span>{getGradeBadge(revisionModal.worker?.finalGrade)}</span>
+            {/* Performance Summary */}
+            <div className="rounded-xl bg-slate-50 border border-slate-200/80 p-3 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Designation:</span>
+                <span className="font-semibold text-slate-800">{gradeModal.worker?.designationName}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Monthly Avg Score:</span>
+                <span className="font-black text-slate-900">
+                  {gradeModal.worker?.evaluationDays > 0 ? `${gradeModal.worker.averageScore} / ${totalMaxPoints}` : '—'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Current Grade:</span>
+                <span>{getGradeBadge(gradeModal.worker?.finalGrade)}</span>
+              </div>
             </div>
 
+            {/* Grade Selection */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-2">
+                Select Grade to Assign
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { grade: 'A', label: 'Grade A', badgeBg: 'bg-emerald-600 text-white', activeRing: 'border-emerald-600 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-500' },
+                  { grade: 'B', label: 'Grade B', badgeBg: 'bg-amber-400 text-slate-900', activeRing: 'border-amber-500 bg-amber-50 text-amber-950 ring-2 ring-amber-400' },
+                  { grade: 'C', label: 'Grade C', badgeBg: 'bg-red-600 text-white', activeRing: 'border-red-600 bg-red-50 text-red-950 ring-2 ring-red-500' },
+                  { grade: 'D', label: 'BlackList', badgeBg: 'bg-slate-950 text-rose-300 border border-slate-800', activeRing: 'border-slate-900 bg-slate-950 text-white ring-2 ring-slate-800' },
+                ].map((item) => {
+                  const isSelected = gradeModal.selectedGrade === item.grade;
+                  return (
+                    <button
+                      key={item.grade}
+                      type="button"
+                      onClick={() => setGradeModal((prev) => ({ ...prev, selectedGrade: item.grade }))}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border-2 transition cursor-pointer ${
+                        isSelected ? item.activeRing : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-black shadow-xs ${item.badgeBg}`}>
+                        {item.grade}
+                      </span>
+                      <span className="mt-1 text-[11px] font-bold text-center leading-tight">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Optional Remarks */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Monthly Salary (₹)
+                Remarks / Reason (Optional)
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-sm font-bold text-slate-400">₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  className="h-10 w-full rounded-xl border border-slate-300 bg-white pl-7 pr-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200"
-                  value={revisionModal.approvedSalary ?? ''}
-                  onChange={(e) => setRevisionModal({ ...revisionModal, approvedSalary: e.target.value })}
-                />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Calculated from Grade rules. You can override if desired.
-              </span>
+              <input
+                type="text"
+                placeholder="e.g. Performance review override"
+                className="h-9 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs text-slate-900 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-200"
+                value={gradeModal.remarks}
+                onChange={(e) => setGradeModal((prev) => ({ ...prev, remarks: e.target.value }))}
+              />
             </div>
 
+            {/* Modal Actions */}
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setRevisionModal({ ...revisionModal, isOpen: false })}
+                onClick={() => setGradeModal({ ...gradeModal, isOpen: false })}
                 className={secondaryButton}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleSaveSalary}
-                disabled={revisionModal.saving}
+                onClick={handleSaveGrade}
+                disabled={gradeModal.saving}
                 className={primaryButton}
               >
-                {revisionModal.saving ? 'Saving…' : 'Save Salary'}
+                {gradeModal.saving ? 'Saving…' : 'Save Grade'}
               </button>
             </div>
           </div>

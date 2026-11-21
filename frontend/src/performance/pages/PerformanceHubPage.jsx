@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { api } from '../../api/client.js';
 import DailyEvaluationTab from '../components/DailyEvaluationTab.jsx';
+import RatingComparisonTab from '../components/RatingComparisonTab.jsx';
 import WorkersSalaryTab from '../components/WorkersSalaryTab.jsx';
 import QuestionsMasterModal from '../components/QuestionsMasterModal.jsx';
 import GradeSalaryMasterModal from '../components/GradeSalaryMasterModal.jsx';
@@ -11,9 +12,19 @@ import { Spinner } from '../../components/Ui.jsx';
 export default function PerformanceHubPage() {
   const { user } = useAuth();
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const canManageSalary = isAdminOrDev || user?.permissions?.performance_salary === true;
+  const canManageMasters = isAdminOrDev || user?.permissions?.performance_master === true;
 
-  // EXACTLY TWO MAIN TABS
-  const [activeTab, setActiveTab] = useState('daily'); // 'daily' | 'salary'
+  // Tabs: 'daily' | 'comparison' | 'salary' (Non-admin accounts without special permission only see 'daily')
+  const [activeTab, setActiveTab] = useState('daily');
+
+  useEffect(() => {
+    if (!isAdminOrDev && activeTab === 'comparison') {
+      setActiveTab('daily');
+    } else if (!canManageSalary && activeTab === 'salary') {
+      setActiveTab('daily');
+    }
+  }, [isAdminOrDev, canManageSalary, activeTab]);
 
   // Master Modals for Admin
   const [showQuestionsMaster, setShowQuestionsMaster] = useState(false);
@@ -66,8 +77,8 @@ export default function PerformanceHubPage() {
           </div>
         </div>
 
-        {/* Master Management Buttons */}
-        {isAdminOrDev && (
+        {/* Master Management Buttons - Admin / Performance Master Only */}
+        {canManageMasters && (
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="hidden sm:inline text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5">
               Masters:
@@ -90,34 +101,51 @@ export default function PerformanceHubPage() {
         )}
       </div>
 
-      {/* Main Tab Switcher - Compact on Mobile */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('daily')}
-          className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition ${
-            activeTab === 'daily'
-              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <span>📋</span>
-          1. Daily Evaluation
-        </button>
-
-        {isAdminOrDev && (
+      {/* Main Tab Switcher - Only shown if Admin or Salary tabs authorized */}
+      {(isAdminOrDev || canManageSalary) && (
+        <div className="flex border-b border-slate-200">
           <button
-            onClick={() => setActiveTab('salary')}
-            className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition ${
-              activeTab === 'salary'
+            onClick={() => setActiveTab('daily')}
+            className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
+              activeTab === 'daily'
                 ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
-            <span>💰</span>
-            2. Workers & Salary
+            <span>📋</span>
+            1. Daily Evaluation
           </button>
-        )}
-      </div>
+
+          {/* Rating Comparison: Strictly ADMIN / DEVELOPER Only */}
+          {isAdminOrDev && (
+            <button
+              onClick={() => setActiveTab('comparison')}
+              className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'comparison'
+                  ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>🔍</span>
+              2. Rating Comparison
+            </button>
+          )}
+
+          {canManageSalary && (
+            <button
+              onClick={() => setActiveTab('salary')}
+              className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'salary'
+                  ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>💰</span>
+              3. Workers & Salary
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tab Contents */}
       {loadingFirms ? (
@@ -133,7 +161,16 @@ export default function PerformanceHubPage() {
             />
           )}
 
-          {activeTab === 'salary' && isAdminOrDev && (
+          {activeTab === 'comparison' && isAdminOrDev && (
+            <RatingComparisonTab
+              firms={firms}
+              selectedFirmId={selectedFirmId}
+              onFirmChange={setSelectedFirmId}
+              refreshKey={refreshKey}
+            />
+          )}
+
+          {activeTab === 'salary' && canManageSalary && (
             <WorkersSalaryTab
               firms={firms}
               selectedFirmId={selectedFirmId}

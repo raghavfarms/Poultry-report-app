@@ -1,7 +1,7 @@
 import usersRolesIcon from "../assets/icon-users-roles.png";
 import attendanceAdminIcon from "../assets/icon-attendance-admin.png";
 import PerformanceIcon from "./PerformanceIcon.jsx";
-import { useEffect, useState, Fragment } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { canAccessModule, canAccessTemperatureMaster } from "../utils/moduleAccess.js";
@@ -90,19 +90,14 @@ function Sidebar({ open, close }) {
             Report sections
           </p>
           {visibleModules.map(([slug, label, icon]) => (
-            <Fragment key={slug}>
-              <NavLink to={`/reports/${slug}`} className={linkClass}>
-                <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sm ${moduleIconStyles[slug]}`}
-                >
-                  {icon}
-                </span>
-                {label}
-              </NavLink>
-              {slug === "performance" && (
-                <div className="my-2 border-t border-slate-200/90 mx-2" />
-              )}
-            </Fragment>
+            <NavLink key={slug} to={`/reports/${slug}`} className={linkClass}>
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sm ${moduleIconStyles[slug]}`}
+              >
+                {icon}
+              </span>
+              {label}
+            </NavLink>
           ))}
 
           {(canManageAnyAssetHub || isAdminOrDev || hasAttendanceMaster || hasWorkerMaster || canManageMedicine) && (

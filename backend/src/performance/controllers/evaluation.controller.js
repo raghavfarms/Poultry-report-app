@@ -6,6 +6,7 @@ import Worker from '../../attendance/models/Worker.js';
 import AttendanceSession from '../../attendance/models/AttendanceSession.js';
 import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
+import { evaluateDutyInPunctuality, evaluateLunchInPunctuality } from '../utils/attendancePunctuality.js';
 
 // Helper: Calculate daily score and grade based on variable points scale
 function calculateDailyPerformance(answers, config, attendanceStatus) {
@@ -31,23 +32,28 @@ function calculateDailyPerformance(answers, config, attendanceStatus) {
 
   // Dynamically calculate grade thresholds based on total points of active questions and admin-configured percentages:
   // Grade A: >= x% of total points (default 80%)
-  // Grade B: >= y% of total points (default 50%)
-  // Grade C: < y% of total points or Critical Violation
+  // Grade B: >= y% of total points (default 65%)
+  // Grade C: >= z% of total points (default 50%)
+  // Grade D (BlackList): < z% of total points (< 50%) or Critical Violation
   const effectiveMax = maxPossiblePoints || 10;
-  const percentA = config?.gradeRules?.gradeA?.minPercentage ?? 80;
-  const percentB = config?.gradeRules?.gradeB?.minPercentage ?? 50;
+  const percentA = config?.gradeRules?.gradeA?.minPercentage || 85;
+  const percentB = config?.gradeRules?.gradeB?.minPercentage || 77;
+  const percentC = (config?.gradeRules?.gradeC?.minPercentage > 0) ? config.gradeRules.gradeC.minPercentage : 50;
   const minGradeA = Math.round(effectiveMax * (percentA / 100));
   const minGradeB = Math.round(effectiveMax * (percentB / 100));
+  const minGradeC = Math.round(effectiveMax * (percentC / 100));
 
-  let grade = 'C';
+  let grade = 'D';
   if (hasCriticalViolation) {
-    grade = config.criticalViolationGrade || 'C';
+    grade = config?.criticalViolationGrade || 'D';
   } else if (dailyScore >= minGradeA) {
     grade = 'A';
   } else if (dailyScore >= minGradeB) {
     grade = 'B';
-  } else {
+  } else if (dailyScore >= minGradeC) {
     grade = 'C';
+  } else {
+    grade = 'D';
   }
 
   return { dailyScore, dailyGrade: grade, hasCriticalViolation, maxPossiblePoints };
@@ -64,29 +70,6 @@ export async function getDailyEvaluationMatrix(req, res) {
   const firm = await Firm.findById(firmId).select('name code').lean();
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Auto-seed/sync the 8 questions (6 normal @ 1pt + 2 critical @ 2pts = 10 pts)
-  const defaultQuestions = [
-    { questionText: 'क्या कर्मचारी आज समय पर काम पर आया?', displayOrder: 1, weight: 1, isCriticalViolation: false },
-    { questionText: 'क्या कर्मचारी शराब पीकर काम पर तो नहीं आया?', displayOrder: 2, weight: 2, isCriticalViolation: true },
-    { questionText: 'क्या कर्मचारी ने आज किसी से लड़ाई-झगड़ा तो नहीं किया?', displayOrder: 3, weight: 2, isCriticalViolation: true },
-    { questionText: 'क्या कर्मचारी ने आज उसे सौंपे गए सारे काम पूरे किए?', displayOrder: 4, weight: 1, isCriticalViolation: false },
-    { questionText: 'क्या कर्मचारी ने काम के दौरान लापरवाही नहीं की?', displayOrder: 5, weight: 1, isCriticalViolation: false },
-    { questionText: 'क्या कर्मचारी ने अपने सीनियर के निर्देशों का पालन किया?', displayOrder: 6, weight: 1, isCriticalViolation: false },
-    { questionText: 'क्या कर्मचारी ने फार्म व शेड में साफ-सफाई रखी?', displayOrder: 7, weight: 1, isCriticalViolation: false },
-    { questionText: 'क्या कर्मचारी ने बायो-सिक्योरिटी व सुरक्षा नियमों का पालन किया?', displayOrder: 8, weight: 1, isCriticalViolation: false },
-  ];
-
-  const questionCount = await PerformanceQuestion.countDocuments();
-  if (questionCount < 8) {
-    for (const q of defaultQuestions) {
-      await PerformanceQuestion.findOneAndUpdate(
-        { displayOrder: q.displayOrder },
-        { ...q, createdBy: req.user._id, firmApplicability: 'ALL', appliesToHalfDay: true, active: true },
-        { upsert: true }
-      );
-    }
-  }
-
   // 1. Parallel fetch: active questions, active config, workers, attendance sessions, existing evaluations
   const [questions, config, workers, sessions, existingEvaluations] = await Promise.all([
     PerformanceQuestion.find({ active: true }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
@@ -100,9 +83,10 @@ export async function getDailyEvaluationMatrix(req, res) {
       .lean(),
     // Strictly READ-ONLY attendance sessions query
     AttendanceSession.find({ firm: firmId, date })
-      .select('worker workedMinutes status dutyIn dutyOut')
+      .select('worker workedMinutes status dutyIn dutyOut lunchIn lunchOut')
       .lean(),
-    DailyEvaluation.find({ firm: firmId, evaluationDate: date }).lean(),
+    // Evaluators strictly see ONLY their own ratings on their device
+    DailyEvaluation.find({ firm: firmId, evaluationDate: date, submittedBy: req.user._id }).lean(),
   ]);
 
   // Map sessions by workerId to classify attendance status
@@ -113,14 +97,14 @@ export async function getDailyEvaluationMatrix(req, res) {
     sessionMap.get(wId).push(s);
   }
 
-  // Map existing evaluations by workerId
+  // Map existing evaluations by workerId for this evaluator
   const evaluationMap = new Map();
   for (const ev of existingEvaluations) {
     evaluationMap.set(String(ev.worker), ev);
   }
 
-  // Find workers who do NOT have an evaluation for 'date',
-  // and fetch their latest evaluation strictly before 'date' to carry forward their answers as the default template
+  // Find workers who do NOT have an evaluation for 'date' by this evaluator,
+  // and fetch their latest evaluation strictly before 'date' by THIS evaluator to carry forward their template
   const unevaluatedWorkerIds = workers
     .filter((w) => !evaluationMap.has(String(w._id)))
     .map((w) => w._id);
@@ -133,6 +117,7 @@ export async function getDailyEvaluationMatrix(req, res) {
           firm: new mongoose.Types.ObjectId(firmId),
           worker: { $in: unevaluatedWorkerIds },
           evaluationDate: { $lt: date },
+          submittedBy: new mongoose.Types.ObjectId(req.user._id),
         },
       },
       { $sort: { evaluationDate: -1 } },
@@ -167,11 +152,17 @@ export async function getDailyEvaluationMatrix(req, res) {
     let status = 'ABSENT';
     let totalWorkedMinutes = 0;
     let hasOpenSession = false;
+    let dutyInDate = null;
+    let lunchInDate = null;
+    let lunchOutDate = null;
 
     if (workerSessions.length > 0) {
       for (const sess of workerSessions) {
         if (sess.status === 'PRESENT') hasOpenSession = true;
         totalWorkedMinutes += sess.workedMinutes || 0;
+        if (!dutyInDate && sess.dutyIn) dutyInDate = sess.dutyIn;
+        if (!lunchInDate && sess.lunchIn) lunchInDate = sess.lunchIn;
+        if (!lunchOutDate && sess.lunchOut) lunchOutDate = sess.lunchOut;
       }
 
       if (hasOpenSession || totalWorkedMinutes >= 475) {
@@ -183,6 +174,9 @@ export async function getDailyEvaluationMatrix(req, res) {
       }
     }
 
+    const dutyInPunctuality = evaluateDutyInPunctuality(dutyInDate);
+    const lunchInPunctuality = evaluateLunchInPunctuality(lunchInDate, lunchOutDate);
+
     const workerPayload = {
       workerId: w._id,
       workerCode: w.workerCode,
@@ -190,6 +184,10 @@ export async function getDailyEvaluationMatrix(req, res) {
       designationName: w.designation?.name || '—',
       attendanceStatus: status,
       totalWorkedMinutes,
+      attendancePunctuality: {
+        dutyIn: dutyInPunctuality,
+        lunchIn: lunchInPunctuality,
+      },
       isEvaluated: Boolean(existingEval),
       dailyGrade: existingEval?.dailyGrade || null,
       dailyScore: existingEval?.dailyScore ?? null,
@@ -203,6 +201,17 @@ export async function getDailyEvaluationMatrix(req, res) {
     else absentWorkers.push(workerPayload);
   }
 
+  // Identify automated attendance questions (Q1: Duty In <= 8:30 AM, Q3: Lunch In <= 1:10 PM)
+  const processedQuestions = questions.map((q) => {
+    let automatedType = null;
+    if (q.displayOrder === 1) automatedType = 'DUTY_IN';
+    else if (q.displayOrder === 3) automatedType = 'LUNCH_IN';
+    return {
+      ...q,
+      automatedType,
+    };
+  });
+
   res.json({
     success: true,
     date,
@@ -213,7 +222,7 @@ export async function getDailyEvaluationMatrix(req, res) {
       halfDay: halfDayWorkers.length,
       absent: absentWorkers.length,
     },
-    questions,
+    questions: processedQuestions,
     workers: {
       present: presentWorkers,
       halfDay: halfDayWorkers,
@@ -243,6 +252,25 @@ export async function submitDailyEvaluation(req, res) {
   if (!firm) throw notFoundError('Firm not found.');
   const questionMap = new Map(activeQuestions.map((q) => [String(q._id), q]));
 
+  const isAdmin = ['admin', 'developer'].includes(req.user?.role);
+
+  // If non-admin, fetch read-only attendance sessions to enforce automatic punctuality for Q1 and Q3
+  let workerSessionMap = null;
+  if (!isAdmin) {
+    const workerIds = evaluations.map((e) => e.workerId).filter(Boolean);
+    const sessions = await AttendanceSession.find({
+      worker: { $in: workerIds },
+      attendanceDate: date,
+    }).lean();
+
+    workerSessionMap = new Map();
+    for (const s of sessions) {
+      const wid = String(s.worker);
+      if (!workerSessionMap.has(wid)) workerSessionMap.set(wid, []);
+      workerSessionMap.get(wid).push(s);
+    }
+  }
+
   const results = [];
 
   for (const item of evaluations) {
@@ -258,10 +286,31 @@ export async function submitDailyEvaluation(req, res) {
     for (const ans of answers) {
       const q = questionMap.get(String(ans.questionId));
       if (q) {
+        let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
+
+        // Automated punctuality enforcement for non-admin evaluators (Q1 & Q3)
+        if (!isAdmin && (q.displayOrder === 1 || q.displayOrder === 3)) {
+          const wSessions = workerSessionMap?.get(String(workerId)) || [];
+          let dutyInDate = null;
+          let lunchInDate = null;
+          let lunchOutDate = null;
+          for (const sess of wSessions) {
+            if (!dutyInDate && sess.dutyIn) dutyInDate = sess.dutyIn;
+            if (!lunchInDate && sess.lunchIn) lunchInDate = sess.lunchIn;
+            if (!lunchOutDate && sess.lunchOut) lunchOutDate = sess.lunchOut;
+          }
+
+          if (q.displayOrder === 1) {
+            finalAnswer = evaluateDutyInPunctuality(dutyInDate).answer;
+          } else if (q.displayOrder === 3) {
+            finalAnswer = evaluateLunchInPunctuality(lunchInDate, lunchOutDate).answer;
+          }
+        }
+
         answerSnapshots.push({
           questionId: q._id,
           questionTextSnapshot: q.questionText,
-          answer: ans.answer === 'NO' ? 'NO' : 'YES', // Default is YES
+          answer: finalAnswer,
           weightSnapshot: q.weight || 1,
           isCriticalViolationSnapshot: Boolean(q.isCriticalViolation),
         });
@@ -274,8 +323,10 @@ export async function submitDailyEvaluation(req, res) {
       attendanceStatus
     );
 
+    const userRoleName = req.user.role?.name || (typeof req.user.role === 'string' ? req.user.role : 'Supervisor');
+
     const doc = await DailyEvaluation.findOneAndUpdate(
-      { worker: workerId, evaluationDate: date },
+      { worker: workerId, evaluationDate: date, submittedBy: req.user._id },
       {
         worker: workerId,
         workerCodeSnapshot: workerCode,
@@ -290,6 +341,7 @@ export async function submitDailyEvaluation(req, res) {
         hasCriticalViolation,
         submittedBy: req.user._id,
         submittedByNameSnapshot: req.user.name,
+        submittedByRoleSnapshot: userRoleName,
       },
       { upsert: true, new: true, runValidators: true }
     );

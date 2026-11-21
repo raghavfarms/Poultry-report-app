@@ -12,7 +12,7 @@ const schema = new mongoose.Schema({
   firm: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Firm', 
-    default: null, 
+    default: null,  
     index: true 
   },
   
@@ -24,39 +24,44 @@ const schema = new mongoose.Schema({
     },
     gradeB: {  
       type: gradeThresholdSchema, 
-      default: () => ({ minPercentage: 50, minScore: 5, maxScore: 7, numericalPoints: 6 }) 
+      default: () => ({ minPercentage: 65, minScore: 6, maxScore: 7, numericalPoints: 6 }) 
     },
     gradeC: { 
       type: gradeThresholdSchema, 
-      default: () => ({ minPercentage: 0, minScore: 0, maxScore: 4, numericalPoints: 3 }) 
+      default: () => ({ minPercentage: 50, minScore: 5, maxScore: 6, numericalPoints: 3 }) 
+    },
+    gradeD: { 
+      type: gradeThresholdSchema, 
+      default: () => ({ minPercentage: 0, minScore: 0, maxScore: 4, numericalPoints: 0 }) 
     },
   },
 
   // What grade to assign if a worker commits a critical violation (alcohol, fighting, etc.)
   criticalViolationGrade: { 
     type: String, 
-    enum: ['A', 'B', 'C'], 
-    default: 'C' 
+    enum: ['A', 'B', 'C', 'D'], 
+    default: 'D' 
   },
 
   // Minimum days an evaluation must be submitted in a month to qualify for Grade A/B
-  minEvaluationDaysRequired: { 
+  minEvaluationDaysRequired: {  
     type: Number, 
-    default: 15, 
-    min:1,
+    default: 22, 
+    min: 1,
   }, 
 
   // Half day worker evaluation policy
-  halfDayPolicy: {
+  halfDayPolicy: { 
     allowEvaluation: { type: Boolean, default: true },
     scoreMultiplier: { type: Number, default: 0.5, min: 0, max: 1 }, // Half-day weight  
   },
 
-  // Simple Grade-Wise Monthly Salary (e.g. A = 12000, B = 11000, C = 10000)
+  // Simple Grade-Wise Monthly Salary (e.g. A = 12000, B = 11000, C = 10000, D = 0 / min)
   gradeSalaries: {
-    gradeA: { type: Number, default: 12000, min: 0 },
-    gradeB: { type: Number, default: 11000, min: 0 },
-    gradeC: { type: Number, default: 10000, min: 0 },
+    gradeA: { type: Number, default: 11500, min: 0 },
+    gradeB: { type: Number, default: 10500, min: 0 },
+    gradeC: { type: Number, default: 9500, min: 0 },
+    gradeD: { type: Number, default: 0, min: 0 },
   },
 
   // Section B: Salary Rules 
@@ -84,5 +89,7 @@ const schema = new mongoose.Schema({
 });
 
 export default mongoose.model('GradeSalaryConfig', schema); 
+
+
 
 

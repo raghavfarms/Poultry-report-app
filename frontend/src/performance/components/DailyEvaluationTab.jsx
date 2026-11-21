@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { getDailyEvaluationMatrix, submitDailyEvaluation } from '../services/performanceApi.js';
 import { Spinner, Alert, primaryButton, secondaryButton } from '../../components/Ui.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 function getTodayIST() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 }
 
 export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
+  const { user } = useAuth();
+  const isAdmin = ['admin', 'developer'].includes(user?.role);
+
   const [date, setDate] = useState(getTodayIST());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -91,18 +95,37 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
       for (const w of allWorkers) {
         initial[w.workerId] = {};
         for (const q of res.questions || []) {
+          const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
+          const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;
+          const isAutoQ = isDutyInQ || isLunchInQ;
+
+          let autoAns = null;
+          if (isDutyInQ) autoAns = w.attendancePunctuality?.dutyIn?.answer || 'NO';
+          else if (isLunchInQ) autoAns = w.attendancePunctuality?.lunchIn?.answer || 'YES';
+
           // If already evaluated today, restore saved answer
           const savedAnswer = w.answers?.find((a) => String(a.questionId) === String(q._id))?.answer;
           // If not evaluated today, carry forward previous day's answer if available
           const carriedAnswer = w.previousAnswers?.find((a) => String(a.questionId) === String(q._id))?.answer;
 
-          if (savedAnswer !== undefined) {
-            initial[w.workerId][q._id] = savedAnswer;
-          } else if (carriedAnswer !== undefined) {
-            initial[w.workerId][q._id] = carriedAnswer;
+          if (isAutoQ) {
+            // For automated attendance questions:
+            // Admin can use saved override if present, else auto punctuality
+            // Non-admin (incharge/supervisor) ALWAYS gets automated punctuality
+            if (isAdmin && savedAnswer !== undefined) {
+              initial[w.workerId][q._id] = savedAnswer;
+            } else {
+              initial[w.workerId][q._id] = autoAns;
+            }
           } else {
-            // First day deployment, new worker, or newly added question: default to 'YES'
-            initial[w.workerId][q._id] = 'YES';
+            if (savedAnswer !== undefined) {
+              initial[w.workerId][q._id] = savedAnswer;
+            } else if (carriedAnswer !== undefined) {
+              initial[w.workerId][q._id] = carriedAnswer;
+            } else {
+              // First day deployment, new worker, or newly added question: default to 'YES'
+              initial[w.workerId][q._id] = 'YES';
+            }
           }
         }
       }
@@ -129,13 +152,28 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
     }));
   };
 
-  // Set all answers for a single worker to YES
+  // Set all answers for a single worker to YES (preserving automated answers for non-admins)
   const handleSetAllYes = (workerId) => {
     if (!data?.questions) return;
+    const workerObj = [
+      ...(data.workers?.present || []),
+      ...(data.workers?.halfDay || []),
+    ].find((w) => String(w.workerId) === String(workerId));
+
     setEvalAnswers((prev) => {
       const workerAns = { ...(prev[workerId] || {}) };
       for (const q of data.questions) {
-        workerAns[q._id] = 'YES';
+        const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
+        const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;
+        const isAutoQ = isDutyInQ || isLunchInQ;
+
+        if (isAutoQ && !isAdmin) {
+          // Keep automatic attendance calculation for non-admin
+          if (isDutyInQ) workerAns[q._id] = workerObj?.attendancePunctuality?.dutyIn?.answer || 'NO';
+          else if (isLunchInQ) workerAns[q._id] = workerObj?.attendancePunctuality?.lunchIn?.answer || 'YES';
+        } else {
+          workerAns[q._id] = 'YES';
+        }
       }
       return { ...prev, [workerId]: workerAns };
     });
@@ -330,10 +368,16 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                 {w.dailyScore}
                               </span>
                             )}
-                            <span className={`rounded px-1 sm:px-1.5 py-0.2 text-[8px] sm:text-[10px] font-bold text-white ${
-                              w.dailyGrade === 'A' ? 'bg-emerald-600' : w.dailyGrade === 'B' ? 'bg-sky-600' : 'bg-amber-600'
-                            }`}>
-                              {w.dailyGrade}
+                            <span className={`rounded px-1 sm:px-1.5 py-0.2 text-[8px] sm:text-[10px] font-bold ${
+                              w.dailyGrade === 'A'
+                                ? 'bg-emerald-600 text-white'
+                                : w.dailyGrade === 'B'
+                                ? 'bg-amber-400 text-slate-900'
+                                : w.dailyGrade === 'C'
+                                ? 'bg-red-600 text-white'
+                                : 'bg-slate-950 text-rose-300 border border-slate-800'
+                            }`} title={w.dailyGrade === 'D' ? 'Grade D (BlackList)' : `Grade ${w.dailyGrade}`}>
+                              {w.dailyGrade === 'D' ? 'D (BlackList)' : w.dailyGrade}
                             </span>
                           </div>
                         )}
@@ -376,6 +420,11 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                             {q.questionText}
                           </p>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[9px] sm:text-[10px]">
+                            {(q.automatedType || q.displayOrder === 1 || q.displayOrder === 3) && (
+                              <span className="rounded bg-sky-100 px-1 py-0.2 font-bold text-sky-800 border border-sky-200" title="Automatic from Attendance module">
+                                ⚡ Auto (Attendance)
+                              </span>
+                            )}
                             {q.isCriticalViolation && (
                               <span className="rounded bg-red-100 px-1 py-0.2 font-bold text-red-700">
                                 Critical
@@ -392,6 +441,9 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                       group.list.map((w) => {
                         const isAbsent = group.key === 'absent';
                         const currentAnswer = evalAnswers[w.workerId]?.[q._id] || 'YES';
+                        const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
+                        const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;
+                        const isAutoQ = isDutyInQ || isLunchInQ;
 
                         return (
                           <td
@@ -404,6 +456,23 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                               <span className="inline-block rounded bg-slate-200 px-1 py-0.5 text-[9px] font-semibold text-slate-500">
                                 Disabled 
                               </span>
+                            ) : isAutoQ && !isAdmin ? (
+                              <div className="inline-flex flex-col items-center">
+                                <span
+                                  className={`inline-block rounded px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold ${
+                                    currentAnswer === 'YES'
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                      : 'bg-red-100 text-red-800 border border-red-300'
+                                  }`}
+                                  title={`System Auto (Attendance): ${
+                                    isDutyInQ
+                                      ? `Punch In ${w.attendancePunctuality?.dutyIn?.timeText || 'N/A'}`
+                                      : `Lunch In ${w.attendancePunctuality?.lunchIn?.timeText || 'N/A'}`
+                                  }`}
+                                >
+                                  {currentAnswer === 'YES' ? 'हाँ (Auto)' : 'ना (Auto)'}
+                                </span>
+                              </div>
                             ) : (
                               <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-slate-100 shadow-inner">
                                 <button

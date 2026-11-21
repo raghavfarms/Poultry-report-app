@@ -71,7 +71,7 @@ const schema = new mongoose.Schema({
 
   dailyGrade: { 
     type: String, 
-    enum: ['A', 'B', 'C', 'NOT_APPLICABLE'], 
+    enum: ['A', 'B', 'C', 'D', 'NOT_APPLICABLE'], 
     required: true 
   },
 
@@ -93,21 +93,31 @@ const schema = new mongoose.Schema({
   submittedBy: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    required: true 
+    required: true,
+    index: true
   },
   submittedByNameSnapshot: { 
     type: String, 
     default: '' 
   },
+  submittedByRoleSnapshot: {
+    type: String,
+    default: ''
+  },
 }, { 
   timestamps: true 
 });
 
-// CRITICAL: Prevent duplicate evaluation for the same worker on the same date
-schema.index({ worker: 1, evaluationDate: 1 }, { unique: true });
+// Compound unique index: Each evaluator can submit once per worker per date, allowing multiple independent evaluators
+schema.index({ worker: 1, evaluationDate: 1, submittedBy: 1 }, { unique: true });
 
 // Efficient lookups for monthly aggregations and firm-date reports
 schema.index({ firm: 1, evaluationDate: 1 });
 schema.index({ worker: 1, evaluationDate: -1 });
 
-export default mongoose.model('DailyEvaluation', schema);
+const DailyEvaluation = mongoose.model('DailyEvaluation', schema);
+
+// Gracefully drop old single-evaluator unique index if it exists in MongoDB
+DailyEvaluation.collection.dropIndex('worker_1_evaluationDate_1').catch(() => {});
+
+export default DailyEvaluation;
