@@ -66,6 +66,13 @@ export async function submitDailyEvaluation(data) {
   });
 }
 
+export async function setWorkerBaselineGrade(data) {
+  return api('/performance/worker-grade/baseline', {
+    method: 'POST',
+    body: data,
+  });
+}
+
 // ==========================================
 // 4. RATING COMPARISON & BIAS AUDIT
 // ==========================================

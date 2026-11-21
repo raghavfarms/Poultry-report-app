@@ -12,6 +12,7 @@ import {
 import {
   getDailyEvaluationMatrix,
   submitDailyEvaluation,
+  setWorkerBaselineGrade,
 } from '../controllers/evaluation.controller.js';
 import { getRatingComparison } from '../controllers/comparison.controller.js';
 import {
@@ -64,6 +65,8 @@ router.put('/config', masterAccessOnly, updateGradeSalaryConfig);
 router.get('/evaluations/daily', getDailyEvaluationMatrix);
 // Submit evaluation snapshots & auto-calculate daily grades
 router.post('/evaluations/daily', submitDailyEvaluation);
+// Admin sets worker baseline/last month grade (First-time setup or override)
+router.post('/worker-grade/baseline', adminOnly, setWorkerBaselineGrade);
 
 // ==========================================
 // 3. TAB 2: RATING COMPARISON & BIAS AUDIT (Strictly Admin / Developer Only)

@@ -23,7 +23,7 @@ export async function getMonthlySalarySummary(req, res) {
       .sort({ firm: -1 })
       .lean() || {},
     Worker.find({ firm: firmId, active: true })
-      .select('fullName workerCode designation')
+      .select('fullName workerCode designation dateOfJoining createdAt')
       .populate('designation', 'name')
       .sort({ workerCode: 1 })
       .lean(),
@@ -42,6 +42,12 @@ export async function getMonthlySalarySummary(req, res) {
   const minGradeCScore = Math.round(totalMaxPoints * (percentC / 100));
 
   // Fetch all attendance sessions in this month strictly read-only
+  const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const [yearStr, monthStr] = month.split('-');
+  const year = parseInt(yearStr, 10);
+  const m = parseInt(monthStr, 10);
+  const daysInMonth = new Date(year, m, 0).getDate();
+
   const monthRegex = new RegExp(`^${month}`);
   const [sessions, evaluations, monthlyGrades, salaries, payments] = await Promise.all([
     AttendanceSession.find({ firm: firmId, date: monthRegex }).select('worker date workedMinutes status').lean(),
@@ -53,13 +59,14 @@ export async function getMonthlySalarySummary(req, res) {
 
   const gradeMap = new Map(monthlyGrades.map((g) => [String(g.worker), g]));
 
-  // Group data by worker
+  // Group attendance sessions by worker and unique date
   const sessionsByWorker = new Map();
   for (const s of sessions) {
     const wId = String(s.worker);
     if (!sessionsByWorker.has(wId)) sessionsByWorker.set(wId, new Map());
-    // group by unique date
-    sessionsByWorker.get(wId).set(s.date, (sessionsByWorker.get(wId).get(s.date) || 0) + (s.workedMinutes || 0));
+    const dateMap = sessionsByWorker.get(wId);
+    if (!dateMap.has(s.date)) dateMap.set(s.date, []);
+    dateMap.get(s.date).push(s);
   }
 
   const evalsByWorker = new Map();
@@ -91,16 +98,58 @@ export async function getMonthlySalarySummary(req, res) {
       continue;
     }
 
-    // 1. Attendance Counts
-    const workerDateMinutes = sessionsByWorker.get(wId) || new Map();
+    // 1. Attendance Counts (100% Synchronized with Attendance Module)
+    const effectiveJoining = w.dateOfJoining
+      || (w.createdAt ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(w.createdAt)) : null);
+    const sessionsForWorker = sessionsByWorker.get(wId) || new Map();
     let presentDays = 0;
     let halfDays = 0;
     let absentDays = 0;
 
-    for (const [, mins] of workerDateMinutes) {
-      if (mins >= 475) presentDays++;
-      else if (mins >= 235) halfDays++;
-      else absentDays++;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const fullDateStr = `${month}-${dayStr}`;
+
+      if (fullDateStr > todayDate) {
+        // Future date in current month
+        continue;
+      }
+
+      if (effectiveJoining && fullDateStr < effectiveJoining) {
+        // Before joining date
+        continue;
+      }
+
+      if (sessionsForWorker.has(fullDateStr)) {
+        const daySessions = sessionsForWorker.get(fullDateStr);
+        let dayMinutes = 0;
+        let isOpen = false;
+
+        for (const sess of daySessions) {
+          if (sess.status === 'PRESENT') {
+            isOpen = true;
+          }
+          dayMinutes += (sess.workedMinutes || 0);
+        }
+
+        if (isOpen && fullDateStr === todayDate) {
+          // Currently on shift (OD: On Duty)
+          presentDays += 1;
+        } else if (isOpen || dayMinutes >= 475) {
+          // Full Day Present (P)
+          presentDays += 1;
+        } else if (dayMinutes >= 235) {
+          // Half Day (HD) - Attendance Module counts 0.5 Present + 0.5 Absent
+          halfDays += 1;
+          presentDays += 0.5;
+          absentDays += 0.5;
+        } else {
+          absentDays += 1;
+        }
+      } else {
+        // Past working day with no attendance session = Absent (A)
+        absentDays += 1;
+      }
     }
 
     // 2. Evaluation Days & Numerical Average (10-point scale)

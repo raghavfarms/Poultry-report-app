@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { getDailyEvaluationMatrix, submitDailyEvaluation } from '../services/performanceApi.js';
+import { getDailyEvaluationMatrix, submitDailyEvaluation, setWorkerBaselineGrade } from '../services/performanceApi.js';
 import { Spinner, Alert, primaryButton, secondaryButton } from '../../components/Ui.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
 
@@ -18,6 +18,62 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Admin Baseline / Last Month Grade Setting Modal state
+  const [gradeModal, setGradeModal] = useState({
+    isOpen: false,
+    worker: null,
+    selectedGrade: 'A',
+    saving: false,
+  });
+
+  const handleOpenGradeModal = (worker) => {
+    if (!isAdmin) return;
+    setGradeModal({
+      isOpen: true,
+      worker,
+      selectedGrade: worker.lastMonthGrade || 'B',
+      saving: false,
+    });
+  };
+
+  const handleSaveBaselineGrade = async () => {
+    if (!gradeModal.worker) return;
+    setGradeModal((prev) => ({ ...prev, saving: true }));
+    try {
+      await setWorkerBaselineGrade({
+        workerId: gradeModal.worker.workerId,
+        firmId: selectedFirmId,
+        grade: gradeModal.selectedGrade,
+      });
+
+      // Update worker's lastMonthGrade in local state instantly
+      setData((prev) => {
+        if (!prev || !prev.workers) return prev;
+        const updateList = (list) =>
+          (list || []).map((w) =>
+            w.workerId === gradeModal.worker.workerId
+              ? { ...w, lastMonthGrade: gradeModal.selectedGrade }
+              : w
+          );
+        return {
+          ...prev,
+          workers: {
+            ...prev.workers,
+            present: updateList(prev.workers.present),
+            halfDay: updateList(prev.workers.halfDay),
+            absent: updateList(prev.workers.absent),
+          },
+        };
+      });
+
+      setSuccess(`Grade updated to Grade ${gradeModal.selectedGrade} for ${gradeModal.worker.workerName}!`);
+      setGradeModal({ isOpen: false, worker: null, selectedGrade: 'A', saving: false });
+    } catch (err) {
+      setError(err.message || 'Failed to update worker grade.');
+      setGradeModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
 
   // In-memory evaluation state: { [workerId]: { [questionId]: 'YES' | 'NO' } }
   const [evalAnswers, setEvalAnswers] = useState({});
@@ -274,15 +330,37 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
 
         {/* Submit Button */}
         <div>
-          <button
-            onClick={() => setShowConfirmModal(true)}
-            disabled={loading || submitting || evaluableWorkersCount === 0}
-            className="inline-flex h-7 sm:h-8 items-center justify-center rounded-md sm:rounded-lg bg-emerald-600 px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? 'Saving…' : `Submit (${evaluableWorkersCount})`}
-          </button>
+          {!isAdmin && data?.isAlreadySubmitted ? (
+            <span
+              className="inline-flex h-7 sm:h-8 items-center rounded-md sm:rounded-lg bg-slate-100 border border-slate-300 px-2.5 sm:px-3 text-[11px] sm:text-xs font-bold text-slate-600 shadow-2xs"
+              title="Ratings have already been submitted. Only Admin can edit."
+            >
+              🔒 Submitted (Locked)
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowConfirmModal(true)}
+              disabled={loading || submitting || evaluableWorkersCount === 0}
+              className="inline-flex h-7 sm:h-8 items-center justify-center rounded-md sm:rounded-lg bg-emerald-600 px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting
+                ? 'Saving…'
+                : isAdmin && data?.isAlreadySubmitted
+                ? `Update Ratings (${evaluableWorkersCount})`
+                : `Submit (${evaluableWorkersCount})`}
+            </button>
+          )}
         </div>
       </div>
+
+      {!isAdmin && data?.isAlreadySubmitted && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 flex items-center gap-2">
+          <span>🔒</span>
+          <span>
+            <strong>Ratings Already Submitted:</strong> Daily ratings for this date have already been submitted. Standard evaluators cannot change or re-submit ratings. Only an <strong>Administrator</strong> can edit submitted ratings.
+          </span>
+        </div>
+      )}
 
     
 
@@ -350,56 +428,75 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                   )}
                 </tr>
 
-                {/* ROW 3: Attendance Status & Grade Preview */}
+                {/* ROW 3: Last Month Grade */}
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px]">
                   <th className="sticky left-0 z-30 bg-slate-50/90 p-2 sm:p-3 font-semibold text-slate-600 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-[10px] sm:text-[11px]">
-                    Status & Grade
+                    Last Month Grade
                   </th>
                   {workerGroups.map((group) =>
-                    group.list.map((w) => (
-                      <td key={w.workerId} className="p-1 sm:p-2 text-center border-r border-slate-200">
-                        <span className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] sm:text-[10px] font-bold ${group.badgeColor}`}>
-                          {w.attendanceStatus}
-                        </span>
-                        {w.dailyGrade && (
-                          <div className="mt-0.5 sm:mt-1 flex items-center justify-center gap-1">
-                            {w.dailyScore !== null && (
-                              <span className="rounded bg-slate-200 px-1 py-0.2 text-[8px] sm:text-[9px] font-black text-slate-700">
-                                {w.dailyScore}
-                              </span>
+                    group.list.map((w) => {
+                      const grade = w.lastMonthGrade;
+
+                      return (
+                        <td key={w.workerId} className="p-1 sm:p-2 text-center border-r border-slate-200 align-middle">
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            {/* Last Month Grade Badge */}
+                            {grade ? (
+                              <button
+                                type="button"
+                                disabled={!isAdmin}
+                                onClick={() => handleOpenGradeModal(w)}
+                                className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] font-black shadow-2xs transition ${
+                                  grade === 'A'
+                                    ? 'bg-emerald-600 text-white'
+                                    : grade === 'B'
+                                    ? 'bg-amber-400 text-slate-900'
+                                    : grade === 'C'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-slate-950 text-rose-300 border border-slate-800'
+                                } ${
+                                  isAdmin
+                                    ? 'hover:scale-105 cursor-pointer hover:ring-2 hover:ring-emerald-400'
+                                    : 'cursor-default'
+                                }`}
+                                title={isAdmin ? `Grade ${grade} (Click to change)` : `Last Month Grade: ${grade}`}
+                              >
+                                {grade === 'D' ? 'D' : `Grade ${grade}`}
+                                {isAdmin && <span className="ml-1 text-[8px] opacity-75">✏️</span>}
+                              </button>
+                            ) : isAdmin ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenGradeModal(w)}
+                                className="inline-flex items-center rounded border border-dashed border-emerald-500 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
+                                title="Click to set initial/last month grade"
+                              >
+                                + Set Grade
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-400">—</span>
                             )}
-                            <span className={`rounded px-1 sm:px-1.5 py-0.2 text-[8px] sm:text-[10px] font-bold ${
-                              w.dailyGrade === 'A'
-                                ? 'bg-emerald-600 text-white'
-                                : w.dailyGrade === 'B'
-                                ? 'bg-amber-400 text-slate-900'
-                                : w.dailyGrade === 'C'
-                                ? 'bg-red-600 text-white'
-                                : 'bg-slate-950 text-rose-300 border border-slate-800'
-                            }`} title={w.dailyGrade === 'D' ? 'Grade D (BlackList)' : `Grade ${w.dailyGrade}`}>
-                              {w.dailyGrade === 'D' ? 'D (BlackList)' : w.dailyGrade}
-                            </span>
+
+                            {/* All Yes action button */}
+                            {group.key !== 'absent' && (
+                              !isAdmin && (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                                <span className="block mt-0.5 text-[8px] font-semibold text-slate-400">
+                                  Locked
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetAllYes(w.workerId)}
+                                  className="block mt-0.5 text-[8px] sm:text-[9px] font-semibold text-emerald-700 hover:underline cursor-pointer"
+                                >
+                                  All Yes
+                                </button>
+                              )
+                            )}
                           </div>
-                        )}
-                        {!w.isEvaluated && w.previousEvaluationDate && (
-                          <span
-                            className="inline-block mt-0.5 rounded bg-amber-50 px-1 py-0.2 text-[8px] font-semibold text-amber-700 border border-amber-200/60"
-                            title={`Carried forward from ${w.previousEvaluationDate}`}
-                          >
-                            Last Day
-                          </span>
-                        )}
-                        {group.key !== 'absent' && (
-                          <button
-                            type="button"
-                            onClick={() => handleSetAllYes(w.workerId)}
-                            className="block mx-auto mt-0.5 sm:mt-1 text-[8px] sm:text-[9px] font-semibold text-emerald-700 hover:underline"
-                          >
-                            All Yes
-                          </button>
-                        )}
-                      </td>
-                    ))
+                        </td>
+                      );
+                    })
                   )}
                 </tr>
               </thead>
@@ -473,6 +570,19 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                   {currentAnswer === 'YES' ? 'हाँ (Auto)' : 'ना (Auto)'}
                                 </span>
                               </div>
+                            ) : !isAdmin && (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                              <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-slate-100 opacity-75">
+                                <span
+                                  className={`rounded px-1.5 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold ${
+                                    currentAnswer === 'YES'
+                                      ? 'bg-emerald-600 text-white shadow-xs'
+                                      : 'bg-red-600 text-white shadow-xs'
+                                  }`}
+                                  title="Submitted rating (Locked - Only Admin can edit)"
+                                >
+                                  {currentAnswer === 'YES' ? 'हाँ' : 'ना'}
+                                </span>
+                              </div>
                             ) : (
                               <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-slate-100 shadow-inner">
                                 <button
@@ -529,6 +639,66 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
               </button>
               <button onClick={handleSubmit} className={primaryButton}>
                 Confirm & Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Set Worker Baseline / Last Month Grade Modal */}
+      {gradeModal.isOpen && gradeModal.worker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">
+                Set Worker Grade
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Set initial / last month grade for <strong>{gradeModal.worker.workerName}</strong> ({gradeModal.worker.workerCode})
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700">Select Grade:</label>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { id: 'A', label: 'Grade A', color: 'bg-emerald-600 text-white border-emerald-700' },
+                  { id: 'B', label: 'Grade B', color: 'bg-amber-400 text-slate-900 border-amber-500' },
+                  { id: 'C', label: 'Grade C', color: 'bg-red-600 text-white border-red-700' },
+                  { id: 'D', label: 'Grade D', color: 'bg-slate-950 text-rose-300 border-slate-800' },
+                ].map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setGradeModal((prev) => ({ ...prev, selectedGrade: g.id }))}
+                    className={`rounded-lg py-2 text-center text-xs font-bold border transition ${g.color} ${
+                      gradeModal.selectedGrade === g.id
+                        ? 'ring-2 ring-emerald-500 ring-offset-2 scale-102 shadow'
+                        : 'opacity-60 hover:opacity-100 cursor-pointer'
+                    }`}
+                  >
+                    {g.id}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setGradeModal({ isOpen: false, worker: null, selectedGrade: 'A', saving: false })}
+                disabled={gradeModal.saving}
+                className={secondaryButton + ' !h-8 !px-3 text-xs'}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBaselineGrade}
+                disabled={gradeModal.saving}
+                className={primaryButton + ' !h-8 !px-4 text-xs font-bold'}
+              >
+                {gradeModal.saving ? 'Saving…' : 'Save Grade'}
               </button>
             </div>
           </div>
