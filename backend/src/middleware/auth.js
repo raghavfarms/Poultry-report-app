@@ -48,8 +48,11 @@ export function attendanceEditOnly(req, res, next) {
 }
 
 export function attendanceAutoCutOnly(req, res, next) {
-  if (['admin', 'developer'].includes(req.user?.role)) return next();
-  return res.status(403).json({ message: 'Admin access is required for Auto Cut.' });
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    (req.user?.permissions?.attendance_autocut === true || req.user?.permissions?.attendance_edit === true)
+  )) return next();
+  return res.status(403).json({ message: 'Auto Cut permission is required.' });
 }
 
 export function attendanceReportsOnly(req, res, next) {
@@ -65,6 +68,9 @@ export function requireModuleAccess(module) {
     // If allowedModules is configured on the user, strictly enforce it for ALL roles including admin/developer
     if (Array.isArray(req.user?.allowedModules)) {
       if (req.user.allowedModules.includes(module)) return next();
+      if (module === 'performance' && ['admin', 'developer', 'farm_incharge', 'supervisor', 'office'].includes(req.user?.role)) {
+        return next();
+      }
       return res.status(403).json({ message: 'You do not have access to this report module.' });
     }
 
@@ -114,16 +120,7 @@ export function temperaturePermission(perm) {
       if (req.user?.permissions?.temperature_report === true) {
         return next();
       }
-      return res.status(403).json({ message: 'Temperature daily report access is required.' });
-    }
-    if (perm === 'temperature_weekly') {
-      if (
-        req.user?.permissions?.temperature_weekly === true ||
-        (req.user?.permissions?.temperature_weekly === undefined && req.user?.permissions?.temperature_report === true)
-      ) {
-        return next();
-      }
-      return res.status(403).json({ message: 'Weekly temperature report access is required.' });
+      return res.status(403).json({ message: 'Temperature report access is required.' });
     }
     next();
   };
@@ -134,6 +131,13 @@ export function adminOnly(req, res, next) {
     return res.status(403).json({ message: 'Admin access is required.' });
   }
   next();
+}
+
+export function medicineTransferOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.medicine_transfer === true) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Medicine transfer permission is required.' });
 }
 
 export function attendanceStaffOnly(req, res, next) {
@@ -153,7 +157,7 @@ export function supervisorOrAdminOnly(req, res, next) {
   if (
     ['admin', 'developer'].includes(req.user?.role) ||
     req.user?.permissions?.attendance_report ||
-    ['office', 'supervisor'].includes(req.user?.role)
+    ['office', 'supervisor'].includes(req.user?.role)  
   ) {
     return next();
   }
@@ -206,17 +210,5 @@ export function requireFirmAccess(req, res, next) {
   next();
 }
 
-export function medicineTransferOnly(req, res, next) {
-  if (
-    ['admin', 'developer'].includes(req.user?.role) ||
-    req.user?.permissions?.medicine_transfer === true
-  ) {
-    return next();
-  }
-  return res.status(403).json({ message: 'Medicine transfer access is required.' });
-}
 
-
-
-//  useState()
-
+  

@@ -21,6 +21,7 @@ import temperatureSpotRoutes from './temperature/routes/spotRoutes.js';
 import TemperatureLogRoutes from './temperature/routes/temperatureLogRoutes.js';
 import userRoutes from './routes/user.routes.js';
 import roleRoutes from './routes/role.routes.js';
+import performanceRoutes from './performance/routes/performance.routes.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 
@@ -57,6 +58,7 @@ app.use('/api/temperature/spots', temperatureSpotRoutes);
 app.use('/api/temperature/logs', TemperatureLogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/performance', performanceRoutes);
 app.use(notFound);
 app.use(errorHandler);  
 

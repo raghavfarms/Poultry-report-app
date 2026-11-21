@@ -41,7 +41,11 @@ async function start() {
     // 3a. Ensure Head Office firm is linked to admin/dev, and default allowedModules/permissions initialized if missing
     await User.updateMany(
       { role: { $in: ['admin', 'developer'] } },
-      { $addToSet: { firms: officeFirm._id } }
+      { $addToSet: { firms: officeFirm._id, allowedModules: 'performance' } }
+    );
+    await User.updateMany(
+      { role: { $in: ['office', 'farm_incharge', 'supervisor'] } },
+      { $addToSet: { allowedModules: 'performance' } }
     );
 
     // 3b. Sync missing permissions and allowedModules for all existing registered users
@@ -285,19 +289,25 @@ async function start() {
     ];
 
     for (const r of defaultRoles) {
-      await Role.findOneAndUpdate(
-        { code: r.code },
-        {
-          $setOnInsert: r,
-          ...(['admin', 'developer'].includes(r.code)
-            ? {
-                $addToSet: { allowedModules: 'medicine' },
-                $set: { 'permissions.medicine_master': true },
-              }
-            : {}),
-        },
-        { upsert: true, new: true }
-      );
+      const existingRole = await Role.findOne({ code: r.code });
+      if (!existingRole) {
+        await Role.create(r);
+      } else if (['admin', 'developer'].includes(r.code)) {
+        let changed = false;
+        if (!existingRole.allowedModules?.includes('medicine')) {
+          existingRole.allowedModules = existingRole.allowedModules || [];
+          existingRole.allowedModules.push('medicine');
+          changed = true;
+        }
+        if (!existingRole.permissions?.medicine_master) {
+          existingRole.permissions = existingRole.permissions || {};
+          existingRole.permissions.medicine_master = true;
+          changed = true;
+        }
+        if (changed) {
+          await existingRole.save();
+        }
+      }
     }
     console.log('✅ Default roles verified (Head Office, Farm Incharge, Supervisor, Security).');
   } catch (err) {

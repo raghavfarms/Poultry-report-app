@@ -20,6 +20,7 @@ import TemperatureMasterPage from "./temperature/pages/TemperatureMaster.jsx";
 import TemperatureEntryPage from "./temperature/pages/TemperatureEntryPage.jsx";
 import TemperatureReportPage from "./temperature/pages/TemperatureReportPage.jsx";
 import TemperatureHubPage from "./temperature/pages/TemperatureHubPage.jsx";
+import PerformanceHubPage from "./performance/pages/PerformanceHubPage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AttendancePageRoute() {
@@ -65,6 +66,14 @@ export default function App() {
           element={
             <ProtectedRoute module="attendance">
               <AttendancePageRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="reports/performance"
+          element={
+            <ProtectedRoute module="performance">
+              <PerformanceHubPage />
             </ProtectedRoute>
           }
         />

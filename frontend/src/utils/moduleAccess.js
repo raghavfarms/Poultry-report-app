@@ -1,4 +1,4 @@
-export const AVAILABLE_MODULES = ['diesel', 'transport', 'attendance', 'medicine', 'temperature'];
+export const AVAILABLE_MODULES = ['diesel', 'transport', 'attendance', 'medicine', 'temperature', 'performance'];
 
 export function canAccessModule(user, module) {
   if (!user) return false;
@@ -10,6 +10,9 @@ export function canAccessModule(user, module) {
 
   // If user has allowedModules configured, respect it strictly for all users, including admin/developer
   if (Array.isArray(user.allowedModules)) {
+    if (module === 'performance' && ['admin', 'developer', 'farm_incharge', 'supervisor', 'office'].includes(user.role)) {
+      return true;
+    }
     return user.allowedModules.includes(module);
   }
 
@@ -24,11 +27,11 @@ export function canAccessModule(user, module) {
     return true;
   }
 
-  if (module === 'medicine') {
-    return ['office', 'supervisor', 'farm_incharge'].includes(user.role);
+  if (module === 'medicine' || module === 'performance') {
+    return ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user.role);
   }
 
-  return ['diesel', 'transport', 'attendance'].includes(module);
+  return ['diesel', 'transport', 'attendance', 'performance'].includes(module);
 }
 
 export function canAccessReport(user, module) {
