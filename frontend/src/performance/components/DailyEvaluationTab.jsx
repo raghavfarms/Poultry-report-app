@@ -550,7 +550,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                           <td
                             key={w.workerId}
                             className={`p-1 sm:p-2 text-center border-r border-slate-200 align-middle ${
-                              isAbsent ? 'bg-slate-50 opacity-50' : ''
+                              isAbsent ? 'bg-slate-50/60' : ''
                             }`}
                           >
                             {!isApplicable ? (
