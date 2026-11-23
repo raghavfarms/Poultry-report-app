@@ -345,16 +345,18 @@ export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChang
                     {workerGroups.map((group) =>
                       group.list.map((w) => {
                         const isAbsent = group.key === 'absent';
+                        const isLeaveQ = q.isLeaveQuestion || q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
+                        const isApplicable = isAbsent ? isLeaveQ : !isLeaveQ;
                         const qId = String(q._id);
 
-                        if (isAbsent) {
+                        if (!isApplicable) {
                           return (
                             <td
                               key={w.workerId}
-                              className="p-1 sm:p-2 text-center border-r border-slate-200 align-middle bg-slate-50 opacity-60"
+                              className="p-1 sm:p-2 text-center border-r border-slate-200 align-middle bg-slate-50/70"
                             >
-                              <span className="inline-block rounded bg-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500">
-                                Disabled
+                              <span className="inline-block rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-semibold text-slate-400">
+                                N/A
                               </span>
                             </td>
                           );

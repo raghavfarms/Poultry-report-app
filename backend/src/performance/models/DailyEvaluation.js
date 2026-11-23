@@ -10,6 +10,10 @@ const answerSnapshotSchema = new mongoose.Schema({
     type: String, 
     required: true 
   }, // Saved text so edits in Master don't alter history
+  displayOrderSnapshot: {
+    type: Number,
+    default: 0
+  },
   answer: { 
     type: String, 
     enum: ['YES', 'NO'], 
@@ -78,6 +82,11 @@ const schema = new mongoose.Schema({
   hasCriticalViolation: { 
     type: Boolean, 
     default: false 
+  },
+
+  isApprovedLeave: {
+    type: Boolean,
+    default: false,
   },
 
   // If attendance is later corrected in Attendance module, flag for Admin review

@@ -218,7 +218,10 @@ export async function getRatingComparison(req, res) {
     month,
     latestEvaluationDate,
     totalMaxPoints,
-    questions: activeQuestions,
+    questions: activeQuestions.map((q) => ({
+      ...q,
+      isLeaveQuestion: q.displayOrder === 4 || q.questionText?.includes('छुट्टी'),
+    })),
     evaluatorStats,
     workers: comparisonRows,
   });

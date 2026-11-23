@@ -161,35 +161,53 @@ export async function getMonthlySalarySummary(req, res) {
       evalsByDate.get(ev.evaluationDate).push(ev);
     }
 
+    // Process daily evaluations using Option A:
+    // - Approved leave days (isApprovedLeave: true or dailyGrade === 'NOT_APPLICABLE') are Neutral (excluded from denominator)
+    // - Uninformed leave days (isApprovedLeave: false and absent) are Penalty days (score 0, included in denominator)
+    // - Working days (PRESENT / HALF_DAY) are included in score and denominator
+    let dailyAveragesSum = 0;
+    let effectiveEvaluationDays = 0;
+
+    for (const [, dayList] of evalsByDate) {
+      const isApprovedLeaveDay = dayList.every((ev) => ev.isApprovedLeave || ev.dailyGrade === 'NOT_APPLICABLE');
+      if (isApprovedLeaveDay) {
+        // Neutral Day (Approved leave): Excluded from performance average divisor
+        continue;
+      }
+
+      const daySum = dayList.reduce((acc, ev) => acc + (ev.dailyScore || 0), 0);
+      dailyAveragesSum += daySum / dayList.length;
+      effectiveEvaluationDays += 1;
+    }
+
     const evaluationDays = evalsByDate.size;
     let averageScore = 0;
+    if (effectiveEvaluationDays > 0) {
+      averageScore = Math.round((dailyAveragesSum / effectiveEvaluationDays) * 10) / 10;
+    }
+
     const gradeDoc = gradeMap.get(wId);
     let finalGrade = 'NO_DATA';
 
     if (gradeDoc?.overrideGrade) {
       finalGrade = gradeDoc.overrideGrade;
-      if (evaluationDays > 0) {
-        let dailyAveragesSum = 0;
-        for (const [, dayList] of evalsByDate) {
-          const daySum = dayList.reduce((acc, ev) => acc + (ev.dailyScore || 0), 0);
-          dailyAveragesSum += daySum / dayList.length;
-        }
-        averageScore = Math.round((dailyAveragesSum / evaluationDays) * 10) / 10;
-      }
-    } else if (evaluationDays > 0) {
-      // Calculate running progressive average across unique dates
-      let dailyAveragesSum = 0;
-      for (const [, dayList] of evalsByDate) {
-        const daySum = dayList.reduce((acc, ev) => acc + (ev.dailyScore || 0), 0);
-        dailyAveragesSum += daySum / dayList.length;
-      }
-      averageScore = Math.round((dailyAveragesSum / evaluationDays) * 10) / 10;
-
+    } else if (effectiveEvaluationDays > 0) {
       // Variable threshold: Grade A >= minGradeAScore, Grade B >= minGradeBScore, Grade C >= minGradeCScore, else Grade D (BlackList)
-      if (averageScore >= minGradeAScore) finalGrade = 'A';
-      else if (averageScore >= minGradeBScore) finalGrade = 'B';
-      else if (averageScore >= minGradeCScore) finalGrade = 'C';
-      else finalGrade = 'D';
+      // Attendance Gate for Grade A: Worker can have AT MOST 1 absent day in the month (absentDays <= 1).
+      // If absentDays > 1, the worker is disqualified from Grade A and capped at Grade B.
+      if (averageScore >= minGradeAScore) {
+        if (absentDays <= 1) {
+          finalGrade = 'A';
+        } else {
+          finalGrade = 'B'; // Disqualified from Grade A due to >1 absence in the month
+        }
+      } else if (averageScore >= minGradeBScore) {
+        finalGrade = 'B';
+      } else if (averageScore >= minGradeCScore) {
+        finalGrade = 'C';
+      } else {
+        finalGrade = 'D';
+      }
     }
 
     // Filter by grade if provided

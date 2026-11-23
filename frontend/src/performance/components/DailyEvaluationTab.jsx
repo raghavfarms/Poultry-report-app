@@ -146,6 +146,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
       const allWorkers = [
         ...(res.workers?.present || []),
         ...(res.workers?.halfDay || []),     
+        ...(res.workers?.absent || []),
       ];
 
       for (const w of allWorkers) {
@@ -245,7 +246,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
     ];
   }, [data]);
 
-  const evaluableWorkersCount = (data?.workers?.present?.length || 0) + (data?.workers?.halfDay?.length || 0);
+  const evaluableWorkersCount = (data?.workers?.present?.length || 0) + (data?.workers?.halfDay?.length || 0 ) + (data?.workers?.absent?.length || 0);
 
   // Submit Handler
   const handleSubmit = async () => {
@@ -258,6 +259,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
       const allEvaluableWorkers = [
         ...(data.workers?.present || []),
         ...(data.workers?.halfDay || []),
+        ...(data.workers?.absent|| []),
       ];
 
       const payload = allEvaluableWorkers.map((w) => {
@@ -537,6 +539,8 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                     {workerGroups.map((group) =>
                       group.list.map((w) => {
                         const isAbsent = group.key === 'absent';
+                        const isLeaveQ = q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
+                        const isApplicable =isAbsent ? isLeaveQ :!isLeaveQ
                         const currentAnswer = evalAnswers[w.workerId]?.[q._id] || 'YES';
                         const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
                         const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;
@@ -549,9 +553,9 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                               isAbsent ? 'bg-slate-50 opacity-50' : ''
                             }`}
                           >
-                            {isAbsent ? (
-                              <span className="inline-block rounded bg-slate-200 px-1 py-0.5 text-[9px] font-semibold text-slate-500">
-                                Disabled 
+                            {!isApplicable ? (
+                              <span className="inline-block rounded bg-slate-200 px-1 py-0.5 text-[9px] font-semibold text-slate-400">
+                                N/A
                               </span>
                             ) : isAutoQ && !isAdmin ? (
                               <div className="inline-flex flex-col items-center">

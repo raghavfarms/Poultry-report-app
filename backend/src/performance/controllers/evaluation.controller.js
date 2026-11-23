@@ -10,13 +10,48 @@ import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError, forbiddenError } from '../../utils/http.js';
 import { evaluateDutyInPunctuality, evaluateLunchInPunctuality } from '../utils/attendancePunctuality.js';
 
-// Helper: Calculate daily score and grade based on variable points scale
+// Helper: Calculate daily score and grade based on variable points scale and attendance
 function calculateDailyPerformance(answers, config, attendanceStatus) {
+  const isAbsent = attendanceStatus === 'ABSENT';
+
+  if (isAbsent) {
+    // For Absent workers, ONLY Question 4 ("छुट्टी बता कर करी?") is applicable
+    const leaveAns = answers.find(
+      (a) => a.displayOrderSnapshot === 4 || a.questionTextSnapshot?.includes('छुट्टी')
+    );
+    const didInform = leaveAns ? leaveAns.answer === 'YES' : true;
+
+    if (didInform) {
+      // Approved leave (Informed): Neutral Day (0 deduction, Grade protected)
+      return {
+        dailyScore: 0,
+        dailyGrade: 'NOT_APPLICABLE',
+        hasCriticalViolation: false,
+        maxPossiblePoints: 0,
+        isApprovedLeave: true,
+      };
+    } else {
+      // Uninformed / Overstayed leave: Penalty Day! Score 0, triggers violation & gets Grade D
+      return {
+        dailyScore: 0,
+        dailyGrade: 'D',
+        hasCriticalViolation: true,
+        maxPossiblePoints: 9,
+        isApprovedLeave: false,
+      };
+    }
+  }
+
+  // For Present / Half Day workers:
+  // Evaluate ONLY operational farm questions (exclude Question 4 "छुट्टी बता कर करी?")
   let hasCriticalViolation = false;
   let totalPoints = 0;
   let maxPossiblePoints = 0;
 
   for (const ans of answers) {
+    const isLeaveQ = ans.displayOrderSnapshot === 4 || ans.questionTextSnapshot?.includes('छुट्टी');
+    if (isLeaveQ) continue; // Skip leave question for present workers
+
     const weight = Number(ans.weightSnapshot || 1);
     maxPossiblePoints += weight;
 
@@ -32,12 +67,8 @@ function calculateDailyPerformance(answers, config, attendanceStatus) {
   // Daily score directly in points earned
   let dailyScore = totalPoints;
 
-  // Dynamically calculate grade thresholds based on total points of active questions and admin-configured percentages:
-  // Grade A: >= x% of total points (default 80%)
-  // Grade B: >= y% of total points (default 65%)
-  // Grade C: >= z% of total points (default 50%)
-  // Grade D (BlackList): < z% of total points (< 50%) or Critical Violation
-  const effectiveMax = maxPossiblePoints || 10;
+  // Dynamically calculate grade thresholds based on total points of active operational questions
+  const effectiveMax = maxPossiblePoints || 9;
   const percentA = config?.gradeRules?.gradeA?.minPercentage || 85;
   const percentB = config?.gradeRules?.gradeB?.minPercentage || 77;
   const percentC = (config?.gradeRules?.gradeC?.minPercentage > 0) ? config.gradeRules.gradeC.minPercentage : 50;
@@ -58,7 +89,7 @@ function calculateDailyPerformance(answers, config, attendanceStatus) {
     grade = 'D';
   }
 
-  return { dailyScore, dailyGrade: grade, hasCriticalViolation, maxPossiblePoints };
+  return { dailyScore, dailyGrade: grade, hasCriticalViolation, maxPossiblePoints, isApprovedLeave: false };
 }
 
 // ==========================================
@@ -221,14 +252,16 @@ export async function getDailyEvaluationMatrix(req, res) {
     else absentWorkers.push(workerPayload);
   }
 
-  // Identify automated attendance questions (Q1: Duty In <= 8:30 AM, Q3: Lunch In <= 1:10 PM)
+  // Identify automated attendance questions (Q1: Duty In <= 8:30 AM, Q3: Lunch In <= 1:10 PM) and Leave question (Q4)
   const processedQuestions = questions.map((q) => {
     let automatedType = null;
     if (q.displayOrder === 1) automatedType = 'DUTY_IN';
     else if (q.displayOrder === 3) automatedType = 'LUNCH_IN';
+    const isLeaveQuestion = q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
     return {
       ...q,
       automatedType,
+      isLeaveQuestion,
     };
   });
 
@@ -315,11 +348,6 @@ export async function submitDailyEvaluation(req, res) {
   for (const item of evaluations) {
     const { workerId, workerCode, workerName, attendanceStatus, answers } = item;
 
-    // Rule: Absent workers MUST NOT be evaluated
-    if (attendanceStatus === 'ABSENT') {
-      continue;
-    }
-
     // Build question answer snapshots
     const answerSnapshots = [];
     for (const ans of answers) {
@@ -327,8 +355,8 @@ export async function submitDailyEvaluation(req, res) {
       if (q) {
         let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
 
-        // Automated punctuality enforcement for non-admin evaluators (Q1 & Q3)
-        if (!isAdmin && (q.displayOrder === 1 || q.displayOrder === 3)) {
+        // Automated punctuality enforcement for non-admin evaluators (Q1 & Q3) for non-absent workers
+        if (!isAdmin && attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
           const wSessions = workerSessionMap?.get(String(workerId)) || [];
           let dutyInDate = null;
           let lunchInDate = null;
@@ -349,6 +377,7 @@ export async function submitDailyEvaluation(req, res) {
         answerSnapshots.push({
           questionId: q._id,
           questionTextSnapshot: q.questionText,
+          displayOrderSnapshot: q.displayOrder,
           answer: finalAnswer,
           weightSnapshot: q.weight || 1,
           isCriticalViolationSnapshot: Boolean(q.isCriticalViolation),
@@ -356,7 +385,7 @@ export async function submitDailyEvaluation(req, res) {
       }
     }
 
-    const { dailyScore, dailyGrade, hasCriticalViolation } = calculateDailyPerformance(
+    const { dailyScore, dailyGrade, hasCriticalViolation, isApprovedLeave } = calculateDailyPerformance(
       answerSnapshots,
       config,
       attendanceStatus
@@ -378,6 +407,7 @@ export async function submitDailyEvaluation(req, res) {
         dailyScore,
         dailyGrade,
         hasCriticalViolation,
+        isApprovedLeave: Boolean(isApprovedLeave),
         submittedBy: req.user._id,
         submittedByNameSnapshot: req.user.name,
         submittedByRoleSnapshot: userRoleName,
