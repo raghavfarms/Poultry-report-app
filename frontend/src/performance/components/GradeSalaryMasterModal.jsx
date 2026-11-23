@@ -139,7 +139,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
         },
         criticalViolationGrade: 'D',
       });
-      setSuccess('Grade percentages & salaries saved successfully!');
+      setSuccess('Grade rules saved successfully!');
       setTimeout(() => {
         onClose();
       }, 800);
@@ -158,8 +158,8 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
         {/* Header - Compact */}
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5 shrink-0">
           <div>
-            <h2 className="text-sm font-bold text-slate-900">Grade & Salary Master</h2>
-            <p className="text-[11px] text-slate-500">Configure percentage thresholds and monthly salary per grade.</p>
+            <h2 className="text-sm font-bold text-slate-900">Grade Rules Master</h2>
+            <p className="text-[11px] text-slate-500">Configure percentage thresholds and evaluation rules per grade.</p>
           </div>
           <button
             onClick={onClose}
@@ -179,10 +179,10 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
           ) : (
             <form onSubmit={handleSave} className="space-y-2">
               {/* GRADE A - GREEN */}
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3.5 py-2 shadow-xs">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-3.5 py-2.5 shadow-xs">
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-xs">
+                    <span className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs">
                       Grade A
                     </span>
                     <span className="text-xs font-bold text-emerald-900 truncate">
@@ -190,50 +190,32 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Min%:</label>
-                      <div className="relative w-16">
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          required
-                          className="h-7 w-full rounded border border-emerald-300 bg-white px-2 pr-4 text-xs font-bold text-emerald-800 outline-none focus:border-emerald-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={percentages.gradeA}
-                          onChange={(e) => setPercentages({ ...percentages, gradeA: e.target.value })}
-                        />
-                        <span className="pointer-events-none absolute right-1.5 top-1.5 text-[10px] font-bold text-slate-400">%</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Salary:</label>
-                      <div className="relative w-28">
-                        <span className="absolute left-2 top-1.5 text-[11px] font-bold text-slate-400">₹</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="500"
-                          required
-                          className="h-7 w-full rounded border border-emerald-300 bg-white pl-5 pr-2 text-xs font-bold text-emerald-800 outline-none focus:border-emerald-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={salaries.gradeA}
-                          onChange={(e) => setSalaries({ ...salaries, gradeA: e.target.value })}
-                        />
-                      </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label className="text-[10px] font-semibold text-slate-600">Min%:</label>
+                    <div className="relative w-16">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        required
+                        className="h-7 w-full rounded border border-emerald-300 bg-white px-2 pr-4 text-xs font-bold text-emerald-800 outline-none focus:border-emerald-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={percentages.gradeA}
+                        onChange={(e) => setPercentages({ ...percentages, gradeA: e.target.value })}
+                      />
+                      <span className="pointer-events-none absolute right-1.5 top-1.5 text-[10px] font-bold text-slate-400">%</span>
                     </div>
                   </div>
                 </div>
-                <p className="mt-0.5 text-[10px] text-slate-500">
-                  Top performing workers (achieving ≥ {percentages.gradeA}% of total points)
+                <p className="mt-1 text-[10px] text-slate-500">
+                  Top performing workers (achieving ≥ {percentages.gradeA}% of total points & max 1 absence)
                 </p>
               </div>
 
               {/* GRADE B - YELLOW / AMBER */}
-              <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-3.5 py-2 shadow-xs">
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-3.5 py-2.5 shadow-xs">
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-xs">
+                    <span className="rounded bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs">
                       Grade B
                     </span>
                     <span className="text-xs font-bold text-amber-950 truncate">
@@ -241,50 +223,32 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Min%:</label>
-                      <div className="relative w-16">
-                        <input
-                          type="number"
-                          min="0"
-                          max="99"
-                          required
-                          className="h-7 w-full rounded border border-amber-300 bg-white px-2 pr-4 text-xs font-bold text-amber-900 outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={percentages.gradeB}
-                          onChange={(e) => setPercentages({ ...percentages, gradeB: e.target.value })}
-                        />
-                        <span className="pointer-events-none absolute right-1.5 top-1.5 text-[10px] font-bold text-slate-400">%</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Salary:</label>
-                      <div className="relative w-28">
-                        <span className="absolute left-2 top-1.5 text-[11px] font-bold text-slate-400">₹</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="500"
-                          required
-                          className="h-7 w-full rounded border border-amber-300 bg-white pl-5 pr-2 text-xs font-bold text-amber-900 outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={salaries.gradeB}
-                          onChange={(e) => setSalaries({ ...salaries, gradeB: e.target.value })}
-                        />
-                      </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label className="text-[10px] font-semibold text-slate-600">Min%:</label>
+                    <div className="relative w-16">
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        required
+                        className="h-7 w-full rounded border border-amber-300 bg-white px-2 pr-4 text-xs font-bold text-amber-900 outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={percentages.gradeB}
+                        onChange={(e) => setPercentages({ ...percentages, gradeB: e.target.value })}
+                      />
+                      <span className="pointer-events-none absolute right-1.5 top-1.5 text-[10px] font-bold text-slate-400">%</span>
                     </div>
                   </div>
                 </div>
-                <p className="mt-0.5 text-[10px] text-slate-500">
+                <p className="mt-1 text-[10px] text-slate-500">
                   Average performing workers ({percentages.gradeB}% to {Math.max(percentages.gradeB, percentages.gradeA - 1)}%)
                 </p>
               </div>
 
               {/* GRADE C - RED / ORANGE */}
-              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3.5 py-2 shadow-xs">
+              <div className="rounded-lg border border-rose-200 bg-rose-50/50 px-3.5 py-2.5 shadow-xs">
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-xs">
+                    <span className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs">
                       Grade C
                     </span>
                     <span className="text-xs font-bold text-rose-950 truncate">
@@ -292,51 +256,32 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    {/* Minimum % Input */}
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Min%:</label>
-                      <div className="relative w-16">
-                        <input
-                          type="number"
-                          min="1"
-                          max={Math.max(1, (Number(percentages.gradeB) || 77) - 1)}
-                          required
-                          className="h-7 w-full rounded border border-rose-300 bg-white px-2 pr-4 text-xs font-bold text-rose-900 outline-none focus:border-red-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={percentages.gradeC}
-                          onChange={(e) => setPercentages({ ...percentages, gradeC: e.target.value })}
-                        />
-                        <span className="pointer-events-none absolute right-1.5 top-1.5 text-[10px] font-bold text-slate-400">%</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-600">Salary:</label>
-                      <div className="relative w-28">
-                        <span className="absolute left-2 top-1.5 text-[11px] font-bold text-slate-400">₹</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="500"
-                          required
-                          className="h-7 w-full rounded border border-rose-300 bg-white pl-5 pr-2 text-xs font-bold text-rose-900 outline-none focus:border-red-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={salaries.gradeC}
-                          onChange={(e) => setSalaries({ ...salaries, gradeC: e.target.value })}
-                        />
-                      </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label className="text-[10px] font-semibold text-slate-600">Min%:</label>
+                    <div className="relative w-16">
+                      <input
+                        type="number"
+                        min="1"
+                        max={Math.max(1, (Number(percentages.gradeB) || 77) - 1)}
+                        required
+                        className="h-7 w-full rounded border border-rose-300 bg-white px-2 pr-4 text-xs font-bold text-rose-900 outline-none focus:border-red-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={percentages.gradeC}
+                        onChange={(e) => setPercentages({ ...percentages, gradeC: e.target.value })}
+                      />
+                      <span className="pointer-events-none absolute right-1.5 top-1.5 text-[10px] font-bold text-slate-400">%</span>
                     </div>
                   </div>
                 </div>
-                <p className="mt-0.5 text-[10px] text-slate-500">
+                <p className="mt-1 text-[10px] text-slate-500">
                   Passing / lower performing workers ({percentages.gradeC}% to {Math.max(Number(percentages.gradeC) || 0, (Number(percentages.gradeB) || 0) - 1)}%)
                 </p>
               </div>
 
               {/* GRADE D - BLACKLIST */}
-              <div className="rounded-lg border border-slate-900 bg-slate-950 px-3.5 py-2 shadow-md text-white">
+              <div className="rounded-lg border border-slate-900 bg-slate-950 px-3.5 py-2.5 shadow-md text-white">
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-black text-rose-300 border border-rose-500/30">
+                    <span className="rounded bg-rose-500/20 px-2 py-0.5 text-[10px] font-black text-rose-300 border border-rose-500/30">
                       Grade D (BlackList)
                     </span>
                     <span className="text-xs font-bold text-slate-200 truncate">
@@ -344,29 +289,11 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <div className="rounded bg-rose-950/60 px-2 py-1 text-[10px] font-bold text-rose-300 border border-rose-900/40">
-                      Below {percentages.gradeC}%
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <label className="text-[10px] font-semibold text-slate-400">Salary:</label>
-                      <div className="relative w-28">
-                        <span className="absolute left-2 top-1.5 text-[11px] font-bold text-slate-500">₹</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="500"
-                          required
-                          className="h-7 w-full rounded border border-slate-700 bg-slate-900 pl-5 pr-2 text-xs font-bold text-slate-100 outline-none focus:border-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={salaries.gradeD}
-                          onChange={(e) => setSalaries({ ...salaries, gradeD: e.target.value })}
-                        />
-                      </div>
-                    </div>
+                  <div className="rounded bg-rose-950/60 px-2 py-1 text-[10px] font-bold text-rose-300 border border-rose-900/40 shrink-0">
+                    Below {percentages.gradeC}%
                   </div>
                 </div>
-                <p className="mt-0.5 text-[10px] text-rose-300/80">
+                <p className="mt-1 text-[10px] text-rose-300/80">
                   Critical violations (alcohol, fighting) or score below {percentages.gradeC}% (BlackList)
                 </p>
               </div>
@@ -390,7 +317,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                   disabled={saving}
                   className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
                 >
-                  {saving ? 'Saving…' : 'Save Salary Rules'}
+                  {saving ? 'Saving…' : 'Save Grade Rules'}
                 </button>
               </div>
             </form>
