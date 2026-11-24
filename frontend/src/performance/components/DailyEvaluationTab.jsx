@@ -7,11 +7,18 @@ function getTodayIST() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 }
 
+function getYesterdayIST() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+}
+
 export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
   const { user } = useAuth();
   const isAdmin = ['admin', 'developer'].includes(user?.role);
 
-  const [date, setDate] = useState(getTodayIST());
+  // Default date is Yesterday so incharge evaluates finalized Day & Night shifts with zero manual clicks
+  const [date, setDate] = useState(getYesterdayIST());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -315,18 +322,44 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
             </select>
           </div> 
 
-          {/* Date Picker */}
-          <div className="flex items-center gap-1">
+          {/* Date Picker with 1-click Yesterday default */}
+          <div className="flex items-center gap-1.5">
             <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">
               Date:
             </span>
-            <input
-              type="date"
-              className="h-7 sm:h-8 rounded-md sm:rounded-lg border border-slate-300 bg-white px-1 sm:px-2 text-[11px] sm:text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600"
-              value={date}
-              max={getTodayIST()}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <div className="flex items-center gap-1">
+              <input
+                type="date"
+                className="h-7 sm:h-8 rounded-md sm:rounded-lg border border-slate-300 bg-white px-1 sm:px-2 text-[11px] sm:text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600"
+                value={date}
+                max={getTodayIST()}
+                onChange={(e) => setDate(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setDate(getYesterdayIST())}
+                className={`h-7 sm:h-8 px-2 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                  date === getYesterdayIST()
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+                title="Evaluate yesterday's finalized Day & Night attendance"
+              >
+                📅 Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={() => setDate(getTodayIST())}
+                className={`h-7 sm:h-8 px-2 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
+                  date === getTodayIST()
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+                title="Today's live attendance"
+              >
+                Today
+              </button>
+            </div>
           </div>
         </div>
 
