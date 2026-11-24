@@ -208,6 +208,8 @@ export async function getGradeSalaryConfig(req, res) {
     'outside worker',
     'support staff',
     'plumber',
+    'organics worker',
+    'organic worker',
   ]);
 
   // 2. Group all designations by standardized name across Raghav, Sanjana & other firms
@@ -239,7 +241,6 @@ export async function getGradeSalaryConfig(req, res) {
     'Shed Worker',
     'Feed Mill Worker',
     'Cold Room Worker',
-    'Organics Worker',
     'Electrician',
     'Driver',
     'Security',
