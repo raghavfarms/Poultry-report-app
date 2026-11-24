@@ -6,8 +6,14 @@ function getTodayIST() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 }
 
+function getYesterdayIST() {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+}
+
 export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
-  const [date, setDate] = useState(getTodayIST());
+  const [date, setDate] = useState(getYesterdayIST());
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
