@@ -322,53 +322,27 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
             </select>
           </div> 
 
-          {/* Date Picker with 1-click Yesterday default */}
+          {/* Date Picker (Default: Yesterday) */}
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">
               Date:
             </span>
-            <div className="flex items-center gap-1">
-              <input
-                type="date"
-                className="h-7 sm:h-8 rounded-md sm:rounded-lg border border-slate-300 bg-white px-1 sm:px-2 text-[11px] sm:text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600"
-                value={date}
-                max={getTodayIST()}
-                onChange={(e) => setDate(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setDate(getYesterdayIST())}
-                className={`h-7 sm:h-8 px-2 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
-                  date === getYesterdayIST()
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-                title="Evaluate yesterday's finalized Day & Night attendance"
-              >
-                📅 Yesterday
-              </button>
-              <button
-                type="button"
-                onClick={() => setDate(getTodayIST())}
-                className={`h-7 sm:h-8 px-2 rounded-md sm:rounded-lg text-[10px] sm:text-[11px] font-bold transition-all cursor-pointer ${
-                  date === getTodayIST()
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-                title="Today's live attendance"
-              >
-                Today
-              </button>
-            </div>
+            <input
+              type="date"
+              className="h-7 sm:h-8 rounded-md sm:rounded-lg border border-slate-300 bg-white px-1 sm:px-2 text-[11px] sm:text-xs font-semibold text-slate-800 outline-none focus:border-emerald-600"
+              value={date}
+              max={getTodayIST()}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
         </div>
 
         {/* Submit Button */}
         <div>
-          {!isAdmin && data?.isAlreadySubmitted ? (
+          {data?.isAlreadySubmitted ? (
             <span
               className="inline-flex h-7 sm:h-8 items-center rounded-md sm:rounded-lg bg-slate-100 border border-slate-300 px-2.5 sm:px-3 text-[11px] sm:text-xs font-bold text-slate-600 shadow-2xs"
-              title="Ratings have already been submitted. Only Admin can edit."
+              title="Ratings have already been submitted. Ratings cannot be re-submitted."
             >
               🔒 Submitted (Locked)
             </span>
@@ -378,21 +352,17 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
               disabled={loading || submitting || evaluableWorkersCount === 0}
               className="inline-flex h-7 sm:h-8 items-center justify-center rounded-md sm:rounded-lg bg-emerald-600 px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting
-                ? 'Saving…'
-                : isAdmin && data?.isAlreadySubmitted
-                ? `Update Ratings (${evaluableWorkersCount})`
-                : `Submit (${evaluableWorkersCount})`}
+              {submitting ? 'Saving…' : `Submit (${evaluableWorkersCount})`}
             </button>
           )}
         </div>
       </div>
 
-      {!isAdmin && data?.isAlreadySubmitted && (
+      {data?.isAlreadySubmitted && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 flex items-center gap-2">
           <span>🔒</span>
           <span>
-            <strong>Ratings Already Submitted:</strong> Daily ratings for this date have already been submitted. Standard evaluators cannot change or re-submit ratings. Only an <strong>Administrator</strong> can edit submitted ratings.
+            <strong>Ratings Already Submitted:</strong> Daily ratings for this date have already been submitted. Ratings are locked and cannot be re-submitted.
           </span>
         </div>
       )}
@@ -514,7 +484,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
 
                             {/* All Yes action button */}
                             {group.key !== 'absent' && (
-                              !isAdmin && (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                              (w.isEvaluated || data?.isAlreadySubmitted) ? (
                                 <span className="block mt-0.5 text-[8px] font-semibold text-slate-400">
                                   Locked
                                 </span>
@@ -607,7 +577,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                   {currentAnswer === 'YES' ? 'हाँ (Auto)' : 'ना (Auto)'}
                                 </span>
                               </div>
-                            ) : !isAdmin && (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                            ) : (w.isEvaluated || data?.isAlreadySubmitted) ? (
                               <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-slate-100 opacity-75">
                                 <span
                                   className={`rounded px-1.5 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold ${
@@ -615,7 +585,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                       ? 'bg-emerald-600 text-white shadow-xs'
                                       : 'bg-red-600 text-white shadow-xs'
                                   }`}
-                                  title="Submitted rating (Locked - Only Admin can edit)"
+                                  title="Submitted rating (Locked)"
                                 >
                                   {currentAnswer === 'YES' ? 'हाँ' : 'ना'}
                                 </span>
@@ -674,8 +644,12 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
               <button onClick={() => setShowConfirmModal(false)} className={secondaryButton}>
                 Cancel
               </button>
-              <button onClick={handleSubmit} className={primaryButton}>
-                Confirm & Submit
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className={`${primaryButton} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {submitting ? 'Submitting…' : 'Confirm & Submit'}
               </button>
             </div>
           </div>

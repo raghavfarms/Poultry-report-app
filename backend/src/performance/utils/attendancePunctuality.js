@@ -5,7 +5,7 @@
  * - Question 3: Lunch Return In <= 1:10 PM IST (13:10)
  */
 
-export function evaluateDutyInPunctuality(dutyInDate) {
+export function evaluateDutyInPunctuality(dutyInDate, isNightWorker = false) {
   if (!dutyInDate) {
     return {
       answer: 'NO',
@@ -33,8 +33,15 @@ export function evaluateDutyInPunctuality(dutyInDate) {
   const m = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10);
   const totalMinutes = h * 60 + m;
 
-  // Threshold: 8:30 AM IST = 510 minutes
-  const isOnTime = totalMinutes <= 510;
+  // Detect night shift: either designation is night guard/worker, or duty-in is evening (>= 4:30 PM / 990 mins or before 5 AM / 300 mins)
+  const isNight = isNightWorker || totalMinutes >= 990 || totalMinutes < 300;
+
+  // On-time criteria:
+  // - Day shift: <= 8:30 AM IST (510 mins)
+  // - Night shift: <= 7:30 PM IST (1170 mins) or punch during early night hours
+  const isOnTime = isNight
+    ? (totalMinutes >= 990 && totalMinutes <= 1170) || totalMinutes < 300
+    : totalMinutes <= 510;
 
   return {
     answer: isOnTime ? 'YES' : 'NO',
@@ -43,7 +50,16 @@ export function evaluateDutyInPunctuality(dutyInDate) {
   };
 }
 
-export function evaluateLunchInPunctuality(lunchInDate, lunchOutDate) {
+export function evaluateLunchInPunctuality(lunchInDate, lunchOutDate, isNightWorker = false) {
+  // Night shift workers do not have a 1:00 PM day lunch break; exempt them
+  if (isNightWorker) {
+    return {
+      answer: 'YES',
+      timeText: 'Night Shift (N/A)',
+      isOnTime: true,
+    };
+  }
+
   // If worker did not take a recorded lunch break, default to on-time (no lunch delay violation)
   if (!lunchInDate) {
     if (lunchOutDate) {

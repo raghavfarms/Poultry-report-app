@@ -220,8 +220,10 @@ export async function getDailyEvaluationMatrix(req, res) {
       }
     }
 
-    const dutyInPunctuality = evaluateDutyInPunctuality(dutyInDate);
-    const lunchInPunctuality = evaluateLunchInPunctuality(lunchInDate, lunchOutDate);
+    const desName = (w.designation?.name || '').toLowerCase();
+    const isNightWorker = desName.includes('night') || desName.includes('नाईट');
+    const dutyInPunctuality = evaluateDutyInPunctuality(dutyInDate, isNightWorker);
+    const lunchInPunctuality = evaluateLunchInPunctuality(lunchInDate, lunchOutDate, isNightWorker);
 
     const pastGradeDoc = pastGradeMap.get(wId);
     const salaryDoc = salaryMap.get(wId);
@@ -301,18 +303,16 @@ export async function submitDailyEvaluation(req, res) {
 
   const isAdmin = ['admin', 'developer'].includes(req.user?.role);
 
-  // One-time submission rule: Non-admin users cannot re-submit if ratings already exist for this date
-  if (!isAdmin) {
-    const existingCount = await DailyEvaluation.countDocuments({
-      firm: firmId,
-      evaluationDate: date,
-      submittedBy: req.user._id,
-    });
-    if (existingCount > 0) {
-      throw forbiddenError(
-        'Ratings for this date have already been submitted. Only an Administrator can modify or re-submit ratings.'
-      );
-    }
+  // Strict one-time submission rule: No account can re-submit if ratings already exist for this date
+  const existingCount = await DailyEvaluation.countDocuments({
+    firm: firmId,
+    evaluationDate: date,
+    submittedBy: req.user._id,
+  });
+  if (existingCount > 0) {
+    throw forbiddenError(
+      'Daily ratings for this date have already been submitted. Re-submission is not allowed.'
+    );
   }
 
   const [firm, config, activeQuestions] = await Promise.all([
@@ -326,27 +326,34 @@ export async function submitDailyEvaluation(req, res) {
   if (!firm) throw notFoundError('Firm not found.');
   const questionMap = new Map(activeQuestions.map((q) => [String(q._id), q]));
 
-  // If non-admin, fetch read-only attendance sessions to enforce automatic punctuality for Q1 and Q3
-  let workerSessionMap = null;
-  if (!isAdmin) {
-    const workerIds = evaluations.map((e) => e.workerId).filter(Boolean);
-    const sessions = await AttendanceSession.find({
+  // Fetch read-only attendance sessions to enforce automatic punctuality for Q1 and Q3
+  const workerIds = evaluations.map((e) => e.workerId).filter(Boolean);
+  const [sessions, workerDocs] = await Promise.all([
+    AttendanceSession.find({
       worker: { $in: workerIds },
-      attendanceDate: date,
-    }).lean();
+      date: date,
+    }).lean(),
+    Worker.find({ _id: { $in: workerIds } })
+      .select('designation')
+      .populate('designation', 'name')
+      .lean(),
+  ]);
 
-    workerSessionMap = new Map();
-    for (const s of sessions) {
-      const wid = String(s.worker);
-      if (!workerSessionMap.has(wid)) workerSessionMap.set(wid, []);
-      workerSessionMap.get(wid).push(s);
-    }
+  const workerDocMap = new Map(workerDocs.map((w) => [String(w._id), w]));
+  const workerSessionMap = new Map();
+  for (const s of sessions) {
+    const wid = String(s.worker);
+    if (!workerSessionMap.has(wid)) workerSessionMap.set(wid, []);
+    workerSessionMap.get(wid).push(s);
   }
 
   const results = [];
 
   for (const item of evaluations) {
     const { workerId, workerCode, workerName, attendanceStatus, answers } = item;
+    const workerDoc = workerDocMap.get(String(workerId));
+    const desName = (workerDoc?.designation?.name || '').toLowerCase();
+    const isNightWorker = desName.includes('night') || desName.includes('नाईट');
 
     // Build question answer snapshots
     const answerSnapshots = [];
@@ -355,8 +362,8 @@ export async function submitDailyEvaluation(req, res) {
       if (q) {
         let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
 
-        // Automated punctuality enforcement for non-admin evaluators (Q1 & Q3) for non-absent workers
-        if (!isAdmin && attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
+        // Automated punctuality enforcement (Q1 & Q3) for non-absent workers
+        if (attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
           const wSessions = workerSessionMap?.get(String(workerId)) || [];
           let dutyInDate = null;
           let lunchInDate = null;
@@ -368,9 +375,9 @@ export async function submitDailyEvaluation(req, res) {
           }
 
           if (q.displayOrder === 1) {
-            finalAnswer = evaluateDutyInPunctuality(dutyInDate).answer;
+            finalAnswer = evaluateDutyInPunctuality(dutyInDate, isNightWorker).answer;
           } else if (q.displayOrder === 3) {
-            finalAnswer = evaluateLunchInPunctuality(lunchInDate, lunchOutDate).answer;
+            finalAnswer = evaluateLunchInPunctuality(lunchInDate, lunchOutDate, isNightWorker).answer;
           }
         }
 
