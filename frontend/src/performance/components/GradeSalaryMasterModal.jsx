@@ -8,15 +8,15 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Active Tab: 'grades' (Cutoff Rules) or 'salaries' (Designation-based Salaries)
+  // Active Tab: 'grades' (Cutoff Rules) or 'salaries' (Unique Category Salaries)
   const [activeTab, setActiveTab] = useState('grades');
 
-  // Farm designations from Attendance module
-  const [designations, setDesignations] = useState([]);
-  const [designationSearch, setDesignationSearch] = useState('');
+  // Deduplicated Job Categories (Supervisor, Night Guard, Female Worker, etc.)
+  const [categories, setCategories] = useState([]);
+  const [categorySearch, setCategorySearch] = useState('');
 
-  // Map of designationId -> { gradeA, gradeB, gradeC, gradeD }
-  const [designationSalaries, setDesignationSalaries] = useState({});
+  // Map of categoryKey -> { gradeA, gradeB, gradeC, gradeD }
+  const [categorySalaries, setCategorySalaries] = useState({});
 
   // Default fallback monthly salary per grade
   const [salaries, setSalaries] = useState({
@@ -49,8 +49,8 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
     try {
       const res = await getGradeSalaryConfig();
       
-      // Save designations
-      setDesignations(res.designations || []);
+      const catList = res.categories || [];
+      setCategories(catList);
 
       if (res.config?.gradeSalaries) {
         setSalaries({
@@ -61,18 +61,41 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
         });
       }
 
-      // Populate existing designation salaries into lookup map
+      // Populate category salaries map: { [categoryKey]: { gradeA, gradeB, ... } }
       const salaryMap = {};
-      (res.config?.designationSalaries || []).forEach((ds) => {
-        const id = ds.designation?._id || ds.designation;
-        salaryMap[id] = {
-          gradeA: ds.gradeA ?? 11500,
-          gradeB: ds.gradeB ?? 10500,
-          gradeC: ds.gradeC ?? 9500,
-          gradeD: ds.gradeD ?? 0,
-        };
+      
+      // 1. From saved categorySalaries
+      (res.config?.categorySalaries || []).forEach((cs) => {
+        if (cs.categoryKey) {
+          salaryMap[cs.categoryKey] = {
+            gradeA: cs.gradeA ?? 11500,
+            gradeB: cs.gradeB ?? 10500,
+            gradeC: cs.gradeC ?? 9500,
+            gradeD: cs.gradeD ?? 0,
+          };
+        }
       });
-      setDesignationSalaries(salaryMap);
+
+      // 2. From saved designationSalaries (backward compatibility)
+      if (res.config?.designationSalaries?.length) {
+        catList.forEach((cat) => {
+          if (!salaryMap[cat.categoryKey]) {
+            const match = res.config.designationSalaries.find((ds) =>
+              (cat.designationIds || []).some((id) => String(id) === String(ds.designation?._id || ds.designation))
+            );
+            if (match) {
+              salaryMap[cat.categoryKey] = {
+                gradeA: match.gradeA ?? 11500,
+                gradeB: match.gradeB ?? 10500,
+                gradeC: match.gradeC ?? 9500,
+                gradeD: match.gradeD ?? 0,
+              };
+            }
+          }
+        });
+      }
+
+      setCategorySalaries(salaryMap);
 
       if (res.config?.gradeRules) {
         setPercentages({
@@ -113,14 +136,14 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
   const calculatedMaxC = Math.max(calculatedMinC, calculatedMinB - 1);
   const calculatedMaxD = Math.max(0, calculatedMinC - 1);
 
-  const handleSalaryChange = (designationId, gradeKey, value) => {
-    setDesignationSalaries((prev) => ({
+  const handleSalaryChange = (categoryKey, gradeKey, value) => {
+    setCategorySalaries((prev) => ({
       ...prev,
-      [designationId]: {
-        gradeA: prev[designationId]?.gradeA ?? salaries.gradeA,
-        gradeB: prev[designationId]?.gradeB ?? salaries.gradeB,
-        gradeC: prev[designationId]?.gradeC ?? salaries.gradeC,
-        gradeD: prev[designationId]?.gradeD ?? 0,
+      [categoryKey]: {
+        gradeA: prev[categoryKey]?.gradeA ?? salaries.gradeA,
+        gradeB: prev[categoryKey]?.gradeB ?? salaries.gradeB,
+        gradeC: prev[categoryKey]?.gradeC ?? salaries.gradeC,
+        gradeD: prev[categoryKey]?.gradeD ?? 0,
         [gradeKey]: value,
       },
     }));
@@ -145,17 +168,33 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
     setError('');
     setSuccess('');
     try {
-      // Build designation salaries payload
-      const formattedDesignationSalaries = designations.map((d) => {
-        const s = designationSalaries[d._id] || {};
+      // 1. Build category salaries payload
+      const formattedCategorySalaries = categories.map((c) => {
+        const s = categorySalaries[c.categoryKey] || {};
         return {
-          designation: d._id,
-          designationName: d.name,
+          categoryKey: c.categoryKey,
+          categoryName: c.categoryName,
           gradeA: Number(s.gradeA ?? salaries.gradeA),
           gradeB: Number(s.gradeB ?? salaries.gradeB),
           gradeC: Number(s.gradeC ?? salaries.gradeC),
           gradeD: Number(s.gradeD ?? 0),
         };
+      });
+
+      // 2. Map to underlying designation IDs across Raghav & Sanjana for complete backward compatibility
+      const formattedDesignationSalaries = [];
+      categories.forEach((c) => {
+        const s = categorySalaries[c.categoryKey] || {};
+        (c.designationIds || []).forEach((dId) => {
+          formattedDesignationSalaries.push({
+            designation: dId,
+            designationName: c.categoryName,
+            gradeA: Number(s.gradeA ?? salaries.gradeA),
+            gradeB: Number(s.gradeB ?? salaries.gradeB),
+            gradeC: Number(s.gradeC ?? salaries.gradeC),
+            gradeD: Number(s.gradeD ?? 0),
+          });
+        });
       });
 
       await updateGradeSalaryConfig({
@@ -165,6 +204,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
           gradeC: Number(salaries.gradeC),
           gradeD: Number(salaries.gradeD ?? 0),
         },
+        categorySalaries: formattedCategorySalaries,
         designationSalaries: formattedDesignationSalaries,
         gradeRules: {
           gradeA: {
@@ -205,8 +245,21 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
     }
   };
 
-  const filteredDesignations = designations.filter((d) =>
-    (d.name || '').toLowerCase().includes(designationSearch.toLowerCase())
+  const EXCLUDED_CATEGORIES = new Set([
+    'accountant',
+    'developer',
+    'head',
+    'main & cleaning worker',
+    'cleaning worker',
+    'management',
+    'outside worker',
+    'support staff',
+    'plumber',
+  ]);
+
+  const filteredCategories = categories.filter((c) =>
+    !EXCLUDED_CATEGORIES.has((c.categoryName || '').toLowerCase()) &&
+    (c.categoryName || '').toLowerCase().includes(categorySearch.toLowerCase())
   );
 
   if (!isOpen) return null;
@@ -218,7 +271,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5 shrink-0 bg-white">
           <div>
             <h2 className="text-sm font-bold text-slate-900">Performance Master Settings</h2>
-            <p className="text-[11px] text-slate-500">Configure grade percentage cutoffs and designation-based salary matrix.</p>
+            <p className="text-[11px] text-slate-500">Configure grade percentage cutoffs and standardized category salary scales.</p>
           </div>
           <button
             onClick={onClose}
@@ -252,10 +305,10 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
             }`}
           >
             <span>💰</span>
-            <span>Category & Designation Salaries</span>
-            {designations.length > 0 && (
-              <span className="rounded-full bg-slate-200 px-1.5 py-0.2 text-[10px] font-bold text-slate-700">
-                {designations.length}
+            <span>Category & Role Salaries</span>
+            {filteredCategories.length > 0 && (
+              <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.2 text-[10px] font-bold">
+                {filteredCategories.length}
               </span>
             )}
           </button>
@@ -400,38 +453,41 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                 </div>
               )}
 
-              {/* TAB 2: DESIGNATION-BASED SALARIES */}
+              {/* TAB 2: STANDARDIZED CATEGORY SALARIES */}
               {activeTab === 'salaries' && (
                 <div className="space-y-3">
-                  {/* Top Bar for Designation Tab */}
+                  {/* Top Bar for Category Tab */}
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-slate-600">
-                      Set monthly salaries for each designation category across Grade A, B, C, D.
-                    </p>
-                    {designations.length > 5 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        Category Salary Scales (Farm-Wide)
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Salaries apply once per role (e.g. 1 Night Guard rule covers all night guards across Raghav & Sanjana).
+                      </p>
+                    </div>
+                    {categories.length > 5 && (
                       <input
                         type="text"
-                        placeholder="Search designation…"
-                        className="h-7 w-48 rounded border border-slate-300 px-2 text-xs text-slate-800 outline-none focus:border-emerald-600"
-                        value={designationSearch}
-                        onChange={(e) => setDesignationSearch(e.target.value)}
+                        placeholder="Search category…"
+                        className="h-7 w-44 rounded border border-slate-300 px-2 text-xs text-slate-800 outline-none focus:border-emerald-600"
+                        value={categorySearch}
+                        onChange={(e) => setCategorySearch(e.target.value)}
                       />
                     )}
                   </div>
 
-                  {/* Designations Table */}
-                  {filteredDesignations.length === 0 ? (
+                  {/* Categories Table */}
+                  {filteredCategories.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500">
-                      {designations.length === 0 
-                        ? 'No designations configured in Attendance module. Workers will use the default base salaries.' 
-                        : 'No matching designations found.'}
+                      No matching categories found.
                     </div>
                   ) : (
                     <div className="overflow-hidden rounded-lg border border-slate-200 shadow-xs">
                       <table className="w-full text-left text-xs">
                         <thead className="bg-slate-100 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                           <tr>
-                            <th className="px-3.5 py-2.5">Designation Category</th>
+                            <th className="px-3.5 py-2.5">Job Category / Role</th>
                             <th className="px-2.5 py-2.5 text-center text-emerald-800 bg-emerald-50/60">
                               Grade A (₹)
                             </th>
@@ -447,19 +503,39 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200 bg-white">
-                          {filteredDesignations.map((d) => {
-                            const cur = designationSalaries[d._id] || {};
+                          {filteredCategories.map((c) => {
+                            const cur = categorySalaries[c.categoryKey] || {};
                             const valA = cur.gradeA !== undefined ? cur.gradeA : salaries.gradeA;
                             const valB = cur.gradeB !== undefined ? cur.gradeB : salaries.gradeB;
                             const valC = cur.gradeC !== undefined ? cur.gradeC : salaries.gradeC;
                             const valD = cur.gradeD !== undefined ? cur.gradeD : (salaries.gradeD ?? 0);
 
+                            const isFemale = c.categoryName === 'Female Worker';
+                            const isNight = c.categoryName === 'Night Guard';
+                            const isSupervisor = c.categoryName === 'Supervisor';
+
                             return (
-                              <tr key={d._id} className="hover:bg-slate-50/80 transition-colors">
+                              <tr key={c.categoryKey} className={`hover:bg-slate-50/80 transition-colors ${isFemale ? 'bg-rose-50/20' : ''}`}>
                                 <td className="px-3.5 py-2 font-semibold text-slate-900">
                                   <div className="flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                                    <span>{d.name}</span>
+                                    {isFemale ? (
+                                      <span className="flex items-center gap-1 rounded bg-rose-100 px-1.5 py-0.5 text-[11px] font-bold text-rose-800 border border-rose-200">
+                                        👩 Female Worker (महिला कर्मचारी)
+                                      </span>
+                                    ) : isNight ? (
+                                      <span className="flex items-center gap-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-bold text-indigo-900 border border-indigo-200">
+                                        🌙 Night Guard
+                                      </span>
+                                    ) : isSupervisor ? (
+                                      <span className="flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[11px] font-bold text-blue-900 border border-blue-200">
+                                        👔 Supervisor
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                        <span>{c.categoryName}</span>
+                                      </>
+                                    )}
                                   </div>
                                 </td>
                                 
@@ -472,7 +548,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                                       min="0"
                                       className="h-7 w-full rounded border border-emerald-300 bg-white pl-4 pr-1 text-xs font-bold text-emerald-800 text-right outline-none focus:border-emerald-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       value={valA}
-                                      onChange={(e) => handleSalaryChange(d._id, 'gradeA', e.target.value)}
+                                      onChange={(e) => handleSalaryChange(c.categoryKey, 'gradeA', e.target.value)}
                                     />
                                   </div>
                                 </td>
@@ -486,7 +562,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                                       min="0"
                                       className="h-7 w-full rounded border border-amber-300 bg-white pl-4 pr-1 text-xs font-bold text-amber-900 text-right outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       value={valB}
-                                      onChange={(e) => handleSalaryChange(d._id, 'gradeB', e.target.value)}
+                                      onChange={(e) => handleSalaryChange(c.categoryKey, 'gradeB', e.target.value)}
                                     />
                                   </div>
                                 </td>
@@ -500,7 +576,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                                       min="0"
                                       className="h-7 w-full rounded border border-rose-300 bg-white pl-4 pr-1 text-xs font-bold text-rose-900 text-right outline-none focus:border-rose-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       value={valC}
-                                      onChange={(e) => handleSalaryChange(d._id, 'gradeC', e.target.value)}
+                                      onChange={(e) => handleSalaryChange(c.categoryKey, 'gradeC', e.target.value)}
                                     />
                                   </div>
                                 </td>
@@ -514,7 +590,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                                       min="0"
                                       className="h-7 w-full rounded border border-slate-300 bg-white pl-4 pr-1 text-xs font-bold text-slate-700 text-right outline-none focus:border-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                       value={valD}
-                                      onChange={(e) => handleSalaryChange(d._id, 'gradeD', e.target.value)}
+                                      onChange={(e) => handleSalaryChange(c.categoryKey, 'gradeD', e.target.value)}
                                     />
                                   </div>
                                 </td>
@@ -528,7 +604,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
 
                   {/* Fallback Notice */}
                   <div className="rounded-md bg-slate-50 p-2 text-center text-[10px] text-slate-500 border border-slate-200">
-                    💡 If any worker doesn't have a custom designation rate set, the system automatically uses the farm base default (A: ₹{salaries.gradeA.toLocaleString()}, B: ₹{salaries.gradeB.toLocaleString()}, C: ₹{salaries.gradeC.toLocaleString()}).
+                    💡 Setting a salary here applies across all farms (Raghav & Sanjana). Base default fallback: A: ₹{salaries.gradeA.toLocaleString()}, B: ₹{salaries.gradeB.toLocaleString()}, C: ₹{salaries.gradeC.toLocaleString()}.
                   </div>
                 </div>
               )}
@@ -547,7 +623,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
                   disabled={saving}
                   className="rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
                 >
-                  {saving ? 'Saving…' : activeTab === 'salaries' ? 'Save Designation Salaries' : 'Save Grade Rules'}
+                  {saving ? 'Saving…' : activeTab === 'salaries' ? 'Save Category Salaries' : 'Save Grade Rules'}
                 </button>
               </div>
             </form>

@@ -8,6 +8,7 @@ import Worker from '../../attendance/models/Worker.js';
 import AttendanceSession from '../../attendance/models/AttendanceSession.js';
 import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
+import { standardizeCategoryName } from './master.controller.js';
 
 // ==========================================
 // 1. GET MONTHLY WORKERS & SALARY SUMMARY
@@ -219,19 +220,32 @@ export async function getMonthlySalarySummary(req, res) {
     const existingSalaryDoc = salaryMap.get(wId);
     const currentSalary = existingSalaryDoc?.currentSalary || 0;
 
-    // Direct salary mapped to Grade based on worker's designation category
-    // Step 1: Look for designation-specific rates in Tab 2
+    // Direct salary mapped to Grade based on worker's standardized category (e.g. Supervisor, Night Guard, Female Worker)
+    // Step 1: Determine worker's category (checks gender and designation name)
+    let workerCatName = '';
+    if (w.gender === 'FEMALE' || String(w.designation?.name || '').toLowerCase().includes('female')) {
+      workerCatName = 'Female Worker';
+    } else {
+      workerCatName = standardizeCategoryName(w.designation?.name || '');
+    }
+
+    // Step 2: Look for category-specific rates in Tab 2
+    const customCategorySalary = (config.categorySalaries || []).find(
+      (cs) => cs.categoryName === workerCatName || cs.categoryKey === workerCatName.toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    );
+
+    // Fallback: check legacy designationSalaries by ID if present
     const workerDesigId = String(w.designation?._id || w.designation || '');
     const customDesigSalary = (config.designationSalaries || []).find(
       (ds) => String(ds.designation?._id || ds.designation) === workerDesigId
     );
 
-    // Step 2: Fall back to farm base defaults if not set
+    // Step 3: Combine with fallback to base farm defaults
     const salaries = {
-      gradeA: customDesigSalary?.gradeA ?? config.gradeSalaries?.gradeA ?? 11500,
-      gradeB: customDesigSalary?.gradeB ?? config.gradeSalaries?.gradeB ?? 10500,
-      gradeC: customDesigSalary?.gradeC ?? config.gradeSalaries?.gradeC ?? 9500,
-      gradeD: customDesigSalary?.gradeD ?? config.gradeSalaries?.gradeD ?? 0,
+      gradeA: customCategorySalary?.gradeA ?? customDesigSalary?.gradeA ?? config.gradeSalaries?.gradeA ?? 11500,
+      gradeB: customCategorySalary?.gradeB ?? customDesigSalary?.gradeB ?? config.gradeSalaries?.gradeB ?? 10500,
+      gradeC: customCategorySalary?.gradeC ?? customDesigSalary?.gradeC ?? config.gradeSalaries?.gradeC ?? 9500,
+      gradeD: customCategorySalary?.gradeD ?? customDesigSalary?.gradeD ?? config.gradeSalaries?.gradeD ?? 0,
     };
     let proposedSalary = currentSalary;
 

@@ -64,7 +64,19 @@ const schema = new mongoose.Schema({
     gradeD: { type: Number, default: 0, min: 0 },
   },
 
-  // Section C: Designation-based Category Salaries (e.g. Supervisor, Driver, Shed Worker)
+  // Section C: Category-based Salaries (e.g. Supervisor, Night Guard, Female Worker)
+  categorySalaries: [
+    {
+      categoryKey: { type: String, required: true },
+      categoryName: { type: String, required: true },
+      gradeA: { type: Number, default: 11500, min: 0 },
+      gradeB: { type: Number, default: 10500, min: 0 },
+      gradeC: { type: Number, default: 9500, min: 0 },
+      gradeD: { type: Number, default: 0, min: 0 },
+    }
+  ],
+
+  // Designation-based Category Salaries (legacy / fallback)
   designationSalaries: [
     {
       designation: { 
