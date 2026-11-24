@@ -226,4 +226,4 @@ export async function getRatingComparison(req, res) {
     workers: comparisonRows,
   });
 }
-// aync funtion Handler (){}
+

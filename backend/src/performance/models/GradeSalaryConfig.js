@@ -56,13 +56,29 @@ const schema = new mongoose.Schema({
     scoreMultiplier: { type: Number, default: 0.5, min: 0, max: 1 }, // Half-day weight  
   },
 
-  // Simple Grade-Wise Monthly Salary (e.g. A = 12000, B = 11000, C = 10000, D = 0 / min)
+  // Section B: Default / Fallback Monthly Salary per Grade
   gradeSalaries: {
     gradeA: { type: Number, default: 11500, min: 0 },
     gradeB: { type: Number, default: 10500, min: 0 },
     gradeC: { type: Number, default: 9500, min: 0 },
     gradeD: { type: Number, default: 0, min: 0 },
   },
+
+  // Section C: Designation-based Category Salaries (e.g. Supervisor, Driver, Shed Worker)
+  designationSalaries: [
+    {
+      designation: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'AttendanceDesignation',
+        required: true,
+      },
+      designationName: { type: String, default: '' },
+      gradeA: { type: Number, default: 11500, min: 0 },
+      gradeB: { type: Number, default: 10500, min: 0 },
+      gradeC: { type: Number, default: 9500, min: 0 },
+      gradeD: { type: Number, default: 0, min: 0 },
+    }
+  ],
 
   // Section B: Salary Rules 
   salaryIncrementRules: {

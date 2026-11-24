@@ -219,9 +219,20 @@ export async function getMonthlySalarySummary(req, res) {
     const existingSalaryDoc = salaryMap.get(wId);
     const currentSalary = existingSalaryDoc?.currentSalary || 0;
 
-    // Direct salary mapped to Grade: A = 11.5k, B = 10.5k, C = 9.5k, D = 0
-    // Or if manually edited/saved for this month, use the saved value
-    const salaries = config.gradeSalaries || { gradeA: 11500, gradeB: 10500, gradeC: 9500, gradeD: 0 };
+    // Direct salary mapped to Grade based on worker's designation category
+    // Step 1: Look for designation-specific rates in Tab 2
+    const workerDesigId = String(w.designation?._id || w.designation || '');
+    const customDesigSalary = (config.designationSalaries || []).find(
+      (ds) => String(ds.designation?._id || ds.designation) === workerDesigId
+    );
+
+    // Step 2: Fall back to farm base defaults if not set
+    const salaries = {
+      gradeA: customDesigSalary?.gradeA ?? config.gradeSalaries?.gradeA ?? 11500,
+      gradeB: customDesigSalary?.gradeB ?? config.gradeSalaries?.gradeB ?? 10500,
+      gradeC: customDesigSalary?.gradeC ?? config.gradeSalaries?.gradeC ?? 9500,
+      gradeD: customDesigSalary?.gradeD ?? config.gradeSalaries?.gradeD ?? 0,
+    };
     let proposedSalary = currentSalary;
 
     if (existingSalaryDoc?.activeProposal?.month === month && existingSalaryDoc.activeProposal.proposedSalary) {

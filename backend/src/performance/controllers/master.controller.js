@@ -1,7 +1,9 @@
 import PerformanceQuestion from '../models/PerformanceQuestion.js';
 import GradeSalaryConfig from '../models/GradeSalaryConfig.js';
+import Designation from '../../attendance/models/Designation.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 import { convertToHindi } from '../utils/hindiTranslator.js';
+
 
 // Initial 6 Hindi questions as requested by the client
 const DEFAULT_QUESTIONS = [
@@ -145,10 +147,18 @@ export async function getGradeSalaryConfig(req, res) {
       config.gradeRules.gradeC = { ...config.gradeRules.gradeC, minPercentage: percentC };
     }
   }
+   
+   const designations=await Designation.find({
+    active:true
+   }).select('_id name')
+     .sort({name:1})
+     .lean();
 
+   
   res.json({
     success: true,
     config,
+    designations,
     questionSummary: {
       totalQuestions,
       totalWeight,

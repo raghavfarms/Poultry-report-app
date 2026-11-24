@@ -77,7 +77,7 @@ export default function PerformanceHubPage() {
           </div>
         </div>
 
-        {/* Master Management Buttons - Admin / Performance Master Only */}
+        {/* Master Management Buttons */}
         {canManageMasters && (
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="hidden sm:inline text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-0.5">
@@ -90,13 +90,15 @@ export default function PerformanceHubPage() {
               <span>📝</span>
               Questions
             </button>
-            <button
-              onClick={() => setShowGradeSalaryMaster(true)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition"
-            >
-              <span>⚖️</span>
-              Grade & Salary
-            </button>
+            {isAdminOrDev && (
+              <button
+                onClick={() => setShowGradeSalaryMaster(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5 sm:text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition"
+              >
+                <span>⚖️</span>
+                Grade & Salary
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -54,9 +54,9 @@ router.post('/questions/translate', masterAccessOnly, translateQuestionText);
 router.put('/questions/:id', masterAccessOnly, updateQuestion);
 router.delete('/questions/:id', masterAccessOnly, deleteQuestion);
 
-// Grade & Salary Master
-router.get('/config', getGradeSalaryConfig);
-router.put('/config', masterAccessOnly, updateGradeSalaryConfig);
+// Grade & Salary Master (Strictly Admin / Developer only)
+router.get('/config', adminOnly, getGradeSalaryConfig);
+router.put('/config', adminOnly, updateGradeSalaryConfig);
 
 // ==========================================
 // 2. TAB 1: DAILY EVALUATION (All authorized accounts)
