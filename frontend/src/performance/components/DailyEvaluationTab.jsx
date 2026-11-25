@@ -19,11 +19,12 @@ function isDriverOrNightGuard(designationName) {
   return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
 }
 
-function isShedOnlyQuestion(q) {
-  const order = q?.displayOrder || q?.displayOrderSnapshot;
+function isNonApplicableForDriverOrNight(q) {
   const text = q?.questionText || q?.questionTextSnapshot || '';
-  return order === 5 || order === 6 || order === 8 || order === 11 ||
-         text.includes('दाना') || text.includes('AI') || text.includes('सफाई') || text.includes('अंडा');
+  return text.includes('लंच') ||
+         text.includes('दाना') ||
+         text.includes('AI') ||
+         text.includes('अंडा');
 }
 
 export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
@@ -245,9 +246,9 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
         const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
         const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;
         const isAutoQ = isDutyInQ || isLunchInQ;
-        const isShedQ = isShedOnlyQuestion(q);
+        const isNonApplicable = isNonApplicableForDriverOrNight(q);
 
-        if (isDriverOrNight && isShedQ) {
+        if (isDriverOrNight && isNonApplicable) {
           workerAns[q._id] = 'N/A';
           continue;
         }
@@ -565,8 +566,8 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                         const isAbsent = group.key === 'absent';
                         const isLeaveQ = q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
                         const isDriverOrNight = isDriverOrNightGuard(w.designationName);
-                        const isShedQ = isShedOnlyQuestion(q);
-                        const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isShedQ));
+                        const isNonApplicable = isNonApplicableForDriverOrNight(q);
+                        const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isNonApplicable));
                         const currentAnswer = evalAnswers[w.workerId]?.[q._id] || 'YES';
                         const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
                         const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;

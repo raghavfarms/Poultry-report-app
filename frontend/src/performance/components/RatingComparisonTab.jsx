@@ -18,11 +18,12 @@ function isDriverOrNightGuard(designationName) {
   return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
 }
 
-function isShedOnlyQuestion(q) {
-  const order = q?.displayOrder || q?.displayOrderSnapshot;
+function isNonApplicableForDriverOrNight(q) {
   const text = q?.questionText || q?.questionTextSnapshot || '';
-  return order === 5 || order === 6 || order === 8 || order === 11 ||
-         text.includes('दाना') || text.includes('AI') || text.includes('सफाई') || text.includes('अंडा');
+  return text.includes('लंच') ||
+         text.includes('दाना') ||
+         text.includes('AI') ||
+         text.includes('अंडा');
 }
 
 export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
@@ -366,8 +367,8 @@ export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChang
                         const isAbsent = group.key === 'absent';
                         const isLeaveQ = q.isLeaveQuestion || q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
                         const isDriverOrNight = isDriverOrNightGuard(w.designationName);
-                        const isShedQ = isShedOnlyQuestion(q);
-                        const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isShedQ));
+                        const isNonApplicable = isNonApplicableForDriverOrNight(q);
+                        const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isNonApplicable));
                         const qId = String(q._id);
 
                         if (!isApplicable) {
@@ -516,8 +517,8 @@ export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChang
                     const isAbsent = detailModal.worker.attendanceStatus === 'ABSENT';
                     const isLeaveQ = q.isLeaveQuestion || q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
                     const isDriverOrNight = isDriverOrNightGuard(detailModal.worker.designationName);
-                    const isShedQ = isShedOnlyQuestion(q);
-                    const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isShedQ));
+                    const isNonApplicable = isNonApplicableForDriverOrNight(q);
+                    const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isNonApplicable));
 
                     const answers = detailModal.worker.evaluations.map((ev) => {
                       const matched = ev.answers.find((a) => String(a.questionId) === qId);

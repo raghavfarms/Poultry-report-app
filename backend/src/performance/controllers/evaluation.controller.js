@@ -16,12 +16,14 @@ function isDriverOrNightGuard(designationName) {
   return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
 }
 
-// Helper: Identify bird-shed specific tasks (दाना, AI, सफाई, अंडा)
-function isShedOnlyQuestion(q) {
-  const order = q?.displayOrder || q?.displayOrderSnapshot;
+// Helper: Identify questions NOT applicable to Driver & Night Guard
+// (Lunch, दाना, AI, अंडा are not applicable; whereas समय पर आया, आदेश, सफाई/काम, बिना शराब, झगड़ा नहीं ARE applicable = exactly 5 questions)
+function isNonApplicableForDriverOrNight(q) {
   const text = q?.questionText || q?.questionTextSnapshot || '';
-  return order === 5 || order === 6 || order === 8 || order === 11 ||
-         text.includes('दाना') || text.includes('AI') || text.includes('सफाई') || text.includes('अंडा');
+  return text.includes('लंच') ||
+         text.includes('दाना') ||
+         text.includes('AI') ||
+         text.includes('अंडा');
 }
 
 // Helper: Calculate daily score and grade based on variable points scale and attendance
@@ -66,9 +68,9 @@ function calculateDailyPerformance(answers, config, attendanceStatus, isDriverOr
     const isLeaveQ = ans.displayOrderSnapshot === 4 || ans.questionTextSnapshot?.includes('छुट्टी');
     if (isLeaveQ) continue; // Skip leave question for present workers
 
-    const isShedQ = isShedOnlyQuestion(ans);
-    if (isDriverOrNight && isShedQ) {
-      // Auto neutral credit (+1 point) for the 4 shed questions not applicable to Driver & Night Guard
+    const isNonApplicable = isNonApplicableForDriverOrNight(ans);
+    if (isDriverOrNight && isNonApplicable) {
+      // Auto neutral credit (+1 point) for the 4 non-applicable questions for Driver & Night Guard
       totalPoints += Number(ans.weightSnapshot || 1);
       maxPossiblePoints += Number(ans.weightSnapshot || 1);
       continue;
@@ -384,9 +386,9 @@ export async function submitDailyEvaluation(req, res) {
       const q = questionMap.get(String(ans.questionId));
       if (q) {
         let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
-        const isShedQ = isShedOnlyQuestion(q);
+        const isNonApplicable = isNonApplicableForDriverOrNight(q);
 
-        if (isDriverOrNight && isShedQ) {
+        if (isDriverOrNight && isNonApplicable) {
           finalAnswer = 'N/A';
         } else if (attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
           const wSessions = workerSessionMap?.get(String(workerId)) || [];
