@@ -77,14 +77,6 @@ function calculateDailyPerformance(answers, config, attendanceStatus, isDriverOr
     const isLeaveQ = ans.displayOrderSnapshot === 4 || ans.questionTextSnapshot?.includes('छुट्टी');
     if (isLeaveQ) continue; // Skip leave question for present workers
 
-    const isNonApplicable = isNonApplicableForDriverOrNight(ans);
-    if (isDriverOrNight && isNonApplicable) {
-      // Auto neutral credit (+1 point) for the 4 non-applicable questions for Driver & Night Guard
-      totalPoints += Number(ans.weightSnapshot || 1);
-      maxPossiblePoints += Number(ans.weightSnapshot || 1);
-      continue;
-    }
-
     const weight = Number(ans.weightSnapshot || 1);
     maxPossiblePoints += weight;
 
@@ -95,6 +87,14 @@ function calculateDailyPerformance(answers, config, attendanceStatus, isDriverOr
     if (ans.answer === 'YES') {
       totalPoints += weight;
     }
+  }
+
+  // For Driver & Night Guard / Security: 5 active questions are evaluated.
+  // The remaining 4 non-applicable questions receive neutral credit (+4 points) to scale to universal 9-point system.
+  if (isDriverOrNight && maxPossiblePoints > 0 && maxPossiblePoints < 9) {
+    const neutralCredit = 9 - maxPossiblePoints;
+    totalPoints += neutralCredit;
+    maxPossiblePoints += neutralCredit;
   }
 
   // Daily score directly in points earned
@@ -389,43 +389,47 @@ export async function submitDailyEvaluation(req, res) {
     const isDriverOrNight = isDriverOrNightGuard(desName);
     const isNightWorker = desName.includes('night') || desName.includes('नाईट');
 
-    // Build question answer snapshots
+    // Build question answer snapshots: Only evaluate applicable questions with YES / NO (omit N/A questions!)
     const answerSnapshots = [];
     for (const ans of answers) {
       const q = questionMap.get(String(ans.questionId));
-      if (q) {
-        let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
-        const isNonApplicable = isNonApplicableForDriverOrNight(q);
+      if (!q) continue;
 
-        if (isDriverOrNight && isNonApplicable) {
-          finalAnswer = 'N/A';
-        } else if (attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
-          const wSessions = workerSessionMap?.get(String(workerId)) || [];
-          let dutyInDate = null;
-          let lunchInDate = null;
-          let lunchOutDate = null;
-          for (const sess of wSessions) {
-            if (!dutyInDate && sess.dutyIn) dutyInDate = sess.dutyIn;
-            if (!lunchInDate && sess.lunchIn) lunchInDate = sess.lunchIn;
-            if (!lunchOutDate && sess.lunchOut) lunchOutDate = sess.lunchOut;
-          }
+      const isNonApplicable = isNonApplicableForDriverOrNight(q);
+      const isLeaveQ = q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
 
-          if (q.displayOrder === 1) {
-            finalAnswer = evaluateDutyInPunctuality(dutyInDate, isNightWorker).answer;
-          } else if (q.displayOrder === 3) {
-            finalAnswer = evaluateLunchInPunctuality(lunchInDate, lunchOutDate, isNightWorker).answer;
-          }
+      // Skip questions that are N/A (jiska NA rahe uska chhod):
+      if (attendanceStatus !== 'ABSENT' && isLeaveQ) continue;
+      if (isDriverOrNight && isNonApplicable) continue;
+      if (attendanceStatus === 'ABSENT' && !isLeaveQ) continue;
+
+      let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
+      if (attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
+        const wSessions = workerSessionMap?.get(String(workerId)) || [];
+        let dutyInDate = null;
+        let lunchInDate = null;
+        let lunchOutDate = null;
+        for (const sess of wSessions) {
+          if (!dutyInDate && sess.dutyIn) dutyInDate = sess.dutyIn;
+          if (!lunchInDate && sess.lunchIn) lunchInDate = sess.lunchIn;
+          if (!lunchOutDate && sess.lunchOut) lunchOutDate = sess.lunchOut;
         }
 
-        answerSnapshots.push({
-          questionId: q._id,
-          questionTextSnapshot: q.questionText,
-          displayOrderSnapshot: q.displayOrder,
-          answer: finalAnswer,
-          weightSnapshot: q.weight || 1,
-          isCriticalViolationSnapshot: Boolean(q.isCriticalViolation),
-        });
+        if (q.displayOrder === 1) {
+          finalAnswer = evaluateDutyInPunctuality(dutyInDate, isNightWorker).answer;
+        } else if (q.displayOrder === 3) {
+          finalAnswer = evaluateLunchInPunctuality(lunchInDate, lunchOutDate, isNightWorker).answer;
+        }
       }
+
+      answerSnapshots.push({
+        questionId: q._id,
+        questionTextSnapshot: q.questionText,
+        displayOrderSnapshot: q.displayOrder,
+        answer: finalAnswer,
+        weightSnapshot: q.weight || 1,
+        isCriticalViolationSnapshot: Boolean(q.isCriticalViolation),
+      });
     }
 
     const { dailyScore, dailyGrade, hasCriticalViolation, isApprovedLeave } = calculateDailyPerformance(

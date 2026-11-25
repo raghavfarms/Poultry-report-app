@@ -18,7 +18,7 @@ const answerSnapshotSchema = new mongoose.Schema({
     type: String, 
     enum: ['YES', 'NO'], 
     required: true 
-  }, // 'YES' = positive / no problem, 'NO' = issue found
+  }, // Only applicable questions are saved with 'YES' or 'NO' (N/A questions are excluded)
   weightSnapshot: { 
     type: Number, 
     default: 1 
