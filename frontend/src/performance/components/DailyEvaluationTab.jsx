@@ -403,19 +403,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
         </div>
       )}
 
-      {isAdmin && data?.evaluatedCount > 0 && (
-        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-800 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span>🔓</span>
-            <span>
-              <strong>Admin Mode:</strong> You can edit ratings and re-submit for this date anytime.
-            </span>
-          </div>
-          <span className="text-[11px] bg-emerald-200/60 text-emerald-900 font-bold px-2 py-0.5 rounded">
-            {data.evaluatedCount} Ratings Saved
-          </span>
-        </div>
-      )}
+
 
     
 
