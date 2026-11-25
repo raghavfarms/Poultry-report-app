@@ -33,8 +33,11 @@ export async function getMonthlySalarySummary(req, res) {
 
   if (!firm) throw notFoundError('Firm not found.');
 
-  // Variable maximum points based on active questions and admin-configured percentages
-  const totalMaxPoints = (activeQuestions || []).reduce((acc, q) => acc + (q.weight || 1), 0) || 10;
+  // Variable maximum points based on active operational questions (excluding Question 4 leave question) and admin-configured percentages
+  const operationalQuestions = (activeQuestions || []).filter(
+    (q) => q.displayOrder !== 4 && !q.questionText?.includes('छुट्टी')
+  );
+  const totalMaxPoints = operationalQuestions.reduce((acc, q) => acc + (q.weight || 1), 0) || 9;
   const percentA = config.gradeRules?.gradeA?.minPercentage || 85;
   const percentB = config.gradeRules?.gradeB?.minPercentage || 77;
   const percentC = (config.gradeRules?.gradeC?.minPercentage > 0) ? config.gradeRules.gradeC.minPercentage : 50;

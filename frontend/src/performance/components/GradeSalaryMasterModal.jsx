@@ -35,11 +35,11 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
 
   // Dynamic variable questions summary
   const [summary, setSummary] = useState({
-    totalQuestions: 8,
-    totalWeight: 10,
-    gradeA: { minScore: 9, maxScore: 10 },
-    gradeB: { minScore: 8, maxScore: 8 },
-    gradeC: { minScore: 5, maxScore: 7 },
+    totalQuestions: 9,
+    totalWeight: 9,
+    gradeA: { minScore: 8, maxScore: 9 },
+    gradeB: { minScore: 7, maxScore: 7 },
+    gradeC: { minScore: 5, maxScore: 6 },
     gradeD: { minScore: 0, maxScore: 4 },
   });
 
@@ -125,7 +125,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
   }, [isOpen]);
 
   // Live dynamic point calculations based on total weight and configured percentages
-  const totalWeight = summary.totalWeight || 10;
+  const totalWeight = summary.totalWeight || 9;
   const percentA = Number(percentages.gradeA) || 0;
   const percentB = Number(percentages.gradeB) || 0;
   const percentC = Number(percentages.gradeC) || 0;
@@ -450,7 +450,7 @@ export default function GradeSalaryMasterModal({ isOpen, onClose }) {
 
                   {/* Dynamic summary indicator - Compact */}
                   <div className="rounded-md bg-slate-50 p-2 text-center text-[10px] text-slate-500 border border-slate-200">
-                    💡 <strong>{summary.totalQuestions}</strong> questions, <strong>{totalWeight} total pts</strong>. Points auto-calculate from percentages.
+                    💡 <strong>{summary.totalQuestions}</strong> operational questions, <strong>{totalWeight} total pts</strong>. Points auto-calculate from percentages.
                   </div>
                 </div>
               )}

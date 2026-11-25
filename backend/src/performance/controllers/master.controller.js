@@ -160,10 +160,13 @@ export async function getGradeSalaryConfig(req, res) {
     });
   }
 
-  // Dynamically calculate score brackets based on currently active questions, weights, and admin-configured percentages
+  // Dynamically calculate score brackets based on currently active operational questions (excluding Question 4 leave question)
   const activeQuestions = await PerformanceQuestion.find({ active: true }).lean();
-  const totalQuestions = activeQuestions.length;
-  const totalWeight = activeQuestions.reduce((acc, q) => acc + (q.weight || 1), 0) || 10;
+  const operationalQuestions = activeQuestions.filter(
+    (q) => q.displayOrder !== 4 && !q.questionText?.includes('छुट्टी')
+  );
+  const totalQuestions = operationalQuestions.length;
+  const totalWeight = operationalQuestions.reduce((acc, q) => acc + (q.weight || 1), 0) || 9;
   
   const percentA = config.gradeRules?.gradeA?.minPercentage || 85;
   const percentB = config.gradeRules?.gradeB?.minPercentage || 77;
