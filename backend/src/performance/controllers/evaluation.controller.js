@@ -10,8 +10,22 @@ import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError, forbiddenError } from '../../utils/http.js';
 import { evaluateDutyInPunctuality, evaluateLunchInPunctuality } from '../utils/attendancePunctuality.js';
 
+// Helper: Detect if a worker role is Driver or Night Guard
+function isDriverOrNightGuard(designationName) {
+  const d = (designationName || '').toLowerCase();
+  return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
+}
+
+// Helper: Identify bird-shed specific tasks (दाना, AI, सफाई, अंडा)
+function isShedOnlyQuestion(q) {
+  const order = q?.displayOrder || q?.displayOrderSnapshot;
+  const text = q?.questionText || q?.questionTextSnapshot || '';
+  return order === 5 || order === 6 || order === 8 || order === 11 ||
+         text.includes('दाना') || text.includes('AI') || text.includes('सफाई') || text.includes('अंडा');
+}
+
 // Helper: Calculate daily score and grade based on variable points scale and attendance
-function calculateDailyPerformance(answers, config, attendanceStatus) {
+function calculateDailyPerformance(answers, config, attendanceStatus, isDriverOrNight = false) {
   const isAbsent = attendanceStatus === 'ABSENT';
 
   if (isAbsent) {
@@ -51,6 +65,14 @@ function calculateDailyPerformance(answers, config, attendanceStatus) {
   for (const ans of answers) {
     const isLeaveQ = ans.displayOrderSnapshot === 4 || ans.questionTextSnapshot?.includes('छुट्टी');
     if (isLeaveQ) continue; // Skip leave question for present workers
+
+    const isShedQ = isShedOnlyQuestion(ans);
+    if (isDriverOrNight && isShedQ) {
+      // Auto neutral credit (+1 point) for the 4 shed questions not applicable to Driver & Night Guard
+      totalPoints += Number(ans.weightSnapshot || 1);
+      maxPossiblePoints += Number(ans.weightSnapshot || 1);
+      continue;
+    }
 
     const weight = Number(ans.weightSnapshot || 1);
     maxPossiblePoints += weight;
@@ -353,6 +375,7 @@ export async function submitDailyEvaluation(req, res) {
     const { workerId, workerCode, workerName, attendanceStatus, answers } = item;
     const workerDoc = workerDocMap.get(String(workerId));
     const desName = (workerDoc?.designation?.name || '').toLowerCase();
+    const isDriverOrNight = isDriverOrNightGuard(desName);
     const isNightWorker = desName.includes('night') || desName.includes('नाईट');
 
     // Build question answer snapshots
@@ -361,9 +384,11 @@ export async function submitDailyEvaluation(req, res) {
       const q = questionMap.get(String(ans.questionId));
       if (q) {
         let finalAnswer = ans.answer === 'NO' ? 'NO' : 'YES';
+        const isShedQ = isShedOnlyQuestion(q);
 
-        // Automated punctuality enforcement (Q1 & Q3) for non-absent workers
-        if (attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
+        if (isDriverOrNight && isShedQ) {
+          finalAnswer = 'N/A';
+        } else if (attendanceStatus !== 'ABSENT' && (q.displayOrder === 1 || q.displayOrder === 3)) {
           const wSessions = workerSessionMap?.get(String(workerId)) || [];
           let dutyInDate = null;
           let lunchInDate = null;
@@ -395,7 +420,8 @@ export async function submitDailyEvaluation(req, res) {
     const { dailyScore, dailyGrade, hasCriticalViolation, isApprovedLeave } = calculateDailyPerformance(
       answerSnapshots,
       config,
-      attendanceStatus
+      attendanceStatus,
+      isDriverOrNight
     );
 
     const userRoleName = req.user.role?.name || (typeof req.user.role === 'string' ? req.user.role : 'Supervisor');

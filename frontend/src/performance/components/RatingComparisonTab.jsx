@@ -12,6 +12,19 @@ function getYesterdayIST() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
 }
 
+// Helpers: Detect non-shed general roles (Driver, Night Guard) and shed-only questions
+function isDriverOrNightGuard(designationName) {
+  const d = (designationName || '').toLowerCase();
+  return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
+}
+
+function isShedOnlyQuestion(q) {
+  const order = q?.displayOrder || q?.displayOrderSnapshot;
+  const text = q?.questionText || q?.questionTextSnapshot || '';
+  return order === 5 || order === 6 || order === 8 || order === 11 ||
+         text.includes('दाना') || text.includes('AI') || text.includes('सफाई') || text.includes('अंडा');
+}
+
 export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
   const [date, setDate] = useState(getYesterdayIST());
   const [search, setSearch] = useState('');
@@ -352,7 +365,9 @@ export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChang
                       group.list.map((w) => {
                         const isAbsent = group.key === 'absent';
                         const isLeaveQ = q.isLeaveQuestion || q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
-                        const isApplicable = isAbsent ? isLeaveQ : !isLeaveQ;
+                        const isDriverOrNight = isDriverOrNightGuard(w.designationName);
+                        const isShedQ = isShedOnlyQuestion(q);
+                        const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isShedQ));
                         const qId = String(q._id);
 
                         if (!isApplicable) {
@@ -498,12 +513,18 @@ export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChang
                 <tbody className="divide-y divide-slate-100">
                   {data?.questions?.map((q, idx) => {
                     const qId = String(q._id);
+                    const isAbsent = detailModal.worker.attendanceStatus === 'ABSENT';
+                    const isLeaveQ = q.isLeaveQuestion || q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
+                    const isDriverOrNight = isDriverOrNightGuard(detailModal.worker.designationName);
+                    const isShedQ = isShedOnlyQuestion(q);
+                    const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isShedQ));
+
                     const answers = detailModal.worker.evaluations.map((ev) => {
                       const matched = ev.answers.find((a) => String(a.questionId) === qId);
-                      return matched?.answer || 'YES';
+                      return matched?.answer || (isApplicable ? 'YES' : 'N/A');
                     });
 
-                    const isConflict = answers.some((a) => a !== answers[0]);
+                    const isConflict = isApplicable && answers.some((a) => a !== answers[0]);
 
                     return (
                       <tr
@@ -522,29 +543,46 @@ export default function RatingComparisonTab({ firms, selectedFirmId, onFirmChang
                           )}
                         </td>
 
-                        {answers.map((ans, aIdx) => (
-                          <td key={aIdx} className="p-2 text-center">
-                            <span
-                              className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
-                                ans === 'YES'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : 'bg-rose-100 text-rose-800 border border-rose-200 font-black'
-                              }`}
-                            >
-                              {ans === 'YES' ? '✅ YES' : '❌ NO'}
-                            </span>
-                          </td>
-                        ))}
+                        {!isApplicable ? (
+                          <>
+                            {detailModal.worker.evaluations.map((_, aIdx) => (
+                              <td key={aIdx} className="p-2 text-center">
+                                <span className="inline-block rounded bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                                  N/A
+                                </span>
+                              </td>
+                            ))}
+                            <td className="p-2 text-center">
+                              <span className="text-[9px] text-slate-400">N/A</span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            {answers.map((ans, aIdx) => (
+                              <td key={aIdx} className="p-2 text-center">
+                                <span
+                                  className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
+                                    ans === 'YES'
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : 'bg-rose-100 text-rose-800 border border-rose-200 font-black'
+                                  }`}
+                                >
+                                  {ans === 'YES' ? '✅ YES' : '❌ NO'}
+                                </span>
+                              </td>
+                            ))}
 
-                        <td className="p-2 text-center">
-                          {isConflict ? (
-                            <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-2xs">
-                              Conflict
-                            </span>
-                          ) : (
-                            <span className="text-[9px] text-emerald-700 font-bold">Match</span>
-                          )}
-                        </td>
+                            <td className="p-2 text-center">
+                              {isConflict ? (
+                                <span className="rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-2xs">
+                                  Conflict
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-emerald-700 font-bold">Match</span>
+                              )}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}

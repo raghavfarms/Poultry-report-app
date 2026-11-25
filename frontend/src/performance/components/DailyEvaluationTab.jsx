@@ -13,6 +13,19 @@ function getYesterdayIST() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
 }
 
+// Helpers: Detect non-shed general roles (Driver, Night Guard) and shed-only questions
+function isDriverOrNightGuard(designationName) {
+  const d = (designationName || '').toLowerCase();
+  return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
+}
+
+function isShedOnlyQuestion(q) {
+  const order = q?.displayOrder || q?.displayOrderSnapshot;
+  const text = q?.questionText || q?.questionTextSnapshot || '';
+  return order === 5 || order === 6 || order === 8 || order === 11 ||
+         text.includes('दाना') || text.includes('AI') || text.includes('सफाई') || text.includes('अंडा');
+}
+
 export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
   const { user } = useAuth();
   const isAdmin = ['admin', 'developer'].includes(user?.role);
@@ -224,12 +237,20 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
       ...(data.workers?.halfDay || []),
     ].find((w) => String(w.workerId) === String(workerId));
 
+    const isDriverOrNight = isDriverOrNightGuard(workerObj?.designationName);
+
     setEvalAnswers((prev) => {
       const workerAns = { ...(prev[workerId] || {}) };
       for (const q of data.questions) {
         const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
         const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;
         const isAutoQ = isDutyInQ || isLunchInQ;
+        const isShedQ = isShedOnlyQuestion(q);
+
+        if (isDriverOrNight && isShedQ) {
+          workerAns[q._id] = 'N/A';
+          continue;
+        }
 
         if (isAutoQ && !isAdmin) {
           // Keep automatic attendance calculation for non-admin
@@ -543,7 +564,9 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                       group.list.map((w) => {
                         const isAbsent = group.key === 'absent';
                         const isLeaveQ = q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
-                        const isApplicable =isAbsent ? isLeaveQ :!isLeaveQ
+                        const isDriverOrNight = isDriverOrNightGuard(w.designationName);
+                        const isShedQ = isShedOnlyQuestion(q);
+                        const isApplicable = isAbsent ? isLeaveQ : (!isLeaveQ && !(isDriverOrNight && isShedQ));
                         const currentAnswer = evalAnswers[w.workerId]?.[q._id] || 'YES';
                         const isDutyInQ = q.automatedType === 'DUTY_IN' || q.displayOrder === 1;
                         const isLunchInQ = q.automatedType === 'LUNCH_IN' || q.displayOrder === 3;

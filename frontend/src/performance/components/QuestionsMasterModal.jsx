@@ -154,7 +154,7 @@ export default function QuestionsMasterModal({ isOpen, onClose }) {
     setSuccess('');
     try {
       await deleteQuestion(q._id);
-      setSuccess('Question permanently deleted from database.');
+      setSuccess('Question permanently deleted from database.');  ;
       await fetchQuestionsList();
     } catch (err) {
       setError(err.message || 'Failed to delete question.');
