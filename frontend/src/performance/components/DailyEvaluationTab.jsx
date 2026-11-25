@@ -504,7 +504,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                 }`}
                                 title={isAdmin ? `Grade ${grade} (Click to change)` : `Last Month Grade: ${grade}`}
                               >
-                                {grade === 'D' ? 'D' : `Grade ${grade}`}
+                                {grade}
                                 {isAdmin && <span className="ml-1 text-[8px] opacity-75">✏️</span>}
                               </button>
                             ) : isAdmin ? (
