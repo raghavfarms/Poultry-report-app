@@ -13,7 +13,16 @@ import { evaluateDutyInPunctuality, evaluateLunchInPunctuality } from '../utils/
 // Helper: Detect if a worker role is Driver or Night Guard
 function isDriverOrNightGuard(designationName) {
   const d = (designationName || '').toLowerCase();
-  return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
+  return (
+    d.includes('driver') ||
+    d.includes('ड्राइवर') ||
+    d.includes('night') ||
+    d.includes('नाईट') ||
+    d.includes('security') ||
+    d.includes('सिक्योरिटी') ||
+    d.includes('guard') ||
+    d.includes('गार्ड')
+  );
 }
 
 // Helper: Identify questions NOT applicable to Driver & Night Guard

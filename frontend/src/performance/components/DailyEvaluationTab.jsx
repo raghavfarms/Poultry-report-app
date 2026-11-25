@@ -16,7 +16,16 @@ function getYesterdayIST() {
 // Helpers: Detect non-shed general roles (Driver, Night Guard) and shed-only questions
 function isDriverOrNightGuard(designationName) {
   const d = (designationName || '').toLowerCase();
-  return d.includes('driver') || d.includes('ड्राइवर') || d.includes('night') || d.includes('नाईट');
+  return (
+    d.includes('driver') ||
+    d.includes('ड्राइवर') ||
+    d.includes('night') ||
+    d.includes('नाईट') ||
+    d.includes('security') ||
+    d.includes('सिक्योरिटी') ||
+    d.includes('guard') ||
+    d.includes('गार्ड')
+  );
 }
 
 function isNonApplicableForDriverOrNight(q) {

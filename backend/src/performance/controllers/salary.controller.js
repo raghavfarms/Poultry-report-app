@@ -10,6 +10,20 @@ import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError } from '../../utils/http.js';
 import { standardizeCategoryName } from './master.controller.js';
 
+function isDriverOrNightGuard(designationName) {
+  const d = (designationName || '').toLowerCase();
+  return (
+    d.includes('driver') ||
+    d.includes('ड्राइवर') ||
+    d.includes('night') ||
+    d.includes('नाईट') ||
+    d.includes('security') ||
+    d.includes('सिक्योरिटी') ||
+    d.includes('guard') ||
+    d.includes('गार्ड')
+  );
+}
+
 // ==========================================
 // 1. GET MONTHLY WORKERS & SALARY SUMMARY
 // ==========================================
@@ -171,16 +185,32 @@ export async function getMonthlySalarySummary(req, res) {
     // - Working days (PRESENT / HALF_DAY) are included in score and denominator
     let dailyAveragesSum = 0;
     let effectiveEvaluationDays = 0;
+    const isDriverOrNight = isDriverOrNightGuard(w.designation?.name);
 
     for (const [, dayList] of evalsByDate) {
-      const isApprovedLeaveDay = dayList.every((ev) => ev.isApprovedLeave || ev.dailyGrade === 'NOT_APPLICABLE');
-      if (isApprovedLeaveDay) {
-        // Neutral Day (Approved leave): Excluded from performance average divisor
+      // 1. If ALL evaluators recorded this as an Approved Leave day, it is a Neutral day -> exclude completely
+      const allApprovedLeave = dayList.every((ev) => ev.isApprovedLeave || ev.dailyGrade === 'NOT_APPLICABLE');
+      if (allApprovedLeave) {
         continue;
       }
 
-      const daySum = dayList.reduce((acc, ev) => acc + (ev.dailyScore || 0), 0);
-      dailyAveragesSum += daySum / dayList.length;
+      // 2. If some evaluators evaluated operational work while another marked Approved Leave,
+      // use active operational evaluations so an Approved Leave 0 score does not drag down the average!
+      const activeEvals = dayList.filter((ev) => !ev.isApprovedLeave && ev.dailyGrade !== 'NOT_APPLICABLE');
+      const evalsToScore = activeEvals.length > 0 ? activeEvals : dayList;
+
+      const daySum = evalsToScore.reduce((acc, ev) => {
+        let score = Number(ev.dailyScore || 0);
+        // Normalize Driver & Night Guard scores into universal 9-point scale
+        // For Driver & Night Guard, 5 operational questions are active.
+        // If an evaluation was recorded out of 5 (score <= 5), add +4 points credit so it maps to the 9-point scale.
+        if (isDriverOrNight && ev.attendanceStatusSnapshot !== 'ABSENT' && !ev.isApprovedLeave && score <= 5) {
+          score = Math.min(9, score + 4);
+        }
+        return acc + score;
+      }, 0);
+
+      dailyAveragesSum += daySum / evalsToScore.length;
       effectiveEvaluationDays += 1;
     }
 
