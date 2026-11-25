@@ -300,8 +300,11 @@ export async function getDailyEvaluationMatrix(req, res) {
     };
   });
 
+  const userRole = String(req.user?.role?.name || req.user?.role || '').toLowerCase();
+  const isAdmin = ['admin', 'developer', 'superadmin'].includes(userRole);
   const evaluatedCount = existingEvaluations.length;
-  const isAlreadySubmitted = evaluatedCount > 0;
+  // Non-admins (Supervisor, Incharge) are locked once submitted. Admin/Developer can edit and resubmit anytime.
+  const isAlreadySubmitted = !isAdmin && evaluatedCount > 0;
 
   res.json({
     success: true,
@@ -309,6 +312,7 @@ export async function getDailyEvaluationMatrix(req, res) {
     firm,
     isAlreadySubmitted,
     evaluatedCount,
+    isAdmin,
     summary: {
       total: workers.length,
       present: presentWorkers.length,
@@ -334,18 +338,22 @@ export async function submitDailyEvaluation(req, res) {
     throw badRequest('Evaluations list cannot be empty.');
   }
 
-  const isAdmin = ['admin', 'developer'].includes(req.user?.role);
+  const userRole = String(req.user?.role?.name || req.user?.role || '').toLowerCase();
+  const isAdmin = ['admin', 'developer', 'superadmin'].includes(userRole);
 
-  // Strict one-time submission rule: No account can re-submit if ratings already exist for this date
-  const existingCount = await DailyEvaluation.countDocuments({
-    firm: firmId,
-    evaluationDate: date,
-    submittedBy: req.user._id,
-  });
-  if (existingCount > 0) {
-    throw forbiddenError(
-      'Daily ratings for this date have already been submitted. Re-submission is not allowed.'
-    );
+  // Strict one-time submission rule for non-admins (Supervisor, Incharge).
+  // Admin and Developer can submit and update multiple times.
+  if (!isAdmin) {
+    const existingCount = await DailyEvaluation.countDocuments({
+      firm: firmId,
+      evaluationDate: date,
+      submittedBy: req.user._id,
+    });
+    if (existingCount > 0) {
+      throw forbiddenError(
+        'Daily ratings for this date have already been submitted. Re-submission is not allowed.'
+      );
+    }
   }
 
   const [firm, config, activeQuestions] = await Promise.all([

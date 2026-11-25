@@ -38,7 +38,8 @@ function isNonApplicableForDriverOrNight(q) {
 
 export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
   const { user } = useAuth();
-  const isAdmin = ['admin', 'developer'].includes(user?.role);
+  const userRole = String(user?.role?.name || user?.role || '').toLowerCase();
+  const isAdmin = ['admin', 'developer', 'superadmin'].includes(userRole);
 
   // Default date is Yesterday so incharge evaluates finalized Day & Night shifts with zero manual clicks
   const [date, setDate] = useState(getYesterdayIST());
@@ -368,9 +369,9 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
           </div>
         </div>
 
-        {/* Submit Button */}
+        {/* Submit / Update Button */}
         <div>
-          {data?.isAlreadySubmitted ? (
+          {!isAdmin && data?.isAlreadySubmitted ? (
             <span
               className="inline-flex h-7 sm:h-8 items-center rounded-md sm:rounded-lg bg-slate-100 border border-slate-300 px-2.5 sm:px-3 text-[11px] sm:text-xs font-bold text-slate-600 shadow-2xs"
               title="Ratings have already been submitted. Ratings cannot be re-submitted."
@@ -383,17 +384,35 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
               disabled={loading || submitting || evaluableWorkersCount === 0}
               className="inline-flex h-7 sm:h-8 items-center justify-center rounded-md sm:rounded-lg bg-emerald-600 px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? 'Saving…' : `Submit (${evaluableWorkersCount})`}
+              {submitting
+                ? 'Saving…'
+                : data?.evaluatedCount > 0 && isAdmin
+                ? `Update Ratings (${evaluableWorkersCount})`
+                : `Submit (${evaluableWorkersCount})`}
             </button>
           )}
         </div>
       </div>
 
-      {data?.isAlreadySubmitted && (
+      {!isAdmin && data?.isAlreadySubmitted && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs font-medium text-amber-800 flex items-center gap-2">
           <span>🔒</span>
           <span>
             <strong>Ratings Already Submitted:</strong> Daily ratings for this date have already been submitted. Ratings are locked and cannot be re-submitted.
+          </span>
+        </div>
+      )}
+
+      {isAdmin && data?.evaluatedCount > 0 && (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs font-medium text-emerald-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span>🔓</span>
+            <span>
+              <strong>Admin Mode:</strong> You can edit ratings and re-submit for this date anytime.
+            </span>
+          </div>
+          <span className="text-[11px] bg-emerald-200/60 text-emerald-900 font-bold px-2 py-0.5 rounded">
+            {data.evaluatedCount} Ratings Saved
           </span>
         </div>
       )}
@@ -610,7 +629,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                   {currentAnswer === 'YES' ? 'हाँ (Auto)' : 'ना (Auto)'}
                                 </span>
                               </div>
-                            ) : (w.isEvaluated || data?.isAlreadySubmitted) ? (
+                            ) : (!isAdmin && (w.isEvaluated || data?.isAlreadySubmitted)) ? (
                               <div className="inline-flex rounded-md border border-slate-200 p-0.5 bg-slate-100 opacity-75">
                                 <span
                                   className={`rounded px-1.5 sm:px-3 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold ${
