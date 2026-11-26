@@ -471,14 +471,14 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                   )}
                 </tr>
 
-                {/* ROW 3: Last Month Grade */}
+                {/* ROW 3: Last Month Rating */}
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px]">
                   <th className="sticky left-0 z-30 bg-slate-50/90 p-2 sm:p-3 font-semibold text-slate-600 border-r border-slate-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] text-[10px] sm:text-[11px]">
-                    Last Month Grade
+                    Last Month
                   </th>
                   {workerGroups.map((group) =>
                     group.list.map((w) => {
-                      const grade = w.lastMonthGrade;
+                      const grade = String(w.lastMonthGrade || '').replace(/^Grade\s+/i, '').trim();
 
                       return (
                         <td key={w.workerId} className="p-1 sm:p-2 text-center border-r border-slate-200 align-middle">
@@ -502,7 +502,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                     ? 'hover:scale-105 cursor-pointer hover:ring-2 hover:ring-emerald-400'
                                     : 'cursor-default'
                                 }`}
-                                title={isAdmin ? `Grade ${grade} (Click to change)` : `Last Month Grade: ${grade}`}
+                                title={isAdmin ? `${grade} (Click to change)` : `Last Month: ${grade}`}
                               >
                                 {grade}
                                 {isAdmin && <span className="ml-1 text-[8px] opacity-75">✏️</span>}
@@ -514,7 +514,7 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
                                 className="inline-flex items-center rounded border border-dashed border-emerald-500 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 hover:bg-emerald-100 transition shadow-2xs cursor-pointer"
                                 title="Click to set initial/last month grade"
                               >
-                                + Set Grade
+                                + Set
                               </button>
                             ) : (
                               <span className="text-[10px] font-bold text-slate-400">—</span>
@@ -702,21 +702,21 @@ export default function DailyEvaluationTab({ firms, selectedFirmId, onFirmChange
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Set Worker Grade
+                Set Worker Rating
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Set initial / last month grade for <strong>{gradeModal.worker.workerName}</strong> ({gradeModal.worker.workerCode})
+                Set initial / last month rating (A/B/C/D) for <strong>{gradeModal.worker.workerName}</strong> ({gradeModal.worker.workerCode})
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700">Select Grade:</label>
+              <label className="text-xs font-semibold text-slate-700">Select Rating:</label>
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { id: 'A', label: 'Grade A', color: 'bg-emerald-600 text-white border-emerald-700' },
-                  { id: 'B', label: 'Grade B', color: 'bg-amber-400 text-slate-900 border-amber-500' },
-                  { id: 'C', label: 'Grade C', color: 'bg-red-600 text-white border-red-700' },
-                  { id: 'D', label: 'Grade D', color: 'bg-slate-950 text-rose-300 border-slate-800' },
+                  { id: 'A', label: 'A', color: 'bg-emerald-600 text-white border-emerald-700' },
+                  { id: 'B', label: 'B', color: 'bg-amber-400 text-slate-900 border-amber-500' },
+                  { id: 'C', label: 'C', color: 'bg-red-600 text-white border-red-700' },
+                  { id: 'D', label: 'D', color: 'bg-slate-950 text-rose-300 border-slate-800' },
                 ].map((g) => (
                   <button
                     key={g.id}
