@@ -261,8 +261,22 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
                     <td className="px-2 py-3 text-center font-bold text-red-600">{w.absentDays}</td>
 
                     {/* Numerical Average Score */}
-                    <td className="px-3 py-3 text-center font-black text-slate-800 text-sm">
-                      {w.evaluationDays > 0 ? `${w.averageScore} / ${totalMaxPoints}` : '—'}
+                    <td className="px-3 py-3 text-center">
+                      {w.evaluationDays > 0 ? (
+                        <div className="flex flex-col items-center justify-center">
+                          <span className="font-black text-slate-800 text-sm leading-tight">
+                            {w.averageScore} / {totalMaxPoints}
+                          </span>
+                          <span
+                            className="text-[10px] font-semibold text-slate-500 mt-0.5 tracking-tight"
+                            title={`${w.totalEarnedPoints} points earned out of ${w.totalPossiblePoints} max points across ${w.evaluationDays} evaluated days`}
+                          >
+                            ({w.totalEarnedPoints} / {w.totalPossiblePoints} pts • {w.evaluationDays}d)
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400 font-bold">—</span>
+                      )}
                     </td>
 
                     {/* Final Monthly Grade */}
@@ -325,7 +339,16 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
               <div className="flex items-center justify-between text-slate-600">
                 <span>Monthly Avg Score:</span>
                 <span className="font-black text-slate-900">
-                  {gradeModal.worker?.evaluationDays > 0 ? `${gradeModal.worker.averageScore} / ${totalMaxPoints}` : '—'}
+                  {gradeModal.worker?.evaluationDays > 0 ? (
+                    <span>
+                      {gradeModal.worker.averageScore} / {totalMaxPoints}{' '}
+                      <span className="text-[11px] font-medium text-slate-500">
+                        ({gradeModal.worker.totalEarnedPoints} / {gradeModal.worker.totalPossiblePoints} pts • {gradeModal.worker.evaluationDays}d)
+                      </span>
+                    </span>
+                  ) : (
+                    '—'
+                  )}
                 </span>
               </div>
               <div className="flex items-center justify-between text-slate-600">

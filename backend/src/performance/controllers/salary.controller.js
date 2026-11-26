@@ -214,10 +214,14 @@ export async function getMonthlySalarySummary(req, res) {
       effectiveEvaluationDays += 1;
     }
 
-    const evaluationDays = evalsByDate.size;
+    const evaluationDays = effectiveEvaluationDays;
     let averageScore = 0;
+    let totalEarnedPoints = 0;
+    let totalPossiblePoints = 0;
     if (effectiveEvaluationDays > 0) {
       averageScore = Math.round((dailyAveragesSum / effectiveEvaluationDays) * 10) / 10;
+      totalEarnedPoints = Math.round(dailyAveragesSum * 10) / 10;
+      totalPossiblePoints = effectiveEvaluationDays * totalMaxPoints;
     }
 
     const gradeDoc = gradeMap.get(wId);
@@ -315,6 +319,8 @@ export async function getMonthlySalarySummary(req, res) {
       absentDays,
       evaluationDays,
       averageScore,
+      totalEarnedPoints,
+      totalPossiblePoints,
       finalGrade,
       isGradeOverridden: Boolean(gradeDoc?.overrideGrade),
       gradeRemarks: gradeDoc?.remarks || '',

@@ -228,7 +228,7 @@ export async function getDailyEvaluationMatrix(req, res) {
     const existingEval = evaluationMap.get(wId) || null;
     const pastEvalData = previousAnswersMap.get(wId);
 
-    let status = 'ABSENT';
+    let status = 'ABSENT';  
     let totalWorkedMinutes = 0;
     let hasOpenSession = false;
     let dutyInDate = null;
@@ -295,7 +295,7 @@ export async function getDailyEvaluationMatrix(req, res) {
     const isLeaveQuestion = q.displayOrder === 4 || q.questionText?.includes('छुट्टी');
     return {
       ...q,
-      automatedType,
+      automatedType, 
       isLeaveQuestion,
     };
   });
@@ -522,12 +522,12 @@ export async function setWorkerBaselineGrade(req, res) {
   );
 
   // 2. Update or create MonthlyWorkerGrade for targetMonth
-  await MonthlyWorkerGrade.findOneAndUpdate(
-    { worker: workerId, month: targetMonth },
-    {
+  await MonthlyWorkerGrade.findOneAndUpdate( 
+    { worker: workerId, month: targetMonth },    
+    {  
       $set: {
         worker: workerId,
-        workerCodeSnapshot: worker.workerCode,
+        workerCodeSnapshot: worker.workerCode,    
         workerNameSnapshot: worker.fullName,
         firm: firmId,
         firmNameSnapshot: firm.name,
@@ -552,3 +552,5 @@ export async function setWorkerBaselineGrade(req, res) {
     message: `Worker grade successfully set to Grade ${grade}`,
   });
 }
+
+
