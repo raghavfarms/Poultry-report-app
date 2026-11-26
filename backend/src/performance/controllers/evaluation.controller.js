@@ -265,7 +265,7 @@ export async function getDailyEvaluationMatrix(req, res) {
     const workerPayload = {
       workerId: w._id,
       workerCode: w.workerCode,
-      workerName: w.fullName,
+      workerName: w.fullName,     
       designationName: w.designation?.name || '—',
       attendanceStatus: status,
       totalWorkedMinutes,
@@ -296,7 +296,7 @@ export async function getDailyEvaluationMatrix(req, res) {
     return {
       ...q,
       automatedType, 
-      isLeaveQuestion,
+      isLeaveQuestion,    
     };
   });
 

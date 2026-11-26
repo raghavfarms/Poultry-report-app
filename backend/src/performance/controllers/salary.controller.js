@@ -185,6 +185,7 @@ export async function getMonthlySalarySummary(req, res) {
     // - Working days (PRESENT / HALF_DAY) are included in score and denominator
     let dailyAveragesSum = 0;
     let effectiveEvaluationDays = 0;
+    let hasWorkingRating = false;
     const isDriverOrNight = isDriverOrNightGuard(w.designation?.name);
 
     for (const [, dayList] of evalsByDate) {
@@ -198,6 +199,10 @@ export async function getMonthlySalarySummary(req, res) {
       // use active operational evaluations so an Approved Leave 0 score does not drag down the average!
       const activeEvals = dayList.filter((ev) => !ev.isApprovedLeave && ev.dailyGrade !== 'NOT_APPLICABLE');
       const evalsToScore = activeEvals.length > 0 ? activeEvals : dayList;
+
+      if (evalsToScore.some((ev) => ev.attendanceStatusSnapshot !== 'ABSENT')) {
+        hasWorkingRating = true;
+      }
 
       const daySum = evalsToScore.reduce((acc, ev) => {
         let score = Number(ev.dailyScore || 0);
@@ -214,11 +219,12 @@ export async function getMonthlySalarySummary(req, res) {
       effectiveEvaluationDays += 1;
     }
 
-    const evaluationDays = effectiveEvaluationDays;
+    // Until a worker has been present and rated at least once, keep their rating as '—'
+    const evaluationDays = hasWorkingRating ? effectiveEvaluationDays : 0;
     let averageScore = 0;
     let totalEarnedPoints = 0;
     let totalPossiblePoints = 0;
-    if (effectiveEvaluationDays > 0) {
+    if (hasWorkingRating && effectiveEvaluationDays > 0) {
       averageScore = Math.round((dailyAveragesSum / effectiveEvaluationDays) * 10) / 10;
       totalEarnedPoints = Math.round(dailyAveragesSum * 10) / 10;
       totalPossiblePoints = effectiveEvaluationDays * totalMaxPoints;
@@ -229,7 +235,7 @@ export async function getMonthlySalarySummary(req, res) {
 
     if (gradeDoc?.overrideGrade) {
       finalGrade = gradeDoc.overrideGrade;
-    } else if (effectiveEvaluationDays > 0) {
+    } else if (hasWorkingRating && effectiveEvaluationDays > 0) {
       // Variable threshold: Grade A >= minGradeAScore, Grade B >= minGradeBScore, Grade C >= minGradeCScore, else Grade D (BlackList)
       // Attendance Gate for Grade A: Worker can have AT MOST 1 absent day in the month (absentDays <= 1).
       // If absentDays > 1, the worker is disqualified from Grade A and capped at Grade B.
