@@ -1,12 +1,10 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
-import { useAuth } from '../../context/AuthContext.jsx';
-import { canAutoCutAttendance } from '../../utils/moduleAccess.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath, saveAttendance, getWorkLocationSortRank } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
-import * as XLSX from 'xlsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 function getTodayString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
@@ -54,8 +52,7 @@ export default function DailyRegisterView({
   setDate: propSetDate,
 }) {
   const { user } = useAuth();
-  const showAutoCutColumn = canAutoCutAttendance(user);
-
+  const canReset = ['admin', 'developer', 'office', 'supervisor', 'farm_incharge'].includes(user?.role);
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
   const [internalDate, setInternalDate] = useState(getTodayString());
@@ -182,7 +179,27 @@ export default function DailyRegisterView({
   }, [data?.records, workLocations]);
 
   const [autoCuttingWorkerId, setAutoCuttingWorkerId] = useState(null);
+  const [resettingSessionId, setResettingSessionId] = useState(null);
   const [autoCutNotice, setAutoCutNotice] = useState('');
+  const [photoModal, setPhotoModal] = useState(null);
+
+  const handleViewPhotos = async (r) => {
+    if (!r.sessionId) return;
+    setPhotoModal({
+      loading: true,
+      workerName: r.workerName,
+      workerCode: r.workerCode,
+      date,
+      photos: [],
+      error: '',
+    });
+    try {
+      const res = await api(attendancePath(`sessions/${r.sessionId}/photos`));
+      setPhotoModal((prev) => prev ? { ...prev, loading: false, photos: res.photos || [] } : null);
+    } catch (err) {
+      setPhotoModal((prev) => prev ? { ...prev, loading: false, error: err.message || 'Could not load punch photos.' } : null);
+    }
+  };
 
   const handleAutoCut = async (r) => {
     const confirmed = window.confirm(
@@ -209,12 +226,36 @@ export default function DailyRegisterView({
     }
   };
 
+  const handleResetSession = async (r) => {
+    const confirmed = window.confirm(
+      `Reset attendance for ${r.workerName} on ${date}?\n\nThis will DELETE this attendance session (e.g. mistaken punch/auto-cut) so they are marked Absent and can check in fresh tonight.`
+    );
+    if (!confirmed) return;
+
+    setResettingSessionId(r.sessionId);
+    setError('');
+    setAutoCutNotice('');
+    try {
+      const res = await api(attendancePath(`sessions/${r.sessionId}`), {
+        method: 'DELETE',
+      });
+      setAutoCutNotice(res.message || `Session for ${r.workerName} reset successfully.`);
+      setTimeout(() => setAutoCutNotice(''), 4000);
+      loadRegister();
+    } catch (err) {
+      setError(err.message || 'Failed to reset attendance session.');
+    } finally {
+      setResettingSessionId(null);
+    }
+  };
+
   const renderAutoCutColumn = (r) => {
     if (r.status === 'ABSENT' && !r.dutyIn && !r.dutyOut) {
       return <span className="text-slate-300">—</span>;
     }
 
     const isOnDuty = r.status === 'ON_DUTY' || r.onLunch;
+    const isResetting = resettingSessionId === r.sessionId;
 
     if (isOnDuty) {
       const isCutting = autoCuttingWorkerId === r.workerId;
@@ -222,7 +263,7 @@ export default function DailyRegisterView({
         <div className="inline-flex items-center justify-center gap-1.5">
           <button
             type="button"
-            disabled={isCutting}
+            disabled={isCutting || isResetting}
             onClick={() => handleAutoCut(r)}
             className="inline-flex items-center gap-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 border border-rose-200 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
             title="Worker did not scan face on OUT? Click to auto-cut duty out."
@@ -230,6 +271,17 @@ export default function DailyRegisterView({
             <span>✂️</span>
             <span>{isCutting ? 'Cutting…' : 'Auto Cut'}</span>
           </button>
+          {canReset && r.sessionId && (
+            <button
+              type="button"
+              disabled={isCutting || isResetting}
+              onClick={() => handleResetSession(r)}
+              className="inline-flex items-center gap-0.5 rounded-md bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Mistaken check-in? Click to reset/delete this session."
+            >
+              <span>{isResetting ? '…' : '↺ Reset'}</span>
+            </button>
+          )}
           {renderMiniMapLink(r)}
         </div>
       );
@@ -241,6 +293,17 @@ export default function DailyRegisterView({
           <span>✓</span>
           <span>Out</span>
         </span>
+        {canReset && r.sessionId && (
+          <button
+            type="button"
+            disabled={isResetting}
+            onClick={() => handleResetSession(r)}
+            className="ml-1 inline-flex items-center gap-0.5 rounded bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-600 border border-slate-200 hover:border-rose-300 px-1.5 py-0.5 text-[10px] font-bold transition cursor-pointer disabled:opacity-50"
+            title="Reset/Delete this session (e.g. mistaken auto-cut/half-day, so worker can check in again)"
+          >
+            <span>{isResetting ? '…' : '↺ Reset'}</span>
+          </button>
+        )}
         {renderMiniMapLink(r)}
       </div>
     );
@@ -265,82 +328,6 @@ export default function DailyRegisterView({
     } finally {
       setExportingPdf(false);
     }
-  };
-
-  // Export Daily Register to Excel (.xlsx)
-  const exportExcel = () => {
-    if (!records.length) return;
-
-    const activeFirm = firms.find((f) => String(f._id) === String(firmId));
-    const firmName = activeFirm ? (activeFirm.code || activeFirm.name).replace(/[^a-zA-Z0-9_-]/g, '_') : 'Farm';
-
-    const rows = records.map((r, index) => {
-      const inTime = r.dutyIn
-        ? new Date(r.dutyIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })
-        : '—';
-      const isNextDayOut = r.dutyIn && r.dutyOut && new Date(r.dutyOut).getDate() !== new Date(r.dutyIn).getDate();
-      const outTime = r.dutyOut
-        ? `${new Date(r.dutyOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}${isNextDayOut ? ' (+1 day)' : ''}`
-        : '—';
-
-      const lunchText = r.onLunch
-        ? 'On Lunch'
-        : r.lunchMinutes > 0
-        ? (formatLunchBreak(r.lunchMinutes) || `${r.lunchMinutes} min`)
-        : r.lunchOut && !r.lunchIn
-        ? `Left at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}`
-        : '—';
-
-      const statusText = r.onLunch
-        ? 'On Lunch'
-        : r.status === 'COMPLETED'
-        ? 'Present (P)'
-        : r.status === 'HALF_DAY'
-        ? 'Half Day (HD)'
-        : r.status === 'ON_DUTY'
-        ? 'On Duty'
-        : r.status === 'PRESENT'
-        ? 'Present (P)'
-        : 'Absent (A)';
-
-      const workedHours = r.workedMinutes > 0
-        ? (r.workedHoursFormatted || `${r.workedMinutes}m`)
-        : (r.onLunch ? 'On lunch break' : '—');
-
-      return {
-        'S.No': index + 1,
-        'Worker Code': r.workerCode,
-        'Worker Name': r.workerName,
-        'Work Location': r.workLocationName || 'Unassigned',
-        'Designation': r.designationName || '—',
-        'Status': statusText,
-        'Duty IN (IST)': inTime,
-        'Duty OUT (IST)': outTime,
-        'Worked Hours': workedHours,
-        'Lunch Break': lunchText,
-        'Source': r.source || '—',
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(rows);
-
-    ws['!cols'] = [
-      { wch: 6 },
-      { wch: 14 },
-      { wch: 22 },
-      { wch: 16 },
-      { wch: 18 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 10 },
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Daily Register');
-    XLSX.writeFile(wb, `Daily_Attendance_${firmName}_${date}.xlsx`);
   };
 
   return (
@@ -381,9 +368,9 @@ export default function DailyRegisterView({
             >
               <option value="ALL">All Staff</option>
               <option value="ON_DUTY">On Duty Now</option>
-              <option value="COMPLETED">{"Present (>= 7h 55m)"}</option>
-              <option value="HALF_DAY">{"Half Day (3h 55m–7h 55m)"}</option>
-              <option value="ABSENT">{"Absent (< 3h 55m)"}</option>
+              <option value="COMPLETED">{"Full Day (>= 7h 55m)"}</option>
+              <option value="HALF_DAY">{"Half Day (4h–7h 55m)"}</option>
+              <option value="ABSENT">{"Absent (< 4h)"}</option>
             </select>
           </div>
 
@@ -409,6 +396,7 @@ export default function DailyRegisterView({
       </div>
 
       {error && <Alert type="error">{error}</Alert>}
+      {autoCutNotice && <Alert type="success">{autoCutNotice}</Alert>}
 
       {/* KPI Badges Strip + Quick Export Actions */}
       <div className="flex items-center justify-between gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50/90 py-1 px-1.5 text-xs shadow-2xs">
@@ -442,18 +430,6 @@ export default function DailyRegisterView({
 
         {/* Quick PDF & Print Action Buttons */}
         <div className="flex items-center gap-1 shrink-0 pl-1 border-l border-slate-200">
-          <button
-            type="button"
-            onClick={exportExcel}
-            disabled={loadingData || !records.length}
-            title="Export Daily Register to Excel (.xlsx)"
-            className="inline-flex items-center gap-1 !h-6.5 !min-h-6.5 px-2 text-[10px] sm:text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer shadow-2xs"
-          >
-            <svg className="w-3 h-3 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v1a1 1 0 102 0v-1zm2-3a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1zm4 1a1 1 0 10-2 0v3a1 1 0 102 0v-3z" clipRule="evenodd" />
-            </svg>
-            <span>Excel</span>
-          </button>
           <button
             type="button"
             onClick={exportPdf}
@@ -499,7 +475,7 @@ export default function DailyRegisterView({
             <p className="text-sm font-semibold">No attendance records found matching filters.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto overflow-y-auto max-h-[420px] sm:max-h-[520px] print:max-h-none print:overflow-visible report-scroll">
+          <div className="overflow-x-auto overflow-y-auto max-h-[305px] sm:max-h-[330px] print:max-h-none print:overflow-visible report-scroll">
             <table className="attendance-table w-full text-left text-xs border-collapse">
               <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500 sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
                 <tr>
@@ -512,9 +488,7 @@ export default function DailyRegisterView({
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Hours Logged</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Lunch Time</th>
                   <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap">Source</th>
-                  {showAutoCutColumn && (
-                    <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Auto Cut</th>
-                  )}
+                  <th className="sticky top-0 bg-slate-50 px-3 py-2 whitespace-nowrap text-center">Auto Cut</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -556,13 +530,17 @@ export default function DailyRegisterView({
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-600"></span>
                             ON DUTY
                           </span>
-                        ) : (r.status === 'COMPLETED' || r.status === 'PRESENT') ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                            PRESENT
+                        ) : r.status === 'COMPLETED' ? (
+                          <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                            FULL DAY
                           </span>
                         ) : r.status === 'HALF_DAY' ? (
                           <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                             HALF DAY
+                          </span>
+                        ) : r.status === 'PRESENT' ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                            PRESENT
                           </span>
                         ) : (
                           <span className="inline-flex items-center rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
@@ -619,22 +597,27 @@ export default function DailyRegisterView({
                           >
                             🍱 {formatLunchBreak(r.lunchMinutes)}
                           </span>
-                        ) : r.lunchOut && !r.lunchIn ? (
-                          <span
-                            className="inline-flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 border border-rose-200 whitespace-nowrap"
-                            title={`Left for lunch at ${new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })} and did not return`}
-                          >
-                            Left at {new Date(r.lunchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}
-                          </span>
                         ) : (
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
                       <td data-label="Source" className="px-3 py-1.5">
                         {r.source === 'FACE' ? (
-                          <span className="rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
-                            📷 FACE
-                          </span>
+                          showAutoCutColumn && r.hasPunchPhotos && r.sessionId ? (
+                            <button
+                              type="button"
+                              onClick={() => handleViewPhotos(r)}
+                              className="inline-flex items-center gap-1 rounded bg-cyan-100 hover:bg-cyan-200 px-1.5 py-0.5 text-[10px] font-bold text-cyan-900 border border-cyan-300 cursor-pointer transition"
+                              title="Admin: View 7-day punch camera proof"
+                            >
+                              <span>📷 FACE</span>
+                              <span className="text-[9px] underline">Proof</span>
+                            </button>
+                          ) : (
+                            <span className="rounded bg-cyan-100 px-1.5 py-0.5 text-[10px] font-bold text-cyan-800">
+                              📷 FACE
+                            </span>
+                          )
                         ) : r.source === 'MANUAL' ? (
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
                             ✍ MANUAL
@@ -643,11 +626,9 @@ export default function DailyRegisterView({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      {showAutoCutColumn && (
-                        <td data-label="Auto Cut" className="px-3 py-1.5 whitespace-nowrap text-center">
-                          {renderAutoCutColumn(r)}
-                        </td>
-                      )}
+                      <td data-label="Auto Cut" className="px-3 py-1.5 whitespace-nowrap text-center">
+                        {renderAutoCutColumn(r)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -656,6 +637,73 @@ export default function DailyRegisterView({
           </div>
         )}
       </div>
+
+      {photoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4"
+          onClick={() => setPhotoModal(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl bg-white p-4 sm:p-5 shadow-2xl border border-slate-200 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">
+                  📷 Punch Camera Proof — {photoModal.workerName}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {photoModal.workerCode} · {photoModal.date} · Auto-deleted after 7 days
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoModal(null)}
+                className="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {photoModal.loading ? (
+              <div className="py-8 text-center">
+                <Spinner label="Loading punch photos…" />
+              </div>
+            ) : photoModal.error ? (
+              <Alert type="error">{photoModal.error}</Alert>
+            ) : photoModal.photos.length === 0 ? (
+              <p className="py-6 text-center text-xs text-slate-500">
+                No punch photos available (may have expired after 7 days).
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[65vh] overflow-y-auto">
+                {photoModal.photos.map((p) => (
+                  <div key={p._id} className="rounded-xl border border-slate-200 bg-slate-50 p-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <span className="rounded bg-slate-200 px-1.5 py-0.5 text-slate-800">
+                        {p.eventType.replace('_', ' ')}
+                      </span>
+                      <span className="text-slate-500">
+                        {new Date(p.capturedAt).toLocaleTimeString('en-IN', {
+                          timeZone: 'Asia/Kolkata',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </span>
+                    </div>
+                    <img
+                      src={p.imageData}
+                      alt={`${photoModal.workerName} ${p.eventType}`}
+                      className="w-full rounded-lg object-cover border border-slate-200"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -191,6 +191,7 @@ export async function recordWorkerSelfPunch(user, payload = {}) {
     eventType,
     source: 'FACE',
     location,
+    punchPhoto: payload.punchPhoto,
   });
 }
 

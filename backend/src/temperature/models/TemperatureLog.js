@@ -47,23 +47,6 @@ const temperatureLogSchema=new mongoose.Schema({
           type: Number,
          default: null,
   },
-  openCvReading:{
-          type: Number,
-         default: null,
-  },
-  openCvConfidence:{
-          type: Number,
-         default: null,
-  },
-  validationStatus:{
-          type: String,
-         enum: ['high', 'medium', 'low', 'manual', null],
-         default: null,
-  },
-  openCvDetails:{
-          type: mongoose.Schema.Types.Mixed,
-         default: null,
-  },
   thermometerImageUrl:{
           type: String,
          default: null,
@@ -86,7 +69,7 @@ const temperatureLogSchema=new mongoose.Schema({
 
 },{timestamps:true})
 
-
+     // console.log()
 
 // Indexing taaki reports super-fast load hon
 temperatureLogSchema.index({ firm: 1, capturedAt: -1 });
@@ -95,3 +78,4 @@ temperatureLogSchema.index({ firm: 1, shed: 1, capturedAt: -1 });
 const TemperatureLog = mongoose.model('TemperatureLog', temperatureLogSchema);
 
 export default TemperatureLog;
+ 

@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import Worker from '../models/Worker.js';
 import AttendanceEvent from '../models/AttendanceEvent.js';
 import AttendanceSession from '../models/AttendanceSession.js';
+import AttendancePunchPhoto from '../models/AttendancePunchPhoto.js'
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
 import WorkLocation from '../models/WorkLocation.js';
@@ -551,7 +552,9 @@ export async function recordAttendance(user, payload = {}, options = {}) {
   };
 
   if (options.session) {
-    return executeInSession(options.session);
+    const result = await executeInSession(options.session);
+    savePunchPhotoNonBlocking(result, payload.punchPhoto);
+    return result;
   }
 
   const dbSession = await mongoose.startSession();
@@ -560,10 +563,56 @@ export async function recordAttendance(user, payload = {}, options = {}) {
     await dbSession.withTransaction(async () => {
       result = await executeInSession(dbSession);
     });
+    savePunchPhotoNonBlocking(result, payload.punchPhoto);
     return result;
   } finally {
     await dbSession.endSession();
   }
+}
+
+/**
+ * Persists a compressed punch snapshot asynchronously (7-day TTL) without ever
+ * blocking or failing the attendance punch transaction.
+ */
+function savePunchPhotoNonBlocking(result, rawPhoto) {
+  if (typeof rawPhoto !== 'string' || !/^data:image\/(jpeg|jpg|webp);base64,/i.test(rawPhoto) || rawPhoto.length > 150000) {
+    return;
+  }
+  const event = result?.event;
+  const session = result?.session;
+  if (!event?._id || !session?._id || !event?.firm || !event?.worker) return;
+
+  AttendancePunchPhoto.create({
+    firm: event.firm,
+    worker: event.worker,
+    sessionId: session._id,
+    eventId: event._id,
+    eventType: event.eventType,
+    date: event.attendanceDate || session.date,
+    capturedAt: event.timestamp || new Date(),
+    imageData: rawPhoto,
+  }).catch((err) => {
+    console.warn('Punch photo save skipped:', err.message);
+  });
+}
+
+export async function getSessionPunchPhotos(user, sessionId) {
+  const session = await AttendanceSession.findById(objectId(sessionId, 'Session')).select('firm workerNameSnapshot workerCodeSnapshot date').lean();
+  if (!session) throw notFoundError('Attendance session not found.');
+  firmScope(user, session.firm);
+
+  const photos = await AttendancePunchPhoto.find({ sessionId: session._id })
+    .select('eventType capturedAt imageData expiresAt')
+    .sort({ capturedAt: 1 })
+    .lean();
+
+  return {
+    sessionId: session._id,
+    workerName: session.workerNameSnapshot,
+    workerCode: session.workerCodeSnapshot,
+    date: session.date,
+    photos,
+  };
 }
 
 export async function getWorkerAttendanceStatus(user, workerId, at = new Date()) {
