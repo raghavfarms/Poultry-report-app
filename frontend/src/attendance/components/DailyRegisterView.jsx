@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { canAutoCutAttendance } from '../../utils/moduleAccess.js';
+import { canAutoCutAttendance, canViewAttendanceFaceProof } from '../../utils/moduleAccess.js';
 import { Alert, Spinner, inputClass, secondaryButton } from '../../components/Ui.jsx';
 import { attendancePath, saveAttendance, getWorkLocationSortRank } from '../services/adminApi.js';
 import { exportReportToPdf } from '../../utils/exportPdf.js';
@@ -55,6 +55,7 @@ export default function DailyRegisterView({
 }) {
   const { user } = useAuth();
   const showAutoCutColumn = canAutoCutAttendance(user);
+  const canViewFaceProof = canViewAttendanceFaceProof(user);
 
   const [internalFirms, setInternalFirms] = useState([]);
   const [internalFirmId, setInternalFirmId] = useState('');
@@ -651,7 +652,7 @@ export default function DailyRegisterView({
                       </td>
                       <td data-label="Source" className="px-3 py-1.5">
                         {r.source === 'FACE' ? (
-                          showAutoCutColumn && r.hasPunchPhotos && r.sessionId ? (
+                          canViewFaceProof && r.hasPunchPhotos && r.sessionId ? (
                             <button
                               type="button"
                               onClick={() => handleViewPhotos(r)}

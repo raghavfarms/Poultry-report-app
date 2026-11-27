@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { protect, requireModuleAccess, attendanceEditOnly, attendanceAutoCutOnly, attendanceReportsOnly, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
+import { protect, requireModuleAccess, attendanceEditOnly, attendanceAutoCutOnly, attendanceFaceProofOnly, attendanceReportsOnly, attendanceStaffOnly, supervisorOrAdminOnly, attendanceAdminOnly, attendanceFullMasterOnly, adminOnly } from '../middleware/auth.js';
 import { firmScope, sortFirms } from './authorization.js';
 import Firm from '../models/Firm.js';
 import User from '../models/User.js';
@@ -173,7 +173,7 @@ router.get('/sessions', requireModuleAccess('attendance'), async (req, res) => r
 router.post('/sessions/correct', attendanceEditOnly, async (req, res) => res.json(await attendanceService.correctAttendanceSession(req.user, req.body)));
 router.post('/sessions/auto-cut', attendanceAutoCutOnly, async (req, res) => res.json(await attendanceService.manualAutoCutSession(req.user, req.body)));
 router.post('/sessions/bulk-day', adminOnly, async (req, res) => res.json(await attendanceService.recordBulkDayAttendance(req.user, req.body)));
-router.get('/sessions/:id/photos', adminOnly, async (req, res) => res.json(await attendanceService.getSessionPunchPhotos(req.user, req.params.id)));
+router.get('/sessions/:id/photos', attendanceFaceProofOnly, async (req, res) => res.json(await attendanceService.getSessionPunchPhotos(req.user, req.params.id)));
 router.delete('/sessions/:id', attendanceEditOnly, async (req, res) => res.json(await deleteAttendanceSession(req.user, req.params.id)));
 
 // Dashboard

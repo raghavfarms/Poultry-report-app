@@ -23,6 +23,7 @@ const DEFAULT_ROLES = [
       attendance_report: true,
       worker_master: true,
       attendance_edit: true,
+      attendance_face_proof: true,
       asset_master: true,
       transport_master: true,
       medicine_master: true,
@@ -45,6 +46,7 @@ const DEFAULT_ROLES = [
       attendance_report: true,
       worker_master: true,
       attendance_edit: true,
+      attendance_face_proof: true,
       asset_master: true,
       transport_master: true,
       medicine_master: true,
@@ -67,6 +69,7 @@ const DEFAULT_ROLES = [
       attendance_report: true,
       worker_master: true,
       attendance_edit: false,
+      attendance_face_proof: false,
       asset_master: false,
       transport_master: false,
       medicine_master: false,
@@ -89,6 +92,7 @@ const DEFAULT_ROLES = [
       attendance_report: true,
       worker_master: true,
       attendance_edit: false,
+      attendance_face_proof: false,
       asset_master: false,
       transport_master: false,
       medicine_master: false,
@@ -111,6 +115,7 @@ const DEFAULT_ROLES = [
       attendance_report: true,
       worker_master: true,
       attendance_edit: false,
+      attendance_face_proof: false,
       asset_master: false,
       transport_master: false,
       medicine_master: false,
@@ -133,6 +138,7 @@ const DEFAULT_ROLES = [
       attendance_report: false,
       worker_master: false,
       attendance_edit: false,
+      attendance_face_proof: false,
       asset_master: false,
       transport_master: false,
       medicine_master: false,
@@ -155,6 +161,7 @@ const DEFAULT_ROLES = [
       attendance_report: false,
       worker_master: false,
       attendance_edit: false,
+      attendance_face_proof: false,
       asset_master: false,
       transport_master: false,
       medicine_master: false,
@@ -183,6 +190,7 @@ const INITIAL_USER_FORM = {
     worker_master: true,
     attendance_edit: false,
     attendance_autocut: false,
+    attendance_face_proof: false,
     asset_master: false,
     transport_master: false,
     medicine_master: false,
@@ -206,6 +214,7 @@ const INITIAL_ROLE_FORM = {
     worker_master: true,
     attendance_edit: false,
     attendance_autocut: false,
+    attendance_face_proof: false,
     asset_master: false,
     transport_master: false,
     medicine_master: false,
@@ -230,6 +239,7 @@ function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
 
   if (unrestricted || permissions.attendance_edit) allowed.push("Edit Attendance");
   if (unrestricted || permissions.attendance_autocut) allowed.push("Auto Cut Attendance");
+  if (unrestricted || permissions.attendance_face_proof) allowed.push("Face Piracy Access");
   if (unrestricted || permissions.asset_master) allowed.push("Asset Management");
   if (unrestricted || permissions.transport_master) allowed.push("Transport Vehicles & Stations");
   if (unrestricted || permissions.medicine_master) allowed.push("Medicine Master");
@@ -530,6 +540,7 @@ export default function UserAdminPage() {
         worker_master: true,
         attendance_edit: false,
         attendance_autocut: false,
+        attendance_face_proof: false,
         asset_master: false,
         transport_master: false,
         medicine_master: false,
@@ -578,6 +589,7 @@ export default function UserAdminPage() {
         worker_master: u.permissions?.worker_master ?? true,
         attendance_edit: u.permissions?.attendance_edit ?? false,
         attendance_autocut: u.permissions?.attendance_autocut ?? false,
+        attendance_face_proof: u.permissions?.attendance_face_proof ?? (["admin", "developer"].includes(u.role) ? true : false),
         asset_master: u.permissions?.asset_master ?? false,
         transport_master: u.permissions?.transport_master ?? false,
         medicine_master: u.permissions?.medicine_master ?? (["admin", "developer"].includes(u.role) ? true : false),
@@ -820,6 +832,7 @@ export default function UserAdminPage() {
         worker_master: role.permissions?.worker_master ?? true,
         attendance_edit: role.permissions?.attendance_edit ?? false,
         attendance_autocut: role.permissions?.attendance_autocut ?? false,
+        attendance_face_proof: role.permissions?.attendance_face_proof ?? (["admin", "developer"].includes(role.code) ? true : false),
         asset_master: role.permissions?.asset_master ?? false,
         transport_master: role.permissions?.transport_master ?? false,
         medicine_master: role.permissions?.medicine_master ?? (["admin", "developer"].includes(role.code) ? true : false),
@@ -1659,6 +1672,7 @@ export default function UserAdminPage() {
                   {[
                     ["attendance_edit", "Edit Attendance"],
                     ["attendance_autocut", "Auto Cut Attendance"],
+                    ["attendance_face_proof", "Face Piracy Access"],
                     ["asset_master", "Asset Management"],
                     ["transport_master", "Transport Vehicles & Stations"],
                     ["medicine_master", "Medicine Master"],
@@ -1940,6 +1954,7 @@ export default function UserAdminPage() {
                   {[
                     ["attendance_edit", "Edit Attendance"],
                     ["attendance_autocut", "Auto Cut Attendance"],
+                    ["attendance_face_proof", "Face Piracy Access"],
                     ["asset_master", "Asset Management"],
                     ["transport_master", "Transport Vehicles & Stations"],
                     ["medicine_master", "Medicine Master"],

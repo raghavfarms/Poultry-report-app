@@ -55,6 +55,14 @@ export function attendanceAutoCutOnly(req, res, next) {
   return res.status(403).json({ message: 'Auto Cut permission is required.' });
 }
 
+export function attendanceFaceProofOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || (
+    req.user?.allowedModules?.includes('attendance') &&
+    req.user?.permissions?.attendance_face_proof === true
+  )) return next();
+  return res.status(403).json({ message: 'Face Piracy Access permission is required.' });
+}
+
 export function attendanceReportsOnly(req, res, next) {
   if (['admin', 'developer'].includes(req.user?.role) || (
     req.user?.allowedModules?.includes('attendance') &&

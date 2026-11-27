@@ -25,6 +25,7 @@ const publicUser = (user) => {
       worker_master: user.permissions?.worker_master ?? true,
       attendance_edit: user.permissions?.attendance_edit ?? (isAdminOrDev ? true : false),
       attendance_autocut: user.permissions?.attendance_autocut ?? (isAdminOrDev ? true : false),
+      attendance_face_proof: user.permissions?.attendance_face_proof ?? (isAdminOrDev ? true : false),
       asset_master: user.permissions?.asset_master ?? (isAdminOrDev ? true : false),
       transport_master: user.permissions?.transport_master ?? (isAdminOrDev ? true : false),
       medicine_master: user.permissions?.medicine_master ?? (isAdminOrDev ? true : false),

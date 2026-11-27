@@ -109,9 +109,13 @@ export async function getDailyAttendanceReport(user, query = {}) {
       .lean(),
   ]);
 
-  const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const canViewFaceProof = ['admin', 'developer'].includes(user?.role) || (
+    Array.isArray(user?.allowedModules) &&
+    user.allowedModules.includes('attendance') &&
+    user?.permissions?.attendance_face_proof === true
+  );
   const sessionsWithPhotos = new Set();
-  if (isAdminOrDev && sessions.length > 0) {
+  if (canViewFaceProof && sessions.length > 0) {
     const sessionIds = sessions.map((s) => s._id);
     const photoDocs = await AttendancePunchPhoto.find({ sessionId: { $in: sessionIds } })
       .select('sessionId')
@@ -270,7 +274,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
       source: latestSession?.inEvent?.source || (workerSessions.length ? 'MANUAL' : '—'),
       inLocation: inLoc,
       outLocation: outLoc,
-      hasPunchPhotos: isAdminOrDev ? workerSessions.some((s) => sessionsWithPhotos.has(String(s._id))) : false,
+      hasPunchPhotos: canViewFaceProof ? workerSessions.some((s) => sessionsWithPhotos.has(String(s._id))) : false,
       remarks: workerSessions.map((s) => s.remarks).filter(Boolean).join('; ') || '',
     });
   }

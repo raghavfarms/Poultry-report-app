@@ -55,6 +55,13 @@ export function canAutoCutAttendance(user) {
   return canAccessReport(user, 'attendance') && ['admin', 'developer'].includes(user?.role);
 }
 
+export function canViewAttendanceFaceProof(user) {
+  return canAccessReport(user, 'attendance') && (
+    ['admin', 'developer'].includes(user?.role) ||
+    user?.permissions?.attendance_face_proof === true
+  );
+}
+
 export function canAccessTemperatureEntry(user) {
   if (!user) return false;
   if (!canAccessModule(user, 'temperature')) return false;
