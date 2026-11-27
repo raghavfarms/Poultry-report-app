@@ -24,6 +24,223 @@ function isDriverOrNightGuard(designationName) {
   );
 }
 
+function computeWorkerMonthlyStats({
+  w,
+  sessionsForWorker,
+  workerEvals,
+  gradeDoc,
+  totalMaxPoints,
+  minGradeAScore,
+  minGradeBScore,
+  minGradeCScore,
+  month,
+  daysInMonth,
+  todayDate,
+}) {
+  // 1. Attendance Counts (100% Synchronized with Attendance Module)
+  const effectiveJoining = w.dateOfJoining
+    || (w.createdAt ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(w.createdAt)) : null);
+  let presentDays = 0;
+  let halfDays = 0;
+  let absentDays = 0;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayStr = String(day).padStart(2, '0');
+    const fullDateStr = `${month}-${dayStr}`;
+
+    if (fullDateStr > todayDate) {
+      continue;
+    }
+
+    if (effectiveJoining && fullDateStr < effectiveJoining) {
+      continue;
+    }
+
+    if (sessionsForWorker.has(fullDateStr)) {
+      const daySessions = sessionsForWorker.get(fullDateStr);
+      let dayMinutes = 0;
+      let isOpen = false;
+
+      for (const sess of daySessions) {
+        if (sess.status === 'PRESENT') {
+          isOpen = true;
+        }
+        dayMinutes += (sess.workedMinutes || 0);
+      }
+
+      if (isOpen && fullDateStr === todayDate) {
+        presentDays += 1;
+      } else if (isOpen || dayMinutes >= 475) {
+        presentDays += 1;
+      } else if (dayMinutes >= 235) {
+        halfDays += 1;
+        presentDays += 0.5;
+        absentDays += 0.5;
+      } else {
+        absentDays += 1;
+      }
+    } else {
+      absentDays += 1;
+    }
+  }
+
+  // 2. Evaluation Days & Numerical Average
+  const evalsByDate = new Map();
+  for (const ev of workerEvals) {
+    if (!evalsByDate.has(ev.evaluationDate)) evalsByDate.set(ev.evaluationDate, []);
+    evalsByDate.get(ev.evaluationDate).push(ev);
+  }
+
+  let dailyAveragesSum = 0;
+  let effectiveEvaluationDays = 0;
+  let hasWorkingRating = false;
+  const isDriverOrNight = isDriverOrNightGuard(w.designation?.name);
+
+  for (const [, dayList] of evalsByDate) {
+    const allApprovedLeave = dayList.every((ev) => ev.isApprovedLeave || ev.dailyGrade === 'NOT_APPLICABLE');
+    if (allApprovedLeave) {
+      continue;
+    }
+
+    const activeEvals = dayList.filter((ev) => !ev.isApprovedLeave && ev.dailyGrade !== 'NOT_APPLICABLE');
+    const evalsToScore = activeEvals.length > 0 ? activeEvals : dayList;
+
+    if (evalsToScore.some((ev) => ev.attendanceStatusSnapshot !== 'ABSENT')) {
+      hasWorkingRating = true;
+    }
+
+    const daySum = evalsToScore.reduce((acc, ev) => {
+      let score = Number(ev.dailyScore || 0);
+      if (isDriverOrNight && ev.attendanceStatusSnapshot !== 'ABSENT' && !ev.isApprovedLeave && score <= 5) {
+        score = Math.min(9, score + 4);
+      }
+      return acc + score;
+    }, 0);
+
+    dailyAveragesSum += daySum / evalsToScore.length;
+    effectiveEvaluationDays += 1;
+  }
+
+  // Until a worker has been present and rated at least once, keep their rating as '—'
+  const evaluationDays = hasWorkingRating ? effectiveEvaluationDays : 0;
+  let averageScore = 0;
+  let totalEarnedPoints = 0;
+  let totalPossiblePoints = 0;
+  if (hasWorkingRating && effectiveEvaluationDays > 0) {
+    averageScore = Math.round((dailyAveragesSum / effectiveEvaluationDays) * 10) / 10;
+    totalEarnedPoints = Math.round(dailyAveragesSum * 10) / 10;
+    totalPossiblePoints = effectiveEvaluationDays * totalMaxPoints;
+  }
+
+  let finalGrade = 'NO_DATA';
+  if (gradeDoc?.overrideGrade) {
+    finalGrade = gradeDoc.overrideGrade;
+  } else if (hasWorkingRating && effectiveEvaluationDays > 0) {
+    if (averageScore >= minGradeAScore) {
+      if (absentDays <= 1) {
+        finalGrade = 'A';
+      } else {
+        finalGrade = 'B';
+      }
+    } else if (averageScore >= minGradeBScore) {
+      finalGrade = 'B';
+    } else if (averageScore >= minGradeCScore) {
+      finalGrade = 'C';
+    } else {
+      finalGrade = 'D';
+    }
+  }
+
+  return {
+    presentDays,
+    halfDays,
+    absentDays,
+    evaluationDays,
+    averageScore,
+    totalEarnedPoints,
+    totalPossiblePoints,
+    finalGrade,
+  };
+}
+
+// ==========================================
+// HELPER: COMPUTE MONTHLY GRADES MAP FOR ANY MONTH (Used by Tab 1 Last Month Grade)
+// ==========================================
+export async function getComputedMonthlyGradesMap(firmId, month) {
+  if (!firmId || !month || !/^\d{4}-\d{2}$/.test(month)) return new Map();
+
+  const [config, workers, activeQuestions] = await Promise.all([
+    GradeSalaryConfig.findOne({ $or: [{ firm: firmId }, { firm: null }], active: true })
+      .sort({ firm: -1 })
+      .lean() || {},
+    Worker.find({ firm: firmId, active: true })
+      .select('designation dateOfJoining createdAt')
+      .populate('designation', 'name')
+      .lean(),
+    PerformanceQuestion.find({ active: true }).lean(),
+  ]);
+
+  const operationalQuestions = (activeQuestions || []).filter(
+    (q) => q.displayOrder !== 4 && !q.questionText?.includes('छुट्टी')
+  );
+  const totalMaxPoints = operationalQuestions.reduce((acc, q) => acc + (q.weight || 1), 0) || 9;
+  const percentA = config.gradeRules?.gradeA?.minPercentage || 85;
+  const percentB = config.gradeRules?.gradeB?.minPercentage || 77;
+  const percentC = (config.gradeRules?.gradeC?.minPercentage > 0) ? config.gradeRules.gradeC.minPercentage : 50;
+  const minGradeAScore = Math.round(totalMaxPoints * (percentA / 100));
+  const minGradeBScore = Math.round(totalMaxPoints * (percentB / 100));
+  const minGradeCScore = Math.round(totalMaxPoints * (percentC / 100));
+
+  const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  const [yearStr, monthStr] = month.split('-');
+  const daysInMonth = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10), 0).getDate();
+
+  const monthRegex = new RegExp(`^${month}`);
+  const [sessions, evaluations, monthlyGrades] = await Promise.all([
+    AttendanceSession.find({ firm: firmId, date: monthRegex }).select('worker date workedMinutes status').lean(),
+    DailyEvaluation.find({ firm: firmId, evaluationDate: monthRegex }).lean(),
+    MonthlyWorkerGrade.find({ firm: firmId, month }).lean(),
+  ]);
+
+  const gradeMap = new Map(monthlyGrades.map((g) => [String(g.worker), g]));
+  const sessionsByWorker = new Map();
+  for (const s of sessions) {
+    const wId = String(s.worker);
+    if (!sessionsByWorker.has(wId)) sessionsByWorker.set(wId, new Map());
+    const dateMap = sessionsByWorker.get(wId);
+    if (!dateMap.has(s.date)) dateMap.set(s.date, []);
+    dateMap.get(s.date).push(s);
+  }
+
+  const evalsByWorker = new Map();
+  for (const ev of evaluations) {
+    const wId = String(ev.worker);
+    if (!evalsByWorker.has(wId)) evalsByWorker.set(wId, []);
+    evalsByWorker.get(wId).push(ev);
+  }
+
+  const resultMap = new Map();
+  for (const w of workers) {
+    const wId = String(w._id);
+    const stats = computeWorkerMonthlyStats({
+      w,
+      sessionsForWorker: sessionsByWorker.get(wId) || new Map(),
+      workerEvals: evalsByWorker.get(wId) || [],
+      gradeDoc: gradeMap.get(wId),
+      totalMaxPoints,
+      minGradeAScore,
+      minGradeBScore,
+      minGradeCScore,
+      month,
+      daysInMonth,
+      todayDate,
+    });
+    resultMap.set(wId, stats.finalGrade);
+  }
+
+  return resultMap;
+}
+
 // ==========================================
 // 1. GET MONTHLY WORKERS & SALARY SUMMARY
 // ==========================================
@@ -116,143 +333,29 @@ export async function getMonthlySalarySummary(req, res) {
       continue;
     }
 
-    // 1. Attendance Counts (100% Synchronized with Attendance Module)
-    const effectiveJoining = w.dateOfJoining
-      || (w.createdAt ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(w.createdAt)) : null);
-    const sessionsForWorker = sessionsByWorker.get(wId) || new Map();
-    let presentDays = 0;
-    let halfDays = 0;
-    let absentDays = 0;
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dayStr = String(day).padStart(2, '0');
-      const fullDateStr = `${month}-${dayStr}`;
-
-      if (fullDateStr > todayDate) {
-        // Future date in current month
-        continue;
-      }
-
-      if (effectiveJoining && fullDateStr < effectiveJoining) {
-        // Before joining date
-        continue;
-      }
-
-      if (sessionsForWorker.has(fullDateStr)) {
-        const daySessions = sessionsForWorker.get(fullDateStr);
-        let dayMinutes = 0;
-        let isOpen = false;
-
-        for (const sess of daySessions) {
-          if (sess.status === 'PRESENT') {
-            isOpen = true;
-          }
-          dayMinutes += (sess.workedMinutes || 0);
-        }
-
-        if (isOpen && fullDateStr === todayDate) {
-          // Currently on shift (OD: On Duty)
-          presentDays += 1;
-        } else if (isOpen || dayMinutes >= 475) {
-          // Full Day Present (P)
-          presentDays += 1;
-        } else if (dayMinutes >= 235) {
-          // Half Day (HD) - Attendance Module counts 0.5 Present + 0.5 Absent
-          halfDays += 1;
-          presentDays += 0.5;
-          absentDays += 0.5;
-        } else {
-          absentDays += 1;
-        }
-      } else {
-        // Past working day with no attendance session = Absent (A)
-        absentDays += 1;
-      }
-    }
-
-    // 2. Evaluation Days & Numerical Average (10-point scale)
-    // When multiple evaluators (Supervisor + Incharge) evaluate on the same date, average their scores for that date
-    const workerEvals = evalsByWorker.get(wId) || [];
-    const evalsByDate = new Map();
-    for (const ev of workerEvals) {
-      if (!evalsByDate.has(ev.evaluationDate)) evalsByDate.set(ev.evaluationDate, []);
-      evalsByDate.get(ev.evaluationDate).push(ev);
-    }
-
-    // Process daily evaluations using Option A:
-    // - Approved leave days (isApprovedLeave: true or dailyGrade === 'NOT_APPLICABLE') are Neutral (excluded from denominator)
-    // - Uninformed leave days (isApprovedLeave: false and absent) are Penalty days (score 0, included in denominator)
-    // - Working days (PRESENT / HALF_DAY) are included in score and denominator
-    let dailyAveragesSum = 0;
-    let effectiveEvaluationDays = 0;
-    let hasWorkingRating = false;
-    const isDriverOrNight = isDriverOrNightGuard(w.designation?.name);
-
-    for (const [, dayList] of evalsByDate) {
-      // 1. If ALL evaluators recorded this as an Approved Leave day, it is a Neutral day -> exclude completely
-      const allApprovedLeave = dayList.every((ev) => ev.isApprovedLeave || ev.dailyGrade === 'NOT_APPLICABLE');
-      if (allApprovedLeave) {
-        continue;
-      }
-
-      // 2. If some evaluators evaluated operational work while another marked Approved Leave,
-      // use active operational evaluations so an Approved Leave 0 score does not drag down the average!
-      const activeEvals = dayList.filter((ev) => !ev.isApprovedLeave && ev.dailyGrade !== 'NOT_APPLICABLE');
-      const evalsToScore = activeEvals.length > 0 ? activeEvals : dayList;
-
-      if (evalsToScore.some((ev) => ev.attendanceStatusSnapshot !== 'ABSENT')) {
-        hasWorkingRating = true;
-      }
-
-      const daySum = evalsToScore.reduce((acc, ev) => {
-        let score = Number(ev.dailyScore || 0);
-        // Normalize Driver & Night Guard scores into universal 9-point scale
-        // For Driver & Night Guard, 5 operational questions are active.
-        // If an evaluation was recorded out of 5 (score <= 5), add +4 points credit so it maps to the 9-point scale.
-        if (isDriverOrNight && ev.attendanceStatusSnapshot !== 'ABSENT' && !ev.isApprovedLeave && score <= 5) {
-          score = Math.min(9, score + 4);
-        }
-        return acc + score;
-      }, 0);
-
-      dailyAveragesSum += daySum / evalsToScore.length;
-      effectiveEvaluationDays += 1;
-    }
-
-    // Until a worker has been present and rated at least once, keep their rating as '—'
-    const evaluationDays = hasWorkingRating ? effectiveEvaluationDays : 0;
-    let averageScore = 0;
-    let totalEarnedPoints = 0;
-    let totalPossiblePoints = 0;
-    if (hasWorkingRating && effectiveEvaluationDays > 0) {
-      averageScore = Math.round((dailyAveragesSum / effectiveEvaluationDays) * 10) / 10;
-      totalEarnedPoints = Math.round(dailyAveragesSum * 10) / 10;
-      totalPossiblePoints = effectiveEvaluationDays * totalMaxPoints;
-    }
-
     const gradeDoc = gradeMap.get(wId);
-    let finalGrade = 'NO_DATA';
-
-    if (gradeDoc?.overrideGrade) {
-      finalGrade = gradeDoc.overrideGrade;
-    } else if (hasWorkingRating && effectiveEvaluationDays > 0) {
-      // Variable threshold: Grade A >= minGradeAScore, Grade B >= minGradeBScore, Grade C >= minGradeCScore, else Grade D (BlackList)
-      // Attendance Gate for Grade A: Worker can have AT MOST 1 absent day in the month (absentDays <= 1).
-      // If absentDays > 1, the worker is disqualified from Grade A and capped at Grade B.
-      if (averageScore >= minGradeAScore) {
-        if (absentDays <= 1) {
-          finalGrade = 'A';
-        } else {
-          finalGrade = 'B'; // Disqualified from Grade A due to >1 absence in the month
-        }
-      } else if (averageScore >= minGradeBScore) {
-        finalGrade = 'B';
-      } else if (averageScore >= minGradeCScore) {
-        finalGrade = 'C';
-      } else {
-        finalGrade = 'D';
-      }
-    }
+    const {
+      presentDays,
+      halfDays,
+      absentDays,
+      evaluationDays,
+      averageScore,
+      totalEarnedPoints,
+      totalPossiblePoints,
+      finalGrade,
+    } = computeWorkerMonthlyStats({
+      w,
+      sessionsForWorker: sessionsByWorker.get(wId) || new Map(),
+      workerEvals: evalsByWorker.get(wId) || [],
+      gradeDoc,
+      totalMaxPoints,
+      minGradeAScore,
+      minGradeBScore,
+      minGradeCScore,
+      month,
+      daysInMonth,
+      todayDate,
+    });
 
     // Filter by grade if provided
     if (gradeFilter && gradeFilter !== 'ALL' && finalGrade !== gradeFilter) {

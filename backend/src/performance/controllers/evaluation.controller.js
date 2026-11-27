@@ -9,6 +9,7 @@ import AttendanceSession from '../../attendance/models/AttendanceSession.js';
 import Firm from '../../models/Firm.js';
 import { badRequest, notFoundError, forbiddenError } from '../../utils/http.js';
 import { evaluateDutyInPunctuality, evaluateLunchInPunctuality } from '../utils/attendancePunctuality.js';
+import { getComputedMonthlyGradesMap } from './salary.controller.js';
 
 // Helper: Detect if a worker role is Driver or Night Guard
 function isDriverOrNightGuard(designationName) {
@@ -143,7 +144,7 @@ export async function getDailyEvaluationMatrix(req, res) {
   const previousMonth = prevMonthDate.toISOString().slice(0, 7);
 
   // 1. Parallel fetch: active questions, active config, workers, attendance sessions, existing evaluations, past grades, salaries
-  const [questions, config, workers, sessions, existingEvaluations, pastGrades, salaries] = await Promise.all([
+  const [questions, config, workers, sessions, existingEvaluations, pastGrades, salaries, computedPastGradeMap] = await Promise.all([
     PerformanceQuestion.find({ active: true }).sort({ displayOrder: 1, createdAt: 1 }).lean(),
     GradeSalaryConfig.findOne({ $or: [{ firm: firmId }, { firm: null }], active: true })
       .sort({ firm: -1 })
@@ -159,10 +160,13 @@ export async function getDailyEvaluationMatrix(req, res) {
       .lean(),
     // Evaluators strictly see ONLY their own ratings on their device
     DailyEvaluation.find({ firm: firmId, evaluationDate: date, submittedBy: req.user._id }).lean(),
-    // Fetch last month's final grades
+    // Fetch last month's saved/overridden grades
     MonthlyWorkerGrade.find({ firm: firmId, month: previousMonth }).lean(),
     // Fetch worker salary / baseline grades
     WorkerSalary.find({ firm: firmId }).lean(),
+    // Auto-compute last month's grades from Tab 3 logic starting from December 2026 onwards
+    // (For December 2026, previousMonth is '2026-11', which keeps Admin's one-time baseline grades)
+    previousMonth >= '2026-12' ? getComputedMonthlyGradesMap(firmId, previousMonth) : Promise.resolve(new Map()),
   ]);
 
   const pastGradeMap = new Map(pastGrades.map((g) => [String(g.worker), g]));
@@ -259,8 +263,14 @@ export async function getDailyEvaluationMatrix(req, res) {
     const lunchInPunctuality = evaluateLunchInPunctuality(lunchInDate, lunchOutDate, isNightWorker);
 
     const pastGradeDoc = pastGradeMap.get(wId);
+    const computedPastGrade = computedPastGradeMap.get(wId);
     const salaryDoc = salaryMap.get(wId);
-    const lastMonthGrade = pastGradeDoc?.overrideGrade || pastGradeDoc?.finalGrade || salaryDoc?.baselineGrade || null;
+    const lastMonthGrade =
+      pastGradeDoc?.overrideGrade ||
+      (pastGradeDoc?.finalGrade && pastGradeDoc.finalGrade !== 'NO_DATA' ? pastGradeDoc.finalGrade : null) ||
+      (computedPastGrade && computedPastGrade !== 'NO_DATA' ? computedPastGrade : null) ||
+      salaryDoc?.baselineGrade ||
+      null;
 
     const workerPayload = {
       workerId: w._id,
