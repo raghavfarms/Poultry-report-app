@@ -3,6 +3,7 @@ import Worker from '../models/Worker.js';
 import WorkLocation from '../models/WorkLocation.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
 import AttendanceSession from '../models/AttendanceSession.js';
+import AttendancePunchPhoto from '../models/AttendancePunchPhoto.js';
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import { firmScope, sortFirms } from '../authorization.js';
 import { objectId, dateOnly } from '../validation.js';
@@ -107,6 +108,18 @@ export async function getDailyAttendanceReport(user, query = {}) {
       .select('name type order')
       .lean(),
   ]);
+
+  const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
+  const sessionsWithPhotos = new Set();
+  if (isAdminOrDev && sessions.length > 0) {
+    const sessionIds = sessions.map((s) => s._id);
+    const photoDocs = await AttendancePunchPhoto.find({ sessionId: { $in: sessionIds } })
+      .select('sessionId')
+      .lean();
+    for (const p of photoDocs) {
+      sessionsWithPhotos.add(String(p.sessionId));
+    }
+  }
 
   const locationById = new Map();
   const locationByName = new Map();
@@ -257,6 +270,7 @@ export async function getDailyAttendanceReport(user, query = {}) {
       source: latestSession?.inEvent?.source || (workerSessions.length ? 'MANUAL' : '—'),
       inLocation: inLoc,
       outLocation: outLoc,
+      hasPunchPhotos: isAdminOrDev ? workerSessions.some((s) => sessionsWithPhotos.has(String(s._id))) : false,
       remarks: workerSessions.map((s) => s.remarks).filter(Boolean).join('; ') || '',
     });
   }

@@ -5,6 +5,7 @@ import { api } from '../../api/client.js';
 import { Alert, Spinner } from '../../components/Ui.jsx';
 import { loadFaceModels, detectFaceForEnrolment } from '../services/faceModelLoader.js';
 import { captureLocation } from '../services/captureLocation.js';
+import { capturePunchFrame } from '../services/capturePunchFrame.js';
 
 function playChime(success = true) {
   try {
@@ -224,6 +225,7 @@ export default function WorkerAttendancePortal() {
     setScannerFeedback('Face detected! Getting your GPS location...');
 
     try {
+      const punchPhoto = capturePunchFrame(videoRef.current);
       let location = null;
       try {
         location = await captureLocation({ timeoutMs: 2000, preferCache: true });
@@ -239,6 +241,7 @@ export default function WorkerAttendancePortal() {
         liveDescriptor: Array.from(descriptorArray),
         faceDescriptor: Array.from(descriptorArray),
         location: location || undefined,
+        ...(punchPhoto ? { punchPhoto } : {}),
       };
 
       const res = await api('/attendance/worker/punch', {

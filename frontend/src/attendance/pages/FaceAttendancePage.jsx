@@ -5,6 +5,7 @@ import { api } from '../../api/client.js';
 import { attendancePath, fetchFirmFaceDescriptors, recordAttendanceEvent, sortFirmsOrder, getDefaultFirmId, setStoredAttendanceFirm } from '../services/adminApi.js';
 import { loadFaceModels, detectAndRecognizeFaces } from '../services/faceModelLoader.js';
 import { captureLocation } from '../services/captureLocation.js';
+import { capturePunchFrame } from '../services/capturePunchFrame.js';
 import TransferModal from '../components/TransferModal.jsx';
 
 // Subtle audio feedback using Web Audio API (no external asset needed)
@@ -360,6 +361,7 @@ export default function FaceAttendancePage() {
     processingRef.current = true;
 
     setStatusPill(`⚡ Marking Attendance: ${worker.fullName}...`);
+    const punchPhoto = capturePunchFrame(videoRef.current);
 
     try {
       // 1. Resolve Location: must be live fresh location (< 10 min) for fast punch; re-queries satellite if cache expired
@@ -386,6 +388,7 @@ export default function FaceAttendancePage() {
         source: 'FACE',
         location: loc,
         date: attendanceDate,
+        ...(punchPhoto ? { punchPhoto } : {}),
       };
 
       const res = await recordAttendanceEvent(payload);
