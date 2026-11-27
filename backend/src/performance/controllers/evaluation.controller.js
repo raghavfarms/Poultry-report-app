@@ -474,8 +474,8 @@ export async function submitDailyEvaluation(req, res) {
         dailyGrade,
         hasCriticalViolation,
         isApprovedLeave: Boolean(isApprovedLeave),
-        submittedBy: req.user._id,
-        submittedByNameSnapshot: req.user.name,
+        submittedBy: req.user._id, 
+        submittedByNameSnapshot: req.user.name, 
         submittedByRoleSnapshot: userRoleName,
       },
       { upsert: true, new: true, runValidators: true }
@@ -484,7 +484,7 @@ export async function submitDailyEvaluation(req, res) {
     results.push(doc);
   }
 
-  res.json({ success: true, count: results.length, evaluations: results });
+  res.json({ success: true, count: results.length, evaluations: results }); 
 }
 
 // ==========================================

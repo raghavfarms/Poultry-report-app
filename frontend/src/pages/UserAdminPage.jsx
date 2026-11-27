@@ -226,6 +226,7 @@ function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
   permissions = permissions || {};
   const allowed = [];
   const hasTemp = Array.isArray(allowedModules) && allowedModules.includes("temperature");
+  const hasPerf = Array.isArray(allowedModules) && allowedModules.includes("performance");
 
   if (unrestricted || permissions.attendance_edit) allowed.push("Edit Attendance");
   if (unrestricted || permissions.attendance_autocut) allowed.push("Auto Cut Attendance");
@@ -244,6 +245,11 @@ function renderAllowedMasters(permissions = {}, role, allowedModules = []) {
     if (unrestricted || permissions.temperature_entry) allowed.push("Temp Entry");
     if (unrestricted || permissions.temperature_report) allowed.push("Temp Daily");
     if (unrestricted || permissions.temperature_weekly) allowed.push("Temp Weekly");
+  }
+
+  if (hasPerf) {
+    if (unrestricted || permissions.performance_comparison) allowed.push("Perf Tab 2 (Comparison)");
+    if (unrestricted || permissions.performance_salary_view) allowed.push("Perf Tab 3 (Salary View)");
   }
 
   if (allowed.length === 0) {
@@ -1729,6 +1735,42 @@ export default function UserAdminPage() {
                     />
                     <span className="truncate text-xs">Monthly Attendance Report</span>
                   </label>
+
+                  {userForm.allowedModules?.includes("performance") && (
+                    <>
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          userForm.permissions.performance_comparison
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(userForm.permissions.performance_comparison)}
+                          onChange={() => toggleUserPermission("performance_comparison")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Perf: Tab 2 (Comparison View)</span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer transition select-none ${
+                          userForm.permissions.performance_salary_view
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-900 font-semibold"
+                            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={Boolean(userForm.permissions.performance_salary_view)}
+                          onChange={() => toggleUserPermission("performance_salary_view")}
+                          className="h-3.5 w-3.5 rounded text-emerald-700 focus:ring-emerald-500 shrink-0"
+                        />
+                        <span className="truncate text-xs">Perf: Tab 3 (Salary View Only)</span>
+                      </label>
+                    </>
+                  )}
 
                   {userForm.allowedModules?.includes("temperature") && (
                     <>

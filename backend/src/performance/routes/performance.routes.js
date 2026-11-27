@@ -24,12 +24,40 @@ import {
 
 const router = express.Router();
 
-// Middleware: Verify performance salary management permission
+// Middleware: Verify performance Tab 1 (Daily Evaluation) access - blocked for office view-only accounts
+function dailyAccessOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || req.user?.role !== 'office') {
+    return next();
+  }
+  return res.status(403).json({ message: 'Daily Evaluation access is not enabled for this account.' });
+}
+
+// Middleware: Verify performance Tab 2 (Rating Comparison) view permission
+function comparisonAccessOnly(req, res, next) {
+  if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.performance_comparison === true) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Performance Rating Comparison access required.' });
+}
+
+// Middleware: Verify performance Tab 3 (Workers & Salary) view permission
+function salaryViewAccessOnly(req, res, next) {
+  if (
+    ['admin', 'developer'].includes(req.user?.role) ||
+    req.user?.permissions?.performance_salary === true ||
+    req.user?.permissions?.performance_salary_view === true
+  ) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Performance Salary view access required.' });
+}
+
+// Middleware: Verify performance Tab 3 edit permission (strictly excludes view-only accounts)
 function salaryAccessOnly(req, res, next) {
   if (['admin', 'developer'].includes(req.user?.role) || req.user?.permissions?.performance_salary === true) {
     return next();
   }
-  return res.status(403).json({ message: 'Performance Salary access required.' });
+  return res.status(403).json({ message: 'Performance Salary edit access required.' });
 }
 
 // Middleware: Verify performance master configuration permission
@@ -59,25 +87,25 @@ router.get('/config', adminOnly, getGradeSalaryConfig);
 router.put('/config', adminOnly, updateGradeSalaryConfig);
 
 // ==========================================
-// 2. TAB 1: DAILY EVALUATION (All authorized accounts)
+// 2. TAB 1: DAILY EVALUATION (Authorized accounts, excluding office view-only)
 // ==========================================
 // Get Excel-style matrix data with read-only attendance status
-router.get('/evaluations/daily', getDailyEvaluationMatrix);
+router.get('/evaluations/daily', dailyAccessOnly, getDailyEvaluationMatrix);
 // Submit evaluation snapshots & auto-calculate daily grades
-router.post('/evaluations/daily', submitDailyEvaluation);
+router.post('/evaluations/daily', dailyAccessOnly, submitDailyEvaluation);
 // Admin sets worker baseline/last month grade (First-time setup or override)
 router.post('/worker-grade/baseline', adminOnly, setWorkerBaselineGrade);
 
 // ==========================================
-// 3. TAB 2: RATING COMPARISON & BIAS AUDIT (Strictly Admin / Developer Only)
+// 3. TAB 2: RATING COMPARISON & BIAS AUDIT (Admin / Developer or performance_comparison)
 // ==========================================
-router.get('/evaluations/comparison', adminOnly, getRatingComparison);
+router.get('/evaluations/comparison', comparisonAccessOnly, getRatingComparison);
 
 // ==========================================
-// 4. TAB 3: WORKERS & SALARY (Admin Only or performance_salary)
+// 4. TAB 3: WORKERS & SALARY (View: performance_salary_view; Edit: Admin or performance_salary)
 // ==========================================
-// Direct table of all workers with monthly grades & salary increments
-router.get('/salary/summary', salaryAccessOnly, getMonthlySalarySummary);
+// Direct table of all workers with monthly grades & salary increments (Read-only allowed)
+router.get('/salary/summary', salaryViewAccessOnly, getMonthlySalarySummary);
 // Override / Edit worker grade
 router.post('/grade/edit', salaryAccessOnly, updateWorkerGrade);
 // Approve or Reject proposed salary increment

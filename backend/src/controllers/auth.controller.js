@@ -30,6 +30,8 @@ const publicUser = (user) => {
       medicine_master: user.permissions?.medicine_master ?? (isAdminOrDev ? true : false),
       medicine_transfer: user.permissions?.medicine_transfer ?? (isAdminOrDev ? true : false),
       attendance_admin_master: user.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
+      performance_comparison: user.permissions?.performance_comparison ?? (isAdminOrDev ? true : false),
+      performance_salary_view: user.permissions?.performance_salary_view ?? (isAdminOrDev ? true : false),
     },
   };
 };

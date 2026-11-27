@@ -36,6 +36,8 @@ export async function getUsers(req, res) {
         attendance_admin_master: u.permissions?.attendance_admin_master ?? (isAdminOrDev ? true : false),
         temperature_entry: u.permissions?.temperature_entry ?? true,
         temperature_report: u.permissions?.temperature_report ?? (isAdminOrDev ? true : false),
+        performance_comparison: u.permissions?.performance_comparison ?? (isAdminOrDev ? true : false),
+        performance_salary_view: u.permissions?.performance_salary_view ?? (isAdminOrDev ? true : false),
       },
     };
   });
@@ -82,6 +84,8 @@ export async function createUser(req, res) {
     attendance_admin_master: req.body.permissions?.attendance_admin_master ?? roleDoc?.permissions?.attendance_admin_master ?? false,
     temperature_entry: req.body.permissions?.temperature_entry ?? roleDoc?.permissions?.temperature_entry ?? true,
     temperature_report: req.body.permissions?.temperature_report ?? roleDoc?.permissions?.temperature_report ?? false,
+    performance_comparison: req.body.permissions?.performance_comparison ?? roleDoc?.permissions?.performance_comparison ?? false,
+    performance_salary_view: req.body.permissions?.performance_salary_view ?? roleDoc?.permissions?.performance_salary_view ?? false,
   };
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -159,6 +163,8 @@ export async function updateUser(req, res) {
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? user.permissions.attendance_admin_master,
       temperature_entry: req.body.permissions.temperature_entry ?? user.permissions.temperature_entry,
       temperature_report: req.body.permissions.temperature_report ?? user.permissions.temperature_report,
+      performance_comparison: req.body.permissions.performance_comparison ?? user.permissions.performance_comparison,
+      performance_salary_view: req.body.permissions.performance_salary_view ?? user.permissions.performance_salary_view,
     };
   }
 

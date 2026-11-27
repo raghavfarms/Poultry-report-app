@@ -12,19 +12,35 @@ import { Spinner } from '../../components/Ui.jsx';
 export default function PerformanceHubPage() {
   const { user } = useAuth();
   const isAdminOrDev = ['admin', 'developer'].includes(user?.role);
-  const canManageSalary = isAdminOrDev || user?.permissions?.performance_salary === true;
+  const canViewDaily = isAdminOrDev || user?.role !== 'office';
+  const canViewComparison = isAdminOrDev || user?.permissions?.performance_comparison === true;
+  const canViewSalary =
+    isAdminOrDev ||
+    user?.permissions?.performance_salary === true ||
+    user?.permissions?.performance_salary_view === true;
+  const canEditSalary = isAdminOrDev || user?.permissions?.performance_salary === true;
   const canManageMasters = isAdminOrDev || user?.permissions?.performance_master === true;
 
-  // Tabs: 'daily' | 'comparison' | 'salary' (Non-admin accounts without special permission only see 'daily')
-  const [activeTab, setActiveTab] = useState('daily');
+  const firstAllowedTab = canViewDaily
+    ? 'daily'
+    : canViewComparison
+    ? 'comparison'
+    : canViewSalary
+    ? 'salary'
+    : 'daily';
+
+  // Tabs: 'daily' | 'comparison' | 'salary'
+  const [activeTab, setActiveTab] = useState(firstAllowedTab);
 
   useEffect(() => {
-    if (!isAdminOrDev && activeTab === 'comparison') {
-      setActiveTab('daily');
-    } else if (!canManageSalary && activeTab === 'salary') {
-      setActiveTab('daily');
+    if (activeTab === 'daily' && !canViewDaily) {
+      setActiveTab(canViewComparison ? 'comparison' : canViewSalary ? 'salary' : 'daily');
+    } else if (activeTab === 'comparison' && !canViewComparison) {
+      setActiveTab(firstAllowedTab);
+    } else if (activeTab === 'salary' && !canViewSalary) {
+      setActiveTab(firstAllowedTab);
     }
-  }, [isAdminOrDev, canManageSalary, activeTab]);
+  }, [canViewDaily, canViewComparison, canViewSalary, activeTab, firstAllowedTab]);
 
   // Master Modals for Admin
   const [showQuestionsMaster, setShowQuestionsMaster] = useState(false);
@@ -103,23 +119,25 @@ export default function PerformanceHubPage() {
         )}
       </div>
 
-      {/* Main Tab Switcher - Only shown if Admin or Salary tabs authorized */}
-      {(isAdminOrDev || canManageSalary) && (
+      {/* Main Tab Switcher - Shown whenever user has access to more than 1 tab or non-daily view */}
+      {(canViewComparison || canViewSalary) && (
         <div className="flex border-b border-slate-200">
-          <button
-            onClick={() => setActiveTab('daily')}
-            className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
-              activeTab === 'daily'
-                ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <span>📋</span>
-            1. Daily Evaluation
-          </button>
+          {canViewDaily && (
+            <button
+              onClick={() => setActiveTab('daily')}
+              className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
+                activeTab === 'daily'
+                  ? 'border-emerald-600 text-emerald-700 bg-emerald-50/40'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>📋</span>
+              1. Daily Evaluation
+            </button>
+          )}
 
-          {/* Rating Comparison: Strictly ADMIN / DEVELOPER Only */}
-          {isAdminOrDev && (
+          {/* Rating Comparison: Admin / Developer or performance_comparison */}
+          {canViewComparison && (
             <button
               onClick={() => setActiveTab('comparison')}
               className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
@@ -133,7 +151,7 @@ export default function PerformanceHubPage() {
             </button>
           )}
 
-          {canManageSalary && (
+          {canViewSalary && (
             <button
               onClick={() => setActiveTab('salary')}
               className={`flex items-center gap-1.5 border-b-2 px-3 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold transition cursor-pointer ${
@@ -154,7 +172,7 @@ export default function PerformanceHubPage() {
         <Spinner label="Loading firms…" />
       ) : (
         <div>
-          {activeTab === 'daily' && (
+          {activeTab === 'daily' && canViewDaily && (
             <DailyEvaluationTab
               firms={firms}
               selectedFirmId={selectedFirmId}
@@ -163,7 +181,7 @@ export default function PerformanceHubPage() {
             />
           )}
 
-          {activeTab === 'comparison' && isAdminOrDev && (
+          {activeTab === 'comparison' && canViewComparison && (
             <RatingComparisonTab
               firms={firms}
               selectedFirmId={selectedFirmId}
@@ -172,12 +190,13 @@ export default function PerformanceHubPage() {
             />
           )}
 
-          {activeTab === 'salary' && canManageSalary && (
+          {activeTab === 'salary' && canViewSalary && (
             <WorkersSalaryTab
               firms={firms}
               selectedFirmId={selectedFirmId}
               onFirmChange={setSelectedFirmId}
               refreshKey={refreshKey}
+              canEdit={canEditSalary}
             />
           )}
         </div>

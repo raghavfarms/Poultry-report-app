@@ -90,6 +90,8 @@ export async function createRole(req, res) {
     attendance_admin_master: Boolean(req.body.permissions?.attendance_admin_master),
     temperature_entry: req.body.permissions?.temperature_entry !== undefined ? Boolean(req.body.permissions.temperature_entry) : true,
     temperature_report: Boolean(req.body.permissions?.temperature_report),
+    performance_comparison: Boolean(req.body.permissions?.performance_comparison),
+    performance_salary_view: Boolean(req.body.permissions?.performance_salary_view),
   };
 
   const moduleFirms = typeof req.body.moduleFirms === 'object' && req.body.moduleFirms !== null
@@ -141,6 +143,8 @@ export async function updateRole(req, res) {
       attendance_admin_master: req.body.permissions.attendance_admin_master ?? role.permissions.attendance_admin_master,
       temperature_entry: req.body.permissions.temperature_entry ?? role.permissions.temperature_entry,
       temperature_report: req.body.permissions.temperature_report ?? role.permissions.temperature_report,
+      performance_comparison: req.body.permissions.performance_comparison ?? role.permissions.performance_comparison,
+      performance_salary_view: req.body.permissions.performance_salary_view ?? role.permissions.performance_salary_view,
     };
   }
 

@@ -6,7 +6,7 @@ function getCurrentMonthString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date()).slice(0, 7);
 }
 
-export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, refreshKey }) {
+export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, refreshKey, canEdit = true }) {
   const [month, setMonth] = useState(getCurrentMonthString());
   const [search, setSearch] = useState('');
   const [gradeFilter, setGradeFilter] = useState('ALL');
@@ -241,7 +241,7 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
                   <th className="px-2 py-3 text-center text-red-600">A Days</th>
                   <th className="px-3 py-3 text-center">Monthly Avg</th>
                   <th className="px-3 py-3 text-center">Grade</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  {canEdit && <th className="px-4 py-3 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -292,16 +292,18 @@ export default function WorkersSalaryTab({ firms, selectedFirmId, onFirmChange, 
                     </td>
 
                     {/* Actions: Edit Grade */}
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => openEditGrade(w)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
-                      >
-                        <span>✏️</span>
-                        <span>Edit</span>
-                      </button>
-                    </td>
+                    {canEdit && (
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => openEditGrade(w)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer"
+                        >
+                          <span>✏️</span>
+                          <span>Edit</span>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

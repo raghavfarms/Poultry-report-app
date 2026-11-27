@@ -35,6 +35,8 @@ const userSchema = new mongoose.Schema(
       temperature_report: { type: Boolean, default: false },
       temperature_weekly: { type: Boolean, default: false },
       temperature_master: { type: Boolean, default: false },
+      performance_comparison: { type: Boolean, default: false },
+      performance_salary_view: { type: Boolean, default: false },
     },
     active: { type: Boolean, default: true },
   },
