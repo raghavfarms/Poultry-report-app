@@ -12,6 +12,10 @@ import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import AttendanceSession from '../models/AttendanceSession.js';
 import AttendanceEvent from '../models/AttendanceEvent.js';
 import WorkerFaceProfile from '../models/WorkerFaceProfile.js';
+import DailyEvaluation from '../../performance/models/DailyEvaluation.js';
+import MonthlyWorkerGrade from '../../performance/models/MonthlyWorkerGrade.js';
+import WorkerSalary from '../../performance/models/WorkerSalary.js';
+import SalaryPayment from '../../performance/models/SalaryPayment.js';
 import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -500,11 +504,15 @@ export async function deleteWorker(user, id) {
   await WorkLocation.updateMany({ supervisor: worker._id }, { $set: { supervisor: null } });
   await WorkerDeployment.updateMany({ supervisor: worker._id }, { $set: { supervisor: null } });
 
-  // 2. Cascade delete all related worker records: deployments, face profiles, attendance sessions and events
+  // 2. Cascade delete all related worker records: deployments, face profiles, attendance sessions/events, and performance records
   await WorkerDeployment.deleteMany({ worker: worker._id });
   await WorkerFaceProfile.deleteOne({ worker: worker._id });
   await AttendanceSession.deleteMany({ worker: worker._id });
   await AttendanceEvent.deleteMany({ worker: worker._id });
+  await DailyEvaluation.deleteMany({ worker: worker._id });
+  await MonthlyWorkerGrade.deleteMany({ worker: worker._id });
+  await WorkerSalary.deleteMany({ worker: worker._id });
+  await SalaryPayment.deleteMany({ worker: worker._id });
 
   // 3. Cleanup stored photo file if exists
   if (worker.photographFile?.key) {

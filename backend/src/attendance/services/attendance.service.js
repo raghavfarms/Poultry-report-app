@@ -8,7 +8,7 @@ import AttendancePunchPhoto from '../models/AttendancePunchPhoto.js'
 import AttendanceAuditLog from '../models/AttendanceAuditLog.js';
 import WorkerDeployment from '../models/WorkerDeployment.js';
 import WorkLocation from '../models/WorkLocation.js';
-import Designation from '../models/Designation.js';
+import Designation from '../models/Designation.js';  
 import AttendanceGeofence from '../models/AttendanceGeofence.js';
 import Firm from '../../models/Firm.js';
 import { findEffectiveDeployment } from './deployment.service.js';
@@ -27,7 +27,7 @@ export function formatWorkedHours(minutes) {
   if (typeof minutes !== 'number' || minutes < 0) return '0m';
   const hrs = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  if (hrs === 0) return `${mins}m`;
+  if (hrs === 0) return `${mins}m`; 
   return `${hrs}h ${mins}m`;
 }
 
@@ -45,7 +45,7 @@ export function getAutoCutShiftDetails(dutyIn) {
   return { isNightShift, shiftHours, shiftMinutes };
 }
 
-/**
+/**      
  * Computes full-shift auto-cut checkout time and net worked minutes by adding
  * completed lunch duration on top of required net shift minutes (optionally clamped at maxOutTime).
  */
@@ -193,7 +193,7 @@ export async function recordAttendance(user, payload = {}, options = {}) {
     }
 
     const todayDate = indiaDateString(now);
-
+    
     // If worker's formal joining date is after this attendance date, auto-adjust joining date so they aren't marked unjoined or absent
     if (worker.dateOfJoining && todayDate < worker.dateOfJoining) {
       worker.dateOfJoining = todayDate;
@@ -1163,7 +1163,7 @@ export async function deleteAttendanceSession(user, sessionId) {
     workerNameSnapshot: sessionDoc.workerNameSnapshot,
     entityType: 'ATTENDANCE_SESSION',
     entityId: sessionDoc._id,
-    action: 'CORRECTION',
+    action: 'CORRECTION',         
     previousValue: {
       date: sessionDoc.date,
       dutyIn: sessionDoc.dutyIn,
@@ -1444,7 +1444,7 @@ export async function recordBulkDayAttendance(user, payload = {}) {
             outEvent: outEventId,
             lunchMinutes: 0,
             workedMinutes,
-            status: 'DUTY_COMPLETED',
+            status: 'DUTY_COMPLETED',    
             remarks: reason,
             createdAt: now,
             updatedAt: now,
@@ -1485,5 +1485,3 @@ export async function recordBulkDayAttendance(user, payload = {}) {
 
   return { success: true, updatedCount, date };
 }
-
-
